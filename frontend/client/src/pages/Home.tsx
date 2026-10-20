@@ -12437,7 +12437,24 @@ export default function Home() {
     enabled: Boolean(authenticatedUser),
     retry: false,
   });
-  const createProjectMutation = trpc.projects.create.useMutation();
+  const createProjectOnServer = async (input: { project: ProjectState; config: ConceptConfig; requirements: Requirement[]; runId: string }): Promise<ProjectRecord> => {
+    const response = await fetch("/api/trpc/projects.create", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...bearerHeaders() },
+      body: JSON.stringify({ json: input }),
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = body?.error?.json?.message || body?.error?.message || `API projets indisponible (${response.status})`;
+      throw new Error(message);
+    }
+    const created = body?.result?.data?.json ?? body?.result?.data ?? body?.data ?? body;
+    if (!created || typeof created !== "object" || !("id" in created) || !("project" in created) || !("config" in created) || !("requirements" in created) || !("runId" in created)) {
+      throw new Error("Réponse API de création de projet invalide");
+    }
+    return created as ProjectRecord;
+  };
   const saveSnapshotMutation = trpc.projects.saveSnapshot.useMutation();
   const deleteProjectMutation = trpc.projects.delete.useMutation();
   const restoreVersionMutation = trpc.designVersions.restore.useMutation();
@@ -12821,7 +12838,7 @@ export default function Home() {
     let serverCreateFailed = false;
     if (authenticatedUser) {
       try {
-        const created = await createProjectMutation.mutateAsync({
+        const created = await createProjectOnServer({
           project: fresh.project,
           config: fresh.config,
           requirements: fresh.requirements,
