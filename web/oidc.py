@@ -3,11 +3,11 @@ import hashlib
 import hmac
 import secrets
 import time
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 import jwt
-from fastapi import APIRouter, Cookie, Depends, HTTPException
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .config import get_settings
@@ -33,11 +33,24 @@ def _verified(token: str) -> str:
     return value
 
 
-def require_session(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)) -> str:
-    if not aeromind_session:
+def _session_token(aeromind_session: str | None, authorization: str | None) -> str | None:
+    if aeromind_session:
+        return aeromind_session
+    if authorization and authorization.lower().startswith('bearer '):
+        token = authorization[7:].strip()
+        return token or None
+    return None
+
+
+def require_session(
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    authorization: str | None = Header(default=None),
+) -> str:
+    token = _session_token(aeromind_session, authorization)
+    if not token:
         raise HTTPException(401, 'OIDC authentication required')
     try:
-        return _verified(aeromind_session)
+        return _verified(token)
     except (ValueError, IndexError):
         raise HTTPException(401, 'Invalid session')
 
@@ -72,11 +85,15 @@ def status():
 
 
 @router.get('/me')
-def me(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
-    if not aeromind_session:
+def me(
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    authorization: str | None = Header(default=None),
+):
+    token = _session_token(aeromind_session, authorization)
+    if not token:
         raise HTTPException(401, 'No authenticated session')
     try:
-        verified = _verified(aeromind_session)
+        verified = _verified(token)
         raw = base64.urlsafe_b64decode(verified + '=' * (-len(verified) % 4)).decode()
         subject, email = raw.split('|', 1)
     except (ValueError, IndexError, UnicodeDecodeError):
@@ -140,7 +157,7 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
     identity_email = _identity_email(claims)
     if claims.get('nonce') != nonce or not identity_email:
         raise HTTPException(403, 'OIDC identity validation failed')
-    response = RedirectResponse('/')
+    response = RedirectResponse(f"/#aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')
     session = _signed(_b64(f"{claims.get('sub')}|{identity_email}".encode()))
     response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security())

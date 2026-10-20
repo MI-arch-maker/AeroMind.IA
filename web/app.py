@@ -5,7 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Cookie, FastAPI, HTTPException, Request
+from fastapi import Cookie, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -18,7 +18,7 @@ from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
 from .admin import activity as admin_activity, create_account, delete_account, list_accounts, update_account
-from .oidc import _verified, router as oidc_router
+from .oidc import _session_token, _verified, router as oidc_router
 from .business_api import router as business_router
 from .hardware_api import router as hardware_router, _controllers
 from .operational_state import router as operational_state_router
@@ -158,11 +158,12 @@ async def put_local_workspace(request: Request):
     return {'ok': True, 'source': 'LOCAL', 'updatedAt': workspace.get('updatedAt')}
 
 
-def _current_user(aeromind_session: str | None):
-    if not aeromind_session:
+def _current_user(aeromind_session: str | None, authorization: str | None = None):
+    token = _session_token(aeromind_session, authorization)
+    if not token:
         return None
     try:
-        verified = _verified(aeromind_session)
+        verified = _verified(token)
         raw = base64.urlsafe_b64decode(verified + '=' * (-len(verified) % 4)).decode()
         subject, email = raw.split('|', 1)
         return {
@@ -184,7 +185,12 @@ def _trpc_error(status_code: int, code: str, message: str) -> JSONResponse:
 
 
 @app.api_route('/api/trpc/{procedure:path}', methods=['GET', 'POST'], include_in_schema=False)
-async def trpc_compat(request: Request, procedure: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
+async def trpc_compat(
+    request: Request,
+    procedure: str,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    authorization: str | None = Header(default=None),
+):
     """Small compatibility bridge for the legacy React query layer.
 
     Business operations remain on the Python API; these responses prevent the
@@ -192,7 +198,7 @@ async def trpc_compat(request: Request, procedure: str, aeromind_session: str | 
     from the former Node/tRPC server.
     """
     name = procedure.split('?')[0].rstrip('/').replace('/', '.')
-    current_user = _current_user(aeromind_session)
+    current_user = _current_user(aeromind_session, authorization)
     if any(name.endswith(suffix) for suffix in (
         'superAdmin.accounts', 'superAdmin.activity',
         'superAdmin.createAccount', 'superAdmin.updateAccount',

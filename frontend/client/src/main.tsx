@@ -7,10 +7,12 @@ import superjson from "superjson";
 import App from "./App";
 import { startLogin } from "./const";
 import { installLocaleFetch } from "./i18n/requestLocale";
+import { bearerHeaders, consumeSessionTokenFromFragment } from "./lib/sessionToken";
 import "./index.css";
 import "./action-center.css";
 import "./aeromind-dynamics.css";
 
+consumeSessionTokenFromFragment();
 installLocaleFetch();
 
 const queryClient = new QueryClient();
@@ -48,6 +50,8 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       headers() {
+        const entraHeaders = bearerHeaders();
+        if (entraHeaders.Authorization) return entraHeaders;
         // Preview auto-login fallback: when the browser blocks iframe cookies
         // (Safari ITP / private browsing / WebView), the runtime mirrors the
         // session into sessionStorage so we can forward it as a Bearer token.
@@ -59,13 +63,13 @@ const trpcClient = trpc.createClient({
             const pair = raw.split(";").find(s => s.trim().startsWith(prefix));
             const token = pair?.trim().slice(prefix.length);
             if (token) {
-              return { Authorization: `Bearer ${token}` };
+              return { ...entraHeaders, Authorization: `Bearer ${token}` };
             }
           }
         } catch {
           // sessionStorage unavailable
         }
-        return {};
+        return entraHeaders;
       },
       fetch(input, init) {
         return globalThis.fetch(input, {

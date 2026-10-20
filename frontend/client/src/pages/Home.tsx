@@ -8,6 +8,7 @@ import {
   type Message as ChatMessage,
 } from "../components/AIChatBox";
 import { trpc } from "../lib/trpc";
+import { bearerHeaders } from "../lib/sessionToken";
 import {
   createWorkspaceChannel,
   parseWorkspaceMessage,
@@ -270,7 +271,7 @@ function SessionControls() {
 
   const refresh = async () => {
     try {
-      const response = await fetch("/api/auth/oidc/me", { credentials: "include" });
+      const response = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
       setUser(response.ok ? ((await response.json()) as SessionUser) : null);
     } catch {
       setUser(null);
