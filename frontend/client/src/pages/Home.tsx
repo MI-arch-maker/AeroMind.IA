@@ -11717,7 +11717,7 @@ function OperationsView({
   }, []);
   const approveFlightAuthorization = async () => {
     try {
-      const response = await fetch("/api/auth/oidc/me", { credentials: "include" });
+      const response = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
       const identity = response.ok ? (await response.json() as { role?: string }) : null;
       if (identity?.role !== "super_admin") {
         record("Approbation refusée · rôle Super-Admin requis");

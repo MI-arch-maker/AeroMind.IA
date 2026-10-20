@@ -356,7 +356,11 @@ async def trpc_compat(
     # The legacy React client uses the SuperJSON transformer. Its wire format
     # wraps serialized values under `data.json`; returning a plain object here
     # makes the query look unauthenticated even though the OIDC cookie is valid.
-    response = JSONResponse([{'result': {'data': {'json': data}}}])
+    # httpLink sends one procedure per request (not a batch request). The
+    # tRPC wire contract therefore requires one response object, not an array.
+    # Returning an array makes auth.me, Super-Admin queries and project
+    # mutations look like transport failures in the React client.
+    response = JSONResponse({'result': {'data': {'json': data}}})
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Vary'] = 'Cookie'
