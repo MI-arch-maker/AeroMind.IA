@@ -24,7 +24,7 @@ services:
       - key: AEROMIND_ALLOWED_ORIGINS
         sync: false
       - key: AEROMIND_SUPERADMIN_EMAILS
-        sync: false
+        value: mcgregoralvin14@gmail.com
       - key: AEROMIND_TRIAL_EMAILS
         value: demo@example.com
       - key: DEFAULT_DEMO_EMAIL

@@ -49,9 +49,10 @@ class Settings(BaseSettings):
     environment: Literal['development', 'staging', 'production'] = Field('production', alias='AEROMIND_ENV', validation_alias='AEROMIND_ENV')
     port: int = Field(10000, alias='PORT', validation_alias='PORT')
     session_secret: str = Field(..., alias='AEROMIND_SESSION_SECRET', validation_alias='AEROMIND_SESSION_SECRET')
-    # Aucun compte privilégié n’est autorisé par défaut ; définir explicitement
-    # AEROMIND_SUPERADMIN_EMAILS dans l’environnement sécurisé de déploiement.
-    superadmin_emails: str = Field('', alias='AEROMIND_SUPERADMIN_EMAILS', validation_alias='AEROMIND_SUPERADMIN_EMAILS')
+    # Adresse d’expérimentation initiale. La variable d’environnement garde la
+    # priorité : elle peut être remplacée par une ou plusieurs adresses, ou
+    # définie à vide pour supprimer tout super-admin configuré.
+    superadmin_emails: str = Field('mcgregoralvin14@gmail.com', alias='AEROMIND_SUPERADMIN_EMAILS', validation_alias='AEROMIND_SUPERADMIN_EMAILS')
     # Liste d’identités autorisées pour le parcours d’essai ; elle ne remplace
     # jamais la validation cryptographique du fournisseur OIDC.
     trial_emails: str = Field('demo@example.com', alias='AEROMIND_TRIAL_EMAILS', validation_alias='AEROMIND_TRIAL_EMAILS')

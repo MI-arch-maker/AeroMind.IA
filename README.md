@@ -44,7 +44,7 @@ Création de projet crée un drone par défaut lié au projet. Le pont `/api/trp
 
 ## Premier administrateur
 
-Aucune adresse privilégiée n’est codée en dur. L’opérateur valide l’adresse avec `python -m web.create_admin --email admin@exemple.fr`, puis configure cette adresse dans le secret Render `AEROMIND_SUPERADMIN_EMAILS`. Ce flux ne crée pas de compte local et n’accorde aucun rôle à une identité autre que l’utilisateur OIDC correspondant.
+Pour l’expérimentation, `mcgregoralvin14@gmail.com` est l’adresse Super-Admin par défaut. Elle doit se connecter via Microsoft Entra/OIDC avec cette même identité ; aucune connexion locale ni mot de passe n’est créé. Le rôle est piloté par `AEROMIND_SUPERADMIN_EMAILS` : remplacez cette variable par une autre adresse, indiquez plusieurs adresses séparées par des virgules, ou définissez-la à vide pour supprimer l’accès Super-Admin. La modification est donc réversible depuis les variables d’environnement Render, sans modifier le code.
 
 ## Docker et Render
 
