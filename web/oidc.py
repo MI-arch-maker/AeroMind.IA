@@ -157,8 +157,8 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
     identity_email = _identity_email(claims)
     if claims.get('nonce') != nonce or not identity_email:
         raise HTTPException(403, 'OIDC identity validation failed')
+    session = _signed(_b64(f"{claims.get('sub')}|{identity_email}".encode()))
     response = RedirectResponse(f"/#aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')
-    session = _signed(_b64(f"{claims.get('sub')}|{identity_email}".encode()))
     response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security())
     return response
