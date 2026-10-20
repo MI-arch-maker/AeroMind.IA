@@ -12446,7 +12446,7 @@ export default function Home() {
     });
     const body = await response.json().catch(() => null);
     if (!response.ok) {
-      const message = body?.error?.json?.message || body?.error?.message || `API projets indisponible (${response.status})`;
+      const message = body?.error?.json?.message || body?.error?.message || body?.detail?.message || body?.detail || `API projets indisponible (${response.status})`;
       throw new Error(message);
     }
     const created = body?.result?.data?.json ?? body?.result?.data ?? body?.data ?? body;

@@ -285,18 +285,25 @@ async def trpc_compat(
         config = payload.get('config', {}) if isinstance(payload.get('config', {}), dict) else {}
         config = {**config, 'airframe': config.get('airframe') or 'quadcopter', 'motorCount': config.get('motorCount') or 4, 'massKg': config.get('massKg') or 1.2, 'batteryWh': config.get('batteryWh') or 100}
         project_data = {'project': payload.get('project', {}), 'config': config, 'requirements': payload.get('requirements', []), 'runId': payload.get('runId', 'SIM-000')}
-        with SessionLocal() as db:
-            if current_user.get('role') == 'demo' and db.scalar(select(Project).where(Project.user_id == current_user['id'])) is not None:
-                return _trpc_error(403, 'DEMO_LIMIT_REACHED', 'Le compte Démo est limité à un projet')
-            if db.get(User, current_user['id']) is None:
-                db.add(User(id=current_user['id'], email=current_user['email']))
+        try:
+            with SessionLocal() as db:
+                if current_user.get('role') == 'demo' and db.scalar(select(Project).where(Project.user_id == current_user['id'])) is not None:
+                    return _trpc_error(403, 'DEMO_LIMIT_REACHED', 'Le compte Démo est limité à un projet')
+                if db.get(User, current_user['id']) is None:
+                    db.add(User(id=current_user['id'], email=current_user['email']))
+                    db.flush()
+                db.add(Project(id=project_id, user_id=current_user['id'], name=project_data['project'].get('name', 'Nouveau projet'), data_json=json.dumps(project_data), active_drone_id=drone_id))
+                # Les modèles utilisent des clés étrangères sans relations ORM explicites :
+                # forcer le flush garantit que le projet existe avant son drone associé.
                 db.flush()
-            db.add(Project(id=project_id, user_id=current_user['id'], name=project_data['project'].get('name', 'Nouveau projet'), data_json=json.dumps(project_data), active_drone_id=drone_id))
-            # Les modèles utilisent des clés étrangères sans relations ORM explicites :
-            # forcer le flush garantit que le projet existe avant son drone associé.
-            db.flush()
-            db.add(Drone(id=drone_id, user_id=current_user['id'], project_id=project_id, name='Drone par défaut', config_json=json.dumps(project_data['config'])))
-            db.commit()
+                db.add(Drone(id=drone_id, user_id=current_user['id'], project_id=project_id, name='Drone par défaut', config_json=json.dumps(project_data['config'])))
+                db.commit()
+        except Exception as exc:
+            # Aucun état local ne doit être présenté comme projet serveur si la
+            # transaction échoue. Le détail est journalisé côté Render, tandis
+            # que le client reçoit un code stable et actionnable.
+            print(f'PROJECT_CREATE_FAILED user={current_user.get("email")} error={type(exc).__name__}: {exc}', flush=True)
+            return _trpc_error(503, 'PROJECT_PERSISTENCE_FAILED', 'La base métier ne confirme pas la création du projet. Consultez les logs serveur et réessayez.')
         data = {'id': project_id, **project_data}
     elif name.endswith('simulationRuns.list'):
         if not current_user:
