@@ -112,6 +112,9 @@ def create_project(
         active_drone_id=drone_id,
     )
     db.add(project)
+    # Le drone référence le projet : forcer l’écriture du projet avant
+    # l’insertion du drone évite une violation de clé étrangère.
+    db.flush()
     db.add(drone)
     db.commit()
     db.refresh(project)

@@ -12835,7 +12835,6 @@ export default function Home() {
       }),
       runId: "SIM-000",
     };
-    let serverCreateFailed = false;
     if (authenticatedUser) {
       try {
         const created = await createProjectOnServer({
@@ -12858,13 +12857,14 @@ export default function Home() {
         fresh = created as unknown as ProjectRecord;
         skipServerSave.current = true;
         void serverProjectsQuery.refetch();
-      } catch {
-        serverCreateFailed = true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Erreur inconnue de l’API projets";
         setAction("project", {
           status: "error",
-          message:
-            "L’API métier est indisponible. Le projet reste un brouillon local non synchronisé.",
+          message: `Création serveur refusée : ${message}`,
+          retry: () => void confirmCreateProject(),
         });
+        return;
       }
     }
     setProjects(current => [
@@ -12880,12 +12880,8 @@ export default function Home() {
     setRunId(fresh.runId);
     setActiveView("overview");
     setAction("project", {
-      status: serverCreateFailed ? "error" : "success",
-      message: serverCreateFailed
-        ? "L’API métier est indisponible. Le projet reste un brouillon local non synchronisé."
-        : authenticatedUser && serverProjectsQuery.isSuccess
-          ? `${fresh.project.name} créé dans l’espace métier.`
-          : `${fresh.project.name} créé comme brouillon local.`,
+      status: "success",
+      message: `${fresh.project.name} créé et synchronisé dans l’espace métier.`,
     });
   };
   const deleteProject = async () => {
