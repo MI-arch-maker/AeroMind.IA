@@ -67,7 +67,18 @@ def account_for_identity(email: str, subject: str) -> dict[str, Any] | None:
 def activity() -> dict[str, Any]:
     with _LOCK:
         accounts, events = _accounts_with_primary_admin(), _load(_EVENTS_FILE, [])
-        return {'projects': [], 'runs': [], 'events': [], 'adminEvents': list(reversed(events[-100:])), 'totals': {'comptes': len(accounts), 'en_attente': sum(a.get('accountStatus') == 'evaluation' for a in accounts), 'actifs': sum(a.get('accountStatus') == 'active' for a in accounts), 'suspendus': sum(a.get('accountStatus') == 'suspended' for a in accounts), 'administrateurs': sum(a.get('role') in {'admin', 'super_admin'} for a in accounts), 'decisions': len(events)}}
+        projects, runs = [], []
+        try:
+            from sqlalchemy import select
+            from .database import SessionLocal
+            from .models import Project, Simulation
+            with SessionLocal() as db:
+                projects = [{'id': p.id, 'name': p.name, 'userId': p.user_id, 'createdAt': p.created_at.isoformat() if p.created_at else None} for p in db.scalars(select(Project).order_by(Project.created_at.desc()).limit(100))]
+                runs = [{'id': r.id, 'projectId': r.project_id, 'createdAt': r.created_at.isoformat() if r.created_at else None} for r in db.scalars(select(Simulation).order_by(Simulation.created_at.desc()).limit(100))]
+        except Exception:
+            # La console reste utilisable même si la base n'est pas encore initialisée.
+            projects, runs = [], []
+        return {'projects': projects, 'runs': runs, 'events': [], 'adminEvents': list(reversed(events[-100:])), 'totals': {'comptes': len(accounts), 'en_attente': sum(a.get('accountStatus') == 'evaluation' for a in accounts), 'actifs': sum(a.get('accountStatus') == 'active' for a in accounts), 'suspendus': sum(a.get('accountStatus') == 'suspended' for a in accounts), 'administrateurs': sum(a.get('role') in {'admin', 'super_admin'} for a in accounts), 'decisions': len(events)}}
 
 
 def create_account(actor: dict[str, Any], email: str, name: str, requested_role: str = 'user', level: str = 'L1') -> dict[str, Any]:
