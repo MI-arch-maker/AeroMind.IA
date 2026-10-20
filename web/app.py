@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 
 from .config import get_settings
 from .copilot import router as copilot_router
@@ -49,7 +50,33 @@ async def lifespan(_: FastAPI):
     # single-container/local profile must still be bootable from a clean DB.
     # create_all is idempotent and only creates the declared tables; it does
     # not replace a migration system for destructive schema changes.
-    Base.metadata.create_all(bind=engine)
+    # TiDB Cloud production users are often intentionally denied DDL rights.
+    # Do not make the whole web process unavailable because an optional
+    # bootstrap operation cannot CREATE tables. Set
+    # AEROMIND_AUTO_CREATE_SCHEMA=true only for a database user allowed to run
+    # the bootstrap; production defaults to false and expects a pre-created
+    # schema/migration.
+    auto_create_schema = os.getenv(
+        'AEROMIND_AUTO_CREATE_SCHEMA',
+        'false' if settings.environment == 'production' else 'true',
+    ).strip().lower() in {'1', 'true', 'yes', 'on'}
+    if auto_create_schema:
+        try:
+            Base.metadata.create_all(bind=engine)
+        except SQLAlchemyError as exc:
+            print(
+                'WARNING: database schema bootstrap skipped; the configured '
+                f'database user cannot create tables ({type(exc).__name__}). '
+                'Pre-create the schema with an administrator or grant DDL '
+                'privileges before using persistent API routes.',
+                flush=True,
+            )
+    else:
+        print(
+            'Database schema bootstrap disabled; expecting a pre-created '
+            'schema (AEROMIND_AUTO_CREATE_SCHEMA=false).',
+            flush=True,
+        )
     yield
 
 
