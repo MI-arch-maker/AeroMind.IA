@@ -3,6 +3,9 @@
 FROM node:22-bookworm-slim AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 \
+    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY frontend ./
 RUN pnpm run check && pnpm run build
