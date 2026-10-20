@@ -12415,9 +12415,26 @@ export default function Home() {
     window.addEventListener("aeromind-workbench-capture", receiveCapture);
     return () => window.removeEventListener("aeromind-workbench-capture", receiveCapture);
   }, []);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const verifySession = async () => {
+      try {
+        const response = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
+        if (!cancelled) setSessionUser(response.ok ? (await response.json() as SessionUser) : null);
+      } catch {
+        if (!cancelled) setSessionUser(null);
+      }
+    };
+    void verifySession();
+    const onSessionChanged = () => void verifySession();
+    window.addEventListener("aeromind-auth-changed", onSessionChanged);
+    return () => { cancelled = true; window.removeEventListener("aeromind-auth-changed", onSessionChanged); };
+  }, []);
   const authQuery = trpc.auth.me.useQuery(undefined, { retry: false });
+  const authenticatedUser = authQuery.data ?? sessionUser;
   const serverProjectsQuery = trpc.projects.list.useQuery(undefined, {
-    enabled: Boolean(authQuery.data),
+    enabled: Boolean(authenticatedUser),
     retry: false,
   });
   const createProjectMutation = trpc.projects.create.useMutation();
@@ -12426,6 +12443,7 @@ export default function Home() {
   const restoreVersionMutation = trpc.designVersions.restore.useMutation();
   const createSimulationMutation = trpc.simulationRuns.create.useMutation();
   const createReportMutation = trpc.reports.create.useMutation();
+  const submitReportMutation = trpc.reports.submit.useMutation();
   const serverHydrated = useRef(false);
   const localServerHydrated = useRef(false);
   const skipServerSave = useRef(false);
@@ -12440,7 +12458,7 @@ export default function Home() {
   const [activeProjectId, setActiveProjectId] = useState(initialProjectId);
   const serverRunsQuery = trpc.simulationRuns.list.useQuery(activeProjectId, {
     enabled: Boolean(
-      authQuery.data &&
+      authenticatedUser &&
         serverProjectsQuery.isSuccess &&
         !activeProjectId.startsWith("project-")
     ),
@@ -12450,7 +12468,7 @@ export default function Home() {
     activeProjectId,
     {
       enabled: Boolean(
-        authQuery.data &&
+        authenticatedUser &&
           serverProjectsQuery.isSuccess &&
           !activeProjectId.startsWith("project-")
       ),
@@ -12459,7 +12477,7 @@ export default function Home() {
   );
   const serverReportsQuery = trpc.reports.list.useQuery(activeProjectId, {
     enabled: Boolean(
-      authQuery.data &&
+      authenticatedUser &&
         serverProjectsQuery.isSuccess &&
         !activeProjectId.startsWith("project-")
     ),
@@ -12515,14 +12533,14 @@ export default function Home() {
     [activeProjectId, config, requirements, runId, workflowRun]
   );
   useEffect(() => {
-    if (authQuery.data || localServerHydrated.current) return;
+    if (authenticatedUser || localServerHydrated.current) return;
     // Aucun projet local distant n’est chargé implicitement : l’ouverture reste
     // vierge. La création et la restauration passent par une action explicite.
     localServerHydrated.current = true;
-  }, [authQuery.data, initialProjects.length]);
+  }, [authenticatedUser, initialProjects.length]);
   useEffect(() => {
     if (
-      !authQuery.data ||
+      !authenticatedUser ||
       !serverProjectsQuery.isSuccess ||
       serverHydrated.current
     )
@@ -12549,7 +12567,7 @@ export default function Home() {
     setConfig(normalizeConcept(selected.config));
     setRunId(selected.runId);
   }, [
-    authQuery.data,
+    authenticatedUser,
     serverProjectsQuery.data,
     serverProjectsQuery.isSuccess,
     activeProjectId,
@@ -12591,7 +12609,7 @@ export default function Home() {
           payload,
         });
       }
-      if (!authQuery.data && localServerHydrated.current) {
+      if (!authenticatedUser && localServerHydrated.current) {
         const timer = window.setTimeout(() => {
           void fetch("/api/local/workspace", {
             method: "PUT",
@@ -12607,7 +12625,7 @@ export default function Home() {
         return () => window.clearTimeout(timer);
       }
       if (
-        authQuery.data &&
+        authenticatedUser &&
         serverProjectsQuery.isSuccess &&
         !activeProjectId.startsWith("project-")
       ) {
@@ -12645,7 +12663,7 @@ export default function Home() {
     runId,
     activeProjectId,
     projects,
-    authQuery.data,
+    authenticatedUser,
     serverProjectsQuery.isSuccess,
     saveSnapshotMutation.mutate,
   ]);
@@ -12761,27 +12779,23 @@ export default function Home() {
     setActiveView("overview");
   };
   const createProject = () => {
-    if (!authQuery.data) {
+    if (!authenticatedUser) {
       setAction("project", {
         status: "error",
-        message: "Connexion Microsoft / SSO obligatoire avant de créer un projet.",
+        message: "Connectez-vous avant de créer un projet.",
         retry: () => window.location.assign("/api/auth/oidc/login"),
       });
-      return;
-    }
-    if (!serverProjectsQuery.isSuccess) {
-      setAction("project", { status: "loading", message: "Vérification de l’espace authentifié…" });
       return;
     }
     setNewProjectName(`Nouveau projet ${projects.length + 1}`);
     setCreateProjectDialogOpen(true);
   };
   const confirmCreateProject = async () => {
-    if (!authQuery.data || !serverProjectsQuery.isSuccess) {
+    if (!authenticatedUser) {
       setCreateProjectDialogOpen(false);
       setAction("project", {
         status: "error",
-        message: "Connexion Microsoft / SSO obligatoire avant de créer un projet.",
+        message: "Connectez-vous avant de créer un projet.",
         retry: () => window.location.assign("/api/auth/oidc/login"),
       });
       return;
@@ -12805,7 +12819,7 @@ export default function Home() {
       runId: "SIM-000",
     };
     let serverCreateFailed = false;
-    if (authQuery.data && serverProjectsQuery.isSuccess) {
+    if (authenticatedUser) {
       try {
         const created = await createProjectMutation.mutateAsync({
           project: fresh.project,
@@ -12852,7 +12866,7 @@ export default function Home() {
       status: serverCreateFailed ? "error" : "success",
       message: serverCreateFailed
         ? "L’API métier est indisponible. Le projet reste un brouillon local non synchronisé."
-        : authQuery.data && serverProjectsQuery.isSuccess
+        : authenticatedUser && serverProjectsQuery.isSuccess
           ? `${fresh.project.name} créé dans l’espace métier.`
           : `${fresh.project.name} créé comme brouillon local.`,
     });
@@ -12865,7 +12879,7 @@ export default function Home() {
     )
       return;
     const isRemoteProject = Boolean(
-      authQuery.data &&
+      authenticatedUser &&
         serverProjectsQuery.isSuccess &&
         !activeProjectId.startsWith("project-")
     );
@@ -12917,7 +12931,7 @@ export default function Home() {
   };
   const restoreDesignVersion = async (versionId: number) => {
     if (
-      !authQuery.data ||
+      !authenticatedUser ||
       !serverProjectsQuery.isSuccess ||
       !!activeProjectId.startsWith("project-")
     )
@@ -12971,7 +12985,7 @@ export default function Home() {
           version: APP_VERSION,
         }));
         if (
-          authQuery.data &&
+          authenticatedUser &&
           serverProjectsQuery.isSuccess &&
           !activeProjectId.startsWith("project-")
         ) {
@@ -13215,7 +13229,7 @@ export default function Home() {
       )
     )
       return;
-    if (authQuery.data && serverProjectsQuery.isSuccess) {
+    if (authenticatedUser) {
       window.localStorage.removeItem(WORKSPACE_KEY);
       setAction("project", {
         status: "success",
@@ -13285,18 +13299,33 @@ export default function Home() {
         : "- Aucun waypoint déclaré.";
       const captured = (() => { try { return window.localStorage.getItem("aeromind-workbench-capture") ?? ""; } catch { return ""; } })();
       const report = `# AeroMind AI — Dossier de revue technique ${simulation.runId}\n\n## 0. Fiche de décision\n\n**Projet :** ${project.name}\n**Mission :** ${project.mission}\n**Statut de conception :** ${project.status}\n**Version :** ${project.version}\n**Généré le :** ${new Date(simulation.generatedAt).toLocaleString("fr-FR")}\n\n> **Conclusion préliminaire :** la configuration est exploitable pour une campagne de simulation et une revue humaine. Elle ne constitue pas une autorisation de vol, une certification ou une preuve de performance physique.\n\n## 1. Résumé exécutif\n\nMasse estimée : **${formatNumber(simulation.totalMassKg)} kg**. Autonomie calculée : **${formatNumber(simulation.enduranceH)} h**. Rayon théorique : **${formatNumber(simulation.rangeKm, 0)} km**. Confiance du modèle : **${simulation.confidence}**.\n\n**Architecture active :** ${config.airframe ?? "non définie"} · ${config.motorCount ?? "—"} moteur(s) · charge utile ${formatNumber(config.payloadKg)} kg.\n\n## 2. Configuration et hypothèses d’entrée\n\n| Paramètre | Valeur | Statut |\n| --- | ---: | --- |\n| Envergure | ${formatNumber(config.wingspan, 2)} m | calculée |\n| Corde | ${formatNumber(config.chord, 2)} m | calculée |\n| Fuselage | ${formatNumber(config.fuselageLength, 2)} m | calculée |\n| Batterie | ${formatNumber(config.batteryWh, 0)} Wh | à qualifier |\n| Vitesse de croisière | ${formatNumber(config.cruiseSpeedKmh, 0)} km/h | entrée projet |\n| Vent de référence | ${formatNumber(config.windSpeedKmh, 0)} km/h | hypothèse |\n| Réserve énergétique | ${formatNumber(config.reserveFraction * 100, 0)} % | exigence de prudence |\n| Exigences suivies | ${requirements.length} | traçabilité locale |\n\n## 3. Dossier de construction / nomenclature complète\n\n**Profil de plateforme :** ${config.platformProfile ?? "non défini"}\n**Famille matériau :** ${config.materialFamily ?? "non définie"}\n**Type d’assemblage :** ${config.jointType ?? "non défini"}\n**Intégration charge utile :** ${config.payloadIntegration ?? "non définie"}\n**Position moteur :** ${config.motorPosition ?? "non définie"}\n**Masse de construction déclarée :** ${formatNumber(config.constructionMassKg ?? 0)} kg\n\n| Élément | Fonction | Masse unitaire | Quantité | Provenance |\n| --- | --- | ---: | ---: | --- |\n${constructionRows}\n\n## 4. Propulsion, commande, avionique et mission\n\n- **Propulsion :** ${config.motorCount ?? "—"} moteur(s), hélice/rotor Ø ${formatNumber(config.propDiameter, 2)} m.\n- **Mode de commande :** ${config.flightControls?.mode ?? "non défini"}; throttle nominal ${config.flightControls?.throttlePct ?? "—"} %.\n- **Limite servo :** ${config.flightControls?.servoLimitDeg ?? "—"}°; vitesse servo ${config.flightControls?.servoRateDegPerSec ?? "—"}°/s.\n- **Plan mission :** ${config.missionPlan?.waypoints.length ?? 0} waypoint(s), rayon ${config.missionPlan?.radiusKm ?? "—"} km.\n\n${waypointRows}\n\n## 5. Résultats calculés et décision associée\n\n${simulation.metrics.map(metric => `- **${metric.label}** : ${formatNumber(metric.value, metric.unit === "km" || metric.unit === "%" ? 0 : 1)} ${metric.unit} · cible ${metric.target} · marge ${metric.margin} · **${metricStatusLabel[metric.status]}**`).join("\\n")}\n\n## 6. Gates de préparation\n\n${requirements.length ? requirements.map(requirement => `- [${requirement.status === "ok" ? "x" : " "}] ${requirement.label} — ${statusLabel[requirement.status]} · source ${requirement.source}`).join("\\n") : "- Aucune exigence projet n’est encore enregistrée."}\n\n## 7. Risques ouverts et plan de vérification\n\n${simulation.risks.length ? simulation.risks.map(risk => `- **${risk.label}** — mitigation : ${risk.mitigation} · sévérité ${risk.severity} · statut ${risk.status}`).join("\\n") : "- Aucun risque n’est remonté par le modèle courant."}\n\n**Séquence recommandée :**\n1. Rejouer la campagne virtuelle avec les perturbations nominales, vent et perte de liaison.\n2. Réconcilier masse, batterie, matériaux et charge utile avec les fiches fabricant ou mesures disponibles.\n3. Vérifier la nomenclature, les contraintes d’assemblage et la logique de retour sûr en lecture seule.\n4. Faire signer la revue par un ingénieur responsable avant tout essai au sol.\n\n## 8. Commandes sûres — simulation uniquement\n\n| Commande | Effet sûr | Condition de reprise |\n| --- | --- | --- |\n| PAUSE / HOLD | Figer le scénario virtuel et conserver son état ; aucune sortie matérielle. | Revue humaine avant reprise. |\n| ABORT SIM | Clore le run de simulation ; aucune action physique. | Lancer explicitement un nouveau run. |\n| CHECK LINK / BATTERY | Vérification en lecture seule des prérequis du scénario. | Traiter les alertes et consigner les preuves. |\n\nAucune commande de cette table n’est transmise à un aéronef ou à un actionneur physique.\n\n## 9. Méthode, provenance et limites\n\n- ${simulation.method}.\n- Les résultats proviennent du moteur déterministe local et du run **${simulation.runId}**.\n- Les valeurs non documentées restent des hypothèses ; elles ne doivent pas être présentées comme des mesures.\n- Ceci n’est ni une simulation CFD OpenFOAM, ni un essai, ni une certification.\n- Les fonctions d’armement, d’actionneur et de téléversement restent rejetées par la frontière de contrôle AeroMind.\n- Revue humaine obligatoire avant toute décision d’ingénierie.\n${captured ? `\n## 10. Capture du poste de construction\n\n![Capture AeroMind du poste de construction](${captured})\n\nRéférence visuelle uniquement : vérifier les cotes et matériels sur plans approuvés et fiches fabricant.\n` : "\n## 10. Capture du poste de construction\n\nAucune capture enregistrée. Utilisez « Capturer la vue » dans le jumeau mécanique, puis relancez l’export.\n"}`;
-      let persistedReportId: number | undefined;
+      let persistedReportId: string | number | undefined;
       if (
-        authQuery.data &&
+        authenticatedUser &&
         serverProjectsQuery.isSuccess &&
         !activeProjectId.startsWith("project-")
       ) {
+        const authorizationCode = window.prompt(
+          "Code personnel AeroMind requis pour envoyer officiellement ce rapport :"
+        )?.trim();
+        if (!authorizationCode) {
+          setAction("report", {
+            status: "error",
+            message: "Envoi annulé : le code personnel AeroMind est obligatoire.",
+            retry: exportReport,
+          });
+          return;
+        }
         const stored = await createReportMutation.mutateAsync({
           id: activeProjectId,
           title: `Rapport technique ${simulation.runId}`,
           contentMarkdown: report,
         });
         persistedReportId = stored.id;
+        await submitReportMutation.mutateAsync({
+          id: String(stored.id),
+          authorizationCode,
+        });
         void serverReportsQuery.refetch();
       }
       const blob = new Blob([report], { type: "text/markdown;charset=utf-8" });
@@ -13470,21 +13499,21 @@ export default function Home() {
             </span>
             <div>
               <strong>
-                {authQuery.data
+                {authenticatedUser
                   ? "Session métier active"
                   : "Mode brouillon local"}
               </strong>
               <span>
                 {serverProjectsQuery.isSuccess
                   ? "API et projets synchronisés"
-                  : authQuery.data
+                  : authenticatedUser
                     ? "API métier indisponible"
                     : "Connexion requise pour la persistance"}
               </span>
             </div>
             <span className="online-pulse" />
           </div>
-          {authQuery.data?.role === "super_admin" && (
+          {authenticatedUser?.role === "super_admin" && (
             <button
               className="nav-item"
               onClick={() => {
@@ -13500,7 +13529,7 @@ export default function Home() {
           <button
             className="user-row"
             onClick={() => {
-              if (authQuery.data) setActiveView("operations");
+              if (authenticatedUser) setActiveView("operations");
               else {
                 try {
                   if (window.__MANUS_CONFIG__?.externalOidcEnabled) {
@@ -13514,7 +13543,7 @@ export default function Home() {
               }
             }}
             aria-label={
-              authQuery.data
+              authenticatedUser
                 ? "Ouvrir le compte et les opérations"
                 : window.__MANUS_CONFIG__?.externalOidcEnabled
                   ? "Se connecter via le SSO autonome AeroMind"
@@ -13524,8 +13553,8 @@ export default function Home() {
             <span className="avatar">LP</span>
             <span>
               <strong>
-                {authQuery.data?.name ||
-                  authQuery.data?.email ||
+                {authenticatedUser?.name ||
+                  authenticatedUser?.email ||
                   (window.__MANUS_CONFIG__?.externalOidcEnabled
                     ? "Connexion AeroMind"
                     : "SSO à configurer")}
@@ -13533,7 +13562,7 @@ export default function Home() {
               <small>
                 {serverProjectsQuery.isSuccess
                   ? "Compte connecté · données serveur"
-                  : authQuery.data
+                  : authenticatedUser
                     ? "Compte connecté · stockage local"
                     : window.__MANUS_CONFIG__?.externalOidcEnabled
                       ? `Connexion ${window.__MANUS_CONFIG__.externalOidcProvider} indépendante`
@@ -13606,7 +13635,7 @@ export default function Home() {
                 ? "SYNCHRONISATION…"
                 : saveState === "error"
                   ? "ERREUR DE SYNCHRONISATION · détail dans l’état"
-                  : authQuery.data && serverProjectsQuery.isSuccess
+                  : authenticatedUser && serverProjectsQuery.isSuccess
                     ? "SYNCHRONISÉ (SERVEUR)"
                     : "SYNCHRONISÉ (LOCAL)")}
             </span>
@@ -13809,7 +13838,7 @@ export default function Home() {
                       <SatelliteNavigationView
                         key={activeLibraryProfile?.id ?? "no-cell"}
                         activeProfile={activeLibraryProfile}
-                        userIdentity={authQuery.data?.email ?? "local"}
+                        userIdentity={authenticatedUser?.email ?? "local"}
                       />
                     )}
                     {activeView === "mission-center" && (
@@ -13843,7 +13872,7 @@ export default function Home() {
                         language={language}
                         workbenchCapture={workbenchCapture}
                         remoteReady={Boolean(
-                          authQuery.data && serverProjectsQuery.isSuccess
+                          authenticatedUser && serverProjectsQuery.isSuccess
                         )}
                       />
                     )}
@@ -13869,9 +13898,9 @@ export default function Home() {
                         onResetWorkspace={resetEntireWorkspace}
                         onRefreshSystem={() => window.location.reload()}
                         activeProjectId={activeProjectId}
-                        authenticated={Boolean(authQuery.data)}
+                        authenticated={Boolean(authenticatedUser)}
                         remoteReady={Boolean(
-                          authQuery.data && serverProjectsQuery.isSuccess
+                          authenticatedUser && serverProjectsQuery.isSuccess
                         )}
                       />
                     )}

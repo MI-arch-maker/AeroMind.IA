@@ -18,7 +18,7 @@ from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
-from .admin import activity as admin_activity, create_account, delete_account, list_accounts, update_account
+from .admin import activity as admin_activity, create_account, delete_account, list_accounts, rotate_authorization_code, update_account, verify_authorization_code
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _session_token, _verified, router as oidc_router
 from .business_api import router as business_router
@@ -216,7 +216,7 @@ async def trpc_compat(
     if any(name.endswith(suffix) for suffix in (
         'superAdmin.accounts', 'superAdmin.activity',
         'superAdmin.createAccount', 'superAdmin.updateAccount',
-        'superAdmin.deleteAccount',
+        'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode',
     )):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
@@ -260,6 +260,11 @@ async def trpc_compat(
     elif name.endswith('superAdmin.deleteAccount'):
         try:
             data = delete_account(current_user, str(payload.get('id', '')))
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.rotateAuthorizationCode'):
+        try:
+            data = rotate_authorization_code(current_user, str(payload.get('id', '')))
         except (KeyError, ValueError) as exc:
             return _trpc_error(400, 'BAD_REQUEST', str(exc))
     elif name.endswith('projects.list'):
@@ -344,10 +349,13 @@ async def trpc_compat(
         if not current_user: return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
         import json
         report_id = str(payload.get('id', ''))
+        authorization_code = str(payload.get('authorizationCode', '')).strip()
+        if not verify_authorization_code(current_user['email'], authorization_code):
+            return _trpc_error(403, 'AUTHORIZATION_CODE_REQUIRED', 'Code personnel AeroMind invalide ou absent')
         with SessionLocal() as db:
             record = db.scalar(select(Report).where(Report.id == report_id, Report.user_id == current_user['id']))
             if record is None: return _trpc_error(404, 'NOT_FOUND', 'Report not found')
-            body = json.loads(record.data_json or '{}'); body['status'] = 'submitted'; body.setdefault('workflow', {})['submittedAt'] = time.time(); record.data_json = json.dumps(body); db.commit(); data = {'id': record.id, **body}
+            body = json.loads(record.data_json or '{}'); body['status'] = 'submitted'; body.setdefault('workflow', {})['submittedAt'] = time.time(); body['workflow']['authorizationCodeVerified'] = True; record.data_json = json.dumps(body); db.commit(); data = {'id': record.id, **body}
     elif name.endswith('reports.list'):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')

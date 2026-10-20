@@ -1,4 +1,6 @@
+import hashlib
 import json
+import secrets
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -37,6 +39,18 @@ def _event(event_type: str, actor: dict[str, Any], target_id: str | None, payloa
     return {'id': str(uuid.uuid4()), 'eventType': event_type, 'actorId': actor['id'], 'actorEmail': actor['email'], 'targetUserId': target_id, 'payloadJson': json.dumps(payload, ensure_ascii=False), 'createdAt': _now()}
 
 
+def _new_authorization_code() -> str:
+    return f"AM-{secrets.token_hex(4).upper()}-{secrets.token_hex(4).upper()}"
+
+
+def _code_hash(code: str) -> str:
+    return hashlib.sha256(code.strip().encode('utf-8')).hexdigest()
+
+
+def _public_account(account: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in account.items() if key != 'authorizationCodeHash'}
+
+
 def _accounts_with_primary_admin() -> list[dict[str, Any]]:
     accounts = _load(_ACCOUNTS_FILE, [])
     primary_email = 'mcgregoralvin14@gmail.com' if 'mcgregoralvin14@gmail.com' in get_settings().superadmin_email_set else next(iter(get_settings().superadmin_email_set), None)
@@ -47,7 +61,7 @@ def _accounts_with_primary_admin() -> list[dict[str, Any]]:
 
 def list_accounts() -> list[dict[str, Any]]:
     with _LOCK:
-        return _accounts_with_primary_admin()
+        return [_public_account(account) for account in _accounts_with_primary_admin()]
 
 
 def account_for_email(email: str) -> dict[str, Any] | None:
@@ -62,6 +76,14 @@ def account_for_identity(email: str, subject: str) -> dict[str, Any] | None:
     if account.get('accountStatus') not in {'active', 'evaluation'}:
         return None
     return {**account, 'id': subject, 'email': email}
+
+
+def verify_authorization_code(email: str, code: str) -> bool:
+    account = account_for_email(email)
+    if not account or account.get('accountStatus') not in {'active', 'evaluation'}:
+        return False
+    expected = account.get('authorizationCodeHash')
+    return bool(expected and code and secrets.compare_digest(expected, _code_hash(code)))
 
 
 def activity() -> dict[str, Any]:
@@ -87,9 +109,26 @@ def create_account(actor: dict[str, Any], email: str, name: str, requested_role:
     with _LOCK:
         accounts = _load(_ACCOUNTS_FILE, [])
         if any(a.get('email', '').casefold() == email and a.get('accountStatus') != 'cancelled' for a in accounts): raise ValueError('Un compte ou une demande existe déjà pour cet e-mail')
-        account = {'id': str(uuid.uuid4()), 'name': name.strip(), 'email': email, 'role': requested_role, 'requestedRole': requested_role, 'accountStatus': 'active', 'approvalStatus': 'approved', 'loginMethod': 'pending-external-sso', 'createdAt': _now(), 'lastSignedIn': None, 'createdBy': actor['id'], 'level': level if level in {'L1', 'L2', 'L3', 'L4'} else 'L1'}
-        accounts.append(account); events = _load(_EVENTS_FILE, []); events.append(_event('account.created', actor, account['id'], {'email': email, 'role': requested_role, 'level': account['level']})); _save(_ACCOUNTS_FILE, accounts); _save(_EVENTS_FILE, events)
-        return account
+        code = _new_authorization_code()
+        account = {'id': str(uuid.uuid4()), 'name': name.strip(), 'email': email, 'role': requested_role, 'requestedRole': requested_role, 'accountStatus': 'active', 'approvalStatus': 'approved', 'loginMethod': 'pending-external-sso', 'createdAt': _now(), 'lastSignedIn': None, 'createdBy': actor['id'], 'level': level if level in {'L1', 'L2', 'L3', 'L4'} else 'L1', 'authorizationCodeHash': _code_hash(code), 'authorizationCodeLast4': code[-4:], 'authorizationCodeIssuedAt': _now()}
+        accounts.append(account); events = _load(_EVENTS_FILE, []); events.append(_event('account.created', actor, account['id'], {'email': email, 'role': requested_role, 'level': account['level'], 'authorizationCodeLast4': code[-4:]})); _save(_ACCOUNTS_FILE, accounts); _save(_EVENTS_FILE, events)
+        return {**_public_account(account), 'authorizationCode': code}
+
+
+def rotate_authorization_code(actor: dict[str, Any], account_id: str) -> dict[str, Any]:
+    with _LOCK:
+        accounts = _load(_ACCOUNTS_FILE, [])
+        account = next((item for item in accounts if item.get('id') == account_id), None)
+        if not account:
+            raise KeyError('Compte introuvable')
+        if account.get('role') == 'super_admin' or account.get('email', '').casefold() in get_settings().superadmin_email_set:
+            raise ValueError('Le code du Super-Admin principal ne peut pas être régénéré depuis cette action')
+        code = _new_authorization_code()
+        account.update({'authorizationCodeHash': _code_hash(code), 'authorizationCodeLast4': code[-4:], 'authorizationCodeIssuedAt': _now()})
+        events = _load(_EVENTS_FILE, [])
+        events.append(_event('account.authorization_code_rotated', actor, account_id, {'authorizationCodeLast4': code[-4:]}))
+        _save(_ACCOUNTS_FILE, accounts); _save(_EVENTS_FILE, events)
+        return {**_public_account(account), 'authorizationCode': code}
 
 
 def update_account(actor: dict[str, Any], account_id: str, changes: dict[str, Any]) -> dict[str, Any]:
