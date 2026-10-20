@@ -12,7 +12,7 @@ services:
       - key: AEROMIND_ENV
         value: production
       - key: AEROMIND_AUTO_CREATE_SCHEMA
-        value: "false"
+        value: "true"
       - key: PORT
         value: "10000"
       - key: DATABASE_URL

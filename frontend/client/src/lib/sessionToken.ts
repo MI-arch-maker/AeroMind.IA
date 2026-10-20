@@ -29,6 +29,15 @@ export function getEntraSessionToken(): string | null {
   }
 }
 
+export function clearSessionToken(): void {
+  try {
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    sessionStorage.removeItem("manus-cookie");
+  } catch {
+    // sessionStorage unavailable
+  }
+}
+
 export function bearerHeaders(): Record<string, string> {
   const token = getEntraSessionToken();
   return token ? { Authorization: `Bearer ${token}` } : {};

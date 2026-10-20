@@ -3,7 +3,7 @@
 import json
 from uuid import uuid4
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,8 +29,8 @@ class SettingIn(BaseModel):
     value: dict | list | str | int | float | bool | None
 
 
-def owner(cookie: str | None, db: Session) -> str:
-    user = current_user(cookie)
+def owner(cookie: str | None, db: Session, authorization: str | None = None) -> str:
+    user = current_user(cookie, authorization)
     if not user:
         raise HTTPException(401, "OIDC authentication required")
     row = db.get(User, user["id"])
@@ -83,9 +83,13 @@ def list_projects(
 def create_project(
     body: RecordIn,
     aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    user_id = owner(aeromind_session, db)
+    user = current_user(aeromind_session, authorization)
+    if not user: raise HTTPException(401, "OIDC authentication required")
+    if user.get("role") == "visitor": raise HTTPException(403, "Le rôle Visiteur ne peut pas créer de projet persistant")
+    user_id = owner(aeromind_session, db, authorization)
     project_id, drone_id = str(uuid4()), str(uuid4())
     drone_data = body.drone or {
         "mass_kg": 1.2,
@@ -108,7 +112,6 @@ def create_project(
         active_drone_id=drone_id,
     )
     db.add(project)
-    db.commit()
     db.add(drone)
     db.commit()
     db.refresh(project)

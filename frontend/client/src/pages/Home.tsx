@@ -8,7 +8,7 @@ import {
   type Message as ChatMessage,
 } from "../components/AIChatBox";
 import { trpc } from "../lib/trpc";
-import { bearerHeaders } from "../lib/sessionToken";
+import { bearerHeaders, clearSessionToken } from "../lib/sessionToken";
 import {
   createWorkspaceChannel,
   parseWorkspaceMessage,
@@ -23,6 +23,7 @@ import { normalizeLegacyStudioLayers } from "../lib/studioLayerCommands";
 import { buildManufacturingPackage } from "../lib/manufacturing";
 import { buildEngineeringReview } from "../lib/engineeringReview";
 import { nextLocalSimulationRunId } from "../lib/simulationRunId";
+import { startLogin } from "../const";
 import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
 import { adaptExternalDroneToCatalog, deleteImportedDroneProfile, getMeshDimensions, initializeImportedDroneProfile, loadImportedDroneProfiles, loadImportedDroneProfilesDurable, normalizeImportedDroneProfile, parseExternalDroneMesh, saveImportedDroneProfile, transitionImportedDroneProfile, type Axis, type AxisMapping, type ImportArchitecture, type ImportedDroneProfile, type ImportedDroneReviewStatus } from "../lib/externalDroneImport";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
@@ -287,11 +288,12 @@ function SessionControls() {
     return () => window.removeEventListener("aeromind-auth-changed", onSessionChanged);
   }, []);
 
-  const login = () => window.location.assign("/api/auth/oidc/login");
+  const login = () => startLogin();
   const logout = async () => {
     setBusy(true);
     try {
       await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include" });
+      clearSessionToken();
       setUser(null);
       window.dispatchEvent(new Event("aeromind-auth-changed"));
     } finally {

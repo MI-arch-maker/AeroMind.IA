@@ -19,6 +19,7 @@ from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
 from .admin import activity as admin_activity, create_account, delete_account, list_accounts, update_account
+from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _session_token, _verified, router as oidc_router
 from .business_api import router as business_router
 from .hardware_api import router as hardware_router, _controllers
@@ -186,21 +187,7 @@ async def put_local_workspace(request: Request):
 
 
 def _current_user(aeromind_session: str | None, authorization: str | None = None):
-    token = _session_token(aeromind_session, authorization)
-    if not token:
-        return None
-    try:
-        verified = _verified(token)
-        raw = base64.urlsafe_b64decode(verified + '=' * (-len(verified) % 4)).decode()
-        subject, email = raw.split('|', 1)
-        return {
-            'id': subject,
-            'email': email,
-            'name': email,
-            'role': 'super_admin' if settings.is_superadmin_email(email) else 'user',
-        }
-    except Exception:
-        return None
+    return resolve_current_user(aeromind_session, authorization)
 
 
 def _trpc_error(status_code: int, code: str, message: str) -> JSONResponse:
@@ -260,7 +247,7 @@ async def trpc_compat(
         data = admin_activity()
     elif name.endswith('superAdmin.createAccount'):
         try:
-            data = create_account(current_user, payload.get('email', ''), payload.get('name', ''), payload.get('role', 'user'))
+            data = create_account(current_user, payload.get('email', ''), payload.get('name', ''), payload.get('role', 'user'), payload.get('level', 'L1'))
         except ValueError as exc:
             return _trpc_error(400, 'BAD_REQUEST', str(exc))
     elif name.endswith('superAdmin.updateAccount'):
@@ -286,17 +273,20 @@ async def trpc_compat(
     elif name.endswith('projects.create'):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        if current_user.get('role') == 'visitor':
+            return _trpc_error(403, 'FORBIDDEN', 'Le rôle Visiteur ne peut pas créer de projet persistant')
         import json
         project_id, drone_id = str(uuid4()), str(uuid4())
         config = payload.get('config', {}) if isinstance(payload.get('config', {}), dict) else {}
         config = {**config, 'airframe': config.get('airframe') or 'quadcopter', 'motorCount': config.get('motorCount') or 4, 'massKg': config.get('massKg') or 1.2, 'batteryWh': config.get('batteryWh') or 100}
         project_data = {'project': payload.get('project', {}), 'config': config, 'requirements': payload.get('requirements', []), 'runId': payload.get('runId', 'SIM-000')}
         with SessionLocal() as db:
+            if current_user.get('role') == 'demo' and db.scalar(select(Project).where(Project.user_id == current_user['id'])) is not None:
+                return _trpc_error(403, 'DEMO_LIMIT_REACHED', 'Le compte Démo est limité à un projet')
             if db.get(User, current_user['id']) is None:
                 db.add(User(id=current_user['id'], email=current_user['email']))
                 db.flush()
             db.add(Project(id=project_id, user_id=current_user['id'], name=project_data['project'].get('name', 'Nouveau projet'), data_json=json.dumps(project_data), active_drone_id=drone_id))
-            db.commit()
             db.add(Drone(id=drone_id, user_id=current_user['id'], project_id=project_id, name='Drone par défaut', config_json=json.dumps(project_data['config'])))
             db.commit()
         data = {'id': project_id, **project_data}
@@ -342,11 +332,48 @@ async def trpc_compat(
     elif name.endswith('reports.create'):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        if current_user.get('role') in {'demo', 'visitor'}:
+            return _trpc_error(403, 'FORBIDDEN', 'Ce niveau de compte ne peut pas soumettre un rapport officiel')
         import json
         project_id = str(payload.get('id', ''))
         with SessionLocal() as db:
             if db.scalar(select(Project).where(Project.id == project_id, Project.user_id == current_user['id'])) is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
-            record = Report(id=str(uuid4()), user_id=current_user['id'], project_id=project_id, data_json=json.dumps(payload)); db.add(record); db.commit(); data = {'id': record.id, **payload}
+            report_payload = {**payload, 'status': 'draft', 'workflow': {'submittedAt': None, 'reviewerId': None, 'approverId': None, 'reviewerComment': None, 'approverComment': None}}
+            record = Report(id=str(uuid4()), user_id=current_user['id'], project_id=project_id, data_json=json.dumps(report_payload)); db.add(record); db.commit(); data = {'id': record.id, **report_payload}
+    elif name.endswith('reports.submit'):
+        if not current_user: return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        import json
+        report_id = str(payload.get('id', ''))
+        with SessionLocal() as db:
+            record = db.scalar(select(Report).where(Report.id == report_id, Report.user_id == current_user['id']))
+            if record is None: return _trpc_error(404, 'NOT_FOUND', 'Report not found')
+            body = json.loads(record.data_json or '{}'); body['status'] = 'submitted'; body.setdefault('workflow', {})['submittedAt'] = time.time(); record.data_json = json.dumps(body); db.commit(); data = {'id': record.id, **body}
+    elif name.endswith('reports.list'):
+        if not current_user:
+            return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        with SessionLocal() as db:
+            query = select(Report).where(Report.project_id.in_(select(Project.id).where(Project.user_id == current_user['id']))) if current_user.get('role') not in {'surveillant', 'admin', 'super_admin'} else select(Report)
+            data = [{'id': r.id, 'projectId': r.project_id, **__import__('json').loads(r.data_json or '{}')} for r in db.scalars(query).order_by(Report.created_at.desc()).limit(100)]
+    elif name.endswith('reports.review'):
+        if not current_user or current_user.get('role') not in {'surveillant', 'admin', 'super_admin'}:
+            return _trpc_error(403, 'FORBIDDEN', 'Rôle Surveillant requis')
+        import json
+        with SessionLocal() as db:
+            record = db.get(Report, str(payload.get('id', '')))
+            if record is None: return _trpc_error(404, 'NOT_FOUND', 'Report not found')
+            body = json.loads(record.data_json or '{}')
+            if record.user_id == current_user['id']: return _trpc_error(403, 'FORBIDDEN', 'Un rapport ne peut pas être revu par son auteur')
+            body['status'] = 'reviewed_by_supervisor'; body.setdefault('workflow', {}).update({'reviewerId': current_user['id'], 'reviewerComment': payload.get('comment', '')}); record.data_json = json.dumps(body); db.commit(); data = {'id': record.id, **body}
+    elif name.endswith('reports.approve'):
+        if not current_user or current_user.get('role') not in {'admin', 'super_admin'}:
+            return _trpc_error(403, 'FORBIDDEN', 'Approbation Super-Admin requise')
+        import json
+        with SessionLocal() as db:
+            record = db.get(Report, str(payload.get('id', '')))
+            if record is None: return _trpc_error(404, 'NOT_FOUND', 'Report not found')
+            body = json.loads(record.data_json or '{}')
+            if body.get('status') != 'reviewed_by_supervisor': return _trpc_error(409, 'REVIEW_REQUIRED', 'Le rapport doit être contrôlé par un surveillant')
+            body['status'] = 'approved_by_admin'; body.setdefault('workflow', {}).update({'approverId': current_user['id'], 'approverComment': payload.get('comment', '')}); record.data_json = json.dumps(body); db.commit(); data = {'id': record.id, **body}
     elif any(name.endswith(suffix) for suffix in ('designVersions.list', 'auditEvents.list')):
         data = []
     elif name.endswith('labBench.registry'):
@@ -406,8 +433,8 @@ def capabilities():
 
 
 @app.get('/api/system/status')
-def system_status(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
-    if not _current_user(aeromind_session):
+def system_status(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    if not _current_user(aeromind_session, authorization):
         raise HTTPException(401, 'OIDC authentication required')
     return _engine_status()
 

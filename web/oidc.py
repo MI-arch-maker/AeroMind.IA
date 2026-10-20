@@ -11,6 +11,7 @@ from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .config import get_settings
+from .admin import account_for_identity
 
 router = APIRouter(prefix='/api/auth/oidc', tags=['authentication'])
 
@@ -98,12 +99,18 @@ def me(
         subject, email = raw.split('|', 1)
     except (ValueError, IndexError, UnicodeDecodeError):
         raise HTTPException(401, 'Invalid session')
+    account = account_for_identity(email, subject)
+    if account is None:
+        raise HTTPException(403, 'Compte AeroMind absent, évalué ou suspendu')
+    role = 'super_admin' if get_settings().is_superadmin_email(email) else account.get('role', 'user')
     return {
         'authenticated': True,
         'subject': subject,
         'email': email,
         'name': email,
-        'role': 'super_admin' if get_settings().is_superadmin_email(email) else 'user',
+        'role': role,
+        'level': account.get('level', 'L1'),
+        'account_status': account.get('accountStatus', 'active'),
         'trial_access': get_settings().is_trial_email(email),
     }
 
@@ -157,6 +164,8 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
     identity_email = _identity_email(claims)
     if claims.get('nonce') != nonce or not identity_email:
         raise HTTPException(403, 'OIDC identity validation failed')
+    if account_for_identity(identity_email, str(claims.get('sub'))) is None:
+        raise HTTPException(403, 'Cette adresse n’est pas autorisée par le Super-Admin AeroMind')
     session = _signed(_b64(f"{claims.get('sub')}|{identity_email}".encode()))
     response = RedirectResponse(f"/#aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')
