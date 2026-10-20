@@ -166,7 +166,7 @@ def _get_prototype(db: Session, user_id: str, prototype_version_id: str) -> Prot
 
 
 @router.post("/prototypes", status_code=201)
-def register_prototype(body: PrototypeRegistration, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
+def register_prototype(body: PrototypeRegistration, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
     user_id = owner(aeromind_session, db)
     project = db.scalar(select(Project).where(Project.id == body.project_id, Project.user_id == user_id))
     if project is None:
@@ -184,7 +184,7 @@ def register_prototype(body: PrototypeRegistration, aeromind_session: str | None
 
 
 @router.post("/prototypes/{prototype_version_id}/runs", status_code=201)
-def create_run(prototype_version_id: str, body: Scenario, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
+def create_run(prototype_version_id: str, body: Scenario, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
     user_id = owner(aeromind_session, db)
     prototype = _get_prototype(db, user_id, prototype_version_id)
     row = WorkflowRun(id=str(uuid4()), prototype_version_id=prototype.id, project_id=prototype.project_id, user_id=user_id, scenario_json=_canonical_json(body.model_dump()), engine_version=ENGINE_VERSION, status="running")
@@ -203,7 +203,7 @@ def create_run(prototype_version_id: str, body: Scenario, aeromind_session: str 
 
 
 @router.post("/runs/{run_id}/replay", status_code=201)
-def replay_run(run_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
+def replay_run(run_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
     user_id = owner(aeromind_session, db)
     original = db.scalar(select(WorkflowRun).where(WorkflowRun.id == run_id, WorkflowRun.user_id == user_id))
     if original is None:
@@ -221,7 +221,7 @@ def replay_run(run_id: str, aeromind_session: str | None = Cookie(default=None),
 
 
 @router.get("/runs/{run_id}")
-def read_run(run_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
+def read_run(run_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
     user_id = owner(aeromind_session, db)
     row = db.scalar(select(WorkflowRun).where(WorkflowRun.id == run_id, WorkflowRun.user_id == user_id))
     if row is None:
@@ -230,7 +230,7 @@ def read_run(run_id: str, aeromind_session: str | None = Cookie(default=None), d
 
 
 @router.post("/runs/{run_id}/report", status_code=201)
-def create_run_report(run_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
+def create_run_report(run_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
     user_id = owner(aeromind_session, db)
     row = db.scalar(select(WorkflowRun).where(WorkflowRun.id == run_id, WorkflowRun.user_id == user_id))
     if row is None:

@@ -74,7 +74,7 @@ class AirfoilBody(BaseModel):
 
 
 @router.post("/cfd/airfoil")
-def airfoil(body: AirfoilBody, aeromind_session: str | None = Cookie(default=None)):
+def airfoil(body: AirfoilBody, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     require_session(aeromind_session)
     try:
         return estimate_airfoil(body.code, body.alpha_deg, body.reynolds, body.aspect_ratio)
@@ -97,7 +97,7 @@ class PropulsionBody(BaseModel):
 
 
 @router.post("/propulsion/compare")
-def propulsion(body: PropulsionBody, aeromind_session: str | None = Cookie(default=None)):
+def propulsion(body: PropulsionBody, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     require_session(aeromind_session)
     power_w = body.mass_kg * 9.81 * body.cruise_speed_mps / body.lift_to_drag / 0.70
     results = []
@@ -124,7 +124,7 @@ class EvidenceBody(BaseModel):
 
 
 @router.post("/evidence/certificate")
-def evidence_certificate(body: EvidenceBody, aeromind_session: str | None = Cookie(default=None)):
+def evidence_certificate(body: EvidenceBody, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     identity = require_session(aeromind_session)
     global _CERT_PRIVATE_KEY
     if _CERT_PRIVATE_KEY is None:

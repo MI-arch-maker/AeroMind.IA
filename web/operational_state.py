@@ -75,13 +75,13 @@ def _snapshot(user_id: str) -> dict[str, Any]:
 
 
 @router.get("")
-def get_operational_state(aeromind_session: str | None = Cookie(default=None)):
+def get_operational_state(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     return _snapshot(_key(aeromind_session))
 
 
 @router.post("/request")
 def request_operational_state(
-    body: ModeRequest, aeromind_session: str | None = Cookie(default=None)
+    body: ModeRequest, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)
 ):
     user_id = _key(aeromind_session)
     if body.mode is OperationalMode.N2:

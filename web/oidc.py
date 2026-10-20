@@ -33,7 +33,7 @@ def _verified(token: str) -> str:
     return value
 
 
-def require_session(aeromind_session: str | None = Cookie(default=None)) -> str:
+def require_session(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)) -> str:
     if not aeromind_session:
         raise HTTPException(401, 'OIDC authentication required')
     try:
@@ -72,7 +72,7 @@ def status():
 
 
 @router.get('/me')
-def me(aeromind_session: str | None = Cookie(default=None)):
+def me(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     if not aeromind_session:
         raise HTTPException(401, 'No authenticated session')
     try:
@@ -118,7 +118,7 @@ async def login():
 
 
 @router.get('/callback')
-async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cookie(default=None)):
+async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cookie(default=None, convert_underscores=False)):
     cfg = _settings()
     if not aeromind_oidc_state:
         raise HTTPException(400, 'Missing OIDC state')

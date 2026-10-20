@@ -127,7 +127,7 @@ def _document_response(row: EngineeringDocumentRecord) -> dict:
 
 
 @router.post("/prototype-versions/{prototype_version_id}", status_code=201)
-def save_document(prototype_version_id: str, document: EngineeringDocument, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
+def save_document(prototype_version_id: str, document: EngineeringDocument, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
     user_id = owner(aeromind_session, db)
     prototype = db.scalar(select(PrototypeVersion).where(PrototypeVersion.id == prototype_version_id, PrototypeVersion.user_id == user_id))
     if prototype is None:
@@ -146,7 +146,7 @@ def save_document(prototype_version_id: str, document: EngineeringDocument, aero
 
 
 @router.get("/prototype-versions/{prototype_version_id}")
-def read_document(prototype_version_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
+def read_document(prototype_version_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
     user_id = owner(aeromind_session, db)
     record = db.scalar(select(EngineeringDocumentRecord).where(EngineeringDocumentRecord.prototype_version_id == prototype_version_id, EngineeringDocumentRecord.user_id == user_id))
     if record is None:

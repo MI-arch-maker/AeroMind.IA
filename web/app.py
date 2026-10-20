@@ -184,7 +184,7 @@ def _trpc_error(status_code: int, code: str, message: str) -> JSONResponse:
 
 
 @app.api_route('/api/trpc/{procedure:path}', methods=['GET', 'POST'], include_in_schema=False)
-async def trpc_compat(request: Request, procedure: str, aeromind_session: str | None = Cookie(default=None)):
+async def trpc_compat(request: Request, procedure: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     """Small compatibility bridge for the legacy React query layer.
 
     Business operations remain on the Python API; these responses prevent the
@@ -369,14 +369,14 @@ def capabilities():
 
 
 @app.get('/api/system/status')
-def system_status(aeromind_session: str | None = Cookie(default=None)):
+def system_status(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     if not _current_user(aeromind_session):
         raise HTTPException(401, 'OIDC authentication required')
     return _engine_status()
 
 
 @app.get('/api/safety/check')
-def safety_check(aeromind_session: str | None = Cookie(default=None)):
+def safety_check(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     if not _current_user(aeromind_session):
         raise HTTPException(401, 'OIDC authentication required')
     result = _engine_status()
@@ -384,7 +384,7 @@ def safety_check(aeromind_session: str | None = Cookie(default=None)):
 
 
 @app.post('/api/ops/cfd/prepare')
-async def prepare_cfd_case(request: Request, aeromind_session: str | None = Cookie(default=None)):
+async def prepare_cfd_case(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     """Prepare an isolated CFD job; never executes a hardware command."""
     if not _current_user(aeromind_session):
         raise HTTPException(401, 'OIDC authentication required')

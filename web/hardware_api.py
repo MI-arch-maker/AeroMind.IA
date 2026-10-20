@@ -89,7 +89,7 @@ class CommandInput(BaseModel):
 
 
 @router.post("/mode")
-def set_control_mode(body: ModeInput, aeromind_session: str | None = Cookie(default=None)):
+def set_control_mode(body: ModeInput, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     user = _require_user(aeromind_session)
     if body.mode == "SIMULATION":
         if user["id"] in _controllers and _controllers[user["id"]].mode == "HARDWARE":
@@ -117,7 +117,7 @@ def set_control_mode(body: ModeInput, aeromind_session: str | None = Cookie(defa
 
 
 @router.post("/arm")
-def arm(body: ModeInput, aeromind_session: str | None = Cookie(default=None)):
+def arm(body: ModeInput, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     user = _require_user(aeromind_session)
     _require_flag()
     controller = _get_controller(user["id"])
@@ -128,7 +128,7 @@ def arm(body: ModeInput, aeromind_session: str | None = Cookie(default=None)):
 
 
 @router.post("/command")
-def send_command(body: CommandInput, aeromind_session: str | None = Cookie(default=None)):
+def send_command(body: CommandInput, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     user = _require_user(aeromind_session)
     _require_flag()
     controller = _get_controller(user["id"])
@@ -140,7 +140,7 @@ def send_command(body: CommandInput, aeromind_session: str | None = Cookie(defau
 
 
 @router.post("/emergency-stop")
-def emergency_stop(aeromind_session: str | None = Cookie(default=None)):
+def emergency_stop(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     user = _require_user(aeromind_session)
     # In simulation the one-click stop never loads/calls a physical adapter.
     controller = _controllers.get(user["id"])
@@ -156,7 +156,7 @@ def emergency_stop(aeromind_session: str | None = Cookie(default=None)):
 
 
 @router.get("/logs")
-def list_hardware_logs(aeromind_session: str | None = Cookie(default=None)):
+def list_hardware_logs(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
     user = _require_user(aeromind_session)
     with SessionLocal() as db:
         return [
