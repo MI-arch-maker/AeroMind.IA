@@ -292,6 +292,9 @@ async def trpc_compat(
                 db.add(User(id=current_user['id'], email=current_user['email']))
                 db.flush()
             db.add(Project(id=project_id, user_id=current_user['id'], name=project_data['project'].get('name', 'Nouveau projet'), data_json=json.dumps(project_data), active_drone_id=drone_id))
+            # Les modèles utilisent des clés étrangères sans relations ORM explicites :
+            # forcer le flush garantit que le projet existe avant son drone associé.
+            db.flush()
             db.add(Drone(id=drone_id, user_id=current_user['id'], project_id=project_id, name='Drone par défaut', config_json=json.dumps(project_data['config'])))
             db.commit()
         data = {'id': project_id, **project_data}
