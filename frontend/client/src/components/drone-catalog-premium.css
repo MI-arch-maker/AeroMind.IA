@@ -1,0 +1,269 @@
+/* Bibliothèque des cellules — présentation jumeau numérique / fiche produit d’ingénierie. */
+.legacy-drone-library {
+  --catalog-ink: #d9eeee;
+  --catalog-muted: #79999f;
+  --catalog-line: rgba(112, 198, 195, .2);
+  --catalog-cyan: #75e2dc;
+  gap: 14px;
+  color: var(--catalog-ink);
+}
+
+.legacy-drone-library > .legacy-selection-console,
+.legacy-drone-library > .legacy-concept-section,
+.legacy-drone-library > .legacy-comparison-panel,
+.legacy-drone-library > .legacy-selected-sheet,
+.legacy-drone-library > .legacy-empty-sheet {
+  border-color: var(--catalog-line);
+  background: linear-gradient(145deg, rgba(7, 22, 29, .97), rgba(5, 15, 21, .96));
+  box-shadow: inset 0 1px rgba(183, 255, 244, .025), 0 12px 36px rgba(0, 0, 0, .16);
+}
+
+.legacy-drone-library .legacy-selection-console {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, .8fr);
+  gap: 12px 18px;
+  padding: 14px;
+  border: 1px solid var(--catalog-line);
+  border-radius: 9px;
+  background: radial-gradient(ellipse at 12% 0, rgba(32, 138, 137, .13), transparent 48%), #07141b;
+}
+.legacy-drone-library .legacy-selection-console h3 { margin: 3px 0 5px; color: #e2f4f1; font-size: 1rem; }
+.legacy-drone-library .legacy-selection-console > div:first-child > p:last-child { max-width: 730px; margin: 0; color: var(--catalog-muted); font-size: .68rem; line-height: 1.5; }
+.legacy-drone-library .legacy-catalog-search {
+  align-self: center;
+  min-height: 39px;
+  border-color: rgba(117, 226, 220, .25);
+  background: rgba(4, 15, 21, .82);
+}
+.legacy-drone-library .legacy-console-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
+.legacy-drone-library .legacy-console-actions button {
+  border: 1px solid rgba(117, 226, 220, .16);
+  border-radius: 5px;
+  background: rgba(117, 226, 220, .035);
+  color: #9fbdbc;
+}
+.legacy-drone-library .legacy-console-actions button:hover { border-color: rgba(117, 226, 220, .42); color: #d8fffa; }
+
+.legacy-drone-library .legacy-concept-section {
+  padding: 14px;
+  border: 1px solid var(--catalog-line);
+  border-radius: 9px;
+}
+.legacy-drone-library .legacy-section-heading { align-items: end; margin-bottom: 11px; }
+.legacy-drone-library .legacy-section-heading h3 { margin: 2px 0 0; color: #deefed; letter-spacing: -.015em; }
+.legacy-drone-library .legacy-section-heading > span {
+  padding: 5px 8px;
+  border: 1px solid rgba(117, 226, 220, .16);
+  border-radius: 4px;
+  background: rgba(117, 226, 220, .045);
+  color: #88bdb9;
+  font: 9px ui-monospace, monospace;
+}
+.legacy-drone-library .legacy-concept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  align-items: stretch;
+  gap: 11px;
+}
+.legacy-drone-library .legacy-concept-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(112, 198, 195, .19);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(9, 26, 33, .97), rgba(5, 16, 22, .99));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14);
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.legacy-drone-library .legacy-concept-card:hover { transform: translateY(-2px); border-color: rgba(117, 226, 220, .44); box-shadow: 0 14px 28px rgba(0, 0, 0, .24); }
+.legacy-drone-library .legacy-concept-card.is-selected { border-color: rgba(117, 226, 220, .72); box-shadow: 0 0 0 1px rgba(117, 226, 220, .12), 0 14px 32px rgba(0, 0, 0, .28); }
+.legacy-drone-library .legacy-concept-visual {
+  position: relative;
+  isolation: isolate;
+  min-height: 196px;
+  aspect-ratio: 16 / 8.8;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(112, 198, 195, .16);
+  background: radial-gradient(ellipse at 50% 45%, rgba(25, 116, 116, .25), transparent 58%), linear-gradient(150deg, #061720, #071017 72%);
+}
+.legacy-drone-library .legacy-concept-visual::before {
+  content: "CELLULE / JUMEAU NUMÉRIQUE";
+  position: absolute;
+  z-index: 4;
+  top: 9px;
+  left: 11px;
+  color: rgba(145, 210, 204, .8);
+  font: 7px ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: .12em;
+  pointer-events: none;
+}
+.legacy-drone-library .legacy-concept-visual::after {
+  content: "CAD PARAMÉTRIQUE · VISUEL CONCEPTUEL";
+  position: absolute;
+  z-index: 4;
+  right: 10px;
+  bottom: 8px;
+  color: rgba(117, 226, 220, .66);
+  font: 6px ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: .06em;
+  pointer-events: none;
+}
+.legacy-drone-library .legacy-concept-visual .physical-drone-preview {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background: transparent;
+}
+.legacy-drone-library .legacy-concept-visual .parametric-drone-preview { width: 100%; height: 100%; min-height: 196px; }
+.legacy-drone-library .legacy-concept-visual > span {
+  position: absolute;
+  z-index: 5;
+  left: 10px;
+  bottom: 8px;
+  max-width: 54%;
+  overflow: hidden;
+  padding: 4px 6px;
+  border: 1px solid rgba(117, 226, 220, .18);
+  border-radius: 3px;
+  background: rgba(3, 14, 19, .84);
+  color: #aad2cd;
+  font: 7px ui-monospace, monospace;
+  letter-spacing: .04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.legacy-drone-library .legacy-concept-copy { gap: 8px; padding: 11px; }
+.legacy-drone-library .legacy-concept-copy > .eyebrow { min-height: 2em; margin: 0; color: #7fa6a5; font-size: 8px; line-height: 1.35; letter-spacing: .08em; }
+.legacy-drone-library .legacy-concept-copy h4 { color: #e2f1ef; font-size: 1rem; letter-spacing: .015em; }
+.legacy-drone-library .legacy-concept-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; min-height: 28px; }
+.legacy-drone-library .legacy-concept-name-row h4 { flex: 1 1 150px; min-width: 0; margin: 0; }
+.legacy-drone-library .legacy-concept-name-row input { flex: 1 1 150px; min-width: 0; height: 28px; padding: 4px 7px; border: 1px solid rgba(117, 226, 220, .42); border-radius: 4px; outline: none; background: rgba(3, 14, 19, .9); color: #e2f1ef; font-size: .82rem; }
+.legacy-drone-library .legacy-concept-name-row button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 27px; padding: 4px 7px; border: 1px solid rgba(117, 226, 220, .22); border-radius: 4px; background: rgba(117, 226, 220, .06); color: #a9d9d4; font-size: .66rem; cursor: pointer; }
+.legacy-drone-library .legacy-concept-name-row button:hover { border-color: rgba(117, 226, 220, .6); color: #e5fffa; }
+.legacy-drone-library .legacy-concept-name-row .rename-drone-button { flex: 0 0 auto; }
+.legacy-drone-library .legacy-concept-copy > p:not(.eyebrow) { min-height: 2.8em; color: #96adae; font-size: .68rem; line-height: 1.45; }
+.legacy-drone-library .legacy-concept-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.legacy-drone-library .legacy-concept-metrics span {
+  min-width: 0;
+  padding: 6px 6px 7px;
+  border: 1px solid rgba(117, 226, 220, .095);
+  border-radius: 3px;
+  background: linear-gradient(145deg, rgba(117, 226, 220, .055), rgba(4, 17, 23, .42));
+}
+.legacy-drone-library .legacy-concept-metrics small { color: #688b8d; font-size: 7px; letter-spacing: .06em; }
+.legacy-drone-library .legacy-concept-metrics b { overflow: hidden; color: #d6eae7; font-size: .69rem; text-overflow: ellipsis; white-space: nowrap; }
+.legacy-drone-library .legacy-concept-actions { display: grid; grid-template-columns: 1fr auto; gap: 5px; margin-top: 2px; }
+.legacy-drone-library .legacy-concept-actions button { min-height: 29px; border-radius: 4px; }
+.legacy-drone-library .legacy-concept-actions button:first-child { grid-column: 1 / -1; }
+.legacy-drone-library .legacy-concept-actions button:not(.primary-button) { border-color: rgba(117, 226, 220, .17); background: rgba(4, 15, 21, .62); color: #9ab5b4; }
+.legacy-drone-library .legacy-concept-actions button.is-active { border-color: rgba(71, 211, 151, .4); color: #74dda9; }
+.legacy-drone-library .legacy-concept-actions .primary-button { justify-content: center; border-color: rgba(117, 226, 220, .32); background: linear-gradient(110deg, rgba(22, 131, 132, .42), rgba(15, 77, 87, .55)); color: #d8fffa; }
+
+/* Traits communs de géométrie : construction, nervures, axes et composants. */
+.legacy-drone-library .legacy-svg-body { transform-box: fill-box; transform-origin: center; }
+.legacy-drone-library .legacy-svg-panel-line { fill: none; stroke: rgba(205, 255, 247, .74); stroke-width: 1; }
+.legacy-drone-library .legacy-svg-structure { fill: none; stroke: rgba(218, 255, 248, .76); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.legacy-drone-library .legacy-svg-boom { fill: none; stroke: rgba(196, 248, 240, .9); stroke-width: 2.3; stroke-linecap: round; }
+.legacy-drone-library .legacy-svg-spar { fill: none; stroke: rgba(105, 235, 222, .8); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.legacy-drone-library .legacy-svg-control-surface { fill: none; stroke: rgba(255, 197, 100, .88); stroke-width: 2; }
+.legacy-drone-library .legacy-svg-strut { fill: none; stroke: rgba(255, 210, 131, .88); stroke-width: 1.5; }
+.legacy-drone-library .legacy-svg-suspension { fill: none; stroke: rgba(235, 211, 157, .74); stroke-width: .8; }
+.legacy-drone-library .legacy-svg-feather { fill: none; stroke: rgba(255, 217, 151, .84); stroke-width: 1.4; }
+.legacy-drone-library .legacy-svg-joint { fill: #f5c569; stroke: #fff1c8; stroke-width: 1; }
+.legacy-drone-library .legacy-svg-cyclo-vane { fill: none; stroke: rgba(159, 245, 231, .86); stroke-width: 1; }
+.legacy-drone-library .legacy-svg-hull { fill: none; stroke: rgba(255, 201, 119, .76); stroke-width: 2; }
+.legacy-drone-library .legacy-svg-sponson { fill: none; stroke: rgba(183, 255, 244, .86); stroke-width: 3; stroke-linecap: round; }
+.legacy-drone-library .legacy-svg-prop-line { fill: none; stroke: rgba(255, 204, 120, .84); stroke-width: 2; }
+.legacy-drone-library .legacy-svg-payload { fill: rgba(248, 190, 92, .86); stroke: rgba(255, 234, 184, .9); stroke-width: .8; }
+.legacy-drone-library .legacy-svg-sensor { fill: #f6c662; stroke: #fff4d0; stroke-width: .7; }
+.legacy-drone-library .legacy-svg-duct { fill: rgba(5, 31, 38, .5); stroke: rgba(255, 202, 111, .72); stroke-width: 1; }
+.legacy-drone-library .legacy-svg-coaxial-ring { fill: none; stroke: rgba(255, 206, 124, .9); stroke-width: 1.1; }
+.legacy-drone-library .legacy-svg-axis { fill: none; stroke: rgba(117, 226, 220, .22); stroke-width: .6; stroke-dasharray: 2 4; }
+.legacy-drone-library .legacy-svg-dimension { fill: none; stroke: rgba(117, 226, 220, .7); stroke-width: .8; stroke-dasharray: 3 3; }
+.legacy-drone-library .legacy-svg-label { fill: rgba(168, 246, 237, .7); font: 6px ui-monospace, monospace; letter-spacing: .08em; }
+.legacy-drone-library .legacy-svg-spec { fill: rgba(117, 226, 220, .7); font: 6px ui-monospace, monospace; letter-spacing: .05em; }
+.legacy-drone-library .legacy-svg-build { fill: #ffc15f; font: 6px ui-monospace, monospace; }
+.legacy-drone-library .legacy-svg-ground-shadow { fill: rgba(0, 0, 0, .32); }
+.legacy-drone-library .legacy-svg-rotor-ring { fill: rgba(5, 31, 38, .72); stroke: #8debe0; stroke-width: 1.2; }
+.legacy-drone-library .legacy-svg-rotor-blades { transform-origin: 0 0; fill: #b8fff2; opacity: .85; animation: legacyRotorSpin .22s linear infinite; }
+.legacy-drone-library .legacy-svg-rotor-hub { fill: #183f4b; stroke: #d7fff6; stroke-width: .8; }
+
+.parametric-cad-links {
+  position: absolute;
+  z-index: 7;
+  top: 27px;
+  right: 7px;
+  display: flex;
+  gap: 3px;
+  cursor: default;
+}
+.parametric-cad-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 19px;
+  padding: 2px 5px;
+  border: 1px solid rgba(117, 226, 220, .36);
+  border-radius: 3px;
+  background: rgba(3, 14, 19, .86);
+  color: #b8e9e2;
+  font: 7px ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: .03em;
+  text-decoration: none;
+}
+.parametric-cad-links a:hover,
+.parametric-cad-links a:focus-visible { border-color: #75e2dc; background: #0b3038; color: #effff9; outline: none; }
+
+.legacy-drone-library .legacy-selected-sheet { padding: 13px; border-radius: 8px; }
+.legacy-drone-library .legacy-selected-visual {
+  min-height: 250px;
+  border-color: rgba(117, 226, 220, .24);
+  border-radius: 6px;
+  background: radial-gradient(ellipse at 50% 45%, rgba(25, 116, 116, .24), transparent 60%), linear-gradient(150deg, #061720, #071017 72%);
+}
+.legacy-drone-library .legacy-selected-visual .parametric-drone-preview { min-height: 250px; }
+.legacy-drone-library .legacy-selected-data dl div { border: 1px solid rgba(117, 226, 220, .09); border-radius: 3px; background: rgba(117, 226, 220, .035); }
+.legacy-drone-library .legacy-comparison-panel { border-radius: 8px; }
+
+@media (max-width: 760px) {
+  .legacy-drone-library .legacy-selection-console { grid-template-columns: 1fr; }
+  .legacy-drone-library .legacy-console-actions { grid-column: auto; }
+  .legacy-drone-library .legacy-concept-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); }
+  .legacy-drone-library .legacy-concept-visual { min-height: 185px; }
+  .legacy-drone-library .legacy-concept-visual .parametric-drone-preview { min-height: 185px; }
+  .legacy-drone-library .legacy-concept-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 460px) {
+  .legacy-drone-library .legacy-concept-grid { grid-template-columns: 1fr; }
+  .legacy-drone-library .legacy-concept-visual { min-height: 205px; }
+  .legacy-drone-library .legacy-concept-visual .parametric-drone-preview { min-height: 205px; }
+}
+
+/* Cycle de revue locale des cellules OBJ/STL importées. */
+.legacy-drone-library .imported-profile-status{display:grid;gap:4px;padding:7px 8px;border:1px solid rgba(224,188,114,.28);border-radius:4px;background:rgba(190,128,49,.07)}
+.legacy-drone-library .imported-profile-status strong{color:#f0cd86;font:700 7px ui-monospace,monospace;letter-spacing:.06em}
+.legacy-drone-library .imported-profile-status small{color:#ad9a71;font-size:7px;line-height:1.4}
+.legacy-drone-library .imported-profile-status.is-accepted{border-color:rgba(71,211,151,.32);background:rgba(48,160,119,.07)}
+.legacy-drone-library .imported-profile-status.is-accepted strong{color:#83ddb7}
+.legacy-drone-library .imported-profile-status.is-accepted small{color:#80aaa0}
+.legacy-drone-library .imported-profile-management{display:grid;gap:7px;padding:9px;border:1px solid rgba(117,226,220,.16);border-radius:5px;background:rgba(2,13,18,.48)}
+.legacy-drone-library .imported-profile-management-title{display:grid;gap:3px}
+.legacy-drone-library .imported-profile-management-title strong{color:#8bc7c1;font:700 7px ui-monospace,monospace;letter-spacing:.09em}
+.legacy-drone-library .imported-profile-management-title small,.legacy-drone-library .imported-profile-management-note{color:#779195;font-size:7px;line-height:1.45}
+.legacy-drone-library .imported-profile-management-actions{display:grid;grid-template-columns:1fr;gap:5px}
+.legacy-drone-library .imported-profile-management-actions button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:30px;padding:5px 8px;border:1px solid rgba(117,226,220,.2);border-radius:4px;background:rgba(117,226,220,.045);color:#c2e5df;font-size:8px;cursor:pointer;transition:border-color .15s,background .15s,color .15s}
+.legacy-drone-library .imported-profile-management-actions button:hover:not(:disabled){border-color:rgba(117,226,220,.55);background:rgba(117,226,220,.1);color:#e3fffa}
+.legacy-drone-library .imported-profile-management-actions button:disabled{opacity:.5;cursor:not-allowed}
+.legacy-drone-library .imported-profile-management-actions button.is-retain{border-color:rgba(71,211,151,.28);color:#8ce0b8}
+.legacy-drone-library .imported-profile-management-actions button.is-delete{border-color:rgba(227,115,102,.24);color:#e5a198}
+.legacy-drone-library .legacy-concept-actions button:disabled{opacity:.45;cursor:not-allowed;filter:saturate(.5)}
+.imported-profile-confirm-dialog{max-width:480px;border:1px solid rgba(117,226,220,.28)!important;background:linear-gradient(145deg,#0b2028,#07131a)!important;color:#d9eeee!important;box-shadow:0 22px 70px rgba(0,0,0,.58)!important}
+.imported-profile-confirm-dialog [data-slot="alert-dialog-title"]{color:#e4f5f1;font-size:16px}
+.imported-profile-confirm-dialog [data-slot="alert-dialog-description"]{color:#9bb5b6;font-size:12px;line-height:1.6}
+.imported-profile-confirm-dialog [data-slot="alert-dialog-footer"]{gap:8px}
+.imported-profile-confirm-dialog [data-slot="alert-dialog-footer"] button{min-height:36px;border-radius:4px;font-size:11px}
+.imported-profile-confirm-dialog .imported-profile-confirm-retain{border:1px solid rgba(71,211,151,.4);background:rgba(40,141,110,.25);color:#a9f0d0}
+.imported-profile-confirm-dialog .imported-profile-confirm-delete{border:1px solid rgba(227,115,102,.42);background:rgba(155,58,52,.24);color:#ffc0b3}
+@media(max-width:460px){.legacy-drone-library .imported-profile-management-actions button{justify-content:flex-start}.imported-profile-confirm-dialog{padding:17px!important}}

@@ -1,0 +1,21 @@
+{
+  "schema": "aeromind-local-mission-plan-v1",
+  "title": "Inspection solaire locale — exemple",
+  "disclaimer": "Données fictives pour simulation locale uniquement",
+  "missionPlan": {
+    "profileId": "area-grid",
+    "radiusKm": 1,
+    "returnAltitudeM": 60,
+    "lostLinkAction": "return",
+    "homeX": 50,
+    "homeY": 90,
+    "waypoints": [
+      { "id": "WP-01", "name": "Entrée de zone", "x": 30, "y": 78, "altitudeM": 40, "speedKmh": 28, "action": "inspection" },
+      { "id": "WP-02", "name": "Bande solaire nord", "x": 70, "y": 78, "altitudeM": 42, "speedKmh": 28, "action": "inspection" },
+      { "id": "WP-03", "name": "Bande solaire centre", "x": 70, "y": 54, "altitudeM": 44, "speedKmh": 26, "action": "inspection" },
+      { "id": "WP-04", "name": "Bande solaire sud", "x": 30, "y": 54, "altitudeM": 44, "speedKmh": 26, "action": "inspection" },
+      { "id": "WP-05", "name": "Point de contrôle", "x": 50, "y": 34, "altitudeM": 46, "speedKmh": 24, "action": "inspection" },
+      { "id": "WP-06", "name": "Sortie de zone", "x": 50, "y": 90, "altitudeM": 40, "speedKmh": 28, "action": "return" }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aeromind
+      POSTGRES_USER: aeromind
+      POSTGRES_PASSWORD: aeromind_dev_only
+    volumes:
+      - aeromind-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeromind -d aeromind"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "10000:10000"
+    environment:
+      AEROMIND_ENV: development
+      PORT: 10000
+      AEROMIND_SESSION_SECRET: local-compose-secret-change-me-32-bytes
+      DATABASE_URL: postgresql://aeromind:aeromind_dev_only@db:5432/aeromind
+      AEROMIND_ALLOWED_ORIGINS: http://localhost:10000
+      AEROMIND_ALLOWED_HOSTS: localhost,127.0.0.1
+      HARDWARE_CONTROL: "false"
+      AEROMIND_TRIAL_EMAILS: demo@example.com
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:10000/api/ready\", timeout=3)' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  aeromind-postgres:

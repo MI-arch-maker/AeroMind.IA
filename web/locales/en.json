@@ -1,0 +1,11 @@
+{
+  "OIDC authentication required": "OIDC authentication required",
+  "Invalid session": "Invalid session",
+  "Not found": "Not found",
+  "Internal server error": "Internal server error",
+  "Project not found": "Project not found",
+  "Record not found": "Record not found",
+  "Run not found": "Run not found",
+  "Prototype version not found": "Prototype version not found",
+  "Only a completed run can produce a report": "Only a completed run can produce a report"
+}
