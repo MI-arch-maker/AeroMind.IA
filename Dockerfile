@@ -8,6 +8,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY frontend ./
+COPY scripts ../scripts
 RUN pnpm run check && pnpm run build
 
 FROM python:3.12-slim AS runtime
