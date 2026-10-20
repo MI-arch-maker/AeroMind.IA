@@ -1,6 +1,7 @@
 """Database wiring for SQLite, PostgreSQL and MySQL/MariaDB deployments."""
 
 import os
+import ssl
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -26,7 +27,29 @@ class Base(DeclarativeBase):
 
 
 _engine_url = database_url()
-connect_args = {"check_same_thread": False} if _engine_url.startswith("sqlite") else {}
+
+
+def _mysql_tls_connect_args() -> dict[str, object]:
+    """Return verified TLS settings required by TiDB Cloud Serverless.
+
+    PyMySQL does not enable TLS merely because the server supports it. TiDB
+    Cloud Serverless rejects the resulting plaintext handshake, so build a
+    standard-library SSL context and pass it through SQLAlchemy's connect_args.
+    The system CA bundle is used by default; AEROMIND_DB_CA can override it
+    for installations using a private CA.
+    """
+    ca_file = os.getenv("AEROMIND_DB_CA", "").strip() or None
+    tls_context = ssl.create_default_context(cafile=ca_file)
+    tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return {"ssl": tls_context}
+
+
+if _engine_url.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+elif _engine_url.startswith("mysql+pymysql://"):
+    connect_args = _mysql_tls_connect_args()
+else:
+    connect_args = {}
 engine = create_engine(_engine_url, pool_pre_ping=True, connect_args=connect_args)
 if _engine_url.startswith("sqlite"):
 
