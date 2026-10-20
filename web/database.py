@@ -1,4 +1,4 @@
-"""Database wiring for AeroMind business records (SQLite locally, PostgreSQL in production)."""
+"""Database wiring for SQLite, PostgreSQL and MySQL/MariaDB deployments."""
 
 import os
 
@@ -12,6 +12,12 @@ def database_url() -> str:
         url = "postgresql+psycopg://" + url[len("postgres://") :]
     elif url.startswith("postgresql://"):
         url = "postgresql+psycopg://" + url[len("postgresql://") :]
+    elif url.startswith("mysql://"):
+        url = "mysql+pymysql://" + url[len("mysql://") :]
+    elif url.startswith("mysql+mysqldb://"):
+        url = "mysql+pymysql://" + url[len("mysql+mysqldb://") :]
+    elif url.startswith("mariadb://"):
+        url = "mysql+pymysql://" + url[len("mariadb://") :]
     return url or "sqlite:///./data/aeromind.db"
 
 

@@ -28,7 +28,7 @@ Compose lance PostgreSQL et l’image full-stack définie dans `Dockerfile`. Le 
 
 ## Configuration
 
-Variables principales : `DATABASE_URL` (PostgreSQL en production), `AEROMIND_SESSION_SECRET`, `AEROMIND_ENV`, `AEROMIND_ALLOWED_ORIGINS` (liste exacte d’origines séparées par virgule), `AEROMIND_ALLOWED_HOSTS`, les variables `OIDC_*`, `AEROMIND_SUPERADMIN_EMAILS` et, facultativement, `OPENAI_API_KEY`/`OPENAI_API_BASE`/`OPENAI_MODEL`. **Ne jamais committer les secrets.** `HARDWARE_CONTROL` reste à `false` par défaut.
+Variables principales : `DATABASE_URL` (PostgreSQL ou MySQL/MariaDB en production), `AEROMIND_SESSION_SECRET`, `AEROMIND_ENV`, `AEROMIND_ALLOWED_ORIGINS` (liste exacte d’origines séparées par virgule), `AEROMIND_ALLOWED_HOSTS`, les variables `OIDC_*`, `AEROMIND_SUPERADMIN_EMAILS` et, facultativement, `OPENAI_API_KEY`/`OPENAI_API_BASE`/`OPENAI_MODEL`. **Ne jamais committer les secrets.** `HARDWARE_CONTROL` reste à `false` par défaut.
 
 ## API métier
 
