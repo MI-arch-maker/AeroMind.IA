@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { cn } from "@/lib/utils";
 
 type Coordinate = { lat: number; lng: number };
-type RoutePoint = Coordinate & { id: string; name: string };
+type RoutePoint = Coordinate & { id: string; name: string; approximate?: boolean };
 export type MapLayerMode = "tactical" | "satellite";
 
 type OpenStreetMapViewProps = {
@@ -13,7 +13,11 @@ type OpenStreetMapViewProps = {
   layerMode: MapLayerMode;
   onCenterChange?: (center: Coordinate) => void;
   onMapClick?: (coordinate: Coordinate) => void;
+  selectedPointId?: string;
+  onPointSelect?: (pointId: string) => void;
   simulatedProgress?: number;
+  simulatedAltitudeM?: number;
+  simulatedHeadingDeg?: number;
 };
 
 type TileProvider = {
@@ -102,7 +106,11 @@ export function OpenStreetMapView({
   layerMode,
   onCenterChange,
   onMapClick,
+  selectedPointId,
+  onPointSelect,
   simulatedProgress,
+  simulatedAltitudeM = 0,
+  simulatedHeadingDeg = 0,
 }: OpenStreetMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; center: { x: number; y: number }; moved: boolean } | null>(null);
@@ -117,6 +125,10 @@ export function OpenStreetMapView({
   useEffect(() => {
     setMapCenter(center);
   }, [center.lat, center.lng]);
+
+  useEffect(() => {
+    setMapZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)));
+  }, [zoom]);
 
   useEffect(() => {
     setProviderIndex(0);
@@ -162,7 +174,7 @@ export function OpenStreetMapView({
     return { left: pixel.x - centerPixel.x + viewport.width / 2, top: pixel.y - centerPixel.y + viewport.height / 2 };
   };
   const simulatedPosition = typeof simulatedProgress === "number"
-    ? interpolateMapRoutePosition([mapCenter, ...points], simulatedProgress, mapZoom)
+    ? interpolateMapRoutePosition(points, simulatedProgress, mapZoom)
     : null;
 
   const commitCenter = (nextPixel: { x: number; y: number }) => {
@@ -172,6 +184,7 @@ export function OpenStreetMapView({
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest("button, input, select, a, [data-map-interactive]")) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = { x: event.clientX, y: event.clientY, center: centerPixel, moved: false };
   };
@@ -249,12 +262,12 @@ export function OpenStreetMapView({
       <div className="aeromind-open-map-overlay" aria-hidden="true">
         {points.map((point, index) => {
           const position = toScreen(point);
-          return <div key={point.id} className="aeromind-open-map-marker" style={position} title={`${point.name} · ${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`}><span>{index + 1}</span></div>;
+          return <button key={point.id} type="button" data-map-interactive="true" className={`aeromind-open-map-marker${selectedPointId === point.id ? " is-selected" : ""}`} style={position} aria-label={`Sélectionner ${point.name}, point ${index + 1}${point.approximate ? ", position approximative" : `, ${point.lat.toFixed(5)}°, ${point.lng.toFixed(5)}°`}`} aria-pressed={selectedPointId === point.id} title={point.approximate ? `${point.name} · position approximative issue de l’ancien plan X/Y` : `${point.name} · ${point.lat.toFixed(5)}, ${point.lng.toFixed(5)} WGS84`} onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onPointSelect?.(point.id); }}><span>{index + 1}</span></button>;
         })}
-        {points.length > 0 && <svg className="aeromind-open-map-route" width={viewport.width} height={viewport.height}><polyline points={[mapCenter, ...points].map(point => { const position = toScreen(point); return `${position.left},${position.top}`; }).join(" ")} /></svg>}
-        {simulatedPosition && <div className="aeromind-open-map-simulated-position" style={toScreen(simulatedPosition)} title="Position de démonstration locale, simulée"><span>SIM</span></div>}
+        {points.length > 1 && <svg className="aeromind-open-map-route" width={viewport.width} height={viewport.height}><polyline points={points.map(point => { const position = toScreen(point); return `${position.left},${position.top}`; }).join(" ")} /></svg>}
+        {simulatedPosition && <div className="aeromind-open-map-simulated-position" style={{ ...toScreen(simulatedPosition), "--sim-height": `${Math.max(0, Math.min(180, simulatedAltitudeM * 0.03))}px`, transform: `translate(-50%, calc(-50% - ${Math.max(0, Math.min(180, simulatedAltitudeM * 0.03))}px))` } as CSSProperties} title={`Drone virtuel · cap ${Math.round(simulatedHeadingDeg)}° · altitude simulée ${Math.round(simulatedAltitudeM)} m · aucun pilotage réel`}><svg viewBox="0 0 48 48" style={{ transform: `rotate(${simulatedHeadingDeg}deg)` }} aria-hidden="true"><path d="M24 3 29 19 43 25 42 29 28 26 27 39 33 43 32 46 24 44 16 46 15 43 21 39 20 26 6 29 5 25 19 19Z" fill="#173033" stroke="#effff2" strokeWidth="1.5"/><circle cx="24" cy="22" r="3" fill="#ffcc6b"/></svg><span>SIM · {Math.round(simulatedAltitudeM)} M</span></div>}
       </div>
-      <div className="aeromind-open-map-controls"><button type="button" aria-label="Zoom avant" onPointerDown={event => event.stopPropagation()} onClick={() => setMapZoom(value => Math.min(MAX_ZOOM, value + 1))}>+</button><button type="button" aria-label="Zoom arrière" onPointerDown={event => event.stopPropagation()} onClick={() => setMapZoom(value => Math.max(MIN_ZOOM, value - 1))}>−</button></div>
+      <div className="aeromind-open-map-controls" data-map-interactive="true" onPointerDown={event => event.stopPropagation()}><button type="button" aria-label="Zoom avant" onClick={() => setMapZoom(value => Math.min(MAX_ZOOM, value + 1))}>+</button><button type="button" aria-label="Zoom arrière" onClick={() => setMapZoom(value => Math.max(MIN_ZOOM, value - 1))}>−</button></div>
       <div className="aeromind-open-map-attribution">{provider.attribution} · {provider.label}</div>
     </div>
   );

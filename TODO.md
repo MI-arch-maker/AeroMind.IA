@@ -54,3 +54,17 @@ Le Twin reste un modèle mécanique conceptuel paramétrique. Les matériaux, co
 - [x] **Détails :** les checklists enregistrées exposent leurs contrôles, états, niveaux et messages en volet dépliable; les événements serveur et les brouillons locaux sont clairement séparés.
 - [x] **Validation :** `pnpm check`, 241 tests Vitest, build statique et 37 tests Python réussis. Contrôles de catalogues français/anglais passés. Le linter i18n global signale encore des textes hérités hors des composants modifiés; aucun diagnostic ne vise `ValidationAuditJournal.tsx` ou le nouveau panneau de synchronisation.
 - [ ] **Mise en production :** pour une base TiDB déjà utilisée, appliquer `migrations/2026-10-21_validation_audit_events.sql` avant de déployer; aucune base distante n’a été modifiée ni aucun déploiement déclenché dans cette livraison.
+
+## Demande — carte globale et simulation 4D dans Simulation & analyses
+
+- [x] **Itinéraire géographique partout :** permettre de tracer et modifier un itinéraire sur l’ensemble du monde, à n’importe quel point visible, dans chacun des modes Monde, Terrain, Satellite, Nuit et Grille; conserver les coordonnées précises latitude/longitude WGS84, et offrir leur saisie directe.
+- [x] **Recherche de lieux :** rechercher des adresses, rues, villes et lieux pour cadrer précisément la carte; afficher les résultats et l’attribution de la source cartographique/géocodeur.
+- [x] **Simulation virtuelle 4D :** pendant la lecture, déplacer un marqueur le long des waypoints géographiques et représenter l’altitude interpolée; synchroniser les mini-vues de carte sur la même route.
+- [x] **Précision et sécurité :** ne pas présenter comme exacts les anciens plans X/Y non géographiques; les signaler comme approximatifs jusqu’à leur repositionnement; ne jamais envoyer de commande physique, GNSS embarqué ou téléversement de mission.
+- [x] **Limites de couverture :** expliquer que les tuiles et le géocodage nécessitent un accès réseau, que la projection cartographique est limitée aux hautes latitudes et que le fond satellite ne garantit pas un détail intérieur d’appartement.
+- [x] **Validation :** `pnpm check`, 241 tests Vitest et `pnpm build:static` réussis; aucune mise en production ni migration distante déclenchée.
+
+## Correctif — sélection des points et tracé sur carte mondiale (2026-10-21)
+- [x] Les waypoints cartographiques sont des boutons sélectionnables au clic/clavier et synchronisent le waypoint actif avec l’éditeur; la sélection est visible.
+- [x] La couche de route n’intercepte plus les clics et les marqueurs n’empêchent pas le pointage des zones libres; les gestes des contrôles de zoom restent séparés des clics de tracé.
+- [x] `pnpm check` et 241 tests Vitest passés après correction.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   Activity, ArrowUpRight, BatteryCharging, BrainCircuit, CheckCircle2, CloudSun,
   Compass, Copy, Cpu, Crosshair, Gauge, History, Layers3, MapPin, Pause,
@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { runSimulation, type ConceptConfig, type MissionWaypoint, type Requirement, type SimulationResult } from "../lib/aeroEngine";
 import { defaultLocalMissionPlan } from "../lib/flightEngineering";
+import { OpenStreetMapView } from "./OpenStreetMapView";
+import "./satellite-navigation.css";
 import "./virtual-simulation-center.css";
 
 type RunRecord = { id: number; runId: string; engineVersion: string; createdAt: Date };
@@ -26,8 +28,6 @@ const waypoints = [
   { id: "WP-04", x: 770, y: 280, altitude: 3900 },
 ];
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-const mercatorY = (latitude: number, zoom: number) => { const lat = clamp(latitude, -85.05112878, 85.05112878) * Math.PI / 180; return (1 - Math.asinh(Math.tan(lat)) / Math.PI) / 2 * 2 ** zoom; };
-const worldPixel = (longitude: number, latitude: number, zoom: number) => ({ x: (longitude + 180) / 360 * 2 ** zoom * 256, y: mercatorY(latitude, zoom) * 256 });
 const tabs: MissionTab[] = ["OVERVIEW", "FLIGHT", "SYSTEMS", "PAYLOAD", "ANALYSIS"];
 
 export function VirtualSimulationCenter({ simulation, requirements, onRunSimulation, isRunning, config, setConfig, history, versions, onRestoreVersion }: Props) {
@@ -45,12 +45,19 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
   const [activeTab, setActiveTab] = useState<MissionTab>("OVERVIEW");
   const [activeWaypoint, setActiveWaypoint] = useState("WP-01");
   const [mapMode, setMapMode] = useState<"WORLD" | "TERRAIN" | "SAT" | "GRID" | "NIGHT">("WORLD");
-  const [mapZoom, setMapZoom] = useState(2);
-  const [mapCenter, setMapCenter] = useState({ longitude: 0, latitude: 18 });
-  const mapDrag = useRef<{ x: number; y: number; centerX: number; centerY: number } | null>(null);
-  const dragOccurred = useRef(false);
+  const [mapCenter, setMapCenter] = useState(() => {
+    const points = config.missionPlan?.waypoints ?? [];
+    return points.length ? {
+      lat: points.reduce((sum, point) => sum + (point.latitude ?? 90 - point.y * 1.8), 0) / points.length,
+      lng: points.reduce((sum, point) => sum + (point.longitude ?? point.x * 3.6 - 180), 0) / points.length,
+    } : { lat: 48.8566, lng: 2.3522 };
+  });
   const [routeEditMode, setRouteEditMode] = useState(false);
   const [routeFeedback, setRouteFeedback] = useState("Sélectionnez un point ou activez AJOUT RAPIDE");
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [placeResults, setPlaceResults] = useState<{ lat: number; lng: number; label: string }[]>([]);
+  const [placeSearchState, setPlaceSearchState] = useState<"idle" | "loading" | "error">("idle");
+  const geocodeLastRequest = useRef(0);
   const [missionEnded, setMissionEnded] = useState(false);
   const targetName = config.missionTarget?.name || "CIBLE VIRTUELLE";
   const targetBrief = config.missionTarget?.brief || "Attribution personnalisée · simulation uniquement";
@@ -87,45 +94,24 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
   const motorCount = clamp(Math.round(config.motorCount ?? 4),1,12);
   const elapsed = `${String(Math.floor(simTime / 60)).padStart(2, "0")}:${String(simTime % 60).padStart(2, "0")}`;
   const missionWaypoints = config.missionPlan?.waypoints.length
-    ? config.missionPlan.waypoints.map(point => ({ id: point.id, x: (mapMode === "WORLD" || mapMode === "SAT" || mapMode === "NIGHT") ? clamp(point.x, 0, 100) * 10 : 50 + clamp(point.x, 0, 100) * 9, y: (mapMode === "WORLD" || mapMode === "SAT" || mapMode === "NIGHT") ? clamp(point.y, 0, 100) * 5.2 : 40 + clamp(point.y, 0, 100) * 4, altitude: point.altitudeM, name: point.name }))
+    ? config.missionPlan.waypoints.map(point => ({ id: point.id, x: point.x, y: point.y, altitude: point.altitudeM, name: point.name }))
     : waypoints.map((point, index) => ({ ...point, y: point.y + 92, altitude: Math.round(targetAltitude * ([0.84, 0.94, 1, 0.9][index] ?? 1)), name: point.id }));
+  const hasLegacyCoordinates = (config.missionPlan?.waypoints ?? []).some(point => point.latitude === undefined || point.longitude === undefined);
+  const geoWaypoints = (config.missionPlan?.waypoints ?? []).map(point => ({
+    id: point.id,
+    name: point.name,
+    approximate: point.latitude === undefined || point.longitude === undefined,
+    lat: point.latitude ?? clamp(90 - point.y * 1.8, -85.0511, 85.0511),
+    lng: point.longitude ?? point.x * 3.6 - 180,
+  }));
   const activeWaypointId = missionWaypoints.some(point => point.id === activeWaypoint) ? activeWaypoint : missionWaypoints[0]?.id ?? "WP-01";
   const selectedPlanWaypoint = config.missionPlan?.waypoints.find(point => point.id === activeWaypointId);
   const current = missionWaypoints.find(point => point.id === activeWaypointId) ?? missionWaypoints[0] ?? { id: "WP-01", x: 100, y: 400, altitude: targetAltitude, name: "WP-01" };
-  const isImageryMode = mapMode === "SAT" || mapMode === "NIGHT";
-  const centerPixel = worldPixel(mapCenter.longitude, mapCenter.latitude, mapZoom);
-  const satTiles = useMemo(() => {
-    if (!isImageryMode) return [];
-    const tileCount = 2 ** mapZoom;
-    const centerTileX = centerPixel.x / 256, centerTileY = centerPixel.y / 256;
-    const tiles: { key: string; x: number; y: number; href: string }[] = [];
-    for (let row = -2; row <= 2; row++) for (let col = -2; col <= 2; col++) {
-      const rawX = Math.floor(centerTileX) + col, tileY = Math.floor(centerTileY) + row;
-      if (tileY < 0 || tileY >= tileCount) continue;
-      const tileX = ((rawX % tileCount) + tileCount) % tileCount;
-      tiles.push({ key: `${mapZoom}-${rawX}-${tileY}`, x: 500 + (rawX - centerTileX) * 256, y: 260 + (tileY - centerTileY) * 256, href: `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${mapZoom}/${tileY}/${tileX}` });
-    }
-    return tiles;
-  }, [isImageryMode, mapZoom, centerPixel.x, centerPixel.y]);
-  const routePoints = missionWaypoints.map(point => {
-    if (!isImageryMode) return `${point.x},${point.y}`;
-    const lon = point.x / 10 - 180, lat = 90 - point.y / 5.2;
-    const pixel = worldPixel(lon, lat, mapZoom);
-    return `${500 + pixel.x - centerPixel.x},${260 + pixel.y - centerPixel.y}`;
-  }).join(" ");
-  const screenPoint = (point: typeof missionWaypoints[number]) => {
-    if (!isImageryMode) return point;
-    const pixel = worldPixel(point.x / 10 - 180, 90 - point.y / 5.2, mapZoom);
-    return { ...point, x: 500 + pixel.x - centerPixel.x, y: 260 + pixel.y - centerPixel.y };
-  };
   const routeIndex = Math.min(missionWaypoints.length - 1, Math.floor(progress * Math.max(0, missionWaypoints.length - 1)));
   const nextRoutePoint = missionWaypoints[Math.min(routeIndex + 1, missionWaypoints.length - 1)] ?? current;
   const segmentStart = missionWaypoints[routeIndex] ?? current;
   const segmentProgress = missionWaypoints.length > 1 ? progress * (missionWaypoints.length - 1) - routeIndex : progress;
-  const droneX = segmentStart.x + (nextRoutePoint.x - segmentStart.x) * segmentProgress;
-  const droneY = segmentStart.y + (nextRoutePoint.y - segmentStart.y) * segmentProgress;
-  const droneScreen = screenPoint({ ...current, x: droneX, y: droneY });
-  const routeCurrentPoints = [...missionWaypoints.slice(0, routeIndex + 1), { ...current, x: droneX, y: droneY }].map(point => { const projected = screenPoint(point); return `${projected.x},${projected.y}`; }).join(" ");
+  const simulatedAltitudeM = Math.round(segmentStart.altitude + (nextRoutePoint.altitude - segmentStart.altitude) * segmentProgress);
   const routeHeadingDeg = ((Math.atan2(nextRoutePoint.x - segmentStart.x, segmentStart.y - nextRoutePoint.y) * 180 / Math.PI) + 360) % 360;
   const followingPoint = missionWaypoints[Math.min(routeIndex + 2, missionWaypoints.length - 1)] ?? nextRoutePoint;
   const followingHeadingDeg = ((Math.atan2(followingPoint.x - nextRoutePoint.x, nextRoutePoint.y - followingPoint.y) * 180 / Math.PI) + 360) % 360;
@@ -137,7 +123,7 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
   const orbitRadiusX = 42 + clamp(simulation.rangeKm / 200, 0, 1) * 42;
   const orbitRadiusY = 18 + clamp(simulation.rangeKm / 200, 0, 1) * 16;
   const systemPowerScaleW = Math.max(1000, (config.motorCount ?? 4) * 750);
-  const navWaypoints = missionWaypoints.map(point => ({ ...point, x: 18 + point.x / 1000 * 284, y: 8 + point.y / 520 * 130 }));
+  const navWaypoints = missionWaypoints.map(point => ({ ...point, x: 18 + point.x / 100 * 284, y: 8 + point.y / 100 * 130 }));
   const comparisonConfig = { ...config, windSpeedKmh: scenarios[0]?.wind ?? config.windSpeedKmh, altitudeM: scenarios[0]?.altitude ?? config.altitudeM, missionEnvironment: { ambientC: 20, windKmh: scenarios[0]?.wind ?? config.windSpeedKmh, emiLevel: 0 } };
   const comparisonSimulation = runSimulation(comparisonConfig, requirements);
   const comparisonPowerDelta = simulation.estimatedPowerW - comparisonSimulation.estimatedPowerW;
@@ -161,6 +147,10 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
   });
   const enableRouteEditing = () => {
     const plan = config.missionPlan ?? makeEditablePlan();
+    if (plan.waypoints.length) setMapCenter({
+      lat: plan.waypoints.reduce((sum, point) => sum + (point.latitude ?? 90 - point.y * 1.8), 0) / plan.waypoints.length,
+      lng: plan.waypoints.reduce((sum, point) => sum + (point.longitude ?? point.x * 3.6 - 180), 0) / plan.waypoints.length,
+    });
     setConfig(current => ({ ...current, missionPlan: current.missionPlan ?? plan }));
     setActiveWaypoint(plan.waypoints[0]?.id ?? "WP-01");
     setRouteEditMode(true);
@@ -178,7 +168,7 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
     let nextNumber = plan.waypoints.length + 1;
     while (plan.waypoints.some(point => point.id === `WP-${String(nextNumber).padStart(2, "0")}`)) nextNumber += 1;
     const id = `WP-${String(nextNumber).padStart(2, "0")}`;
-    const point: MissionWaypoint = { id, name: `Point ${plan.waypoints.length + 1}`, x: clamp((previous?.x ?? 50) + 10, 0, 100), y: clamp((previous?.y ?? 50) - 8, 0, 100), altitudeM: Math.max(0, targetAltitude || 120), speedKmh: Math.max(0, speed || 30), action: "inspection" };
+    const point: MissionWaypoint = { id, name: `Point ${plan.waypoints.length + 1}`, x: clamp((mapCenter.lng + 180) / 3.6, 0, 100), y: clamp((90 - mapCenter.lat) / 1.8, 0, 100), latitude: mapCenter.lat, longitude: mapCenter.lng, altitudeM: Math.max(0, targetAltitude || 120), speedKmh: Math.max(0, speed || 30), action: "inspection" };
     setConfig(current => ({ ...current, missionPlan: { ...(current.missionPlan ?? plan), waypoints: [...(current.missionPlan?.waypoints ?? plan.waypoints), point] } }));
     setActiveWaypoint(id);
     setRouteFeedback(`${id} ajouté · ajustez sa position dans l’éditeur`);
@@ -190,20 +180,14 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
     setActiveWaypoint(remaining[0]?.id ?? "WP-01");
     setRouteFeedback("Point supprimé · itinéraire recalculé localement");
   };
-  const handleMapClick = (event: MouseEvent<SVGSVGElement>) => {
-    if (dragOccurred.current) { dragOccurred.current = false; return; }
-    if (!routeEditMode || (event.target as Element).closest(".vsc-mc-waypoint")) return;
-    const svg = event.currentTarget;
-    const bounds = svg.getBoundingClientRect();
-    const screenX = (event.clientX - bounds.left) / bounds.width * 1000;
-    const screenY = (event.clientY - bounds.top) / bounds.height * 520;
-    let x = clamp(screenX / 10, 0, 100), y = clamp(screenY / 5.2, 0, 100);
-    if (isImageryMode) {
-      const worldX = centerPixel.x + screenX - 500, worldY = centerPixel.y + screenY - 260, scale = 2 ** mapZoom * 256;
-      const longitude = worldX / scale * 360 - 180;
-      const latitude = Math.atan(Math.sinh(Math.PI * (1 - 2 * worldY / scale))) * 180 / Math.PI;
-      x = clamp((longitude + 180) / 3.6, 0, 100); y = clamp((90 - latitude) / 1.8, 0, 100);
+  const handleMapClick = (coordinate: { lat: number; lng: number }) => {
+    setMapCenter(coordinate);
+    if (!routeEditMode) {
+      setRouteFeedback(`Carte centrée · ${coordinate.lat.toFixed(5)}°, ${coordinate.lng.toFixed(5)}° · activez l’édition pour ajouter un point`);
+      return;
     }
+    const x = clamp((coordinate.lng + 180) / 3.6, 0, 100);
+    const y = clamp((90 - coordinate.lat) / 1.8, 0, 100);
     const plan = config.missionPlan ?? makeEditablePlan();
     let nextNumber = plan.waypoints.length + 1;
     while (plan.waypoints.some(point => point.id === `WP-${String(nextNumber).padStart(2, "0")}`)) nextNumber += 1;
@@ -213,15 +197,42 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
       name: `Point ${plan.waypoints.length + 1}`,
       x: Math.round(x),
       y: Math.round(y),
+      latitude: Number(coordinate.lat.toFixed(7)),
+      longitude: Number(coordinate.lng.toFixed(7)),
       altitudeM: Math.max(0, targetAltitude || 120),
       speedKmh: Math.max(0, speed || 30),
       action: "inspection",
     };
     setConfig(current => ({ ...current, missionPlan: { ...(current.missionPlan ?? plan), waypoints: [...(current.missionPlan?.waypoints ?? plan.waypoints), point] } }));
     setActiveWaypoint(id);
-    const longitude = x / 100 * 360 - 180;
-    const latitude = 90 - y / 100 * 180;
-    setRouteFeedback(mapMode === "WORLD" ? `${id} placé · env. ${latitude.toFixed(2)}° ${latitude >= 0 ? "N" : "S"}, ${Math.abs(longitude).toFixed(2)}° ${longitude >= 0 ? "E" : "O"} · repère cartographique indicatif` : `${id} placé à ${Math.round(x)} / ${Math.round(y)} · itinéraire mis à jour`);
+    setRouteFeedback(`${id} placé · ${coordinate.lat.toFixed(5)}°, ${coordinate.lng.toFixed(5)}° WGS84 · simulation locale`);
+  };
+  const searchPlace = async () => {
+    const query = placeQuery.trim();
+    if (!query) return;
+    setPlaceSearchState("loading");
+    try {
+      const waitMs = Math.max(0, 1100 - (Date.now() - geocodeLastRequest.current));
+      if (waitMs) await new Promise(resolve => window.setTimeout(resolve, waitMs));
+      geocodeLastRequest.current = Date.now();
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&q=${encodeURIComponent(query)}`, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error("Géocodage indisponible");
+      const results = await response.json() as { lat: string; lon: string; display_name: string }[];
+      const places = results.map(result => ({ lat: Number(result.lat), lng: Number(result.lon), label: result.display_name }));
+      setPlaceResults(places);
+      if (places.length) {
+        setMapCenter(places[0]);
+        setPlaceSearchState("idle");
+        setRouteFeedback(`Carte centrée sur ${places[0].label}`);
+      } else setPlaceSearchState("error");
+    } catch { setPlaceSearchState("error"); }
+  };
+  const choosePlace = (place: { lat: number; lng: number; label: string }) => {
+    setMapCenter(place);
+    setPlaceQuery(place.label);
+    setPlaceResults([]);
+    setPlaceSearchState("idle");
+    setRouteFeedback(`Lieu sélectionné · ${place.lat.toFixed(5)}°, ${place.lng.toFixed(5)}°`);
   };
   const resetDemoRoute = () => {
     setConfig(current => ({ ...current, missionPlan: undefined }));
@@ -303,22 +314,37 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
 
       <section className="vsc-mc-card vsc-mc-primary-scene">
         <div className="vsc-mc-panel-head"><div><span>LIVE DIGITAL TWIN · {activeDroneName}</span><strong>{terrain.toUpperCase()} / TRAJECTOIRE SUPERVISÉE</strong></div><span className="vsc-mc-live"><i /> SIM {missionEnded ? "ENDED" : isPlaying ? "RUNNING" : "READY"}</span></div>
-        <div className="vsc-mc-map-scene" data-map-mode={mapMode} data-location={location} data-surface={terrain}>
-          <svg className={`vsc-mc-terrain ${routeEditMode ? "is-editing" : ""}`} viewBox="0 0 1000 520" preserveAspectRatio="none" role="img" aria-label={mapMode === "WORLD" ? "Carte mondiale Natural Earth et route locale X/Y non géoréférencée" : "Carte de trajectoire synthétique, sans coordonnées réelles"} onClick={handleMapClick} onPointerDown={event=>{if(isImageryMode&&event.button===0){mapDrag.current={x:event.clientX,y:event.clientY,centerX:centerPixel.x,centerY:centerPixel.y};event.currentTarget.setPointerCapture(event.pointerId)}}} onPointerMove={event=>{const drag=mapDrag.current;if(!drag||!isImageryMode)return;const bounds=event.currentTarget.getBoundingClientRect(),dx=(event.clientX-drag.x)/bounds.width*1000,dy=(event.clientY-drag.y)/bounds.height*520;if(Math.abs(dx)+Math.abs(dy)>4)dragOccurred.current=true;const scale=2**mapZoom*256,worldX=drag.centerX-dx,worldY=drag.centerY-dy,longitude=worldX/scale*360-180,latitude=Math.atan(Math.sinh(Math.PI*(1-2*worldY/scale)))*180/Math.PI;setMapCenter({longitude,latitude:clamp(latitude,-85,85)})}} onPointerUp={event=>{if(mapDrag.current){mapDrag.current=null;if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId)}}} onWheel={event=>{if(isImageryMode){event.preventDefault();setMapZoom(value=>clamp(value+(event.deltaY<0?1:-1),1,18))}}}>
-            <defs><radialGradient id="mc-horizon"><stop stopColor="#126b7b" stopOpacity=".64"/><stop offset="1" stopColor="#071821" stopOpacity="0"/></radialGradient><pattern id="mc-grid" width="68" height="52" patternUnits="userSpaceOnUse"><path d="M68 0H0V52" fill="none" stroke="#76d8da" strokeOpacity=".1"/></pattern><filter id="mc-glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-            <rect width="1000" height="520" fill="#071923"/><rect width="1000" height="520" fill="url(#mc-horizon)"/><rect width="1000" height="520" fill="url(#mc-grid)"/>
-            {mapMode === "WORLD" ? <image href="/world-map.svg" x="0" y="0" width="1000" height="520" preserveAspectRatio="none" role="img" aria-label="Fond cartographique mondial Natural Earth, référence visuelle uniquement" /> : <g fill="#0c3641" stroke="#24707b" strokeOpacity=".32" strokeWidth="2"><path d="M40 225L95 174 155 178 202 141 253 151 294 197 273 226 231 237 210 279 158 283 131 326 86 311 61 270Z"/><path d="M308 297L351 275 393 286 416 322 390 347 355 336Z"/><path d="M602 146L650 128 702 141 734 171 717 203 670 207 640 188Z"/><path d="M742 324L791 299 850 308 886 349 859 382 808 378 780 354Z"/></g>}
-            {isImageryMode&&<g className="vsc-mc-imagery-tiles">{satTiles.map(tile=><image key={tile.key} href={tile.href} x={tile.x} y={tile.y} width="256" height="256" preserveAspectRatio="none"/>)}</g>}
-            <polyline points={routePoints} className="vsc-mc-route-planned"/><polyline points={routeCurrentPoints} className="vsc-mc-route-current"/>
-            {missionWaypoints.map((rawPoint,index)=>{const point=screenPoint(rawPoint); return <g key={point.id} className={`vsc-mc-waypoint ${activeWaypointId===point.id?"is-active":""}`} role="button" tabIndex={0} aria-label={`Choisir ${point.name}`} onClick={()=>setActiveWaypoint(point.id)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")setActiveWaypoint(point.id)}}><circle cx={point.x} cy={point.y} r={activeWaypointId===point.id?11:7}/><path d={`M${point.x} ${point.y-12}L${point.x-8} ${point.y-24}H${point.x+8}Z`}/><text x={point.x+14} y={point.y-7}>{point.name}</text><text x={point.x+14} y={point.y+8}>{point.altitude.toLocaleString("fr-FR")} M</text><title>Activer {point.name}</title></g>})}
-            <g className="vsc-mc-drone-marker" transform={`translate(${droneScreen.x} ${droneScreen.y}) rotate(${attitudeYawDeg ?? 0})`} filter="url(#mc-glow)">{isWinged ? <><path d="M0 -32Q-7 -18 -6 17L0 39L6 17Q7 -18 0 -32Z"/><path d="M0 -10L-48 -28L-43 -7L0 8L43 -7L48 -28Z"/><path d="M0 19L-20 36L0 30L20 36Z"/>{isVtol&&Array.from({length:motorCount},(_,i)=>{const side=i%2===0?-1:1,row=Math.floor(i/2),pairs=Math.ceil(motorCount/2),x=side*(pairs===1?27:13+row*12);return <g key={`mission-vtol-${i}`}><path d={`M${x} -14V-3`} stroke="#dffefa" strokeWidth="2"/><circle cx={x} cy="-17" r="5" fill="#09242b" stroke="#ffe0a1" strokeWidth="1.5"/></g>})}</> : <><path d="M0 -5L-36 -23M0 -5L36 -23M0 -5L-36 23M0 -5L36 23" stroke="#73eee4" strokeWidth="4" fill="none"/>{Array.from({length:motorCount},(_,i)=>{const angle=-Math.PI/2+i/motorCount*Math.PI*2,x=Math.cos(angle)*39,y=-5+Math.sin(angle)*28;return <g key={`mission-rotor-${i}`}><circle cx={x} cy={y} r="6" fill="#09242b" stroke="#ffe0a1" strokeWidth="1.5"/><path d={`M${x-4} ${y}H${x+4}M${x} ${y-4}V${y+4}`} stroke="#ffe0a1" strokeWidth="1"/></g>})}<path d="M-8 -14Q0 -20 8 -14L11 10Q0 20 -11 10Z"/></>}</g>
-            <g className="vsc-mc-compass"><circle cx="923" cy="79" r="32"/><path d="M923 28V130M872 79H974"/><path d="M923 42L917 80L923 74L929 80Z"/><text x="923" y="20">N</text></g>
-            <g className="vsc-mc-virtual-target"><path d={`M${screenPoint(current).x} ${screenPoint(current).y-18}L${screenPoint(current).x+8} ${screenPoint(current).y-10}L${screenPoint(current).x} ${screenPoint(current).y-2}L${screenPoint(current).x-8} ${screenPoint(current).y-10}Z`} /><text x={screenPoint(current).x+12} y={screenPoint(current).y-8}>{targetName}</text><title>{targetBrief}</title></g>
-            <text x="30" y="34" className="vsc-mc-scene-label">{mapMode === "WORLD" ? "FOND MONDIAL · NATURAL EARTH" : config.missionPlan?.waypoints.length ? "PLAN PERSONNALISÉ · WAYPOINTS SYNCHRONISÉS" : "TRAJECTOIRE DÉMO · WAYPOINTS SYNTHÉTIQUES"}</text><text x="30" y="52" className="vsc-mc-scene-label">{mapMode === "WORLD" ? `${config.missionPlan?.waypoints.length ? "ROUTE DU PLAN" : "ROUTE DÉMO"} · X/Y LOCAL 0–100 · NON GÉORÉFÉRENCÉ` : `${location.toUpperCase()} · ${terrain.toUpperCase()}`}</text><text x="30" y="492" className="vsc-mc-scene-label">ALT CIBLE {altitude||"N/D"} M · VITESSE CIBLE {speed||"N/D"} KM/H · RUN {simulation.runId}</text>{mapMode === "WORLD" && <text x="970" y="506" textAnchor="end" className="vsc-mc-scene-credit">MADE WITH NATURAL EARTH · PUBLIC DOMAIN</text>}{isImageryMode&&<text x="970" y="506" textAnchor="end" className="vsc-mc-scene-credit">IMAGERY: ESRI · MAXAR · EARTHSTAR · GIS COMMUNITY</text>}
-          </svg>
-          <div className="vsc-mc-map-controls"><button onClick={()=>{setMapMode("WORLD");setRouteFeedback(routeEditMode?"Mode Monde · cliquez sur une zone pour ajouter un point":"Carte mondiale · activez AJOUT RAPIDE pour tracer")}} className={mapMode==="WORLD"?"is-active":""} aria-pressed={mapMode==="WORLD"}>MONDE</button><button onClick={()=>setMapMode("TERRAIN")} className={mapMode==="TERRAIN"?"is-active":""}>TERRAIN</button><button onClick={()=>setMapMode("SAT")} className={mapMode==="SAT"?"is-active":""} aria-pressed={mapMode==="SAT"}><Satellite size={11}/> SAT</button><button onClick={()=>setMapMode("NIGHT")} className={mapMode==="NIGHT"?"is-active":""} aria-pressed={mapMode==="NIGHT"}><Moon size={11}/> NUIT</button><button onClick={()=>setMapMode("GRID")} className={mapMode==="GRID"?"is-active":""}>GRID</button><button aria-label="Ajouter un waypoint" title="Ajouter un waypoint" onClick={()=>{if(!routeEditMode)enableRouteEditing();addWaypoint()}}><Plus size={14}/></button><button aria-label="Supprimer le waypoint sélectionné" title="Supprimer le waypoint sélectionné" onClick={removeWaypoint} disabled={!config.missionPlan||config.missionPlan.waypoints.length<=1}><Minus size={14}/></button><button onClick={()=>{if(routeEditMode){setRouteEditMode(false);setRouteFeedback("Édition terminée · plan conservé")}else enableRouteEditing()}} className={routeEditMode?"is-active":""} aria-pressed={routeEditMode} aria-label="Modifier l’itinéraire" title="Modifier l’itinéraire"><Pencil size={13}/></button>{isImageryMode&&<span className="vsc-mc-zoom-tools"><button aria-label="Dézoomer" onClick={()=>setMapZoom(value=>clamp(value-1,1,18))}>−</button><b>Z{mapZoom}</b><button aria-label="Zoomer" onClick={()=>setMapZoom(value=>clamp(value+1,1,18))}>+</button></span>}</div>
+        <div className={`vsc-mc-map-scene vsc-mc-map-mode-${mapMode.toLowerCase()}`} data-map-mode={mapMode} data-location={location} data-surface={terrain}>
+          <OpenStreetMapView
+            className="vsc-mc-world-map"
+            center={mapCenter}
+            points={geoWaypoints}
+            selectedPointId={activeWaypointId}
+            onPointSelect={setActiveWaypoint}
+            zoom={mapMode === "WORLD" ? 2 : 13}
+            layerMode={mapMode === "SAT" || mapMode === "NIGHT" ? "satellite" : "tactical"}
+            onCenterChange={setMapCenter}
+            onMapClick={handleMapClick}
+            simulatedProgress={isPlaying && geoWaypoints.length > 1 ? progress : undefined}
+            simulatedAltitudeM={simulatedAltitudeM}
+            simulatedHeadingDeg={routeHeadingDeg}
+          />
+          {mapMode === "GRID" && <div className="vsc-mc-map-grid-overlay" aria-hidden="true" />}
+          <div className="vsc-mc-map-controls">
+            {(["WORLD", "TERRAIN", "SAT", "NIGHT", "GRID"] as const).map(mode => <button key={mode} onClick={() => setMapMode(mode)} className={mapMode === mode ? "is-active" : ""} aria-pressed={mapMode === mode}>{mode === "SAT" ? <><Satellite size={11}/> SAT</> : mode === "NIGHT" ? <><Moon size={11}/> NUIT</> : mode}</button>)}
+            <button aria-label="Ajouter un point ici" title="Ajouter un point ici" onClick={() => { if (!routeEditMode) enableRouteEditing(); setRouteFeedback("Cliquez sur la carte pour placer un waypoint géoréférencé"); }}><Plus size={14}/></button>
+            <button aria-label="Supprimer le waypoint sélectionné" title="Supprimer le waypoint sélectionné" onClick={removeWaypoint} disabled={!config.missionPlan || config.missionPlan.waypoints.length <= 1}><Minus size={14}/></button>
+            <button onClick={() => { if (routeEditMode) { setRouteEditMode(false); setRouteFeedback("Édition terminée · plan conservé"); } else enableRouteEditing(); }} className={routeEditMode ? "is-active" : ""} aria-pressed={routeEditMode} aria-label="Modifier l’itinéraire" title="Modifier l’itinéraire"><Pencil size={13}/></button>
+          </div>
+          <form className="vsc-mc-place-search" onSubmit={event => { event.preventDefault(); void searchPlace(); }}>
+            <input aria-label="Rechercher une adresse, une rue ou un lieu" value={placeQuery} onChange={event => setPlaceQuery(event.target.value)} placeholder="Adresse, rue, ville, lieu…" /><span className="vsc-mc-geocode-attribution">Recherche d’adresse : OpenStreetMap / Nominatim</span>
+            <button type="submit" disabled={placeSearchState === "loading"}>{placeSearchState === "loading" ? "RECHERCHE…" : "RECHERCHER"}</button>
+            {placeSearchState === "error" && <small role="status">Aucun résultat ou service de géocodage indisponible.</small>}
+            {placeResults.length > 0 && <div className="vsc-mc-place-results" role="listbox" aria-label="Résultats géographiques">{placeResults.map((place, index) => <button type="button" role="option" aria-selected={index === 0} key={`${place.lat}-${place.lng}`} onClick={() => choosePlace(place)}>{place.label}</button>)}</div>}
+          </form>
+          <div className="vsc-mc-map-overlay-label">{hasLegacyCoordinates ? "ANCIENS POINTS X/Y · POSITION APPROXIMATIVE" : routeEditMode ? "ÉDITION ACTIVE · CLIQUEZ POUR AJOUTER UN POINT" : "CARTE GÉOGRAPHIQUE · RECHERCHE D’ADRESSE DISPONIBLE"}</div>
         </div>
-        <div className="vsc-mc-scene-footer"><span><i className="planned"/>TRAJECTOIRE PRÉVUE</span><span><i className="actual"/>SIMULATION COURANTE</span><span><MapPin size={12}/>{current.name ?? current.id} · {current.altitude.toLocaleString("fr-FR")} M</span><span>{isImageryMode?`IMAGERIE SATELLITE · ZOOM ${mapZoom} · LAT/LON ESTIMÉS`:mapMode === "WORLD" ? "X/Y LOCAL 0—100 · SANS GPS" : "ÉCHELLE LOCALE · 0—200 KM"}</span></div><div className={`vsc-mc-route-hint ${routeEditMode ? "is-active" : ""}`} role="status"><Crosshair size={12}/><span>{routeFeedback}</span><button onClick={resetDemoRoute}>TRACÉ DÉMO</button></div>
+        <div className="vsc-mc-scene-footer"><span><i className="planned"/>TRAJECTOIRE PRÉVUE</span><span><i className="actual"/>SIMULATION COURANTE</span><span><MapPin size={12}/>{current.name ?? current.id} · {current.altitude.toLocaleString("fr-FR")} M</span><span>{geoWaypoints.length ? `WGS84 · ${geoWaypoints.length} POINTS · ${mapMode}` : `CARTE ${mapMode} · RECHERCHEZ UN LIEU OU AJOUTEZ DES POINTS`}</span></div><div className={`vsc-mc-route-hint ${routeEditMode ? "is-active" : ""}`} role="status"><Crosshair size={12}/><span>{routeFeedback}</span><button onClick={resetDemoRoute}>TRACÉ DÉMO</button></div>
         <div className="vsc-mc-flight-controls"><div><span className="vsc-mc-status-dot"/>SCÉNARIO {isPlaying?"EN COURS":"EN PAUSE"}<small>lecture virtuelle · aucun actionneur réel</small></div><button className="vsc-mc-primary-button" onClick={()=>{setMissionEnded(false);setIsPlaying(value=>!value)}}>{isPlaying?<Pause size={14}/>:<Play size={14}/>} {isPlaying?"PAUSE":missionEnded?"RELANCER":"DÉMARRER"}</button><button onClick={endMission} disabled={missionEnded}><CheckCircle2 size={13}/> TERMINER LA MISSION</button><button onClick={onRunSimulation} disabled={isRunning||!canRunSimulation} title={!canRunSimulation?"Sélectionnez une cellule avec propulsion et batterie configurées":"Recalculer avec les paramètres actifs"}><RotateCw size={13}/>{isRunning?"CALCUL…":canRunSimulation?"RECALCULER":"CELLULE REQUISE"}</button><button onClick={runAi} disabled={aiState==="running"}><BrainCircuit size={13}/>{aiState==="running"?"ANALYSE…":"ANALYSE IA"}</button></div>
       </section>
 
@@ -332,11 +358,11 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
     <div className="vsc-mc-bottomgrid">
       <section className="vsc-mc-card vsc-mc-alerts"><div className="vsc-mc-panel-head"><strong>ALERT STREAM</strong><span>{anomaly?"ATTENTION":"NOMINAL"}</span></div><ul>{failedMetrics.slice(0,2).map(metric=><li key={metric.id} className="alert-high"><TriangleAlert size={13}/><time>MODEL</time><span>{metric.label.toUpperCase()} · {metric.value} {metric.unit}</span><b>FAIL</b></li>)}{openHighRisks.slice(0,2).map(risk=><li key={risk.label} className="alert-high"><TriangleAlert size={13}/><time>RISK</time><span>{risk.label.toUpperCase()}</span><b>HIGH</b></li>)}<li className="alert-info"><Activity size={13}/><time>RUN</time><span>{simulation.runId} · {activeDroneName.toUpperCase()}</span><b>{simulation.confidence.toUpperCase()}</b></li><li><BatteryCharging size={13}/><time>ENERGY</time><span>{simulation.energyUsableWh.toFixed(0)} WH USEFUL · {simulation.enduranceH.toFixed(2)} H</span><b>CALC</b></li></ul></section>
       <section className="vsc-mc-card vsc-mc-timeline"><div className="vsc-mc-panel-head"><strong>MISSION TIMELINE</strong><span>T+{elapsed} / 04:00</span></div><div className="vsc-mc-stages">{["LAUNCH","CLIMB","CRUISE","SURVEY","RETURN","LAND"].map((step,index)=><button key={step} className={simTime/240>=index/5?"is-complete":""} onClick={()=>{setSimTime(index*40);setActiveWaypoint(missionWaypoints[Math.min(index,missionWaypoints.length-1)]?.id ?? "WP-01")}}><i/>{step}<small>{["00:00","00:12","01:26","02:10","03:00","03:24"][index]}</small></button>)}</div><div className="vsc-mc-progress"><span>PROGRESS</span><input aria-label="Avancement de la mission simulée" type="range" min="0" max="239" value={simTime} onChange={event=>setSimTime(Number(event.target.value))}/><strong>{Math.round(progress*100)}%</strong></div></section>
-      <section className="vsc-mc-card vsc-mc-navmap"><div className="vsc-mc-panel-head"><strong>NAV MAP</strong><div>{(["TERRAIN","SAT","GRID"] as const).map(mode=><button key={mode} className={mapMode===mode?"is-active":""} onClick={()=>setMapMode(mode)}>{mode}</button>)}</div></div><svg viewBox="0 0 320 145" role="img" aria-label={`Carte locale synthétique, mode ${mapMode}`}><path d="M4 95Q60 64 98 74T185 39T315 47M0 126Q58 104 104 116T205 82T320 90M22 18Q90 34 120 15T230 22T310 8"/><path d="M34 117L105 62L198 102L275 37" className="nav-route"/>{navWaypoints.map((p,i)=><g key={p.id} className={activeWaypointId===p.id?"is-active":""} onClick={()=>setActiveWaypoint(p.id)}><circle cx={p.x} cy={p.y} r="5"/><text x={p.x+8} y={p.y-7}>{p.name}</text>{i===navWaypoints.length-1&&<path d={`M${p.x} ${p.y-10}L${p.x-7} ${p.y}L${p.x} ${p.y+10}L${p.x+7} ${p.y}Z`}/>}</g>)}</svg></section>
+      <section className="vsc-mc-card vsc-mc-navmap"><div className="vsc-mc-panel-head"><strong>NAV MAP · ROUTE PARTAGÉE</strong><span>{geoWaypoints.length} WAYPOINTS</span></div><OpenStreetMapView className="vsc-mc-navmap-view" center={mapCenter} points={geoWaypoints} selectedPointId={activeWaypointId} onPointSelect={setActiveWaypoint} zoom={mapMode === "WORLD" ? 2 : 13} layerMode={mapMode === "SAT" || mapMode === "NIGHT" ? "satellite" : "tactical"} simulatedProgress={isPlaying && geoWaypoints.length > 1 ? progress : undefined} simulatedAltitudeM={simulatedAltitudeM} simulatedHeadingDeg={routeHeadingDeg} /></section>
     </div>
 
     <div className="vsc-mc-ops-grid">
-      <section className="vsc-mc-card vsc-mc-scenario-console"><div className="vsc-mc-panel-head"><strong>SCENARIO CONTROL</strong><span>{scenarios.length} CAMPAGNE</span></div><div className="vsc-mc-scenario-row">{scenarios.map(scenario=><button key={scenario.id} className={activeScenario===scenario.id?"is-active":""} onClick={()=>selectScenario(scenario)}><i/><span><b>{scenario.name}</b><small>{scenario.id===activeScenario?environment:scenario.weather} · vent {scenario.id===activeScenario?wind:scenario.wind} km/h · {scenario.id===activeScenario?targetAltitude:scenario.altitude} m</small></span><em>{scenario.status}</em></button>)}</div><div className="vsc-mc-settings"><label>CIBLE VIRTUELLE <input value={targetName === "CIBLE VIRTUELLE" ? "" : targetName} placeholder="Nom de la cible" onChange={e=>setConfig(current=>({...current, missionTarget:{name:e.target.value || "CIBLE VIRTUELLE", brief:current.missionTarget?.brief || "Attribution personnalisée · simulation uniquement"}}))}/></label><label>ATTRIBUTION <input value={targetName === "CIBLE VIRTUELLE" ? "" : targetBrief} placeholder="Description / contexte" onChange={e=>setConfig(current=>({...current, missionTarget:{name:current.missionTarget?.name || "CIBLE VIRTUELLE", brief:e.target.value}}))}/></label><label>VENT <b>{wind} km/h</b><input aria-label="Vent du scénario" type="range" min="0" max="80" value={wind} onChange={e=>updateWind(Number(e.target.value))}/></label><label>ALTITUDE CIBLE <b>{targetAltitude} m</b><input aria-label="Altitude cible" type="range" min="0" max="6000" step="10" value={targetAltitude} onChange={e=>updateAltitude(Number(e.target.value))}/></label><label>ENVIRONNEMENT <select value={environment} onChange={e=>updateWeather(e.target.value)}><option>Ciel clair</option><option>Rafales synthétiques</option><option>Brume de simulation</option><option>Thermiques artificielles</option></select></label><label>SURFACE <select value={terrain} onChange={e=>updateSceneDescriptor("surfaceProfile",e.target.value)}><option>Relief synthétique</option><option>Piste en terre synthétique</option><option>Sable côtier synthétique</option><option>Forêt dense synthétique</option><option>Neige / glace synthétique</option><option>Zone urbaine abstraite</option></select></label><label className="vsc-mc-location">LIEU DE SIMULATION <select value={location} onChange={e=>updateSceneDescriptor("locationLabel",e.target.value)}><option>Zone littorale synthétique</option><option>Plateau montagneux synthétique</option><option>Site industriel fictif</option><option>Forêt boréale synthétique</option><option>Couloir urbain abstrait</option><option>Lac alpin synthétique</option></select></label></div><div className="vsc-mc-route-editor"><div className="vsc-mc-route-title"><span><b>TRAJECTOIRE PERSONNALISÉE</b><small>{config.missionPlan?.waypoints.length ?? 0} point(s) · {mapMode === "WORLD" ? "carte monde · repères lat/lon indicatifs" : "coordonnées locales 0–100"}</small></span><div><button onClick={enableRouteEditing}>{routeEditMode?"CLIC SUR LA CARTE ACTIF":config.missionPlan?"ITINÉRAIRE ACTIF":"ÉDITER L’ITINÉRAIRE"}</button><button onClick={addWaypoint} aria-label="Ajouter un waypoint">＋ POINT</button><button onClick={removeWaypoint} disabled={!config.missionPlan||config.missionPlan.waypoints.length<=1} aria-label="Supprimer le waypoint actif">−</button></div></div>{config.missionPlan&&selectedPlanWaypoint&&<div className="vsc-mc-waypoint-editor"><label>POINT<select aria-label="Waypoint actif" value={selectedPlanWaypoint.id} onChange={event=>setActiveWaypoint(event.target.value)}>{config.missionPlan.waypoints.map(point=><option key={point.id} value={point.id}>{point.id} · {point.name}</option>)}</select></label><label>NOM<input value={selectedPlanWaypoint.name} onChange={event=>updateWaypoint({name:event.target.value})}/></label><label>X<input type="number" min="0" max="100" value={selectedPlanWaypoint.x} onChange={event=>updateWaypoint({x:clamp(Number(event.target.value),0,100)})}/></label><label>Y<input type="number" min="0" max="100" value={selectedPlanWaypoint.y} onChange={event=>updateWaypoint({y:clamp(Number(event.target.value),0,100)})}/></label><label>ALT. M<input type="number" min="0" max="6000" step="10" value={selectedPlanWaypoint.altitudeM} onChange={event=>updateWaypoint({altitudeM:clamp(Number(event.target.value),0,6000)})}/></label><label>VIT. KM/H<input type="number" min="0" max="300" value={selectedPlanWaypoint.speedKmh} onChange={event=>updateWaypoint({speedKmh:clamp(Number(event.target.value),0,300)})}/></label></div>}<small className="vsc-mc-scene-note">{routeEditMode?"Mode actif : cliquez dans une zone vide de la carte pour créer un waypoint." : "Lieu et surface sont des scènes synthétiques, sans coordonnées géographiques réelles. Le tracé est enregistré dans le plan de mission partagé."}</small></div><div className="vsc-mc-ops-actions"><button onClick={saveScenario}><Save size={13}/>ENREGISTRER CAMPAGNE</button><button onClick={duplicateScenario}><Copy size={13}/>DUPLIQUER</button><button className={compare?"is-active":""} onClick={()=>setCompare(v=>!v)} disabled={!canRunSimulation} title={!canRunSimulation?"Une cellule doit être configurée avant la comparaison":"Comparer aux paramètres de référence"}><Layers3 size={13}/>{compare?"COMPARAISON ACTIVE":"COMPARER"}</button></div>{compare&&canRunSimulation&&<p className="vsc-mc-compare-state">Cellule active vs référence vent {comparisonConfig.windSpeedKmh} km/h · puissance {comparisonPowerDelta>=0?"+":""}{comparisonPowerDelta.toFixed(0)} W · autonomie {comparisonEnduranceDelta>=0?"+":""}{comparisonEnduranceDelta.toFixed(2)} h · résultats calculés localement.</p>}</section>
+      <section className="vsc-mc-card vsc-mc-scenario-console"><div className="vsc-mc-panel-head"><strong>SCENARIO CONTROL</strong><span>{scenarios.length} CAMPAGNE</span></div><div className="vsc-mc-scenario-row">{scenarios.map(scenario=><button key={scenario.id} className={activeScenario===scenario.id?"is-active":""} onClick={()=>selectScenario(scenario)}><i/><span><b>{scenario.name}</b><small>{scenario.id===activeScenario?environment:scenario.weather} · vent {scenario.id===activeScenario?wind:scenario.wind} km/h · {scenario.id===activeScenario?targetAltitude:scenario.altitude} m</small></span><em>{scenario.status}</em></button>)}</div><div className="vsc-mc-settings"><label>CIBLE VIRTUELLE <input value={targetName === "CIBLE VIRTUELLE" ? "" : targetName} placeholder="Nom de la cible" onChange={e=>setConfig(current=>({...current, missionTarget:{name:e.target.value || "CIBLE VIRTUELLE", brief:current.missionTarget?.brief || "Attribution personnalisée · simulation uniquement"}}))}/></label><label>ATTRIBUTION <input value={targetName === "CIBLE VIRTUELLE" ? "" : targetBrief} placeholder="Description / contexte" onChange={e=>setConfig(current=>({...current, missionTarget:{name:current.missionTarget?.name || "CIBLE VIRTUELLE", brief:e.target.value}}))}/></label><label>VENT <b>{wind} km/h</b><input aria-label="Vent du scénario" type="range" min="0" max="80" value={wind} onChange={e=>updateWind(Number(e.target.value))}/></label><label>ALTITUDE CIBLE <b>{targetAltitude} m</b><input aria-label="Altitude cible" type="range" min="0" max="6000" step="10" value={targetAltitude} onChange={e=>updateAltitude(Number(e.target.value))}/></label><label>ENVIRONNEMENT <select value={environment} onChange={e=>updateWeather(e.target.value)}><option>Ciel clair</option><option>Rafales synthétiques</option><option>Brume de simulation</option><option>Thermiques artificielles</option></select></label><label>SURFACE <select value={terrain} onChange={e=>updateSceneDescriptor("surfaceProfile",e.target.value)}><option>Relief synthétique</option><option>Piste en terre synthétique</option><option>Sable côtier synthétique</option><option>Forêt dense synthétique</option><option>Neige / glace synthétique</option><option>Zone urbaine abstraite</option></select></label><label className="vsc-mc-location">LIEU DE SIMULATION <select value={location} onChange={e=>updateSceneDescriptor("locationLabel",e.target.value)}><option>Zone littorale synthétique</option><option>Plateau montagneux synthétique</option><option>Site industriel fictif</option><option>Forêt boréale synthétique</option><option>Couloir urbain abstrait</option><option>Lac alpin synthétique</option></select></label></div><div className="vsc-mc-route-editor"><div className="vsc-mc-route-title"><span><b>TRAJECTOIRE PERSONNALISÉE</b><small>{config.missionPlan?.waypoints.length ?? 0} point(s) · {"coordonnées WGS84 · tracé personnalisé mondial"}</small></span><div><button onClick={enableRouteEditing}>{routeEditMode?"CLIC SUR LA CARTE ACTIF":config.missionPlan?"ITINÉRAIRE ACTIF":"ÉDITER L’ITINÉRAIRE"}</button><button onClick={addWaypoint} aria-label="Ajouter un waypoint">＋ POINT</button><button onClick={removeWaypoint} disabled={!config.missionPlan||config.missionPlan.waypoints.length<=1} aria-label="Supprimer le waypoint actif">−</button></div></div>{config.missionPlan&&selectedPlanWaypoint&&<div className="vsc-mc-waypoint-editor"><label>POINT<select aria-label="Waypoint actif" value={selectedPlanWaypoint.id} onChange={event=>setActiveWaypoint(event.target.value)}>{config.missionPlan.waypoints.map(point=><option key={point.id} value={point.id}>{point.id} · {point.name}</option>)}</select></label><label>NOM<input value={selectedPlanWaypoint.name} onChange={event=>updateWaypoint({name:event.target.value})}/></label><label>X<input type="number" min="0" max="100" value={selectedPlanWaypoint.x} onChange={event=>{const x=clamp(Number(event.target.value),0,100);updateWaypoint({x,longitude:x*3.6-180});}}/></label><label>Y<input type="number" min="0" max="100" value={selectedPlanWaypoint.y} onChange={event=>{const y=clamp(Number(event.target.value),0,100);updateWaypoint({y,latitude:90-y*1.8});}}/></label><label>LAT<input aria-label="Latitude WGS84" type="number" min="-90" max="90" step="0.00001" value={selectedPlanWaypoint.latitude ?? 90 - selectedPlanWaypoint.y * 1.8} onChange={event=>{const latitude=clamp(Number(event.target.value),-90,90);updateWaypoint({latitude,x:clamp((selectedPlanWaypoint.longitude ?? selectedPlanWaypoint.x * 3.6 - 180 + 180)/3.6,0,100),y:clamp((90-latitude)/1.8,0,100)});}}/></label><label>LON<input aria-label="Longitude WGS84" type="number" min="-180" max="180" step="0.00001" value={selectedPlanWaypoint.longitude ?? selectedPlanWaypoint.x * 3.6 - 180} onChange={event=>{const longitude=clamp(Number(event.target.value),-180,180);updateWaypoint({longitude,x:clamp((longitude+180)/3.6,0,100),latitude:selectedPlanWaypoint.latitude ?? 90-selectedPlanWaypoint.y*1.8});}}/></label><label>ALT. M<input type="number" min="0" max="6000" step="10" value={selectedPlanWaypoint.altitudeM} onChange={event=>updateWaypoint({altitudeM:clamp(Number(event.target.value),0,6000)})}/></label><label>VIT. KM/H<input type="number" min="0" max="300" value={selectedPlanWaypoint.speedKmh} onChange={event=>updateWaypoint({speedKmh:clamp(Number(event.target.value),0,300)})}/></label></div>}<small className="vsc-mc-scene-note">{routeEditMode?"Mode actif : cliquez dans une zone vide de la carte pour créer un waypoint." : hasLegacyCoordinates ? "Les anciens points X/Y sont seulement estimés sur la carte. Repositionnez-les ou saisissez leurs coordonnées WGS84 pour obtenir une géolocalisation précise. Le vol reste local et non transmis." : "Les points placés ou saisis sont géoréférencés en WGS84 et enregistrés dans le plan partagé. Le vol reste une simulation locale non transmise."}</small></div><div className="vsc-mc-ops-actions"><button onClick={saveScenario}><Save size={13}/>ENREGISTRER CAMPAGNE</button><button onClick={duplicateScenario}><Copy size={13}/>DUPLIQUER</button><button className={compare?"is-active":""} onClick={()=>setCompare(v=>!v)} disabled={!canRunSimulation} title={!canRunSimulation?"Une cellule doit être configurée avant la comparaison":"Comparer aux paramètres de référence"}><Layers3 size={13}/>{compare?"COMPARAISON ACTIVE":"COMPARER"}</button></div>{compare&&canRunSimulation&&<p className="vsc-mc-compare-state">Cellule active vs référence vent {comparisonConfig.windSpeedKmh} km/h · puissance {comparisonPowerDelta>=0?"+":""}{comparisonPowerDelta.toFixed(0)} W · autonomie {comparisonEnduranceDelta>=0?"+":""}{comparisonEnduranceDelta.toFixed(2)} h · résultats calculés localement.</p>}</section>
       <section className="vsc-mc-card vsc-mc-analysis"><div className="vsc-mc-panel-head"><strong>ANALYSE / ASSISTANT</strong><span>{aiState==="ready"?"RÉSULTAT LOCAL":"ANALYSE LOCALE"}</span></div><div className="vsc-mc-ai-body"><BrainCircuit size={20}/><div><b>{aiState==="running"?"Analyse en cours…":aiState==="ready"?(canRunSimulation?"Lecture de mission terminée":"Source requise"):"Analyse de sécurité indicative"}</b><p>{aiMessage||(!canRunSimulation?"Sélectionnez une cellule ou configurez un dessin IDDS avant tout calcul.":"Analyse locale fondée sur les sorties calculées et exigences actives. Aucun modèle IA distant n’est connecté; résultats indicatifs, non certifiants.")}</p></div></div><div className={`vsc-mc-ai-result ${!canRunSimulation||anomaly?"warning":"nominal"}`}>{!canRunSimulation||anomaly?<TriangleAlert size={14}/>:<ShieldCheck size={14}/>}<span>{!canRunSimulation?"Aucune source exploitable · sélection requise":anomaly?`${failedMetrics.length} métrique(s) en échec · ${openHighRisks.length} risque(s) élevé(s) ouvert(s)`:"Masse, puissance, autonomie et vent calculés par le moteur local"}</span></div><button className="vsc-mc-run-ai" onClick={runAi} disabled={aiState==="running"}><Sparkles size={14}/>{aiState==="running"?"ANALYSE…":"LANCER L’ANALYSE LOCALE"}<ArrowUpRight size={13}/></button></section>
       <section className="vsc-mc-card vsc-mc-performance"><div className="vsc-mc-panel-head"><strong>PERFORMANCES / CALCUL DU MOTEUR</strong><span>{history.length} EXÉCUTIONS · {versions.length} VERSIONS</span></div>{canRunSimulation?<div className="vsc-mc-performance-bars"><div><span>PUISSANCE</span><i><b style={{width:`${clamp(simulation.estimatedPowerW/2000*100,0,100)}%`}}/></i><strong>{canRunSimulation?`${simulation.estimatedPowerW.toFixed(0)} W`:"—"}</strong></div><div><span>AUTONOMIE</span><i><b style={{width:`${clamp(simulation.enduranceH/5*100,0,100)}%`}}/></i><strong>{simulation.enduranceH.toFixed(2)} h</strong></div><div><span>RAYON THÉORIQUE</span><i><b style={{width:`${clamp(simulation.rangeKm/500*100,0,100)}%`}}/></i><strong>{simulation.rangeKm.toFixed(1)} km</strong></div><div><span>MARGE VENT</span><i><b style={{width:`${clamp(simulation.windMarginPercent,0,100)}%`}}/></i><strong>{simulation.windMarginPercent.toFixed(0)} %</strong></div></div>:<div className="vsc-mc-source-required">Sélectionnez une cellule dans la bibliothèque ou configurez le drone dessiné dans Studio IDDS. Aucun résultat n’est présenté avant la disponibilité des entrées requises.</div>}<div className="vsc-mc-performance-footer"><span>PUISSANCE ESTIMÉE<strong>{canRunSimulation?`${simulation.estimatedPowerW.toFixed(0)} W`:"—"}</strong></span><span>MODÈLE<strong>{canRunSimulation?(config.modelType||config.airframe||"—"):"SOURCE REQUISE"}</strong></span><button onClick={onRunSimulation} disabled={isRunning||!canRunSimulation} title={!canRunSimulation?"Sélectionnez une cellule avec propulsion et batterie configurées":"Lancer un run du moteur sur la configuration active"}><RotateCw size={13}/>{isRunning?"CALCUL…":canRunSimulation?"LANCER UN RUN":"CELLULE REQUISE"}</button></div></section>
     </div>

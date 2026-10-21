@@ -44,6 +44,9 @@ export type MissionWaypoint = {
   name: string;
   x: number;
   y: number;
+  /** Coordonnées WGS84 réelles facultatives; x/y restent pour compatibilité des plans locaux. */
+  latitude?: number;
+  longitude?: number;
   altitudeM: number;
   speedKmh: number;
   action: "inspection" | "turn" | "return";
