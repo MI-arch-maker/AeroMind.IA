@@ -1,8 +1,11 @@
 import base64
+import json
+import json as _json
 import os
 import shutil
 import time
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import Cookie, FastAPI, Header, HTTPException, Request
@@ -25,9 +28,9 @@ from .business_api import router as business_router
 from .hardware_api import router as hardware_router, _controllers
 from .operational_state import router as operational_state_router
 from .database import Base, engine, ping_database, SessionLocal
-from .models import User, Project, Drone, Simulation, Report, LabSession
+from .models import User, Project, Drone, Simulation, Report, AuditEvent, LabSession
 from sqlalchemy import select
-from uuid import uuid4
+from uuid import UUID, uuid4
 from sitl_modules.api import router as sitl_router
 from .mavlink_telemetry_api import router as mavlink_telemetry_router
 from .i18n import locale_from_accept_language, localized_message
@@ -223,7 +226,15 @@ async def trpc_compat(
         if current_user['role'] != 'super_admin':
             return _trpc_error(403, 'FORBIDDEN', 'Super-Admin permission required')
     payload: dict = {}
-    if request.method == 'POST':
+    if request.method == 'GET':
+        encoded_input = request.query_params.get('input')
+        if encoded_input:
+            try:
+                raw_payload = _json.loads(encoded_input)
+                payload = raw_payload.get('json', raw_payload) if isinstance(raw_payload, dict) else raw_payload
+            except (_json.JSONDecodeError, TypeError):
+                return _trpc_error(400, 'BAD_REQUEST', 'Invalid tRPC query input')
+    elif request.method == 'POST':
         try:
             raw_payload = await request.json()
             if isinstance(raw_payload, list):
@@ -392,7 +403,109 @@ async def trpc_compat(
             body = json.loads(record.data_json or '{}')
             if body.get('status') != 'reviewed_by_supervisor': return _trpc_error(409, 'REVIEW_REQUIRED', 'Le rapport doit être contrôlé par un surveillant')
             body['status'] = 'approved_by_admin'; body.setdefault('workflow', {}).update({'approverId': current_user['id'], 'approverComment': payload.get('comment', '')}); record.data_json = json.dumps(body); db.commit(); data = {'id': record.id, **body}
-    elif any(name.endswith(suffix) for suffix in ('designVersions.list', 'auditEvents.list')):
+    elif name.endswith('auditEvents.record'):
+        if not current_user:
+            return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        project_id = str(payload.get('projectId') or payload.get('id') or '').strip()
+        event_type = str(payload.get('eventType') or '').strip()
+        message = payload.get('message')
+        details = payload.get('details')
+        if details is None:
+            details = payload.get('payload', {})
+        if not message and isinstance(details, dict):
+            message = details.get('message')
+        if event_type not in {'validation.action', 'validation.checkpoint'}:
+            return _trpc_error(400, 'BAD_REQUEST', 'Unsupported audit event type')
+        if not isinstance(message, str) or not message.strip() or len(message.strip()) > 500:
+            return _trpc_error(400, 'BAD_REQUEST', 'Audit message must contain 1–500 characters')
+        if not isinstance(details, dict):
+            return _trpc_error(400, 'BAD_REQUEST', 'Audit details must be an object')
+        if details.get('scope') != 'local-simulation-only' or details.get('physicalOutputEnabled') is not False:
+            return _trpc_error(400, 'BAD_REQUEST', 'Only explicitly local, non-physical validation events can be recorded')
+        try:
+            event_id = str(UUID(str(payload.get('eventId') or uuid4())))
+            details_json = _json.dumps(details, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+            if len(details_json.encode('utf-8')) > 16000:
+                return _trpc_error(413, 'PAYLOAD_TOO_LARGE', 'Audit details exceed 16 KB')
+            occurred_raw = payload.get('occurredAt') or details.get('recordedAt')
+            occurred_at = datetime.fromisoformat(str(occurred_raw).replace('Z', '+00:00')) if occurred_raw else datetime.now(UTC)
+            occurred_at = occurred_at.replace(tzinfo=UTC) if occurred_at.tzinfo is None else occurred_at.astimezone(UTC)
+        except (ValueError, TypeError, _json.JSONDecodeError):
+            return _trpc_error(400, 'BAD_REQUEST', 'Invalid audit event identifier, timestamp or details')
+        with SessionLocal() as db:
+            project = db.get(Project, project_id)
+            if project is None:
+                return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+            if project.user_id != current_user['id']:
+                return _trpc_error(403, 'FORBIDDEN', 'Only the project owner can record validation events')
+            row = db.get(AuditEvent, event_id)
+            if row is not None:
+                if row.user_id != current_user['id'] or row.project_id != project_id:
+                    return _trpc_error(409, 'EVENT_ID_CONFLICT', 'This audit event identifier is already in use')
+                if row.event_type != event_type or row.message != message.strip() or row.payload_json != details_json:
+                    return _trpc_error(409, 'EVENT_ID_CONFLICT', 'A repeated audit identifier must have identical content')
+            else:
+                row = AuditEvent(
+                    id=event_id,
+                    project_id=project_id,
+                    user_id=current_user['id'],
+                    actor_role=current_user.get('role', 'user'),
+                    event_type=event_type,
+                    message=message.strip(),
+                    payload_json=details_json,
+                    occurred_at=occurred_at,
+                )
+                db.add(row)
+                try:
+                    db.commit()
+                except SQLAlchemyError as exc:
+                    db.rollback()
+                    print(f'AUDIT_EVENT_PERSIST_FAILED project={project_id} error={type(exc).__name__}', flush=True)
+                    return _trpc_error(503, 'AUDIT_PERSISTENCE_FAILED', 'The audit event could not be persisted')
+            data = {
+                'id': row.id,
+                'projectId': row.project_id,
+                'eventType': row.event_type,
+                'message': row.message,
+                'payload': _json.loads(row.payload_json or '{}'),
+                'actorId': row.user_id,
+                'actorRole': row.actor_role,
+                'occurredAt': (row.occurred_at.replace(tzinfo=UTC) if row.occurred_at.tzinfo is None else row.occurred_at.astimezone(UTC)).isoformat(),
+                'createdAt': (row.created_at.replace(tzinfo=UTC) if row.created_at.tzinfo is None else row.created_at.astimezone(UTC)).isoformat(),
+            }
+    elif name.endswith('auditEvents.list'):
+        if not current_user:
+            return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        project_id = payload if isinstance(payload, str) else str(payload.get('projectId') or payload.get('id') or '') if isinstance(payload, dict) else ''
+        if not project_id:
+            return _trpc_error(400, 'BAD_REQUEST', 'A project id is required')
+        with SessionLocal() as db:
+            project = db.get(Project, str(project_id))
+            if project is None:
+                return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+            if project.user_id != current_user['id']:
+                return _trpc_error(403, 'FORBIDDEN', 'Only the project owner can read validation events')
+            rows = db.scalars(
+                select(AuditEvent)
+                .where(AuditEvent.project_id == project.id, AuditEvent.user_id == current_user['id'])
+                .order_by(AuditEvent.occurred_at.desc(), AuditEvent.created_at.desc())
+                .limit(200)
+            ).all()
+            data = [
+                {
+                    'id': row.id,
+                    'projectId': row.project_id,
+                    'eventType': row.event_type,
+                    'message': row.message,
+                    'payload': _json.loads(row.payload_json or '{}'),
+                    'actorId': row.user_id,
+                    'actorRole': row.actor_role,
+                    'occurredAt': (row.occurred_at.replace(tzinfo=UTC) if row.occurred_at.tzinfo is None else row.occurred_at.astimezone(UTC)).isoformat(),
+                    'createdAt': (row.created_at.replace(tzinfo=UTC) if row.created_at.tzinfo is None else row.created_at.astimezone(UTC)).isoformat(),
+                }
+                for row in rows
+            ]
+    elif name.endswith('designVersions.list'):
         data = []
     elif name.endswith('labBench.registry'):
         data = {'devices': [], 'drivers': [], 'updatedAt': None}

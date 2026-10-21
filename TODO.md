@@ -44,3 +44,13 @@ Le Twin reste un modèle mécanique conceptuel paramétrique. Les matériaux, co
 - [x] **Démonstration :** avec au moins deux points, démarrer, mettre en pause, reprendre, terminer ou réinitialiser une progression locale ; afficher un marqueur et une barre de progression générés uniquement dans le navigateur.
 - [x] **Limites impératives :** aucun armement, ciblage, poursuite, commande de pilotage, actionneur, lecture GNSS embarquée, téléversement de route ou écriture MAVLink ; conserver la télémétrie en lecture seule et identifier la simulation comme non transmise.
 - [x] **Validation :** `pnpm check`, 239 tests Vitest et build statique réussis. `pnpm i18n:lint` reste en échec sur des diagnostics présents dans d’autres fichiers ; aucun diagnostic ne vise les composants cartographiques modifiés. Archive mise à jour préparée sans prétendre à un déploiement distant.
+
+
+## Demande — journal de validation détaillé persistant et synchronisé
+
+- [x] **Journal utile :** remplacer le flux synthétique qui simulait une activité périodique par des événements enregistrés seulement lorsqu’une action humaine ou une revue intervient. La checklist peut être sauvegardée avec son instantané détaillé.
+- [x] **Synchronisation projet-scopée :** conserver les traces non envoyées dans une file locale récupérable, distinguer visuellement « local/en attente » et « confirmé par le serveur », rejouer de façon idempotente, protéger la lecture et l’écriture par l’authentification et la propriété du projet, et fournir un rafraîchissement/réessai explicite.
+- [x] **Garde-fou :** l’API n’accepte que `validation.action`/`validation.checkpoint` marqués `local-simulation-only` et `physicalOutputEnabled=false`; aucun événement d’audit n’est une commande d’aéronef ni une preuve d’essai physique.
+- [x] **Détails :** les checklists enregistrées exposent leurs contrôles, états, niveaux et messages en volet dépliable; les événements serveur et les brouillons locaux sont clairement séparés.
+- [x] **Validation :** `pnpm check`, 241 tests Vitest, build statique et 37 tests Python réussis. Contrôles de catalogues français/anglais passés. Le linter i18n global signale encore des textes hérités hors des composants modifiés; aucun diagnostic ne vise `ValidationAuditJournal.tsx` ou le nouveau panneau de synchronisation.
+- [ ] **Mise en production :** pour une base TiDB déjà utilisée, appliquer `migrations/2026-10-21_validation_audit_events.sql` avant de déployer; aucune base distante n’a été modifiée ni aucun déploiement déclenché dans cette livraison.

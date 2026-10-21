@@ -63,3 +63,12 @@ Le Twin reste un modèle mécanique conceptuel paramétrique. Cette tranche ne c
 L’écran satellitaire conserve les couches cartographiques et les brouillons WGS84 enregistrés localement. Les points deviennent des points d’inspection renommables. Un filtre visuel nocturne transforme uniquement les couleurs des tuiles et ne représente pas une donnée de capteur. Un lecteur local, exigeant au moins deux points, anime un marqueur synthétique avec pause/reprise/fin/réinitialisation et barre de progression; il ne produit aucune sortie réseau de pilotage.
 
 La télémétrie MAVLink demeure en lecture seule. Aucun armement, ciblage, poursuite, commande physique, GNSS embarqué, téléversement de mission ou changement de protocole ne fait partie du périmètre. Les fichiers concernés sont `SatelliteNavigationView.tsx`, `OpenStreetMapView.tsx`, les styles cartographiques et les tests d’interpolation.
+
+
+## Extension — journal de validation persistant et synchronisé
+
+Le journal détaillé remplace le flux de session généré périodiquement par des actions explicites de revue humaine et des instantanés de checklist. Le client stocke chaque entrée dans une file locale cloisonnée par projet; dès qu’une session authentifiée et le projet serveur sont disponibles, il envoie les éléments un par un avec un identifiant stable, puis les retire uniquement après confirmation de l’API. L’écran sépare les événements serveur confirmés, les éléments locaux en attente, les erreurs et les contrôles détaillés dépliables.
+
+Le backend limite les événements aux types `validation.action` et `validation.checkpoint`, exige les marqueurs `scope=local-simulation-only` et `physicalOutputEnabled=false`, vérifie le propriétaire du projet et rend le rejeu idempotent. Le journal ne pilote pas d’appareil et n’atteste pas d’essai physique. La lecture tRPC GET décode les enveloppes SuperJSON attendues par le client. Les tests couvrent le cloisonnement, l’authentification, la persistance, l’idempotence, l’entrée GET et le rejet des événements non simulés.
+
+La table est ajoutée à `TIDB_SCHEMA.sql`; les installations TiDB déjà existantes doivent appliquer `migrations/2026-10-21_validation_audit_events.sql` avant le déploiement. La livraison modifie uniquement le code et les documents de travail : aucune base externe n’a été migrée et aucun service distant n’a été déployé.

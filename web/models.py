@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
@@ -61,6 +61,25 @@ class Report(Base):
     )
     data_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class AuditEvent(Base):
+    """Owner-scoped, append-only project validation/audit entry."""
+    __tablename__ = "audit_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    actor_role: Mapped[str] = mapped_column(String(40), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    __table_args__ = (
+        Index("ix_audit_events_project_created", "project_id", "created_at"),
+    )
 
 
 class LabSession(Base):

@@ -108,6 +108,8 @@ import { DesignStudioView } from "../components/DesignStudioView";
 import { DigitalTwinExplorer } from "../components/DigitalTwinExplorer";
 import { SatelliteNavigationView } from "../components/SatelliteNavigationView";
 import { HumanCommandCenter } from "../components/HumanCommandCenter";
+import { ValidationAuditJournal, type AuditSyncState, type PersistedValidationAuditEvent } from "../components/ValidationAuditJournal";
+import { createValidationAuditEntry, readValidationAuditOutbox, writeValidationAuditOutbox, type ValidationAuditEntry, type ValidationAuditEventType } from "../lib/validationAuditOutbox";
 import LabBench from "./LabBench";
 import { IndustrialModelRegistry } from "../components/IndustrialModelRegistry";
 import { industrialDroneRegistry, type IndustrialDroneReference } from "../lib/industrialDroneRegistry";
@@ -11468,6 +11470,7 @@ function OperationsView({
   onResetWorkspace,
   onRefreshSystem,
   activeProjectId,
+  projectName,
   authenticated,
   remoteReady,
   config,
@@ -11476,6 +11479,7 @@ function OperationsView({
   onResetWorkspace: () => void;
   onRefreshSystem: () => void;
   activeProjectId: string;
+  projectName: string;
   authenticated: boolean;
   remoteReady: boolean;
   config: ConceptConfig;
@@ -11566,48 +11570,124 @@ function OperationsView({
     config.missionPlan?.lostLinkAction,
     config.reserveFraction,
   ]);
+  const canSyncAudit = Boolean(authenticated && remoteReady && activeProjectId && !activeProjectId.startsWith("project-"));
   const auditMutation = trpc.auditEvents.record.useMutation();
   const auditQuery = trpc.auditEvents.list.useQuery(activeProjectId, {
-    enabled: authenticated && remoteReady && !activeProjectId.startsWith("project-"),
+    enabled: canSyncAudit,
     retry: false,
+    refetchOnWindowFocus: true,
   });
-  const [events, setEvents] = useState<string[]>([
-    "Session opérationnelle ouverte · supervision humaine active",
-  ]);
+  const [pendingAuditEvents, setPendingAuditEvents] = useState<ValidationAuditEntry[]>(() => readValidationAuditOutbox(activeProjectId));
+  const [auditSyncState, setAuditSyncState] = useState<AuditSyncState>("idle");
+  const [recentlyConfirmedAuditEvents, setRecentlyConfirmedAuditEvents] = useState<PersistedValidationAuditEvent[]>([]);
   const checks = validateMissionPlan(plan);
-  const record = (message: string) => {
-    setEvents(current =>
-      [
-        `${new Date().toLocaleTimeString("fr-FR")} · ${message}`,
-        ...current,
-      ].slice(0, 6)
-    );
-    if (authenticated && remoteReady && !activeProjectId.startsWith("project-")) {
-      auditMutation.mutate(
-        {
-          id: activeProjectId,
-          eventType: "operation.action",
-          payload: { message, mode, recordedAt: new Date().toISOString() },
+
+  useEffect(() => {
+    const queued = readValidationAuditOutbox(activeProjectId);
+    setPendingAuditEvents(queued);
+    setAuditSyncState(queued.length ? (canSyncAudit ? "queued" : "local") : "idle");
+    setRecentlyConfirmedAuditEvents([]);
+  }, [activeProjectId, canSyncAudit]);
+
+  useEffect(() => {
+    if (!canSyncAudit || !pendingAuditEvents.length || auditMutation.isPending || auditSyncState === "syncing" || auditSyncState === "error") return;
+    const entry = pendingAuditEvents[0];
+    if (entry.projectId !== activeProjectId) return;
+    setAuditSyncState("syncing");
+    auditMutation.mutate(
+      {
+        id: activeProjectId,
+        eventId: entry.id,
+        eventType: entry.eventType,
+        message: entry.message,
+        details: entry.details,
+        occurredAt: entry.occurredAt,
+      },
+      {
+        onSuccess: (saved: PersistedValidationAuditEvent) => {
+          setPendingAuditEvents(current => {
+            const remaining = current.filter(item => item.id !== entry.id);
+            writeValidationAuditOutbox(activeProjectId, remaining);
+            return remaining;
+          });
+          setRecentlyConfirmedAuditEvents(current => [saved, ...current.filter(item => item.id !== saved.id)].slice(0, 200));
+          setAuditSyncState("synced");
+          void auditQuery.refetch();
         },
-        {
-          onSuccess: () => {
-            void auditQuery.refetch();
-          },
-        }
-      );
+        onError: () => setAuditSyncState("error"),
+      },
+    );
+  }, [activeProjectId, auditMutation.isPending, auditMutation.mutate, auditQuery.refetch, auditSyncState, canSyncAudit, pendingAuditEvents]);
+
+  useEffect(() => {
+    if (canSyncAudit) return;
+    setAuditSyncState(current => pendingAuditEvents.length ? "local" : current);
+  }, [canSyncAudit, pendingAuditEvents.length]);
+
+  const serverAuditEvents = (auditQuery.data ?? []) as PersistedValidationAuditEvent[];
+  const persistedAuditEvents = Array.from(
+    new Map(
+      [...serverAuditEvents, ...recentlyConfirmedAuditEvents]
+        .filter(event => event.projectId === activeProjectId)
+        .map(event => [event.id, event]),
+    ).values(),
+  ).sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt));
+
+  const record = (
+    message: string,
+    eventType: ValidationAuditEventType = "validation.action",
+    details: Record<string, unknown> = {},
+  ) => {
+    const occurredAt = new Date().toISOString();
+    let entry: ValidationAuditEntry;
+    try {
+      entry = createValidationAuditEntry(activeProjectId || "local", eventType, message, {
+        mode,
+        ...details,
+        recordedAt: occurredAt,
+        scope: "local-simulation-only",
+        physicalOutputEnabled: false,
+      }, occurredAt);
+    } catch {
+      setAuditSyncState("error");
+      return;
     }
+    setPendingAuditEvents(current => {
+      const next = [...current, entry].slice(-500);
+      writeValidationAuditOutbox(activeProjectId || "local", next);
+      return next;
+    });
+    setAuditSyncState(canSyncAudit ? "queued" : "local");
+  };
+
+  const recordValidationSnapshot = () => {
+    const passed = checks.filter(check => check.passed).length;
+    record(
+      `Revue des contrôles enregistrée · ${passed}/${checks.length} conformes`,
+      "validation.checkpoint",
+      {
+        summary: { total: checks.length, passed, failed: checks.length - passed },
+        checks: checks.map(check => ({
+          id: check.id,
+          label: check.label,
+          passed: check.passed,
+          severity: check.severity,
+          message: check.message,
+        })),
+      },
+    );
   };
   const setSafeMode = (nextMode: AutonomyMode, message: string) => {
     setMode(nextMode);
-    record(message);
+    record(message, "validation.action", { mode: nextMode });
   };
   const approveMission = () => {
     if (!canLaunchMission(plan)) {
-      record("Départ refusé · une validation bloquante est en échec");
+      record("Scénario local refusé · une validation bloquante est en échec");
       return;
     }
     setMode("supervised");
-    record("Mission approuvée par l’opérateur · mode supervisé engagé");
+    record("Scénario supervisé validé localement · aucune commande physique émise", "validation.action", { mode: "supervised" });
   };
   const [authorizationState, setAuthorizationState] = useState<"draft" | "requested" | "approved">("draft");
   const [uploadState, setUploadState] = useState("Aucun fichier en quarantaine");
@@ -11688,50 +11768,6 @@ function OperationsView({
     }
     runAuthorizationSequence();
   };
-  // Flux de session continu : simule une activité logicielle intense en
-  // arrière-plan (liaison, trames, quarantaine, scellement de preuve).
-  const [systemFeed, setSystemFeed] = useState<
-    Array<{ id: string; at: string; line: string; tone: string }>
-  >([
-    {
-      id: "SYS-000",
-      at: new Date().toLocaleTimeString("fr-FR"),
-      line: "Journal de session initialisé · supervision humaine active",
-      tone: "neutral",
-    },
-  ]);
-  useEffect(() => {
-    const templates: Array<[string, string]> = [
-      [`Télémétrie lecture seule · ${(12 + Math.random() * 8).toFixed(1)} trames/s tamponnées`, "cyan"],
-      ["Liaison locale · qualité de canal stable, latence nominale", "green"],
-      ["Validation de payload · empreinte SHA-256 recalculée en quarantaine", "violet"],
-      [`Réseau · ${(0.4 + Math.random() * 1.4).toFixed(2)} Mo/s entrants, 0 sortie actionneur`, "amber"],
-      ["Garde-fou · frontière de contrôle vérifiée, sorties matérielles rejetées", "green"],
-      ["Preuve interne · horodatage du dossier de revue mis à jour", "violet"],
-      [`Enveloppe énergie · réserve modélisée ${(14 + Math.random() * 6).toFixed(1)} %`, "amber"],
-      ["Journal d’audit · événement métier sérialisé, aucune transmission externe", "cyan"],
-      ["Sécurité · rotation des tampons de session, aucune clé persistée", "violet"],
-      ["Télémétrie synthétique · recalage du modèle de vol local", "cyan"],
-    ];
-    let counter = 0;
-    const push = () => {
-      counter += 1;
-      const [line, tone] = templates[counter % templates.length];
-      setSystemFeed(current =>
-        [
-          {
-            id: `SYS-${String(counter).padStart(3, "0")}`,
-            at: new Date().toLocaleTimeString("fr-FR"),
-            line,
-            tone,
-          },
-          ...current,
-        ].slice(0, 14)
-      );
-    };
-    const timer = window.setInterval(push, 1400);
-    return () => window.clearInterval(timer);
-  }, []);
   const approveFlightAuthorization = async () => {
     try {
       const response = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
@@ -11943,114 +11979,68 @@ function OperationsView({
             ))}
           </div>
           <div className="operation-actions">
+            <button className="secondary-button" onClick={recordValidationSnapshot}>
+              Enregistrer la revue des contrôles
+            </button>
+          </div>
+          <div className="operation-actions">
             <button className="primary-button" onClick={approveMission}>
-              <ShieldCheck size={15} /> Approuver la mission
+              <ShieldCheck size={15} /> Valider le scénario simulé
             </button>
             <button
               className="secondary-button"
               onClick={() =>
                 setSafeMode(
                   "safe-return",
-                  "Commande opérateur · retour vers zone sûre"
+                  "Transition locale simulée · retour vers zone sûre"
                 )
               }
             >
-              Retour sûr
+              Retour sûr (simulation)
             </button>
             <button
               className="secondary-button"
               onClick={() =>
                 setSafeMode(
                   "emergency-land",
-                  "Commande opérateur · atterrissage d’urgence"
+                  "Transition locale simulée · atterrissage d’urgence"
                 )
               }
             >
-              Atterrissage urgence
+              Atterrissage urgence (simulation)
             </button>
           </div>
         </section>
         <aside className="panel operation-panel">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">JOURNAL DE SESSION · LOCAL</p>
-              <h3>Actions de cette session</h3>
+              <p className="eyebrow">SYNCHRONISATION DU PROJET</p>
+              <h3>{auditSyncState === "error" ? "Synchronisation en erreur" : pendingAuditEvents.length ? "Événements en attente" : canSyncAudit ? "Journal serveur lié" : "Journal local"}</h3>
             </div>
             <Activity size={16} className="muted-icon" />
           </div>
           <div className="operation-timeline">
-            {events.map((event, index) => (
-              <div key={`${event}-${index}`}>
-                <span className="timeline-dot" />
-                <span>{event}</span>
-              </div>
-            ))}
+            <div><span className="timeline-dot" /><span>{persistedAuditEvents.length}</span><span>Événements confirmés par le serveur pour le projet actif</span></div>
+            <div><span className="timeline-dot" /><span>{pendingAuditEvents.length}</span><span>Événements conservés localement en attente de synchronisation</span></div>
           </div>
-          <div
-            className="session-live-feed"
-            aria-live="polite"
-            aria-label="Flux continu de journaux système simulés"
-          >
-            <div className="session-live-heading">
-              <span className="live-dot" />
-              <strong>FLUX SYSTÈME CONTINU</strong>
-              <small>{systemFeed.length} lignes · simulation locale</small>
-            </div>
-            <div className="session-live-rows">
-              {systemFeed.map(item => (
-                <div key={item.id} className={`session-live-row tone-${item.tone}`}>
-                  <span className="event-pulse" />
-                  <code>{item.at}</code>
-                  <span>{item.line}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="inspector-note">
             <Info size={15} />
-            <span>
-              Aucun mode de mission ne peut sélectionner une cible humaine ou
-              déclencher une action offensive. La perte de confiance impose un
-              mode sûr.
-            </span>
+            <span>Les traces décrivent des revues et scénarios locaux. Elles ne commandent aucun aéronef et ne prouvent aucun essai physique.</span>
           </div>
         </aside>
       </div>
-      <section className="panel reference-panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">JOURNAL D’AUDIT · SERVEUR</p>
-            <h3>Événements métier persistés</h3>
-          </div>
-          <span className="calculated-badge">
-            {auditQuery.data?.length ?? 0} événements
-          </span>
-        </div>
-        {!auditQuery.data?.length ? (
-          <p className="section-description">
-            {remoteReady
-              ? "Aucun événement métier enregistré pour ce projet."
-              : "Journal serveur indisponible : les actions locales ne sont pas présentées comme persistées."}
-          </p>
-        ) : (
-          <div className="operation-timeline">
-            {auditQuery.data.map(event => (
-              <div key={event.id}>
-                <span className="timeline-dot" />
-                <span>
-                  <strong>{event.eventType}</strong> ·{" "}
-                  {JSON.stringify(event.payload)}
-                  <small>
-                    {" "}
-                    · {new Date(event.createdAt).toLocaleString("fr-FR")}
-                  </small>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <ValidationAuditJournal
+        projectId={activeProjectId}
+        projectName={projectName}
+        canSync={canSyncAudit}
+        syncState={auditSyncState}
+        pending={pendingAuditEvents}
+        persisted={persistedAuditEvents}
+        loading={auditQuery.isFetching}
+        failed={auditQuery.isError}
+        onRefresh={() => void auditQuery.refetch()}
+        onRetry={() => setAuditSyncState("queued")}
+      />
       <section className="panel">
         <div className="panel-header">
           <div>
@@ -13948,6 +13938,7 @@ export default function Home() {
                         onResetWorkspace={resetEntireWorkspace}
                         onRefreshSystem={() => window.location.reload()}
                         activeProjectId={activeProjectId}
+                        projectName={project.name}
                         authenticated={Boolean(authenticatedUser)}
                         remoteReady={Boolean(
                           authenticatedUser && serverProjectsQuery.isSuccess

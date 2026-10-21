@@ -1,6 +1,6 @@
 # Configuration TiDB Cloud pour AeroMind
 
-La table `audit_reports` visible dans la capture n’est pas une table déclarée par AeroMind. L’application utilise actuellement les 13 tables suivantes : `users`, `projects`, `user_settings`, `hardware_logs`, `command_requests`, `drones`, `simulations`, `reports`, `lab_sessions`, `prototype_versions`, `command_audit_events`, `workflow_runs` et `engineering_documents`.
+La table `audit_reports` visible dans la capture n’est pas une table déclarée par AeroMind. L’application utilise actuellement 14 tables, dont `audit_events` pour le journal de validation projet-scopé : `users`, `projects`, `user_settings`, `hardware_logs`, `command_requests`, `drones`, `simulations`, `reports`, `lab_sessions`, `prototype_versions`, `command_audit_events`, `workflow_runs`, `engineering_documents` et `audit_events`.
 
 ## 1. Sélectionner la bonne base
 
@@ -8,7 +8,9 @@ Dans TiDB SQL Editor, sélectionner la base `test` — ou remplacer `test` par l
 
 ## 2. Créer le schéma
 
-Ouvrir le fichier `TIDB_SCHEMA.sql` fourni avec cette livraison, le coller dans SQL Editor, puis cliquer sur **Run**. Cette opération doit être effectuée avec un compte TiDB qui possède les privilèges `CREATE`, `ALTER`, `INDEX` et `REFERENCES` sur la base `test`.
+Pour une base neuve, ouvrir `TIDB_SCHEMA.sql`, le coller dans SQL Editor, puis cliquer sur **Run**. Cette opération doit être effectuée avec un compte TiDB qui possède les privilèges `CREATE`, `ALTER`, `INDEX` et `REFERENCES` sur la base `test`.
+
+Pour une base AeroMind déjà en service, ne pas rejouer tout le schéma : appliquer seulement `migrations/2026-10-21_validation_audit_events.sql` avec un compte administrateur avant le déploiement du code. La création automatique est désactivée en production.
 
 Après exécution, vérifier :
 
@@ -16,7 +18,7 @@ Après exécution, vérifier :
 SHOW TABLES;
 ```
 
-Les 13 tables AeroMind doivent apparaître. La table `audit_reports` peut rester présente, mais elle n’est pas utilisée par le code actuel.
+Les 14 tables AeroMind doivent apparaître. La table `audit_reports` peut rester présente, mais elle n’est pas utilisée par le code actuel.
 
 ## 3. Vérifier l’utilisateur Render
 
