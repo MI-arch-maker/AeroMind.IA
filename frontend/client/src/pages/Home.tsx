@@ -13844,6 +13844,7 @@ export default function Home() {
                             <p>Essais virtuels synchronisés avec le modèle, les paramètres, le plan de mission et les résultats du moteur AeroMind.</p>
                           </header>
                           <VirtualFlightTestHall
+                            viewMode="panoramic"
                             config={config}
                             setConfig={setConfig}
                             simulation={simulation}
@@ -13882,6 +13883,7 @@ export default function Home() {
                     {activeView === "command-center" && <HumanCommandCenter />}
                     {activeView === "live" && (
                       <VirtualFlightTestHall
+                        viewMode="spatial"
                         config={config}
                         setConfig={setConfig}
                         simulation={simulation}

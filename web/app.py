@@ -21,9 +21,10 @@ from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
-from .admin import activity as admin_activity, create_account, delete_account, list_accounts, migrate_legacy_registry, rotate_authorization_code, update_account, verify_authorization_code
+from .admin import activity as admin_activity, create_account, delete_account, list_accounts, migrate_legacy_registry, reset_local_auth, rotate_authorization_code, update_account, verify_authorization_code
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
+from .local_auth import router as local_auth_router
 from .business_api import router as business_router
 from .hardware_api import router as hardware_router, _controllers
 from .operational_state import router as operational_state_router
@@ -106,6 +107,7 @@ app.include_router(business_router)
 app.include_router(hardware_router)
 app.include_router(operational_state_router)
 app.include_router(oidc_router)
+app.include_router(local_auth_router)
 app.include_router(copilot_router)
 app.include_router(engineering_extensions_router)
 app.include_router(workflow_router)
@@ -225,7 +227,7 @@ async def trpc_compat(
     if any(name.endswith(suffix) for suffix in (
         'superAdmin.accounts', 'superAdmin.activity',
         'superAdmin.createAccount', 'superAdmin.updateAccount',
-        'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode',
+        'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode', 'superAdmin.resetLocalAuth',
     )):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
@@ -253,7 +255,7 @@ async def trpc_compat(
     elif name.endswith('auth.logout'):
         data = {'logged_out': True}
     elif name.endswith('identity.providers'):
-        data = [{'id': 'entra', 'label': 'Microsoft Entra ID', 'domains': 'Microsoft 365 / Entra', 'note': 'Connexion OIDC sécurisée', 'configured': bool(settings.oidc)}]
+        data = [{'id': 'entra', 'label': 'Microsoft Entra ID', 'domains': 'Microsoft 365 / Entra', 'note': 'Connexion OIDC sécurisée', 'configured': bool(settings.oidc)}, {'id': 'local-mfa', 'label': 'Accès local AeroMind', 'domains': 'Comptes préprovisionnés', 'note': 'Mot de passe + TOTP; invitation admin requise', 'configured': True}]
     elif name.endswith('ai.status'):
         data = {'available': bool(settings.openai_api_key), 'provider': 'OpenAI-compatible' if settings.openai_api_key else 'local'}
     elif name.endswith('labBench.status'):
@@ -282,6 +284,11 @@ async def trpc_compat(
     elif name.endswith('superAdmin.rotateAuthorizationCode'):
         try:
             data = rotate_authorization_code(current_user, str(payload.get('id', '')))
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.resetLocalAuth'):
+        try:
+            data = reset_local_auth(current_user, str(payload.get('id', '')))
         except (KeyError, ValueError) as exc:
             return _trpc_error(400, 'BAD_REQUEST', str(exc))
     elif name.endswith('projects.list'):

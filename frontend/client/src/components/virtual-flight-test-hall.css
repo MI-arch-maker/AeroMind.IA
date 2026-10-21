@@ -314,3 +314,46 @@
 .vfth-shell .vfth-panel,.vfth-shell .vfth-launch-card{border-radius:14px;border-color:rgba(126,189,195,.19);background:linear-gradient(145deg,rgba(14,35,46,.95),rgba(7,21,29,.97));box-shadow:0 10px 28px rgba(0,0,0,.16)}
 .vfth-shell button{transition:transform .18s ease,border-color .18s ease,background .18s ease}.vfth-shell button:hover:not(:disabled){transform:translateY(-1px)}.vfth-shell :focus-visible{outline:2px solid #78e7df;outline-offset:3px}
 @media(max-width:700px){.vfth-shell{border-radius:15px;padding:10px;gap:10px}.vfth-shell .vfth-hero{align-items:flex-start;flex-direction:column}.vfth-shell .vfth-scene{min-height:370px}}
+
+
+/* Variantes pilotées par onglet : les deux laboratoires partagent les données et les scénarios, pas la même scène. */
+.vfth-panoramic{--lab-accent:#76d9ff;--lab-glow:rgba(89,185,242,.24);border-color:rgba(118,217,255,.42);background:radial-gradient(ellipse at 58% 31%,rgba(57,137,190,.25),transparent 48%),linear-gradient(145deg,#081522,#10293b 57%,#091723);box-shadow:0 30px 95px rgba(4,18,35,.5),inset 0 1px rgba(210,241,255,.16)}
+.vfth-panoramic:before{opacity:.22;background:linear-gradient(90deg,transparent 49.8%,rgba(177,223,255,.18) 50%,transparent 50.2%),linear-gradient(0deg,transparent 49.8%,rgba(177,223,255,.12) 50%,transparent 50.2%);background-size:120px 80px;mask-image:linear-gradient(transparent,#000 18%,#000 84%,transparent)}
+.vfth-panoramic .vfth-hero{background:linear-gradient(100deg,rgba(19,48,70,.9),rgba(13,34,52,.63));border-color:rgba(132,204,244,.27)}
+.vfth-panoramic .vfth-kicker,.vfth-panoramic .vfth-index{color:#a3dfff}
+.vfth-panoramic .vfth-badges{border-color:rgba(118,217,255,.3);background:rgba(98,184,231,.07)}
+.vfth-panoramic .vfth-scene{min-height:clamp(500px,58vw,760px);border-color:rgba(135,205,247,.37);background:radial-gradient(ellipse at 50% 64%,rgba(78,159,204,.3),transparent 52%),linear-gradient(180deg,#14334a 0%,#24435a 38%,#42606b 49%,#162e3c 50%,#081a27 100%);box-shadow:0 24px 62px rgba(0,0,0,.3),inset 0 0 90px rgba(97,180,223,.12)}
+.vfth-panoramic .vfth-scene:before{position:absolute;z-index:1;inset:0;pointer-events:none;content:"";background:radial-gradient(ellipse at 16% 48%,rgba(255,205,135,.28),transparent 18%),linear-gradient(180deg,transparent 42%,rgba(207,237,246,.16) 48%,transparent 50%),linear-gradient(105deg,transparent 20%,rgba(180,225,246,.08) 50%,transparent 78%)}
+.vfth-panoramic .vfth-lab-structure{opacity:.62;transform:perspective(1000px) rotateY(-2deg) scale(1.015);transform-origin:center bottom}
+.vfth-panoramic .vfth-lab-cage{left:13%;right:13%;top:22%;height:48%;border-color:rgba(174,221,241,.58);background:linear-gradient(180deg,rgba(50,103,131,.07),rgba(50,103,131,.01));box-shadow:0 0 55px rgba(110,197,238,.12)}
+.vfth-panoramic .vfth-lab-ceiling{left:9%;width:82%;border-color:rgba(183,228,246,.46);background:linear-gradient(180deg,rgba(118,181,208,.1),transparent)}
+.vfth-panoramic .vfth-lab-pad{bottom:13%;width:34%;height:12%;border-color:rgba(145,219,255,.72);box-shadow:0 0 28px rgba(103,197,255,.18)}
+.vfth-panoramic .vfth-space-mesh{opacity:.44}
+.vfth-panoramic .vfth-space-plane{fill:rgba(92,178,215,.15);stroke:rgba(171,227,255,.8)}
+.vfth-panoramic .vfth-space-grid-lines line{stroke:rgba(178,226,255,.44)}
+.vfth-panoramic .vfth-space-route .vfth-space-planned{stroke:#ffd78d;filter:drop-shadow(0 0 7px #ffc969)}
+.vfth-panoramic .vfth-space-route .vfth-space-flown{stroke:#8affeb;filter:drop-shadow(0 0 8px #5af5d8)}
+.vfth-panoramic .vfth-panel{border-color:rgba(129,194,227,.26);background:linear-gradient(145deg,rgba(17,42,60,.97),rgba(8,24,37,.98));border-radius:12px}
+.vfth-panoramic .vfth-live-strip{border-color:rgba(132,206,244,.3);background:rgba(11,31,47,.86)}
+.vfth-spatial{--lab-accent:#65f3dc;--lab-glow:rgba(64,236,208,.27);border-color:rgba(93,242,219,.42);background:radial-gradient(ellipse at 50% 55%,rgba(13,108,126,.2),transparent 43%),radial-gradient(circle at 50% 100%,rgba(64,74,154,.19),transparent 55%),linear-gradient(145deg,#050a16,#081426 56%,#0a1020);box-shadow:0 32px 100px rgba(0,0,0,.55),inset 0 1px rgba(167,255,242,.15)}
+.vfth-spatial:before{opacity:.28;background:radial-gradient(1px 1px at 13% 22%,#d6ffff 99%,transparent),radial-gradient(1px 1px at 77% 17%,#b4dfff 99%,transparent),radial-gradient(1.5px 1.5px at 89% 61%,#ddf6ff 99%,transparent),radial-gradient(1px 1px at 41% 12%,#d6ffff 99%,transparent),linear-gradient(rgba(75,215,226,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(75,215,226,.09) 1px,transparent 1px);background-size:auto,auto,auto,auto,46px 46px,46px 46px;mask-image:linear-gradient(#000,transparent 95%)}
+.vfth-spatial .vfth-hero{background:linear-gradient(105deg,rgba(8,25,46,.92),rgba(12,22,44,.78));border-color:rgba(100,232,225,.25)}
+.vfth-spatial .vfth-kicker,.vfth-spatial .vfth-index{color:#80f2e2}
+.vfth-spatial .vfth-scene{min-height:clamp(500px,58vw,760px);border-color:rgba(76,225,218,.4);background:radial-gradient(ellipse at 52% 55%,rgba(15,118,148,.27),transparent 42%),radial-gradient(ellipse at 50% 115%,rgba(82,52,159,.3),transparent 48%),linear-gradient(180deg,#080d20,#101735 53%,#080b18);box-shadow:0 0 45px rgba(48,208,218,.1),0 25px 65px rgba(0,0,0,.48),inset 0 0 90px rgba(54,117,217,.12)}
+.vfth-spatial .vfth-scene:before{position:absolute;z-index:1;inset:0;pointer-events:none;content:"";background:radial-gradient(ellipse at 74% 28%,rgba(101,96,234,.18),transparent 29%),linear-gradient(145deg,transparent 34%,rgba(89,226,230,.07) 50%,transparent 67%)}
+.vfth-spatial .vfth-lab-structure{opacity:.4;transform:perspective(800px) rotateX(8deg) scale(.96);transform-origin:center bottom;filter:hue-rotate(16deg)}
+.vfth-spatial .vfth-lab-cage{border-color:rgba(102,231,224,.72);background:linear-gradient(135deg,rgba(41,117,150,.09),rgba(95,72,176,.07));box-shadow:0 0 35px rgba(66,224,224,.12),inset 0 0 28px rgba(76,175,235,.08)}
+.vfth-spatial .vfth-lab-cage:after{position:absolute;inset:0;content:"";pointer-events:none;background:linear-gradient(90deg,transparent 49.8%,rgba(109,244,230,.28) 50%,transparent 50.2%),linear-gradient(0deg,transparent 49.8%,rgba(109,244,230,.22) 50%,transparent 50.2%)}
+.vfth-spatial .vfth-lab-ceiling span{color:#8cf9ec;text-shadow:0 0 12px #51f2dc}.vfth-spatial .vfth-lab-pad{border-color:#79f8e1;box-shadow:0 0 30px rgba(71,244,216,.27)}
+.vfth-spatial .vfth-space-mesh{opacity:.86}.vfth-spatial .vfth-space-plane{fill:rgba(51,175,211,.12);stroke:rgba(130,255,237,.88);filter:drop-shadow(0 0 3px #54e9d8)}
+.vfth-spatial .vfth-space-grid-lines line{stroke:rgba(115,229,234,.47)}.vfth-spatial .vfth-space-axis line{stroke:#8effee;filter:drop-shadow(0 0 3px #58f3df)}
+.vfth-spatial .vfth-space-route .vfth-space-planned{stroke:#ffd078;filter:drop-shadow(0 0 7px #ffd078)}.vfth-spatial .vfth-space-route .vfth-space-flown{stroke:#67ffe1;filter:drop-shadow(0 0 10px #43f6dc)}
+.vfth-spatial .vfth-space-volumes .vfth-volume-safe polygon{fill:rgba(47,230,192,.1);stroke:#70f4d7;filter:drop-shadow(0 0 4px #51e5ce)}
+.vfth-spatial .vfth-space-volumes .vfth-volume-nogo polygon{fill:rgba(251,121,127,.13);stroke:#ff9c93;filter:drop-shadow(0 0 5px #ff726f)}
+.vfth-spatial .vfth-drone{filter:drop-shadow(0 0 16px rgba(83,255,224,.95))}.vfth-spatial .vfth-panel{border-color:rgba(89,219,213,.23);background:linear-gradient(145deg,rgba(9,25,46,.96),rgba(7,15,32,.98));border-radius:12px}
+.vfth-spatial .vfth-live-strip{border-color:rgba(83,225,211,.27);background:rgba(6,17,36,.86)}
+.vfth-panoramic .vfth-panel h3,.vfth-spatial .vfth-panel h3{font-size:clamp(15px,1.35vw,19px);letter-spacing:.005em}
+.vfth-panoramic .vfth-telemetry-grid,.vfth-spatial .vfth-telemetry-grid{gap:9px}.vfth-panoramic .vfth-telemetry-grid span,.vfth-spatial .vfth-telemetry-grid span{border-radius:9px;padding:11px;background:rgba(4,17,27,.38)}
+@media(max-width:1000px){.vfth-panoramic .vfth-scene,.vfth-spatial .vfth-scene{min-height:490px}}
+@media(max-width:650px){.vfth-panoramic .vfth-scene,.vfth-spatial .vfth-scene{min-height:400px}.vfth-panoramic .vfth-lab-cage{left:7%;right:7%}.vfth-spatial .vfth-lab-structure{opacity:.3}}
+@media(prefers-reduced-motion:reduce){.vfth-panoramic *, .vfth-spatial *{scroll-behavior:auto!important;transition:none!important}}

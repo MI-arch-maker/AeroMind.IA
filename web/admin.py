@@ -53,7 +53,7 @@ def _code_hash(code: str) -> str:
 
 
 def _public_account(account: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in account.items() if key != "authorizationCodeHash"}
+    return {key: value for key, value in account.items() if key not in {"authorizationCodeHash", "localEnrollmentCodeHash", "localPasswordHash", "localTotpSecretEnc", "localLoginFailures", "localAuthPendingAt", "localTotpLastCounter", "localAuthGeneration", "localEnrollmentCodeIssuedAtEpoch"}}
 
 
 def _record_account(row: AdminAccountRecord) -> dict[str, Any]:
@@ -135,15 +135,22 @@ def create_account(actor: dict[str, Any], email: str, name: str, requested_role:
     if not email or "@" not in email or not name.strip():
         raise ValueError("Nom et adresse e-mail valides requis")
     code = _new_authorization_code()
+    local_enrollment_code = f"AER-{secrets.token_urlsafe(24)}"
     now = _now()
     account = {
         "id": str(uuid.uuid4()), "name": name.strip(), "email": email, "role": requested_role,
         "requestedRole": requested_role, "accountStatus": "active", "approvalStatus": "approved",
-        "loginMethod": "microsoft-entra-existing-account-required", "entraAccountRequired": True,
         "createdAt": now, "lastSignedIn": None, "createdBy": actor["id"],
         "level": level if level in {"L1", "L2", "L3", "L4"} else "L1",
         "authorizationCodeHash": _code_hash(code), "authorizationCodeLast4": code[-4:],
         "authorizationCodeIssuedAt": now,
+        "localEnrollmentCodeHash": _code_hash(local_enrollment_code),
+        "localEnrollmentCodeLast4": local_enrollment_code[-4:],
+        "localEnrollmentCodeIssuedAtEpoch": int(datetime.now(timezone.utc).timestamp()),
+        "localAuthGeneration": 0,
+        "localAuthenticationAvailable": True,
+        "entraAccountRequired": False,
+        "loginMethod": "entra-or-local-password-totp",
     }
     with SessionLocal() as db:
         if account_for_email(email) is not None:
@@ -154,13 +161,14 @@ def create_account(actor: dict[str, Any], email: str, name: str, requested_role:
         db.add(_event(db, "account.created", actor, account["id"],
                       {"email": email, "role": requested_role, "level": account["level"],
                        "authorizationCodeLast4": account["authorizationCodeLast4"],
-                       "entra_account_required": True}))
+                       "entra_account_required": False,
+                       "local_authentication_available": True}))
         try:
             db.commit()
         except IntegrityError as exc:
             db.rollback()
             raise ValueError("Un compte ou une demande existe déjà pour cet e-mail") from exc
-    return {**_public_account(account), "authorizationCode": code}
+    return {**_public_account(account), "authorizationCode": code, "localEnrollmentCode": local_enrollment_code}
 
 
 def rotate_authorization_code(actor: dict[str, Any], account_id: str) -> dict[str, Any]:
@@ -173,11 +181,39 @@ def rotate_authorization_code(actor: dict[str, Any], account_id: str) -> dict[st
             raise ValueError("Le compte Super-Admin principal ne peut pas être régénéré depuis cette action")
         code = _new_authorization_code()
         account.update({"authorizationCodeHash": _code_hash(code), "authorizationCodeLast4": code[-4:], "authorizationCodeIssuedAt": _now()})
+        local_enrollment_code = None
+        if not account.get("localAuthEnabled"):
+            local_enrollment_code = f"AER-{secrets.token_urlsafe(24)}"
+            account.update({"localEnrollmentCodeHash": _code_hash(local_enrollment_code), "localEnrollmentCodeLast4": local_enrollment_code[-4:], "localEnrollmentCodeIssuedAtEpoch": int(datetime.now(timezone.utc).timestamp())})
         row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
         db.add(_event(db, "account.authorization_code_rotated", actor, account_id,
                       {"authorizationCodeLast4": account["authorizationCodeLast4"]}))
         db.commit()
-        return {**_public_account(account), "authorizationCode": code}
+        result = {**_public_account(account), "authorizationCode": code}
+        if local_enrollment_code:
+            result["localEnrollmentCode"] = local_enrollment_code
+        return result
+
+
+def reset_local_auth(actor: dict[str, Any], account_id: str) -> dict[str, Any]:
+    """Revoke local credentials and issue a fresh one-time setup invitation."""
+    with SessionLocal() as db:
+        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.id == account_id))
+        if row is None:
+            raise KeyError("Compte introuvable")
+        account = _record_account(row)
+        if account.get("role") == "super_admin" or account.get("email", "").casefold() in get_settings().superadmin_email_set:
+            raise ValueError("Utilisez la procédure sécurisée du Super-Admin authentifié par Entra")
+        invite = f"AER-{secrets.token_urlsafe(24)}"
+        for key in ("localPasswordHash", "localTotpSecretEnc", "localTotpLastCounter", "localAuthPendingAt", "localLoginFailures"):
+            account.pop(key, None)
+        account.update({"localAuthEnabled": False, "localAuthGeneration": int(account.get("localAuthGeneration", 0)) + 1, "localEnrollmentCodeHash": _code_hash(invite),
+                        "localEnrollmentCodeLast4": invite[-4:], "localEnrollmentCodeIssuedAtEpoch": int(datetime.now(timezone.utc).timestamp()), "localAuthenticationAvailable": True,
+                        "loginMethod": "entra-or-local-password-totp"})
+        row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
+        db.add(_event(db, "account.local_auth_reset", actor, account_id, {"mfa": "totp", "credentials_revoked": True}))
+        db.commit()
+        return {**_public_account(account), "localEnrollmentCode": invite}
 
 
 def update_account(actor: dict[str, Any], account_id: str, changes: dict[str, Any]) -> dict[str, Any]:

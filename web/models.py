@@ -18,7 +18,7 @@ class User(Base):
 
 
 class AdminAccountRecord(Base):
-    """Durable AeroMind allowlist for identities authenticated by Microsoft Entra OIDC."""
+    """Durable AeroMind allowlist for Entra OIDC or pre-provisioned local MFA identities."""
     __tablename__ = "admin_accounts"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)

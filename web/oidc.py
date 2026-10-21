@@ -11,7 +11,7 @@ from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .config import get_settings
-from .admin import account_for_identity
+from .admin import account_for_email, account_for_identity
 
 router = APIRouter(prefix='/api/auth/oidc', tags=['authentication'])
 
@@ -118,6 +118,15 @@ def me(
     account = account_for_identity(email, subject)
     if account is None:
         raise HTTPException(403, 'Compte Entra préexistant absent du registre AeroMind, évalué ou suspendu')
+    if subject.startswith('local:'):
+        try:
+            _, local_account_id, generation = subject.split(':', 2)
+            persistent_account = account_for_email(email)
+            local_session_valid = (persistent_account is not None and local_account_id == str(persistent_account.get('id')) and persistent_account.get('localAuthEnabled') is True and int(generation) == int(persistent_account.get('localAuthGeneration', 0)))
+        except (ValueError, TypeError):
+            local_session_valid = False
+        if not local_session_valid:
+            raise HTTPException(401, 'Session locale révoquée ou invalide')
     role = 'super_admin' if get_settings().is_superadmin_email(email) else account.get('role', 'user')
     return {
         'authenticated': True,

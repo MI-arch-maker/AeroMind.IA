@@ -5,7 +5,7 @@ import type { WorkflowRun } from "../lib/integratedWorkflow";
 import { estimateFlightTestBatteryPercent, hasSynchronizedMissionRoute, projectFlightTestPoint } from "../lib/flightTestSync";
 import "./virtual-flight-test-hall.css";
 
-type Props = { config: ConceptConfig; setConfig: (config: ConceptConfig) => void; simulation: SimulationResult; requirements: unknown[]; workflowRun?: WorkflowRun | null; onOpenBuilder: () => void };
+type Props = { config: ConceptConfig; setConfig: (config: ConceptConfig) => void; simulation: SimulationResult; requirements: unknown[]; workflowRun?: WorkflowRun | null; onOpenBuilder: () => void; viewMode?: "panoramic" | "spatial" };
 type ScenarioId = "hover" | "route" | "obstacles" | "return";
 type Point = { x: number; y: number; altitudeM: number; speedKmh: number; name: string };
 const scenarios: Array<{ id: ScenarioId; label: string; detail: string; duration: number }> = [
@@ -23,7 +23,7 @@ const fallbackOffsets: Record<ScenarioId, Array<[number, number]>> = {
 };
 const bearing = (from: Point, to: Point) => (Math.atan2(to.x - from.x, from.y - to.y) * 180 / Math.PI + 360) % 360;
 
-export function VirtualFlightTestHall({ config, simulation, requirements, workflowRun, onOpenBuilder }: Props) {
+export function VirtualFlightTestHall({ config, simulation, requirements, workflowRun, onOpenBuilder, viewMode = "spatial" }: Props) {
   const [scenario, setScenario] = useState<ScenarioId>("route");
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
@@ -112,9 +112,9 @@ export function VirtualFlightTestHall({ config, simulation, requirements, workfl
     ? [...spaceRoute.slice(0, isHover ? 1 : routeIndex + 1), spaceDrone].map(point => `${point.x},${point.y}`).join(" ")
     : spaceRoute.slice(0, 3).map(point => `${point.x},${point.y}`).join(" ");
 
-  return <div className="vfth-shell vfth-pro" data-workflow-run={workflowRun?.id ?? "none"}>
+  return <div className={`vfth-shell vfth-pro vfth-${viewMode}`} data-view-mode={viewMode} data-workflow-run={workflowRun?.id ?? "none"}>
     <header className="vfth-hero">
-      <div><p className="vfth-kicker"><span /> AEROMIND / LABORATOIRE D’ESSAIS</p><h2>Hangar numérique · cellule d’essai</h2><p>Environnement de vol instrumenté, suivi optique et analyse de trajectoire — simulation uniquement, sans liaison à un aéronef réel.</p></div>
+      <div><p className="vfth-kicker"><span /> AEROMIND / LABORATOIRE D’ESSAIS</p><h2>{viewMode === "panoramic" ? "Laboratoire panoramique · simulation" : "Laboratoire spatial · essais en temps réel"}</h2><p>{viewMode === "panoramic" ? "Vue grand angle du volume d’essai, lecture des trajectoires et analyse synchronisée des performances du modèle." : "Environnement orbital instrumenté : suivi XYZ, volumes de référence et télémétrie de scénario en temps réel simulé."} Simulation uniquement, sans liaison à un aéronef réel.</p></div>
       <div className="vfth-badges"><span><i /> BANC VIRTUEL OPÉRATIONNEL</span><strong>SIMULATION · NIVEAU N2</strong><small>Trajectoires et télémétrie synthétiques · aucun actionneur réel</small></div>
     </header>
     <div className="vfth-command">
@@ -130,7 +130,7 @@ export function VirtualFlightTestHall({ config, simulation, requirements, workfl
       <section className="vfth-panel vfth-hangar">
         <div className="vfth-panel-head"><div><span className="vfth-index">A / CELLULE LABORATOIRE · {droneName.toUpperCase()}</span><h3>Chambre d’essai · trajectoire supervisée</h3></div><span className="vfth-chip">T+{String(time).padStart(3, "0")}s / {current.duration}s</span></div>
         <div className="vfth-scene vfth-space-scene vfth-lab-scene" data-model={isWinged ? (isVtol ? "vtol" : "wing") : "multirotor"}>
-          <div className="vfth-scene-topline"><span><i /> CELLULE D’ESSAI L-03 · LABORATOIRE DRONE</span><span>CAMÉRAS · LIDAR · ANÉMOMÉTRIE</span></div>
+          <div className="vfth-scene-topline"><span><i /> {viewMode === "panoramic" ? "PANORAMA L-03 · LABORATOIRE DE SIMULATION" : "CELLULE SPATIALE L-03 · BANC D’ESSAI"}</span><span>{viewMode === "panoramic" ? "VUE LARGE · TRAJECTOIRE · ANALYSE" : "REPÈRE XYZ · TÉLÉMÉTRIE · SCÉNARIOS"}</span></div>
           <div className="vfth-lab-structure" aria-hidden="true"><div className="vfth-lab-ceiling"><i/><i/><i/><i/><span>PORTIQUE XYZ · SUIVI OPTIQUE MULTICAMÉRA</span></div><div className="vfth-lab-cage"><i className="rail-top"/><i className="rail-left"/><i className="rail-right"/><i className="rail-back"/><span>VOLUME DE CAPTURE · FILET DE SÉCURITÉ</span></div><div className="vfth-lab-pad"><b>H-01</b><span>ZONE DE VOL</span></div><div className="vfth-lab-sensor vfth-lab-sensor-left"><i/><i/><i/><small>ANÉMOMÈTRE</small></div><div className="vfth-lab-sensor vfth-lab-sensor-right"><i/><i/><i/><small>CAM 04 · IR</small></div></div>
           <div className="vfth-space-ident"><span>POSTE D’ESSAI · SIMULATION</span><b>{hasActiveUserDesign ? "CELLULE SYNCHRONISÉE" : "CELLULE EN ATTENTE"}</b><small>{hasActiveUserDesign ? "REPÈRE LOCAL X/Y · ALTITUDE Z" : "TRACÉ SCHÉMATIQUE · ÉCHELLE NON DÉFINIE"}</small>{hasActiveUserDesign && <small>{hasSynchronizedMission ? `${config.missionPlan?.operationName || "MISSION ACTIVE"} · ${config.missionPlan?.waypoints.length} WP` : `${config.missionPlan?.waypoints.length ?? 0} WP · TRAJECTOIRE DE TEST SYNTHÉTIQUE`}</small>}{hasActiveUserDesign && config.missionPlan && <small>RAYON {config.missionPlan.radiusKm.toFixed(1)} km · RETOUR {config.missionPlan.returnAltitudeM.toFixed(0)} m · LINK {config.missionPlan.lostLinkAction.toUpperCase()}</small>}<small>VOLUMES ILLUSTRATIFS · GÉOREPÉRAGE NON PROJETÉ</small></div>
           {showGrid && <svg className="vfth-space-mesh" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">

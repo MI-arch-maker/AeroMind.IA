@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     # priorité : elle peut être remplacée par une ou plusieurs adresses, ou
     # définie à vide pour supprimer tout super-admin configuré.
     superadmin_emails: str = Field('mcgregoralvin14@gmail.com', alias='AEROMIND_SUPERADMIN_EMAILS', validation_alias='AEROMIND_SUPERADMIN_EMAILS')
+    local_superadmin_bootstrap_code: str | None = Field(None, alias='AEROMIND_LOCAL_SUPERADMIN_ENROLLMENT_CODE', validation_alias='AEROMIND_LOCAL_SUPERADMIN_ENROLLMENT_CODE')
     # Liste d’identités autorisées pour le parcours d’essai ; elle ne remplace
     # jamais la validation cryptographique du fournisseur OIDC.
     trial_emails: str = Field('demo@example.com', alias='AEROMIND_TRIAL_EMAILS', validation_alias='AEROMIND_TRIAL_EMAILS')
