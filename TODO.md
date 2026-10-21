@@ -35,3 +35,12 @@ Le Twin reste un modèle mécanique conceptuel paramétrique. Les matériaux, co
 - [x] **Inspection et sorties :** garder les projections, la coupe X-ray, la vue éclatée et la cinématique; proposer des exports OBJ/STL étiquetés conceptuels et des mesures dérivées du modèle.
 - [x] **Limites et ergonomie :** conserver les limites de simulation/qualification visibles et adapter les panneaux aux petits écrans sans retirer les fonctions accessibles.
 - [x] **Validation finale :** typecheck, tests Vitest, build statique, contrôle de la scène 3D et test navigateur « ajouter un bloc → annuler » avec retour de l’arbre de 34 à 35 puis 34 pièces; contrôle i18n sans nouvelles alertes propres à IDDS.
+
+
+## Demande — navigation cartographique et simulation locale d’inspection
+
+- [x] **Itinéraire civil local :** permettre d’ajouter des points sur la carte ou par coordonnées, de les renommer comme points d’inspection et de les supprimer ; conserver le brouillon dans le navigateur par utilisateur et cellule. Les modifications de route réinitialisent la démonstration et sont verrouillées pendant sa lecture.
+- [x] **Imagerie :** conserver le fond satellite et le fond cartographique, et proposer un filtre nocturne purement visuel avec état accessible et indication explicite qu’il ne s’agit pas d’un capteur de vision nocturne.
+- [x] **Démonstration :** avec au moins deux points, démarrer, mettre en pause, reprendre, terminer ou réinitialiser une progression locale ; afficher un marqueur et une barre de progression générés uniquement dans le navigateur.
+- [x] **Limites impératives :** aucun armement, ciblage, poursuite, commande de pilotage, actionneur, lecture GNSS embarquée, téléversement de route ou écriture MAVLink ; conserver la télémétrie en lecture seule et identifier la simulation comme non transmise.
+- [x] **Validation :** `pnpm check`, 239 tests Vitest et build statique réussis. `pnpm i18n:lint` reste en échec sur des diagnostics présents dans d’autres fichiers ; aucun diagnostic ne vise les composants cartographiques modifiés. Archive mise à jour préparée sans prétendre à un déploiement distant.

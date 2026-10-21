@@ -13,6 +13,7 @@ type OpenStreetMapViewProps = {
   layerMode: MapLayerMode;
   onCenterChange?: (center: Coordinate) => void;
   onMapClick?: (coordinate: Coordinate) => void;
+  simulatedProgress?: number;
 };
 
 type TileProvider = {
@@ -69,6 +70,26 @@ function unproject(x: number, y: number, zoom: number): Coordinate {
   return { lat: clampLatitude(lat), lng: ((lng + 540) % 360) - 180 };
 }
 
+export function interpolateMapRoutePosition(route: Coordinate[], progress: number, zoom: number): Coordinate | null {
+  if (route.length < 2 || !Number.isFinite(progress)) return null;
+  const projected = route.map(point => project(point, zoom));
+  const lengths = projected.slice(1).map((point, index) => Math.hypot(point.x - projected[index].x, point.y - projected[index].y));
+  const totalLength = lengths.reduce((sum, length) => sum + length, 0);
+  if (totalLength === 0) return route[0];
+  let remaining = totalLength * Math.max(0, Math.min(1, progress));
+  for (let index = 0; index < lengths.length; index += 1) {
+    const length = lengths[index];
+    if (remaining <= length || index === lengths.length - 1) {
+      const start = projected[index];
+      const end = projected[index + 1];
+      const ratio = length === 0 ? 0 : Math.max(0, Math.min(1, remaining / length));
+      return unproject(start.x + (end.x - start.x) * ratio, start.y + (end.y - start.y) * ratio, zoom);
+    }
+    remaining -= length;
+  }
+  return route[route.length - 1];
+}
+
 function wrapTile(value: number, count: number) {
   return ((value % count) + count) % count;
 }
@@ -81,6 +102,7 @@ export function OpenStreetMapView({
   layerMode,
   onCenterChange,
   onMapClick,
+  simulatedProgress,
 }: OpenStreetMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; center: { x: number; y: number }; moved: boolean } | null>(null);
@@ -139,6 +161,9 @@ export function OpenStreetMapView({
     const pixel = project(coordinate, mapZoom);
     return { left: pixel.x - centerPixel.x + viewport.width / 2, top: pixel.y - centerPixel.y + viewport.height / 2 };
   };
+  const simulatedPosition = typeof simulatedProgress === "number"
+    ? interpolateMapRoutePosition([mapCenter, ...points], simulatedProgress, mapZoom)
+    : null;
 
   const commitCenter = (nextPixel: { x: number; y: number }) => {
     const next = unproject(nextPixel.x, nextPixel.y, mapZoom);
@@ -227,6 +252,7 @@ export function OpenStreetMapView({
           return <div key={point.id} className="aeromind-open-map-marker" style={position} title={`${point.name} · ${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`}><span>{index + 1}</span></div>;
         })}
         {points.length > 0 && <svg className="aeromind-open-map-route" width={viewport.width} height={viewport.height}><polyline points={[mapCenter, ...points].map(point => { const position = toScreen(point); return `${position.left},${position.top}`; }).join(" ")} /></svg>}
+        {simulatedPosition && <div className="aeromind-open-map-simulated-position" style={toScreen(simulatedPosition)} title="Position de démonstration locale, simulée"><span>SIM</span></div>}
       </div>
       <div className="aeromind-open-map-controls"><button type="button" aria-label="Zoom avant" onPointerDown={event => event.stopPropagation()} onClick={() => setMapZoom(value => Math.min(MAX_ZOOM, value + 1))}>+</button><button type="button" aria-label="Zoom arrière" onPointerDown={event => event.stopPropagation()} onClick={() => setMapZoom(value => Math.max(MIN_ZOOM, value - 1))}>−</button></div>
       <div className="aeromind-open-map-attribution">{provider.attribution} · {provider.label}</div>

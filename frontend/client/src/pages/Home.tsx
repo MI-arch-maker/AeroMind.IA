@@ -181,6 +181,7 @@ import {
   Upload,
   ScanLine,
   Save,
+  Send,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
@@ -7072,6 +7073,7 @@ function ReportView({
   config,
   simulation,
   onExport,
+  onSend,
   onView,
   activeProjectId,
   remoteReady,
@@ -7083,6 +7085,7 @@ function ReportView({
   config: ConceptConfig;
   simulation: SimulationResult;
   onExport: () => void;
+  onSend: () => void;
   onView: (view: ViewId) => void;
   activeProjectId: string;
   remoteReady: boolean;
@@ -7095,6 +7098,12 @@ function ReportView({
     retry: false,
   });
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
+  const xrayCaptures = useMemo(() => [
+    ["Ingénierie", "aeromind-xray-capture-engineering"],
+    ["Montage", "aeromind-xray-capture-assembly"],
+    ["Simulation", "aeromind-xray-capture-simulation"],
+    ["Opération", "aeromind-xray-capture-operations"],
+  ].flatMap(([label, key]) => { try { const value = window.localStorage.getItem(key); return value ? [{ label, value }] : []; } catch { return []; } }), []);
   const reportDetailQuery = trpc.reports.get.useQuery(selectedReportId ?? 0, {
     enabled: remoteReady && selectedReportId !== null,
     retry: false,
@@ -7136,8 +7145,8 @@ function ReportView({
             <button className="secondary-button" onClick={onExport}>
               <Download size={15} /> Télécharger .md
             </button>
-            <button className="primary-button" onClick={onExport}>
-              <Save size={15} /> Exporter le rapport
+            <button className="primary-button" onClick={onSend}>
+              <Send size={15} /> Envoyer le rapport
             </button>
           </div>
         }
@@ -7171,6 +7180,12 @@ function ReportView({
             </div>
           </div>
           <div className="report-body">
+            {xrayCaptures.length > 0 && (
+              <section className="report-workbench-evidence">
+                <div><span>08 / X-RAY EVIDENCE</span><h4>Captures d’ingénierie, montage, simulation et opération</h4><p>Captures intégrées au dossier transmis pour consultation du surveillant et du Super-Admin.</p></div>
+                <div className="grid gap-3 sm:grid-cols-2">{xrayCaptures.map(item => <figure key={item.label}><figcaption className="text-xs font-semibold">{item.label}</figcaption><img src={item.value} alt={`Capture X-Ray ${item.label}`} /></figure>)}</div>
+              </section>
+            )}
             {workbenchCapture && (
               <section className="report-workbench-evidence">
                 <div>
@@ -13296,7 +13311,7 @@ export default function Home() {
       message: "Configuration de référence restaurée.",
     });
   };
-  const exportReport = async () => {
+  const exportReport = async (sendOfficial = false) => {
     setAction("report", {
       status: "loading",
       message: "Génération du rapport technique…",
@@ -13318,10 +13333,23 @@ export default function Home() {
             )
             .join("\\n")
         : "- Aucun waypoint déclaré.";
-      const captured = (() => { try { return window.localStorage.getItem("aeromind-workbench-capture") ?? ""; } catch { return ""; } })();
+      const captureEntries = [
+        ["Ingénierie", "aeromind-xray-capture-engineering"],
+        ["Montage", "aeromind-xray-capture-assembly"],
+        ["Simulation", "aeromind-xray-capture-simulation"],
+        ["Opération", "aeromind-xray-capture-operations"],
+        ["Poste de construction", "aeromind-workbench-capture"],
+      ].flatMap(([label, key]) => {
+        try {
+          const value = window.localStorage.getItem(key) ?? "";
+          return value ? [{ label, value }] : [];
+        } catch { return [] as Array<{ label: string; value: string }>; }
+      });
+      const captured = captureEntries.map(item => `\n## Capture X-Ray — ${item.label}\n\n![Capture AeroMind ${item.label}](${item.value})\n\nPreuve visuelle de référence uniquement ; validation humaine requise.`).join("\n");
       const report = `# AeroMind AI — Dossier de revue technique ${simulation.runId}\n\n## 0. Fiche de décision\n\n**Projet :** ${project.name}\n**Mission :** ${project.mission}\n**Statut de conception :** ${project.status}\n**Version :** ${project.version}\n**Généré le :** ${new Date(simulation.generatedAt).toLocaleString("fr-FR")}\n\n> **Conclusion préliminaire :** la configuration est exploitable pour une campagne de simulation et une revue humaine. Elle ne constitue pas une autorisation de vol, une certification ou une preuve de performance physique.\n\n## 1. Résumé exécutif\n\nMasse estimée : **${formatNumber(simulation.totalMassKg)} kg**. Autonomie calculée : **${formatNumber(simulation.enduranceH)} h**. Rayon théorique : **${formatNumber(simulation.rangeKm, 0)} km**. Confiance du modèle : **${simulation.confidence}**.\n\n**Architecture active :** ${config.airframe ?? "non définie"} · ${config.motorCount ?? "—"} moteur(s) · charge utile ${formatNumber(config.payloadKg)} kg.\n\n## 2. Configuration et hypothèses d’entrée\n\n| Paramètre | Valeur | Statut |\n| --- | ---: | --- |\n| Envergure | ${formatNumber(config.wingspan, 2)} m | calculée |\n| Corde | ${formatNumber(config.chord, 2)} m | calculée |\n| Fuselage | ${formatNumber(config.fuselageLength, 2)} m | calculée |\n| Batterie | ${formatNumber(config.batteryWh, 0)} Wh | à qualifier |\n| Vitesse de croisière | ${formatNumber(config.cruiseSpeedKmh, 0)} km/h | entrée projet |\n| Vent de référence | ${formatNumber(config.windSpeedKmh, 0)} km/h | hypothèse |\n| Réserve énergétique | ${formatNumber(config.reserveFraction * 100, 0)} % | exigence de prudence |\n| Exigences suivies | ${requirements.length} | traçabilité locale |\n\n## 3. Dossier de construction / nomenclature complète\n\n**Profil de plateforme :** ${config.platformProfile ?? "non défini"}\n**Famille matériau :** ${config.materialFamily ?? "non définie"}\n**Type d’assemblage :** ${config.jointType ?? "non défini"}\n**Intégration charge utile :** ${config.payloadIntegration ?? "non définie"}\n**Position moteur :** ${config.motorPosition ?? "non définie"}\n**Masse de construction déclarée :** ${formatNumber(config.constructionMassKg ?? 0)} kg\n\n| Élément | Fonction | Masse unitaire | Quantité | Provenance |\n| --- | --- | ---: | ---: | --- |\n${constructionRows}\n\n## 4. Propulsion, commande, avionique et mission\n\n- **Propulsion :** ${config.motorCount ?? "—"} moteur(s), hélice/rotor Ø ${formatNumber(config.propDiameter, 2)} m.\n- **Mode de commande :** ${config.flightControls?.mode ?? "non défini"}; throttle nominal ${config.flightControls?.throttlePct ?? "—"} %.\n- **Limite servo :** ${config.flightControls?.servoLimitDeg ?? "—"}°; vitesse servo ${config.flightControls?.servoRateDegPerSec ?? "—"}°/s.\n- **Plan mission :** ${config.missionPlan?.waypoints.length ?? 0} waypoint(s), rayon ${config.missionPlan?.radiusKm ?? "—"} km.\n\n${waypointRows}\n\n## 5. Résultats calculés et décision associée\n\n${simulation.metrics.map(metric => `- **${metric.label}** : ${formatNumber(metric.value, metric.unit === "km" || metric.unit === "%" ? 0 : 1)} ${metric.unit} · cible ${metric.target} · marge ${metric.margin} · **${metricStatusLabel[metric.status]}**`).join("\\n")}\n\n## 6. Gates de préparation\n\n${requirements.length ? requirements.map(requirement => `- [${requirement.status === "ok" ? "x" : " "}] ${requirement.label} — ${statusLabel[requirement.status]} · source ${requirement.source}`).join("\\n") : "- Aucune exigence projet n’est encore enregistrée."}\n\n## 7. Risques ouverts et plan de vérification\n\n${simulation.risks.length ? simulation.risks.map(risk => `- **${risk.label}** — mitigation : ${risk.mitigation} · sévérité ${risk.severity} · statut ${risk.status}`).join("\\n") : "- Aucun risque n’est remonté par le modèle courant."}\n\n**Séquence recommandée :**\n1. Rejouer la campagne virtuelle avec les perturbations nominales, vent et perte de liaison.\n2. Réconcilier masse, batterie, matériaux et charge utile avec les fiches fabricant ou mesures disponibles.\n3. Vérifier la nomenclature, les contraintes d’assemblage et la logique de retour sûr en lecture seule.\n4. Faire signer la revue par un ingénieur responsable avant tout essai au sol.\n\n## 8. Commandes sûres — simulation uniquement\n\n| Commande | Effet sûr | Condition de reprise |\n| --- | --- | --- |\n| PAUSE / HOLD | Figer le scénario virtuel et conserver son état ; aucune sortie matérielle. | Revue humaine avant reprise. |\n| ABORT SIM | Clore le run de simulation ; aucune action physique. | Lancer explicitement un nouveau run. |\n| CHECK LINK / BATTERY | Vérification en lecture seule des prérequis du scénario. | Traiter les alertes et consigner les preuves. |\n\nAucune commande de cette table n’est transmise à un aéronef ou à un actionneur physique.\n\n## 9. Méthode, provenance et limites\n\n- ${simulation.method}.\n- Les résultats proviennent du moteur déterministe local et du run **${simulation.runId}**.\n- Les valeurs non documentées restent des hypothèses ; elles ne doivent pas être présentées comme des mesures.\n- Ceci n’est ni une simulation CFD OpenFOAM, ni un essai, ni une certification.\n- Les fonctions d’armement, d’actionneur et de téléversement restent rejetées par la frontière de contrôle AeroMind.\n- Revue humaine obligatoire avant toute décision d’ingénierie.\n${captured ? `\n## 10. Capture du poste de construction\n\n![Capture AeroMind du poste de construction](${captured})\n\nRéférence visuelle uniquement : vérifier les cotes et matériels sur plans approuvés et fiches fabricant.\n` : "\n## 10. Capture du poste de construction\n\nAucune capture enregistrée. Utilisez « Capturer la vue » dans le jumeau mécanique, puis relancez l’export.\n"}`;
       let persistedReportId: string | number | undefined;
       if (
+        sendOfficial &&
         authenticatedUser &&
         serverProjectsQuery.isSuccess &&
         !activeProjectId.startsWith("project-")
@@ -13887,7 +13915,8 @@ export default function Home() {
                         requirements={requirements}
                         config={config}
                         simulation={simulation}
-                        onExport={exportReport}
+                        onExport={() => void exportReport(false)}
+                        onSend={() => void exportReport(true)}
                         onView={setActiveView}
                         activeProjectId={activeProjectId}
                         language={language}

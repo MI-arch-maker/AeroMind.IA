@@ -56,3 +56,10 @@ Le Twin reste un modèle mécanique conceptuel paramétrique. Cette tranche ne c
 - **Assemblage/paramètres** : afficher les dimensions principales, régler les paramètres structuraux avancés et la finition, exporter le maillage conceptuel en OBJ/STL, manipuler vues/projections, coupe X-ray, éclatement et cinématique depuis la barre IDDS.
 - **Design** : conserver l’esthétique d’atelier aérospatial sombre/cyan, mais enrichir la hiérarchie comme un logiciel de compositing/CAO : commandes groupées, rail d’outils, arbre de scène, zone de travail centrale et inspecteur contextuel; actions réversibles, statut conceptuel explicite et mise en page responsive.
 - **Limites** : l’image importée reste locale au navigateur; ces outils éditent une maquette paramétrique conceptuelle et n’ajoutent ni noyau B-Rep, solveur CFD/FEA, certification ni commande matérielle.
+
+
+## Extension — navigation cartographique et démonstration civile locale
+
+L’écran satellitaire conserve les couches cartographiques et les brouillons WGS84 enregistrés localement. Les points deviennent des points d’inspection renommables. Un filtre visuel nocturne transforme uniquement les couleurs des tuiles et ne représente pas une donnée de capteur. Un lecteur local, exigeant au moins deux points, anime un marqueur synthétique avec pause/reprise/fin/réinitialisation et barre de progression; il ne produit aucune sortie réseau de pilotage.
+
+La télémétrie MAVLink demeure en lecture seule. Aucun armement, ciblage, poursuite, commande physique, GNSS embarqué, téléversement de mission ou changement de protocole ne fait partie du périmètre. Les fichiers concernés sont `SatelliteNavigationView.tsx`, `OpenStreetMapView.tsx`, les styles cartographiques et les tests d’interpolation.

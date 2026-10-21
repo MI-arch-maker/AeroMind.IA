@@ -365,7 +365,7 @@ async def trpc_compat(
         with SessionLocal() as db:
             record = db.scalar(select(Report).where(Report.id == report_id, Report.user_id == current_user['id']))
             if record is None: return _trpc_error(404, 'NOT_FOUND', 'Report not found')
-            body = json.loads(record.data_json or '{}'); body['status'] = 'submitted'; body.setdefault('workflow', {})['submittedAt'] = time.time(); body['workflow']['authorizationCodeVerified'] = True; record.data_json = json.dumps(body); db.commit(); data = {'id': record.id, **body}
+            body = json.loads(record.data_json or '{}'); body['status'] = 'submitted'; body.setdefault('workflow', {}).update({'submittedAt': time.time(), 'authorizationCodeVerified': True, 'recipients': ['surveillant', 'super_admin'], 'notificationState': 'queued_for_review'}); record.data_json = json.dumps(body); db.commit(); data = {'id': record.id, **body}
     elif name.endswith('reports.list'):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')

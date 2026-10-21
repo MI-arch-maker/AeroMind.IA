@@ -278,6 +278,8 @@ export type ConceptConfig = {
   missionPlan?: LocalMissionPlan;
   /** Conditions de simulation dégradées, persistées avec la configuration locale. */
   missionEnvironment?: MissionEnvironment;
+  /** Cible virtuelle personnalisée, sans commande ni coordonnées opérationnelles. */
+  missionTarget?: { name: string; brief: string };
   /** Étape manuellement active dans la progression de conception du Digital Twin (0 à 4). */
   designEvolutionStage?: number;
   /** Étapes de revue d’assemblage cochées par l’opérateur; ce n’est pas une certification. */
