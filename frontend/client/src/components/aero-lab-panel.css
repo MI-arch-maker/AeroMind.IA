@@ -1,0 +1,1208 @@
+.aerolab-panel {
+  --al-bg: #07171e;
+  --al-panel: #0b2028;
+  --al-card: #0d252d;
+  --al-line: #1e3c44;
+  --al-text: #d8e6e4;
+  --al-muted: #829b9d;
+  --al-teal: #54c6c2;
+  --al-green: #9ed68d;
+  --al-amber: #e2bb67;
+  --al-red: #ec7a72;
+  color: var(--al-text);
+  background: linear-gradient(
+    145deg,
+    rgba(12, 34, 42, 0.98),
+    rgba(5, 19, 25, 0.98)
+  );
+  border: 1px solid var(--al-line);
+  border-radius: 8px;
+  margin: 14px 0 24px;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.2);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+}
+.aerolab-panel * {
+  box-sizing: border-box;
+}
+.aerolab-panel button,
+.aerolab-panel input,
+.aerolab-panel select,
+.aerolab-panel textarea {
+  font: inherit;
+}
+.aerolab-panel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 11px;
+  color: #c5d8d8;
+  background: #102b33;
+  border: 1px solid #27464e;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background 0.16s,
+    border-color 0.16s,
+    transform 0.16s;
+}
+.aerolab-panel button:hover:not(:disabled) {
+  background: #173943;
+  border-color: #3b7077;
+  transform: translateY(-1px);
+}
+.aerolab-panel button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+.aerolab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--al-line);
+  background: linear-gradient(
+    110deg,
+    rgba(10, 42, 50, 0.9),
+    rgba(7, 23, 30, 0.8)
+  );
+}
+.aerolab-project-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 8px 14px;
+  color: #efd08a;
+  background: rgba(61, 47, 20, 0.5);
+  border-bottom: 1px solid #65542e;
+  font-size: 10px;
+}
+.aerolab-project-refresh > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  line-height: 1.5;
+}
+.aerolab-project-refresh > span svg {
+  flex: 0 0 auto;
+}
+.aerolab-project-refresh button {
+  min-height: 28px;
+  padding: 4px 8px;
+  color: #f3dfa8;
+  border-color: #8a7040;
+  background: #332919;
+  font-size: 9px;
+}
+.aerolab-header h2 {
+  margin: 5px 0 4px;
+  color: #eff8f6;
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.aerolab-header p {
+  margin: 0;
+  color: var(--al-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.aerolab-kicker {
+  color: #74a7aa;
+  font:
+    700 9px/1.35 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.11em;
+}
+.aerolab-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid #315149;
+  border-radius: 4px;
+  color: #b4dd9a;
+  background: #12291f;
+  font:
+    700 9px ui-monospace,
+    monospace;
+  letter-spacing: 0.04em;
+}
+.aerolab-status > i,
+.aerolab-run-state > i,
+.aerolab-local-tag > i,
+.aerolab-console-foot > span > i {
+  width: 7px;
+  height: 7px;
+  display: inline-block;
+  border-radius: 50%;
+  background: var(--al-green);
+  box-shadow: 0 0 8px rgba(158, 214, 141, 0.45);
+}
+.aerolab-status small {
+  display: block;
+  margin-left: 4px;
+  color: #8ea7a3;
+  font-size: 8px;
+}
+.aerolab-status-running > i {
+  background: var(--al-teal);
+  box-shadow: 0 0 8px rgba(84, 198, 194, 0.5);
+  animation: aerolab-pulse 1.1s infinite;
+}
+.aerolab-status-paused > i {
+  background: var(--al-amber);
+}
+.aerolab-status-complete > i {
+  background: var(--al-teal);
+}
+@keyframes aerolab-pulse {
+  50% {
+    opacity: 0.35;
+    box-shadow: 0 0 2px rgba(84, 198, 194, 0.2);
+  }
+}
+.aerolab-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  padding: 1px;
+  background: var(--al-line);
+  border-bottom: 1px solid var(--al-line);
+}
+.aerolab-overview article {
+  display: flex;
+  min-width: 0;
+  min-height: 65px;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 13px;
+  background: #0a1d24;
+}
+.aerolab-overview small {
+  color: #6e9397;
+  font:
+    700 8px ui-monospace,
+    monospace;
+  letter-spacing: 0.08em;
+}
+.aerolab-overview b {
+  overflow: hidden;
+  color: #d9e9e7;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aerolab-overview span {
+  color: var(--al-muted);
+  font-size: 10px;
+}
+.aerolab-verdict-text.aerolab-pass {
+  color: var(--al-green);
+}
+.aerolab-verdict-text.aerolab-warn {
+  color: var(--al-amber);
+}
+.aerolab-verdict-text.aerolab-fail {
+  color: var(--al-red);
+}
+.aerolab-workspace {
+  display: grid;
+  grid-template-columns: minmax(310px, 0.74fr) minmax(0, 1.45fr);
+  gap: 12px;
+  padding: 12px;
+}
+.aerolab-controls,
+.aerolab-console,
+.aerolab-telemetry,
+.aerolab-analysis,
+.aerolab-journal {
+  min-width: 0;
+  background: rgba(7, 24, 31, 0.8);
+  border: 1px solid var(--al-line);
+  border-radius: 5px;
+}
+.aerolab-controls {
+  padding: 13px;
+}
+.aerolab-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.aerolab-section-title h3 {
+  margin: 4px 0 0;
+  color: #e6f0ef;
+  font-size: 15px;
+  font-weight: 620;
+}
+.aerolab-lock,
+.aerolab-run-state,
+.aerolab-local-tag,
+.aerolab-preview-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #8aa2a2;
+  font:
+    700 8px ui-monospace,
+    monospace;
+  letter-spacing: 0.04em;
+}
+.aerolab-lock {
+  padding: 5px 7px;
+  border: 1px solid #29434a;
+  border-radius: 3px;
+}
+.aerolab-lock.is-locked {
+  color: var(--al-amber);
+  border-color: #6b5931;
+}
+.aerolab-label {
+  display: block;
+  margin: 8px 0 5px;
+  color: #a8bdbe;
+  font-size: 10px;
+}
+.aerolab-panel input:not([type="checkbox"]),
+.aerolab-panel select,
+.aerolab-panel textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 9px;
+  color: #e3efed;
+  background: #081a21;
+  border: 1px solid #24424a;
+  border-radius: 3px;
+  outline: none;
+}
+.aerolab-panel input:focus,
+.aerolab-panel select:focus,
+.aerolab-panel textarea:focus {
+  border-color: #4e9698;
+  box-shadow: 0 0 0 2px rgba(84, 198, 194, 0.1);
+}
+.aerolab-panel input:disabled,
+.aerolab-panel select:disabled,
+.aerolab-panel textarea:disabled {
+  opacity: 0.72;
+}
+.aerolab-scenario-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 7px 0 12px;
+}
+.aerolab-scenario-actions > span {
+  color: #70898c;
+  font-size: 9px;
+  line-height: 1.4;
+}
+.aerolab-scenario-actions button {
+  min-height: 28px;
+  padding: 5px 7px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.aerolab-controls fieldset {
+  min-width: 0;
+  margin: 10px 0 0;
+  padding: 10px;
+  border: 1px solid #203e46;
+  border-radius: 4px;
+}
+.aerolab-controls legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 5px;
+  color: #c8dcda;
+  font-size: 11px;
+  font-weight: 650;
+}
+.aerolab-controls legend > span {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  color: var(--al-teal);
+  border: 1px solid #37777a;
+  border-radius: 2px;
+  font:
+    9px ui-monospace,
+    monospace;
+}
+.aerolab-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 9px;
+}
+.aerolab-number-field {
+  display: block;
+  min-width: 0;
+}
+.aerolab-number-field > span:first-child {
+  display: block;
+  min-height: 13px;
+  margin: 0 0 4px;
+  color: #9ab2b3;
+  font-size: 9px;
+}
+.aerolab-input-wrap {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 31px;
+  border: 1px solid #24424a;
+  border-radius: 3px;
+  background: #081a21;
+}
+.aerolab-input-wrap input:not([type="checkbox"]) {
+  min-height: 29px;
+  padding: 5px 6px;
+  border: 0;
+  background: transparent;
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.aerolab-input-wrap small {
+  padding: 0 6px;
+  color: #6f9395;
+  font:
+    9px ui-monospace,
+    monospace;
+}
+.aerolab-helper {
+  margin: 8px 0 0;
+  color: #71898d;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.aerolab-spaced {
+  margin-top: 10px;
+}
+.aerolab-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 8px;
+  background: #0b2027;
+  border: 1px solid #1d3b42;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.aerolab-switch-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.aerolab-switch {
+  position: relative;
+  flex: 0 0 29px;
+  width: 29px;
+  height: 16px;
+  border-radius: 20px;
+  background: #31454a;
+}
+.aerolab-switch:after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #9eb0ae;
+  content: "";
+  transition: transform 0.16s;
+}
+.aerolab-switch-row input:checked + .aerolab-switch {
+  background: #317b70;
+}
+.aerolab-switch-row input:checked + .aerolab-switch:after {
+  transform: translateX(13px);
+  background: #baf0cb;
+}
+.aerolab-switch-row input:focus-visible + .aerolab-switch {
+  outline: 2px solid var(--al-teal);
+}
+.aerolab-switch-row > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.aerolab-switch-row b {
+  color: #b9cecc;
+  font-size: 10px;
+}
+.aerolab-switch-row small {
+  color: #769092;
+  font-size: 9px;
+}
+.aerolab-workspace-right {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+.aerolab-console,
+.aerolab-telemetry,
+.aerolab-analysis,
+.aerolab-journal {
+  padding: 12px;
+}
+.aerolab-run-state {
+  padding: 5px 7px;
+  border: 1px solid #29464b;
+  border-radius: 3px;
+  color: #b4d998;
+}
+.aerolab-run-state > i {
+  width: 6px;
+  height: 6px;
+}
+.aerolab-state-running .aerolab-run-state {
+  color: var(--al-teal);
+}
+.aerolab-state-running .aerolab-run-state > i {
+  background: var(--al-teal);
+  animation: aerolab-pulse 1.1s infinite;
+}
+.aerolab-state-paused .aerolab-run-state {
+  color: var(--al-amber);
+}
+.aerolab-state-paused .aerolab-run-state > i {
+  background: var(--al-amber);
+}
+.aerolab-tunnel {
+  position: relative;
+  min-height: 191px;
+  overflow: hidden;
+  border: 1px solid #1b4049;
+  border-radius: 4px;
+  background:
+    radial-gradient(
+      ellipse at 50% 60%,
+      rgba(24, 105, 111, 0.23),
+      transparent 48%
+    ),
+    linear-gradient(180deg, #0b2933, #071a22 76%);
+}
+.aerolab-tunnel-label,
+.aerolab-tunnel-axis {
+  position: absolute;
+  z-index: 2;
+  left: 11px;
+  right: 11px;
+  display: flex;
+  justify-content: space-between;
+  color: #76a0a3;
+  font:
+    7px ui-monospace,
+    monospace;
+  letter-spacing: 0.09em;
+}
+.aerolab-tunnel-label {
+  top: 9px;
+}
+.aerolab-tunnel-axis {
+  bottom: 8px;
+  color: #55797d;
+}
+.aerolab-wind-lines {
+  position: absolute;
+  inset: 30px 9% 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  opacity: 0.48;
+}
+.aerolab-wind-lines i {
+  display: block;
+  width: 86%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #42a2a5 16%,
+    #367c86 70%,
+    transparent
+  );
+  transform: translateX(-6%);
+}
+.aerolab-wind-lines i:nth-child(even) {
+  width: 68%;
+  transform: translateX(25%);
+}
+.aerolab-drone {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(74%, 420px);
+  height: 145px;
+  transform: translate(-50%, -48%);
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.3));
+  transition: transform 0.4s;
+}
+.aerolab-drone.is-flying {
+  animation: aerolab-flight 1.8s ease-in-out infinite alternate;
+}
+@keyframes aerolab-flight {
+  to {
+    transform: translate(-50%, -54%) rotate(0.6deg);
+  }
+}
+.aerolab-gauges {
+  position: absolute;
+  z-index: 2;
+  top: 45px;
+  left: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #75a4a7;
+  font-size: 8px;
+}
+.aerolab-gauges span {
+  display: flex;
+  min-width: 105px;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 2px solid var(--al-teal);
+}
+.aerolab-gauges b {
+  color: #d9e8e5;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.aerolab-gauges small {
+  color: #7c9b9c;
+  font-size: 8px;
+}
+.aerolab-progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0 5px;
+  color: #839c9f;
+  font-size: 9px;
+}
+.aerolab-progress-label b {
+  color: #bcd8d4;
+  font:
+    10px ui-monospace,
+    monospace;
+}
+.aerolab-progress {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #172e34;
+}
+.aerolab-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2faab0, #8bcf97);
+  transition: width 0.18s linear;
+}
+.aerolab-actions {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.9fr;
+  gap: 7px;
+  margin-top: 10px;
+}
+.aerolab-actions button {
+  font-size: 10px;
+}
+.aerolab-actions .aerolab-primary {
+  color: #10251f;
+  background: linear-gradient(100deg, #a4d991, #78c98e);
+  border-color: #a7e3a0;
+  font-weight: 750;
+}
+.aerolab-actions .aerolab-primary:hover:not(:disabled) {
+  background: #b7e5a5;
+}
+.aerolab-pause-icon {
+  font-size: 12px;
+}
+.aerolab-console-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  color: #7d999b;
+  font-size: 8px;
+}
+.aerolab-console-foot > span,
+.aerolab-console-foot label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.aerolab-console-foot > span > i {
+  width: 5px;
+  height: 5px;
+}
+.aerolab-console-foot label {
+  cursor: pointer;
+}
+.aerolab-console-foot input {
+  accent-color: #83d2ae;
+}
+.aerolab-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+.aerolab-telemetry-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px;
+  background: #0a1d24;
+  border: 1px solid #1c3940;
+  border-radius: 3px;
+}
+.aerolab-telemetry-cell > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #7e9a9c;
+  font-size: 9px;
+}
+.aerolab-telemetry-cell > span svg {
+  color: #59b9b7;
+}
+.aerolab-telemetry-cell > b {
+  color: #d8e9e6;
+  font:
+    13px ui-monospace,
+    monospace;
+}
+.aerolab-local-tag {
+  color: #87b8a1;
+}
+.aerolab-local-tag > i {
+  width: 5px;
+  height: 5px;
+}
+.aerolab-preview-tag {
+  color: #d6b968;
+  padding: 4px 6px;
+  border: 1px solid #67572f;
+  border-radius: 3px;
+}
+.aerolab-verdict-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  background: #0b1e25;
+  border: 1px solid #203e45;
+  border-radius: 3px;
+}
+.aerolab-verdict-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+.aerolab-verdict-line p {
+  margin: 1px 0 0;
+  color: #a3b5b4;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.aerolab-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 5px 7px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font:
+    750 9px ui-monospace,
+    monospace;
+}
+.aerolab-verdict.aerolab-pass {
+  color: var(--al-green);
+  background: rgba(89, 137, 68, 0.12);
+}
+.aerolab-verdict.aerolab-warn {
+  color: var(--al-amber);
+  background: rgba(164, 129, 55, 0.12);
+}
+.aerolab-verdict.aerolab-fail {
+  color: var(--al-red);
+  background: rgba(158, 55, 49, 0.12);
+}
+.aerolab-trace {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  text-align: right;
+}
+.aerolab-trace small,
+.aerolab-reference small {
+  color: #6f9699;
+  font:
+    7px ui-monospace,
+    monospace;
+  letter-spacing: 0.08em;
+}
+.aerolab-trace b {
+  color: #99cdcc;
+  font:
+    9px ui-monospace,
+    monospace;
+}
+.aerolab-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+.aerolab-metric {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px;
+  background: #0a1b22;
+  border: 1px solid #1d3a41;
+  border-radius: 3px;
+}
+.aerolab-metric > span {
+  overflow: hidden;
+  color: #87a0a2;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aerolab-metric > b {
+  color: #e2eeee;
+  font:
+    14px ui-monospace,
+    monospace;
+}
+.aerolab-metric > i {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #20353a;
+}
+.aerolab-metric > i > em {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #3ea9b1, #9bd391);
+}
+.aerolab-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+.aerolab-chart {
+  min-width: 0;
+  padding: 8px;
+  background: #0a1b22;
+  border: 1px solid #1d3a41;
+  border-radius: 3px;
+}
+.aerolab-chart > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  color: #95aaaa;
+  font-size: 9px;
+}
+.aerolab-chart > div small,
+.aerolab-chart > small {
+  color: #67878b;
+  font:
+    8px ui-monospace,
+    monospace;
+}
+.aerolab-chart svg {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin: 3px 0;
+  color: var(--al-teal);
+}
+.aerolab-chart-green svg {
+  color: var(--al-green);
+}
+.aerolab-chart-amber svg {
+  color: var(--al-amber);
+}
+.aerolab-criteria-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 13px 0 6px;
+}
+.aerolab-criteria-title h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #bbcfcd;
+  font-size: 11px;
+}
+.aerolab-criteria-title h4 svg {
+  color: var(--al-teal);
+}
+.aerolab-criteria-title > span {
+  color: #7eb995;
+  font:
+    8px ui-monospace,
+    monospace;
+}
+.aerolab-checks {
+  border-top: 1px solid #1b383f;
+}
+.aerolab-check {
+  display: grid;
+  grid-template-columns:
+    20px minmax(100px, 1.3fr) minmax(70px, 0.8fr) minmax(100px, 0.8fr)
+    76px;
+  align-items: center;
+  gap: 7px;
+  min-height: 35px;
+  padding: 5px 3px;
+  border-bottom: 1px solid #18343a;
+  color: #9db4b3;
+}
+.aerolab-check > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.aerolab-check > span.is-pass {
+  color: var(--al-green);
+}
+.aerolab-check > span.is-review {
+  color: var(--al-amber);
+}
+.aerolab-check > b {
+  font-size: 9px;
+  font-weight: 550;
+}
+.aerolab-check > em {
+  color: #d1e0de;
+  font:
+    10px ui-monospace,
+    monospace;
+  font-style: normal;
+}
+.aerolab-check > small {
+  color: #718c8e;
+  font-size: 8px;
+}
+.aerolab-check > strong {
+  text-align: right;
+  color: #82b692;
+  font:
+    700 7px ui-monospace,
+    monospace;
+}
+.aerolab-check:has(.is-review) > strong {
+  color: var(--al-amber);
+}
+.aerolab-invalid {
+  display: flex;
+  gap: 9px;
+  padding: 14px;
+  color: #d4b76c;
+  background: #261f10;
+  border: 1px solid #62542f;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.aerolab-analysis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+.aerolab-analysis-actions button {
+  min-height: 29px;
+  padding: 5px 8px;
+  font-size: 9px;
+}
+.aerolab-reference {
+  margin-top: 9px;
+  padding: 9px;
+  border: 1px solid #28544f;
+  background: #0b211f;
+  border-radius: 4px;
+}
+.aerolab-reference > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.aerolab-reference > div:first-child b {
+  color: #c7dbd8;
+  font-size: 10px;
+}
+.aerolab-reference > span {
+  display: block;
+  margin: 5px 0;
+  color: #7d9a98;
+  font-size: 8px;
+}
+.aerolab-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.aerolab-reference-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: #0c2725;
+  border: 1px solid #1c403b;
+  border-radius: 3px;
+}
+.aerolab-reference-grid small {
+  font-size: 8px;
+}
+.aerolab-reference-grid b {
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.aerolab-reference-grid i {
+  font: 8px sans-serif;
+  font-style: normal;
+}
+.aerolab-reference-grid .is-better {
+  color: #a3d296;
+}
+.aerolab-reference-grid .is-worse {
+  color: #ed9c76;
+}
+.aerolab-journal .aerolab-section-title {
+  margin-bottom: 7px;
+}
+.aerolab-journal .aerolab-section-title > span {
+  color: #789294;
+  font:
+    8px ui-monospace,
+    monospace;
+}
+.aerolab-event {
+  display: grid;
+  grid-template-columns: 55px 8px 1fr;
+  align-items: center;
+  gap: 8px;
+  min-height: 25px;
+  border-bottom: 1px solid #173239;
+  color: #9db2b1;
+  font-size: 9px;
+}
+.aerolab-event time {
+  color: #668589;
+  font:
+    8px ui-monospace,
+    monospace;
+}
+.aerolab-event > i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #89ca91;
+}
+.aerolab-feedback {
+  margin: 8px 0 0;
+  padding: 7px 8px;
+  color: #9ab0b0;
+  background: #0b2026;
+  border: 1px solid #1b3940;
+  border-radius: 3px;
+  font-size: 9px;
+  line-height: 1.45;
+}
+.aerolab-feedback b {
+  display: block;
+  margin-top: 3px;
+  color: #e3b96a;
+}
+.aerolab-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 13px;
+  color: #6f898c;
+  background: #07171d;
+  border-top: 1px solid #19353c;
+  font-size: 8px;
+}
+.aerolab-footer b {
+  color: #8da8a8;
+  font:
+    700 8px ui-monospace,
+    monospace;
+  letter-spacing: 0.04em;
+}
+.aerolab-panel button:focus-visible,
+.aerolab-panel input:focus-visible,
+.aerolab-panel select:focus-visible,
+.aerolab-panel textarea:focus-visible {
+  outline: 2px solid #58bfc0;
+  outline-offset: 2px;
+}
+@media (max-width: 1180px) {
+  .aerolab-workspace {
+    grid-template-columns: minmax(285px, 0.78fr) minmax(0, 1.2fr);
+  }
+  .aerolab-check {
+    grid-template-columns:
+      18px minmax(90px, 1fr) minmax(60px, 0.7fr) minmax(85px, 0.8fr)
+      65px;
+    gap: 5px;
+  }
+  .aerolab-check > strong {
+    font-size: 6px;
+  }
+}
+@media (max-width: 900px) {
+  .aerolab-workspace {
+    grid-template-columns: 1fr;
+  }
+  .aerolab-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aerolab-controls {
+    order: 2;
+  }
+  .aerolab-workspace-right {
+    order: 1;
+  }
+}
+@media (max-width: 600px) {
+  .aerolab-header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px;
+  }
+  .aerolab-status {
+    flex-wrap: wrap;
+  }
+  .aerolab-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aerolab-workspace {
+    padding: 8px;
+    gap: 8px;
+  }
+  .aerolab-controls,
+  .aerolab-console,
+  .aerolab-telemetry,
+  .aerolab-analysis,
+  .aerolab-journal {
+    padding: 9px;
+  }
+  .aerolab-telemetry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aerolab-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aerolab-chart-grid {
+    grid-template-columns: 1fr;
+  }
+  .aerolab-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .aerolab-actions .aerolab-primary {
+    grid-column: 1/-1;
+  }
+  .aerolab-console-foot {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .aerolab-check {
+    grid-template-columns: 17px minmax(0, 1fr) minmax(65px, 0.8fr);
+    padding: 6px 2px;
+  }
+  .aerolab-check > small {
+    display: none;
+  }
+  .aerolab-check > strong {
+    text-align: right;
+  }
+  .aerolab-verdict-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .aerolab-trace {
+    text-align: left;
+  }
+  .aerolab-reference-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aerolab-footer {
+    flex-direction: column;
+  }
+  .aerolab-scenario-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .aerolab-scenario-actions button {
+    align-self: flex-start;
+  }
+}
+@media print {
+  body.aerolab-printing #root * {
+    visibility: hidden !important;
+  }
+  body.aerolab-printing .aerolab-panel,
+  body.aerolab-printing .aerolab-panel * {
+    visibility: visible !important;
+  }
+  body.aerolab-printing .aerolab-panel {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    background: #fff;
+    color: #111;
+  }
+  body.aerolab-printing .aerolab-header,
+  body.aerolab-printing .aerolab-overview,
+  body.aerolab-printing .aerolab-controls,
+  body.aerolab-printing .aerolab-console,
+  body.aerolab-printing .aerolab-telemetry,
+  body.aerolab-printing .aerolab-analysis,
+  body.aerolab-printing .aerolab-journal,
+  body.aerolab-printing .aerolab-footer {
+    break-inside: avoid;
+  }
+}

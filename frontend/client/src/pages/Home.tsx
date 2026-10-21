@@ -46,6 +46,7 @@ import { DroneBehaviorPanel } from "../components/DroneBehaviorPanel";
 import { DroneSketchProWorkbench } from "../components/DroneSketchProWorkbench";
 import { VirtualAssemblyWorkshop } from "../components/VirtualAssemblyWorkshop";
 import { VirtualSimulationCenter } from "../components/VirtualSimulationCenter";
+import { AeroLabPanel } from "../components/AeroLabPanel";
 import { VirtualFlightTestHall } from "../components/VirtualFlightTestHall";
 import type { MissionTelemetryFrame } from "../lib/missionBridge";
 import {
@@ -13859,6 +13860,7 @@ export default function Home() {
                     )}
                     {activeView === "simulation" && (
                       <>
+                        <AeroLabPanel project={config} projectSimulation={simulation} />
                         <VirtualFlightTestHall
                           viewMode="panoramic"
                           config={config}

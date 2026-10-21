@@ -43,8 +43,7 @@ API JSON sous `/api`. Les projets, simulations, rapports, sessions LabBench, dro
 Création de projet crée un drone par défaut lié au projet. Le pont `/api/trpc` est conservé pour les écrans historiques.
 
 ## Premier administrateur
-
-Pour l’expérimentation, `mcgregoralvin14@gmail.com` est l’adresse Super-Admin par défaut. Elle doit se connecter via Microsoft Entra/OIDC avec cette même identité ; aucune connexion locale ni mot de passe n’est créé. Le rôle est piloté par `AEROMIND_SUPERADMIN_EMAILS` : remplacez cette variable par une autre adresse, indiquez plusieurs adresses séparées par des virgules, ou définissez-la à vide pour supprimer l’accès Super-Admin. La modification est donc réversible depuis les variables d’environnement Render, sans modifier le code.
+Pour l’expérimentation, `mcgregoralvin14@gmail.com` est l’adresse Super-Admin par défaut. La connexion principale se fait via Microsoft Entra/OIDC avec une identité existante dans le tenant ; AeroMind ne crée pas le compte Microsoft. Un bootstrap local d’urgence existe également : l’opérateur peut injecter temporairement `AEROMIND_LOCAL_SUPERADMIN_ENROLLMENT_CODE` (secret aléatoire d’au moins 32 caractères) dans le gestionnaire de secrets. L’accès local requiert ensuite un mot de passe robuste et TOTP ; retirer le secret de bootstrap dès l’enrôlement. Voir [la procédure de récupération Super-Admin](docs/RECUPERATION_SUPERADMIN_FR.md). Le rôle est piloté par `AEROMIND_SUPERADMIN_EMAILS` : remplacez cette variable par une autre adresse, indiquez plusieurs adresses séparées par des virgules, ou définissez-la à vide pour supprimer l’accès Super-Admin. La modification est réversible depuis les variables d’environnement du déploiement, sans modifier le code.
 
 ## Docker et Render
 
