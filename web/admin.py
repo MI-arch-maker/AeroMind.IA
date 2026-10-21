@@ -12,6 +12,7 @@ _LOCK = threading.RLock()
 _DATA_DIR = Path('data')
 _ACCOUNTS_FILE = _DATA_DIR / 'accounts.json'
 _EVENTS_FILE = _DATA_DIR / 'admin_events.json'
+_DELETED_ACCOUNTS_FILE = _DATA_DIR / 'deleted_accounts.json'
 ROLES = {'user', 'demo', 'visitor', 'surveillant', 'admin'}
 STATUSES = {'active', 'evaluation', 'suspended', 'cancelled'}
 
@@ -89,6 +90,7 @@ def verify_authorization_code(email: str, code: str) -> bool:
 def activity() -> dict[str, Any]:
     with _LOCK:
         accounts, events = _accounts_with_primary_admin(), _load(_EVENTS_FILE, [])
+        deleted_accounts = _load(_DELETED_ACCOUNTS_FILE, [])
         projects, runs = [], []
         try:
             from sqlalchemy import select
@@ -100,7 +102,7 @@ def activity() -> dict[str, Any]:
         except Exception:
             # La console reste utilisable même si la base n'est pas encore initialisée.
             projects, runs = [], []
-        return {'projects': projects, 'runs': runs, 'events': [], 'adminEvents': list(reversed(events[-100:])), 'totals': {'comptes': len(accounts), 'en_attente': sum(a.get('accountStatus') == 'evaluation' for a in accounts), 'actifs': sum(a.get('accountStatus') == 'active' for a in accounts), 'suspendus': sum(a.get('accountStatus') == 'suspended' for a in accounts), 'administrateurs': sum(a.get('role') in {'admin', 'super_admin'} for a in accounts), 'decisions': len(events)}}
+        return {'projects': projects, 'runs': runs, 'events': [], 'adminEvents': list(reversed(events[-100:])), 'deletedAccounts': list(reversed(deleted_accounts[-100:])), 'totals': {'comptes': len(accounts), 'en_attente': sum(a.get('accountStatus') == 'evaluation' for a in accounts), 'actifs': sum(a.get('accountStatus') == 'active' for a in accounts), 'suspendus': sum(a.get('accountStatus') == 'suspended' for a in accounts), 'administrateurs': sum(a.get('role') in {'admin', 'super_admin'} for a in accounts), 'decisions': len(events), 'comptes_supprimes_definitivement': len(deleted_accounts)}}
 
 
 def create_account(actor: dict[str, Any], email: str, name: str, requested_role: str = 'user', level: str = 'L1') -> dict[str, Any]:
@@ -145,10 +147,22 @@ def update_account(actor: dict[str, Any], account_id: str, changes: dict[str, An
         return account
 
 
-def delete_account(actor: dict[str, Any], account_id: str) -> dict[str, Any]:
+def delete_account(actor: dict[str, Any], account_id: str, permanent: bool = False) -> dict[str, Any]:
     with _LOCK:
         accounts = _load(_ACCOUNTS_FILE, []); account = next((item for item in accounts if item.get('id') == account_id), None)
         if not account: raise KeyError('Compte introuvable')
         if account.get('role') == 'super_admin' or account.get('email', '').casefold() in get_settings().superadmin_email_set: raise ValueError('Le compte Super-Admin principal ne peut pas être supprimé')
-        account['accountStatus'] = 'cancelled'; account['approvalStatus'] = 'cancelled'; events = _load(_EVENTS_FILE, []); events.append(_event('account.deleted', actor, account_id, {'email': account.get('email'), 'role': account.get('role')})); _save(_ACCOUNTS_FILE, accounts); _save(_EVENTS_FILE, events)
-        return {'id': account_id, 'deleted': True}
+        events = _load(_EVENTS_FILE, [])
+        if not permanent:
+            account.update({'accountStatus': 'cancelled', 'approvalStatus': 'cancelled', 'deletionState': 'pending_compliance', 'deletionRequestedAt': _now(), 'deletionRequestedBy': actor['id']})
+            events.append(_event('account.deletion_requested', actor, account_id, {'email': account.get('email'), 'role': account.get('role'), 'state': 'pending_compliance'}))
+            _save(_ACCOUNTS_FILE, accounts); _save(_EVENTS_FILE, events)
+            return {'id': account_id, 'deleted': False, 'pendingCompliance': True, 'accountStatus': 'cancelled'}
+        if account.get('accountStatus') != 'cancelled':
+            raise ValueError('La suppression définitive exige une première suppression et une mise en conformité')
+        tombstone = {**account, 'deletedAt': _now(), 'deletedBy': actor['id'], 'deletionState': 'permanently_deleted'}
+        _save(_DELETED_ACCOUNTS_FILE, [*_load(_DELETED_ACCOUNTS_FILE, []), tombstone])
+        accounts = [item for item in accounts if item.get('id') != account_id]
+        events.append(_event('account.permanently_deleted', actor, account_id, {'email': account.get('email'), 'role': account.get('role'), 'auditRecord': True}))
+        _save(_ACCOUNTS_FILE, accounts); _save(_EVENTS_FILE, events)
+        return {'id': account_id, 'deleted': True, 'permanentlyDeleted': True, 'auditRecordId': tombstone['id']}

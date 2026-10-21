@@ -12565,11 +12565,18 @@ export default function Home() {
     serverHydrated.current = true;
     skipServerSave.current = true;
     const remoteProjects =
-      serverProjectsQuery.data as unknown as ProjectRecord[];
-    setProjects(remoteProjects);
+      (serverProjectsQuery.data as unknown as ProjectRecord[]) ?? [];
+    // Une réponse distante vide ou momentanément incomplète ne doit jamais
+    // effacer un projet déjà affiché après un rafraîchissement.
+    const remoteById = new Map(remoteProjects.map(item => [item.id, item]));
+    const mergedProjects = [
+      ...projects.filter(item => !remoteById.has(item.id)),
+      ...remoteProjects,
+    ];
+    setProjects(mergedProjects);
     const selected =
-      remoteProjects.find(item => item.id === activeProjectId) ??
-      remoteProjects[0];
+      mergedProjects.find(item => item.id === activeProjectId) ??
+      mergedProjects[0];
     if (!selected) {
       setActiveProjectId("");
       setProject(emptyProject);
@@ -12588,6 +12595,7 @@ export default function Home() {
     serverProjectsQuery.data,
     serverProjectsQuery.isSuccess,
     activeProjectId,
+    projects,
   ]);
   useEffect(() => {
     if (!activeProjectId) {

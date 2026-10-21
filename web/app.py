@@ -259,7 +259,7 @@ async def trpc_compat(
             return _trpc_error(400, 'BAD_REQUEST', str(exc))
     elif name.endswith('superAdmin.deleteAccount'):
         try:
-            data = delete_account(current_user, str(payload.get('id', '')))
+            data = delete_account(current_user, str(payload.get('id', '')), bool(payload.get('permanent', False)))
         except (KeyError, ValueError) as exc:
             return _trpc_error(400, 'BAD_REQUEST', str(exc))
     elif name.endswith('superAdmin.rotateAuthorizationCode'):
