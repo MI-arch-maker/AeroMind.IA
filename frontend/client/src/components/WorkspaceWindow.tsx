@@ -37,6 +37,12 @@ const DEFAULT_LAYOUT: WindowLayout = {
   zIndex: 2,
 };
 const FULL_WORKSPACE_VIEWS = new Set(["design-studio", "construction", "digital-twin", "tools", "inspector"]);
+const VIEW_LAYOUTS: Record<string, Partial<WindowLayout>> = {
+  simulation: { x: 18, y: 76, width: 1280, height: 820 },
+  live: { x: 18, y: 76, width: 1280, height: 820 },
+  labbench: { x: 28, y: 84, width: 1180, height: 760 },
+  report: { x: 32, y: 84, width: 1120, height: 740 },
+};
 
 function loadLayouts(): Record<string, WindowLayout> {
   try {
@@ -73,7 +79,8 @@ export function WorkspaceWindow({
 }: WorkspaceWindowProps) {
   const [layout, setLayout] = useState<WindowLayout>(() => {
     const saved = loadLayouts()[viewId];
-    return clampLayout({ ...DEFAULT_LAYOUT, ...saved, maximized: saved?.maximized ?? FULL_WORKSPACE_VIEWS.has(viewId), zIndex: 10 });
+    const preset = VIEW_LAYOUTS[viewId] ?? {};
+    return clampLayout({ ...DEFAULT_LAYOUT, ...preset, ...saved, maximized: saved?.maximized ?? FULL_WORKSPACE_VIEWS.has(viewId), zIndex: 10 });
   });
   const [isInteracting, setIsInteracting] = useState(false);
   const interactionRef = useRef<{
@@ -164,12 +171,12 @@ export function WorkspaceWindow({
       maximized: !current.maximized,
       minimized: false,
     }));
-  const reset = () => setLayout({ ...DEFAULT_LAYOUT, zIndex: 10 });
+  const reset = () => setLayout(clampLayout({ ...DEFAULT_LAYOUT, ...(VIEW_LAYOUTS[viewId] ?? {}), zIndex: 10 }));
 
   return (
     <section
       data-workspace-view={viewId}
-      className={`workspace-window ${layout.maximized ? "is-maximized" : ""} ${layout.minimized ? "is-minimized" : ""} ${isInteracting ? "is-interacting" : ""}`}
+      className={`workspace-window workspace-window-${viewId} ${layout.maximized ? "is-maximized" : ""} ${layout.minimized ? "is-minimized" : ""} ${isInteracting ? "is-interacting" : ""}`}
       style={
         layout.maximized
           ? undefined

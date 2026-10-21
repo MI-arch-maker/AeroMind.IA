@@ -110,18 +110,23 @@ export function VirtualFlightTestHall({ config, setConfig, simulation, requireme
   const droneName = hasActiveUserDesign ? config.engineeringSelection?.droneLabel || config.platformProfile || config.designName || "Esquisse personnalisée" : "Aucune cellule sélectionnée";
   const hasSynchronizedMission = hasSynchronizedMissionRoute(config.missionPlan?.waypoints);
   const activeScenarioLabel = !hasActiveUserDesign ? "EN ATTENTE D’UNE SÉLECTION" : hasSynchronizedMission ? "PLAN MISSION SYNCHRONISÉ" : "TRAJECTOIRE DE TEST SYNTHÉTIQUE";
-  const configForScenario = (base: ConceptConfig, id: ScenarioId): ConceptConfig => ({
-    ...base,
-    activeFlightTestScenario: id,
-    missionEnvironment: {
-      ambientC: base.missionEnvironment?.ambientC ?? 20,
-      windKmh: id === "wind" ? base.windSpeedKmh + 12 : base.windSpeedKmh,
+  const configForScenario = (base: ConceptConfig, id: ScenarioId): ConceptConfig => {
+    const nominalWind = base.activeFlightTestScenario === "wind" ? Math.max(0, base.windSpeedKmh - 12) : base.windSpeedKmh;
+    const scenarioWind = id === "wind" ? Math.min(80, nominalWind + 12) : nominalWind;
+    return {
+      ...base,
+      activeFlightTestScenario: id,
+      windSpeedKmh: scenarioWind,
+      missionEnvironment: {
+        ambientC: base.missionEnvironment?.ambientC ?? 20,
+        windKmh: scenarioWind,
       emiLevel: base.missionEnvironment?.emiLevel ?? 0,
       surfaceProfile: base.missionEnvironment?.surfaceProfile,
       locationLabel: base.missionEnvironment?.locationLabel,
-    },
-    ...(id === "return" && base.missionPlan ? { missionPlan: { ...base.missionPlan, lostLinkAction: "return" as const } } : {}),
-  });
+      },
+      ...(id === "return" && base.missionPlan ? { missionPlan: { ...base.missionPlan, lostLinkAction: "return" as const } } : {}),
+    };
+  };
   const launch = () => {
     if (!hasActiveUserDesign) return;
     const runConfig = configForScenario(config, scenario);

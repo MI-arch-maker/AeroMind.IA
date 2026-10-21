@@ -15483,3 +15483,46 @@ button:disabled {
 .mission-profile-no-results{grid-column:1/-1;margin:0;padding:22px;border:1px dashed rgba(117,226,220,.24);border-radius:7px;color:#9bb1b2;text-align:center;font-size:12px}
 @media(max-width:860px){.mission-profile-search{grid-template-columns:1fr 1fr}.mission-profile-search-field{grid-column:1/-1}.mission-profile-search>small{justify-self:start}}
 @media(max-width:520px){.mission-profile-search{grid-template-columns:1fr}.mission-profile-search-field{grid-column:auto}.mission-profile-search>small{grid-column:auto}}
+
+
+/* AeroMind unified laboratory windows — simulation, analyses, essais et scénarios. */
+.workspace-window-simulation,
+.workspace-window-live,
+.workspace-window-labbench,
+.workspace-window-report {
+  --lab-cyan: #75e2dc;
+  --lab-green: #8be28b;
+  --lab-ink: #061216;
+  --lab-surface: #0b1c20;
+  --lab-line: rgba(117, 226, 220, .24);
+  background: linear-gradient(145deg, rgba(7, 18, 22, .985), rgba(5, 14, 19, .985));
+  border-color: var(--lab-line);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .52), 0 0 0 1px rgba(139, 226, 139, .055), inset 0 1px rgba(255, 255, 255, .035);
+}
+.workspace-window-simulation > .workspace-window-bar,
+.workspace-window-live > .workspace-window-bar,
+.workspace-window-labbench > .workspace-window-bar,
+.workspace-window-report > .workspace-window-bar {
+  flex-basis: 58px;
+  min-height: 58px;
+  border-bottom-color: var(--lab-line);
+  background: linear-gradient(90deg, rgba(14, 49, 49, .98), rgba(8, 27, 31, .96) 55%, rgba(10, 25, 35, .96));
+}
+.workspace-window-simulation .workspace-window-drag-handle,
+.workspace-window-live .workspace-window-drag-handle,
+.workspace-window-labbench .workspace-window-drag-handle,
+.workspace-window-report .workspace-window-drag-handle { color: var(--lab-cyan); }
+.workspace-window-simulation .workspace-window-drag-handle small,
+.workspace-window-live .workspace-window-drag-handle small,
+.workspace-window-labbench .workspace-window-drag-handle small,
+.workspace-window-report .workspace-window-drag-handle small { color: var(--lab-green); }
+.workspace-window-simulation .workspace-window-actions .icon-button:hover,
+.workspace-window-live .workspace-window-actions .icon-button:hover,
+.workspace-window-labbench .workspace-window-actions .icon-button:hover,
+.workspace-window-report .workspace-window-actions .icon-button:hover { color: var(--lab-cyan); border-color: var(--lab-cyan); }
+.workspace-window-simulation .workspace-window-content,
+.workspace-window-live .workspace-window-content { background: radial-gradient(circle at 50% 0, rgba(25, 104, 102, .06), transparent 42%); }
+@media (max-width: 780px) {
+  .workspace-window-simulation,
+  .workspace-window-live { top: 64px !important; height: calc(100vh - 76px) !important; }
+}

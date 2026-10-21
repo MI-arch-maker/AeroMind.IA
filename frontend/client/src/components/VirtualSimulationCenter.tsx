@@ -18,8 +18,11 @@ type Scenario = { id: string; name: string; weather: string; wind: number; altit
 type MissionTab = "OVERVIEW" | "FLIGHT" | "SYSTEMS" | "PAYLOAD" | "ANALYSIS";
 
 const initialScenarios: Scenario[] = [
-  { id: "baseline", name: "Baseline cellule", weather: "Ciel clair", wind: 8, altitude: 120, status: "READY", createdAt: "local" },
-  { id: "gust-front", name: "Front de rafales", weather: "Rafales synthétiques", wind: 32, altitude: 160, status: "DRAFT", createdAt: "local" },
+  { id: "route", name: "Trajectoire active", weather: "Ciel clair", wind: 8, altitude: 120, status: "READY", createdAt: "local" },
+  { id: "hover", name: "Vol stationnaire", weather: "Ciel clair", wind: 8, altitude: 120, status: "DRAFT", createdAt: "local" },
+  { id: "wind", name: "Vent latéral", weather: "Rafales synthétiques", wind: 20, altitude: 160, status: "DRAFT", createdAt: "local" },
+  { id: "obstacles", name: "Obstacles virtuels", weather: "Ciel clair", wind: 8, altitude: 120, status: "DRAFT", createdAt: "local" },
+  { id: "return", name: "Retour d’urgence", weather: "Ciel clair", wind: 8, altitude: 120, status: "DRAFT", createdAt: "local" },
 ];
 const waypoints = [
   { id: "WP-01", x: 100, y: 400, altitude: 1200 },
@@ -69,6 +72,11 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
     setTerrain(env?.surfaceProfile ?? "Relief synthétique");
     setLocation(env?.locationLabel ?? "Zone littorale synthétique");
   }, [config.windSpeedKmh, config.missionEnvironment?.windKmh, config.missionEnvironment?.ambientC, config.missionEnvironment?.emiLevel, config.missionEnvironment?.surfaceProfile, config.missionEnvironment?.locationLabel]);
+
+  useEffect(() => {
+    const sharedScenario = config.activeFlightTestScenario;
+    if (sharedScenario && scenarios.some(item => item.id === sharedScenario)) setActiveScenario(sharedScenario);
+  }, [config.activeFlightTestScenario]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -138,7 +146,10 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
     setTerrain(scenario.terrain ?? config.missionEnvironment?.surfaceProfile ?? "Relief synthétique");
     setLocation(scenario.location ?? config.missionEnvironment?.locationLabel ?? "Zone littorale synthétique");
     const weather = scenario.weather;
-    setConfig(current => ({ ...current, activeFlightTestScenario: weather === "Rafales synthétiques" ? "wind" : "route", windSpeedKmh: scenario.wind, altitudeM: scenario.altitude, missionEnvironment: { ambientC: weather === "Brume de simulation" ? 8 : weather === "Thermiques artificielles" ? 32 : 20, windKmh: weather === "Rafales synthétiques" ? scenario.wind + 12 : scenario.wind, emiLevel: weather === "Brume de simulation" ? 0.1 : 0, surfaceProfile: scenario.terrain ?? current.missionEnvironment?.surfaceProfile ?? "Relief synthétique", locationLabel: scenario.location ?? current.missionEnvironment?.locationLabel ?? "Zone littorale synthétique" } }));
+    const scenarioId = ["hover", "route", "wind", "obstacles", "return"].includes(scenario.id)
+      ? scenario.id as NonNullable<ConceptConfig["activeFlightTestScenario"]>
+      : weather === "Rafales synthétiques" ? "wind" : "route";
+    setConfig(current => ({ ...current, activeFlightTestScenario: scenarioId, windSpeedKmh: scenario.wind, altitudeM: scenario.altitude, missionEnvironment: { ambientC: weather === "Brume de simulation" ? 8 : weather === "Thermiques artificielles" ? 32 : 20, windKmh: scenario.wind, emiLevel: weather === "Brume de simulation" ? 0.1 : 0, surfaceProfile: scenario.terrain ?? current.missionEnvironment?.surfaceProfile ?? "Relief synthétique", locationLabel: scenario.location ?? current.missionEnvironment?.locationLabel ?? "Zone littorale synthétique" }, ...(scenarioId === "return" && current.missionPlan ? { missionPlan: { ...current.missionPlan, lostLinkAction: "return" as const } } : {}) }));
     setIsPlaying(false);
     setSimTime(0);
   };
@@ -347,7 +358,7 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
           <div className="vsc-mc-map-overlay-label">{hasLegacyCoordinates ? "ANCIENS POINTS X/Y · POSITION APPROXIMATIVE" : routeEditMode ? "ÉDITION ACTIVE · CLIQUEZ POUR AJOUTER UN POINT" : "CARTE GÉOGRAPHIQUE · RECHERCHE D’ADRESSE DISPONIBLE"}</div>
         </div>
         <div className="vsc-mc-scene-footer"><span><i className="planned"/>TRAJECTOIRE PRÉVUE</span><span><i className="actual"/>SIMULATION COURANTE</span><span><MapPin size={12}/>{current.name ?? current.id} · {current.altitude.toLocaleString("fr-FR")} M</span><span>{geoWaypoints.length ? `WGS84 · ${geoWaypoints.length} POINTS · ${mapMode}` : `CARTE ${mapMode} · RECHERCHEZ UN LIEU OU AJOUTEZ DES POINTS`}</span></div><div className={`vsc-mc-route-hint ${routeEditMode ? "is-active" : ""}`} role="status"><Crosshair size={12}/><span>{routeFeedback}</span><button onClick={resetDemoRoute}>TRACÉ DÉMO</button></div>
-        <div className="vsc-mc-flight-controls"><div><span className="vsc-mc-status-dot"/>SCÉNARIO {isPlaying?"EN COURS":"EN PAUSE"}<small>lecture virtuelle · aucun actionneur réel</small></div><button className="vsc-mc-primary-button" onClick={()=>{setMissionEnded(false);setIsPlaying(value=>!value)}}>{isPlaying?<Pause size={14}/>:<Play size={14}/>} {isPlaying?"PAUSE":missionEnded?"RELANCER":"DÉMARRER"}</button><button onClick={endMission} disabled={missionEnded}><CheckCircle2 size={13}/> TERMINER LA MISSION</button><button onClick={onRunSimulation} disabled={isRunning||!canRunSimulation} title={!canRunSimulation?"Sélectionnez une cellule avec propulsion et batterie configurées":"Recalculer avec les paramètres actifs"}><RotateCw size={13}/>{isRunning?"CALCUL…":canRunSimulation?"RECALCULER":"CELLULE REQUISE"}</button><button onClick={runAi} disabled={aiState==="running"}><BrainCircuit size={13}/>{aiState==="running"?"ANALYSE…":"ANALYSE IA"}</button></div>
+        <div className="vsc-mc-flight-controls"><div><span className="vsc-mc-status-dot"/>SCÉNARIO {isPlaying?"EN COURS":"EN PAUSE"}<small>lecture virtuelle · aucun actionneur réel</small></div><button className="vsc-mc-primary-button" onClick={()=>{setMissionEnded(false);setIsPlaying(value=>!value);if(!isPlaying && canRunSimulation) onRunSimulation()}}>{isPlaying?<Pause size={14}/>:<Play size={14}/>} {isPlaying?"PAUSE":missionEnded?"RELANCER":"DÉMARRER"}</button><button onClick={endMission} disabled={missionEnded}><CheckCircle2 size={13}/> TERMINER LA MISSION</button><button onClick={onRunSimulation} disabled={isRunning||!canRunSimulation} title={!canRunSimulation?"Sélectionnez une cellule avec propulsion et batterie configurées":"Recalculer avec les paramètres actifs"}><RotateCw size={13}/>{isRunning?"CALCUL…":canRunSimulation?"RECALCULER":"CELLULE REQUISE"}</button><button onClick={runAi} disabled={aiState==="running"}><BrainCircuit size={13}/>{aiState==="running"?"ANALYSE…":"ANALYSE IA"}</button></div>
       </section>
 
       <aside className="vsc-mc-right">

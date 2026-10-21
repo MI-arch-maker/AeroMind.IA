@@ -115,3 +115,23 @@
 .vsc-mc-nav button,.vsc-mc-header button{transition:background .2s ease,color .2s ease,transform .2s ease}.vsc-mc-nav button:hover,.vsc-mc-header button:hover{transform:translateY(-1px)}
 .vsc-mc-footer{margin-top:4px;border-top-color:rgba(130,197,220,.18);padding-top:12px}
 @media(max-width:700px){.vsc-mission-control{border-radius:16px;padding:9px}.vsc-mc-primary-scene{min-height:340px}.vsc-mc-header{border-radius:12px}}
+
+
+/* AeroMind palette bridge for simulation and analysis sub-views. */
+.vsc-shell {
+  --vsc-cyan: #75e2dc;
+  --vsc-green: #8be28b;
+  --vsc-ink: #061216;
+  --vsc-panel: #0b1f24;
+  --vsc-line: rgba(117, 226, 220, .22);
+  border-color: var(--vsc-line);
+  background: radial-gradient(ellipse at 50% 0, rgba(24, 91, 94, .20), transparent 46%), linear-gradient(145deg, #061216, #07191e 60%, #041014);
+}
+.vsc-shell .vsc-kicker, .vsc-shell .vsc-index { color: var(--vsc-green); }
+.vsc-shell .vsc-command, .vsc-shell .vsc-panel { border-color: var(--vsc-line); }
+.vsc-shell .vsc-command button:hover, .vsc-shell .vsc-panel button:hover { border-color: var(--vsc-cyan); }
+.vsc-shell .vsc-command .vsc-primary { border-color: var(--vsc-cyan); background: #155149; }
+.vsc-shell .vsc-panel h3, .vsc-shell .vsc-kpi-grid strong { color: var(--vsc-cyan); }
+.vsc-shell .vsc-scenario-list button.is-active { border-color: var(--vsc-cyan); box-shadow: inset 2px 0 var(--vsc-cyan); }
+.vsc-shell .vsc-kpi-grid span { border-color: rgba(139, 226, 139, .18); }
+.vsc-shell .vsc-command button:focus-visible, .vsc-shell .vsc-panel button:focus-visible { outline-color: var(--vsc-cyan); }
