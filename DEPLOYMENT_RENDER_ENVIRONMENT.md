@@ -25,3 +25,8 @@ Le dépôt ne contient pas de transport SMTP ni de tâche d’envoi de courriels
 ## Déploiement
 
 Le blueprint existant contient déjà le service web, le port, la base de données et la génération du secret de session. Pour créer ou mettre à jour un déploiement, l’opérateur doit revoir le diff dans Render et définir les identifiants OIDC requis dans le Dashboard. Aucune connexion au compte Render n’a été réalisée par cette modification locale.
+
+## Registre Super-Admin en base et prérequis Entra
+Le registre des autorisations se trouve dans les tables `admin_accounts` et `admin_account_events` de `DATABASE_URL` (base PostgreSQL Render). Le blueprint permet `AEROMIND_AUTO_CREATE_SCHEMA=true`; le compte base doit donc pouvoir créer les nouvelles tables lors du démarrage. Si l’auto-création est désactivée, appliquer `migrations/2026-10-21_admin_account_registry.sql` avant le déploiement. Les éventuels fichiers de registre JSON présents dans `data/` sont importés puis archivés `.migrated` par le premier démarrage réussi.
+
+La console n’invite pas et ne provisionne pas de nouveaux utilisateurs Entra. Chaque adresse autorisée doit déjà correspondre à une identité Microsoft Entra dans le tenant correspondant à `ENTRA_TENANT_ID` (ou à `OIDC_ISSUER` Microsoft Entra). Le bouton de connexion est désactivé tant que l’issuer Entra n’est pas configuré.

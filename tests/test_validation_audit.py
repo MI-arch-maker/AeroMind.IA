@@ -11,7 +11,7 @@ os.environ.setdefault("DATABASE_URL", f"sqlite:////tmp/aeromind-validation-audit
 from fastapi.testclient import TestClient
 from web.app import app
 from web.database import SessionLocal
-from web.models import AuditEvent, Project, User
+from web.models import AdminAccountRecord, AuditEvent, Project, User
 from web.oidc import _b64, _signed
 
 
@@ -25,6 +25,7 @@ class ValidationAuditTest(unittest.TestCase):
         self.client.__enter__()
         with SessionLocal() as db:
             db.add(User(id=self.user_id, email=self.email))
+            db.add(AdminAccountRecord(id=str(uuid4()), email=self.email, data_json=json.dumps({"id": self.user_id, "email": self.email, "role": "user", "accountStatus": "active", "level": "L1"})))
             db.flush()
             db.add(Project(id=self.project_id, user_id=self.user_id, name="Audit test", data_json="{}"))
             db.commit()
@@ -38,6 +39,9 @@ class ValidationAuditTest(unittest.TestCase):
             user = db.get(User, self.user_id)
             if user is not None:
                 db.delete(user)
+            allowlist = db.query(AdminAccountRecord).filter(AdminAccountRecord.email == self.email).first()
+            if allowlist is not None:
+                db.delete(allowlist)
             db.commit()
 
     def event_payload(self, event_id=None, details=None):
@@ -92,6 +96,7 @@ class ValidationAuditTest(unittest.TestCase):
         other_token = _signed(_b64(f"{other_id}|{other_email}".encode()))
         with SessionLocal() as db:
             db.add(User(id=other_id, email=other_email))
+            db.add(AdminAccountRecord(id=str(uuid4()), email=other_email, data_json=json.dumps({"id": other_id, "email": other_email, "role": "user", "accountStatus": "active", "level": "L1"})))
             db.commit()
         other = TestClient(app, headers={"host": "localhost", "cookie": f"aeromind_session={other_token}"})
         try:
@@ -103,7 +108,10 @@ class ValidationAuditTest(unittest.TestCase):
                 other_user = db.get(User, other_id)
                 if other_user is not None:
                     db.delete(other_user)
-                    db.commit()
+                other_allowlist = db.query(AdminAccountRecord).filter(AdminAccountRecord.email == other_email).first()
+                if other_allowlist is not None:
+                    db.delete(other_allowlist)
+                db.commit()
 
         unsafe_details = {"scope": "hardware", "physicalOutputEnabled": True}
         rejected = self.client.post("/api/trpc/auditEvents.record", json=self.event_payload(details=unsafe_details))

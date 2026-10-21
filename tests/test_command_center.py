@@ -1,4 +1,5 @@
 import os
+import json
 import unittest
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -12,7 +13,7 @@ from sqlalchemy import select
 
 from web.app import app
 from web.database import SessionLocal
-from web.models import CommandRequestRecord, User
+from web.models import AdminAccountRecord, CommandRequestRecord, User
 from web.oidc import _b64, _signed
 
 
@@ -23,7 +24,9 @@ class HumanCommandCenterTest(unittest.TestCase):
         self.client = TestClient(app, headers={"host": "localhost", "cookie": f"aeromind_session={token}"})
         self.client.__enter__()
         with SessionLocal() as db:
-            db.add(User(id=self.user_id, email=f"{self.user_id}@example.test"))
+            email = f"{self.user_id}@example.test"
+            db.add(User(id=self.user_id, email=email))
+            db.add(AdminAccountRecord(id=str(uuid4()), email=email, data_json=json.dumps({"id": str(uuid4()), "email": email, "name": "Test user", "role": "user", "accountStatus": "active", "level": "L1"})))
             db.commit()
 
     def tearDown(self):
@@ -52,12 +55,38 @@ class HumanCommandCenterTest(unittest.TestCase):
         response = client.get("/api/command-center/requests")
         self.assertEqual(response.status_code, 401)
 
-    def test_full_human_approval_and_simulation_flow_never_calls_hardware(self):
+    def test_two_distinct_human_approvals_required_before_simulation(self):
         request_id = self.prepare_and_present()
-        approved = self.client.post(f"/api/command-center/requests/{request_id}/approve")
-        self.assertEqual(approved.status_code, 200, approved.text)
-        self.assertEqual(approved.json()["status"], "approved")
-        self.assertTrue(any(event["type"] == "approved" for event in approved.json()["events"]))
+        first = self.client.post(f"/api/command-center/requests/{request_id}/approve")
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(first.json()["status"], "pending_second_approval")
+        self.assertEqual(first.json()["approval_policy"]["required_human_approvals"], 2)
+        self.assertTrue(any(event["type"] == "approved_first" for event in first.json()["events"]))
+        self.assertEqual(self.client.post(f"/api/command-center/requests/{request_id}/execute-simulation").status_code, 409)
+        reviewer_id = f"reviewer-{uuid4()}"
+        reviewer_email = f"{reviewer_id}@example.test"
+        alias_id = f"reviewer-alias-{uuid4()}"
+        owner_email = f"{self.user_id}@example.test"
+        with SessionLocal() as db:
+            db.add(AdminAccountRecord(id=str(uuid4()), email=reviewer_email, data_json=json.dumps({"id": reviewer_id, "name": "Réviseur", "email": reviewer_email, "role": "surveillant", "accountStatus": "active", "level": "L2"})))
+            owner_account = db.query(AdminAccountRecord).filter(AdminAccountRecord.email == owner_email).first()
+            owner_data = json.loads(owner_account.data_json)
+            owner_data["role"] = "surveillant"
+            owner_account.data_json = json.dumps(owner_data)
+            db.commit()
+        token = _signed(_b64(f"{reviewer_id}|{reviewer_email}".encode()))
+        alias_token = _signed(_b64(f"{alias_id}|{owner_email}".encode()))
+        reviewer = TestClient(app, headers={"host": "localhost", "cookie": f"aeromind_session={token}"})
+        alias = TestClient(app, headers={"host": "localhost", "cookie": f"aeromind_session={alias_token}"})
+        with reviewer, alias:
+            self.assertEqual(alias.post(f"/api/command-center/requests/{request_id}/approve-second").status_code, 403)
+            inbox = reviewer.get("/api/command-center/approvals")
+            self.assertEqual(inbox.status_code, 200, inbox.text)
+            self.assertIn(request_id, [item["id"] for item in inbox.json()["items"]])
+            approved = reviewer.post(f"/api/command-center/requests/{request_id}/approve-second")
+            self.assertEqual(approved.status_code, 200, approved.text)
+            self.assertEqual(approved.json()["status"], "approved")
+            self.assertTrue(any(event["type"] == "approved_second" for event in approved.json()["events"]))
         result = self.client.post(f"/api/command-center/requests/{request_id}/execute-simulation")
         self.assertEqual(result.status_code, 200, result.text)
         payload = result.json()
@@ -127,7 +156,9 @@ class HumanCommandCenterTest(unittest.TestCase):
         request_id = self.prepare_and_present()
         other_id = f"other-{uuid4()}"
         with SessionLocal() as db:
-            db.add(User(id=other_id, email=f"{other_id}@example.test"))
+            other_email = f"{other_id}@example.test"
+            db.add(User(id=other_id, email=other_email))
+            db.add(AdminAccountRecord(id=str(uuid4()), email=other_email, data_json=json.dumps({"id": other_id, "email": other_email, "role": "user", "accountStatus": "active", "level": "L1"})))
             db.commit()
         token = _signed(_b64(f"{other_id}|{other_id}@example.test".encode()))
         other = TestClient(app, headers={"host": "localhost", "cookie": f"aeromind_session={token}"})

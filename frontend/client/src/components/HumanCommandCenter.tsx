@@ -32,7 +32,8 @@ const commandOptions: Array<{ value: CommandKind; label: string }> = [
 ];
 const statusLabels: Record<string, string> = {
   prepared: "Préparée — revue requise",
-  pending_approval: "En attente d’approbation humaine",
+  pending_approval: "En attente de la première approbation humaine",
+  pending_second_approval: "En attente du second réviseur vérifié",
   approved: "Autorisée — simulation non lancée",
   executing: "Simulation en cours",
   completed_simulated: "Terminée — résultat simulé",
@@ -45,6 +46,7 @@ const dateLabel = (date: string) => new Date(date).toLocaleString("fr-FR", { dat
 
 export function HumanCommandCenter() {
   const [items, setItems] = useState<CommandRequest[]>([]);
+  const [approvalItems, setApprovalItems] = useState<CommandRequest[]>([]);
   const [command, setCommand] = useState<CommandKind>("simulation-hold");
   const [objective, setObjective] = useState("");
   const [busy, setBusy] = useState(false);
@@ -68,8 +70,14 @@ export function HumanCommandCenter() {
     try {
       const response = await api("/requests");
       setItems(response.items ?? []);
+      try {
+        const approvals = await api("/approvals");
+        setApprovalItems(approvals.items ?? []);
+      } catch {
+        setApprovalItems([]);
+      }
       setAuthenticated(true);
-      setMessage("API authentifiée · transport de simulation uniquement · aucune sortie physique.");
+      setMessage("API authentifiée · deux identités humaines distinctes requises · simulation uniquement · aucune sortie physique.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Impossible de charger le centre de commande.");
     }
@@ -112,7 +120,7 @@ export function HumanCommandCenter() {
         <div>
           <span className="hcc-eyebrow">AEROMIND IA / CONTRÔLE HUMAIN</span>
           <h1 id="human-command-title">Centre de commande et de validation humaine</h1>
-          <p>Cycle de demande traçable en environnement simulé. Cette interface n’a aucun accès aux actionneurs ni aux équipements connectés.</p>
+          <p>Double validation préalable par deux identités OIDC distinctes, dont un réviseur AeroMind habilité. Le résultat reste une simulation locale; aucun accès aux actionneurs ni aux équipements connectés.</p>
         </div>
         <span className="hcc-mode"><ShieldCheck size={16}/> SIMULATION UNIQUEMENT</span>
       </header>
@@ -134,8 +142,16 @@ export function HumanCommandCenter() {
         <small className="hcc-help">Aucun paramètre d’actionneur n’est accepté. L’identifiant de cible est attribué par le serveur et désigne uniquement le simulateur.</small>
       </section>
 
+      {approvalItems.length > 0 && <section className="hcc-requests hcc-approval-inbox">
+        <div className="hcc-section-title"><div><span className="hcc-eyebrow">SECONDE SIGNATURE · RÉVISEUR VÉRIFIÉ</span><h2>Demandes à valider indépendamment</h2></div></div>
+        {approvalItems.map(item => <article className="hcc-request" key={`review-${item.id}`}>
+          <div className="hcc-request-top"><div><span className="hcc-eyebrow">{item.device.id} · SIMULATEUR LOCAL</span><h3>{item.command_label}</h3></div><span className="hcc-state hcc-state-pending_approval">Seconde signature requise</span></div>
+          <dl className="hcc-facts"><div><dt>Objectif</dt><dd>{item.objective}</dd></div><div><dt>Effet attendu</dt><dd>{item.expected_effect}</dd></div><div><dt>Paramètres exacts</dt><dd><code>{JSON.stringify(item.parameters)}</code></dd></div><div><dt>Empreinte immuable</dt><dd><code>{item.request_sha256}</code></dd></div><div><dt>Expiration</dt><dd><Clock3 size={13}/> {dateLabel(item.expires_at)}</dd></div></dl>
+          <div className="hcc-actions"><button className="hcc-button hcc-button-approve" disabled={busy} onClick={() => void mutate(item.id, "approve-second")}>J’approuve comme second réviseur</button><button className="hcc-button hcc-button-danger" disabled={busy} onClick={() => void mutate(item.id, "reject-second", { reason: "Refus du second réviseur" })}><X size={14}/> Refuser</button></div>
+        </article>)}
+      </section>}
       <section className="hcc-requests">
-        <div className="hcc-section-title"><div><span className="hcc-eyebrow">ÉTAPES 2 À 6</span><h2>Demandes et historique</h2></div><button className="hcc-button hcc-button-quiet" type="button" onClick={() => void refresh()} disabled={busy}><RotateCcw size={15}/> Actualiser</button></div>
+        <div className="hcc-section-title"><div><span className="hcc-eyebrow">ÉTAPES 1 À 6</span><h2>Demandes et historique</h2></div><button className="hcc-button hcc-button-quiet" type="button" onClick={() => void refresh()} disabled={busy}><RotateCcw size={15}/> Actualiser</button></div>
         {items.length === 0 ? <div className="hcc-empty">Aucune demande. Une demande préparée ne part jamais automatiquement.</div> : items.map(item => (
           <article className="hcc-request" key={item.id}>
             <div className="hcc-request-top"><div><span className="hcc-eyebrow">{item.device.id} · {item.device.connection === "not_connected" ? "NON CONNECTÉ" : item.device.connection}</span><h3>{item.command_label}</h3></div><span className={`hcc-state hcc-state-${item.status}`}>{statusLabels[item.status] ?? item.status}</span></div>
@@ -145,6 +161,7 @@ export function HumanCommandCenter() {
             <div className="hcc-actions">
               {item.status === "prepared" && <button className="hcc-button hcc-button-primary" disabled={busy} onClick={() => void mutate(item.id, "present")}>Présenter ces informations pour approbation</button>}
               {item.status === "pending_approval" && <><button className="hcc-button hcc-button-approve" disabled={busy} onClick={() => void mutate(item.id, "approve")}>J’approuve cette demande exacte</button><button className="hcc-button hcc-button-danger" disabled={busy} onClick={() => void mutate(item.id, "reject", { reason: "Refus humain explicite" })}><X size={14}/> Refuser</button></>}
+              {item.status === "pending_second_approval" && <span className="hcc-help">Première validation enregistrée. L’exécution reste bloquée jusqu’à l’accord d’un second réviseur authentifié.</span>}
               {item.status === "approved" && <button className="hcc-button hcc-button-primary" disabled={busy} onClick={() => void mutate(item.id, "execute-simulation")}>Exécuter en simulation</button>}
               {["prepared", "pending_approval", "approved"].includes(item.status) && <button className="hcc-button hcc-button-quiet" disabled={busy} onClick={() => void mutate(item.id, "cancel")}>Annuler</button>}
               {item.status === "completed_simulated" && <strong className="hcc-sim-result"><Check size={15}/> Simulation terminée · effet physique non vérifié</strong>}
@@ -154,7 +171,7 @@ export function HumanCommandCenter() {
           </article>
         ))}
       </section>
-      <footer className="hcc-footer">Chaque approbation est liée à l’empreinte immuable de cette demande et expire après 10 minutes. Un résultat simulé n’est ni un accusé matériel ni une preuve d’effet physique.</footer>
+      <footer className="hcc-footer">Deux approbations humaines indépendantes sont requises : la première par le demandeur, la seconde par un réviseur OIDC habilité distinct. Les deux sont liées à l’empreinte immuable et expirent après 10 minutes. Cette porte autorise uniquement l’exécution locale simulée; toute sortie physique reste désactivée.</footer>
     </main>
   );
 }

@@ -89,3 +89,16 @@
 .vsc-mc-navmap .vsc-mc-panel-head{align-items:center}
 .vsc-mc-geocode-attribution{align-self:center;color:#718f96;font-size:8px;white-space:nowrap}
 @media(max-width:550px){.vsc-mc-geocode-attribution{display:none}}
+
+/* Barre d’actions dégagée : le libellé flottant ne recouvre plus le bouton +. */
+.vsc-mc-map-overlay-label{display:none!important}
+.vsc-mc-map-controls{z-index:8!important}
+.vsc-mc-place-search{z-index:7}
+.vsc-mc-world-map .aeromind-open-map-controls{z-index:6}
+.simulation-engineering-lab{display:grid;gap:8px;margin:0 0 14px;padding:14px;border:1px solid rgba(101,205,217,.24);border-radius:7px;background:linear-gradient(145deg,#06151c,#041016)}
+.simulation-engineering-lab-heading{display:grid;gap:4px;padding:2px 3px 8px;border-bottom:1px solid rgba(101,205,217,.18)}
+.simulation-engineering-lab-heading>span{color:#72d8d5;font:8px ui-monospace,monospace;letter-spacing:.14em}
+.simulation-engineering-lab-heading h2{margin:2px 0;color:#e7fbf8;font-size:clamp(17px,2vw,24px);letter-spacing:.02em;text-transform:uppercase}
+.simulation-engineering-lab-heading p{margin:0;color:#8daeb0;font-size:10px;line-height:1.5}
+.simulation-engineering-lab .vfth-shell{margin:0}
+@media(max-width:650px){.simulation-engineering-lab{padding:8px}.simulation-engineering-lab-heading h2{font-size:17px}}

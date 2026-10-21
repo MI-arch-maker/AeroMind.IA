@@ -68,3 +68,16 @@ Le Twin reste un modèle mécanique conceptuel paramétrique. Les matériaux, co
 - [x] Les waypoints cartographiques sont des boutons sélectionnables au clic/clavier et synchronisent le waypoint actif avec l’éditeur; la sélection est visible.
 - [x] La couche de route n’intercepte plus les clics et les marqueurs n’empêchent pas le pointage des zones libres; les gestes des contrôles de zoom restent séparés des clics de tracé.
 - [x] `pnpm check` et 241 tests Vitest passés après correction.
+
+## Demande — laboratoire d’ingénierie et bouton d’ajout cartographique
+- [x] **Bouton + visible :** supprimer le libellé flottant qui recouvrait la commande d’ajout; conserver les actions de carte au premier plan et le retour de mode d’édition dans la barre de statut sous la carte.
+- [x] **Laboratoire dans Simulation :** afficher le laboratoire d’essais virtuel instrumenté directement au-dessus de Mission Control, dans la même vue Simulation; partager le modèle actif, le plan, les paramètres de vol, les exigences et les résultats calculés; son bouton Mission Control descend jusqu’au centre de commande.
+- [x] **Limites explicites :** scénarios et télémétrie restent virtuels/synthétiques, sans actionneur réel, qualification physique ni moteur CFD certifié.
+- [x] **Validation :** `pnpm check` et 241 tests Vitest réussis; compilation statique relancée avant livraison.
+
+## Demande — double validation humaine avant simulation de commande
+- [x] Première approbation explicite et authentifiée sur la demande immuable par le propriétaire.
+- [x] Seconde approbation requise par un autre compte OIDC avec rôle de revue AeroMind (`surveillant`, `admin` ou `super_admin`); refuse la même identité et la même adresse OIDC vérifiée.
+- [x] File de seconde validation dédiée aux réviseurs; audit des deux étapes; empreinte SHA-256 et expiration 10 minutes conservées.
+- [x] L’exécution simulée est impossible au niveau serveur après une seule signature; commandes matérielles/HIL et sorties physiques restent fermées.
+- [x] Validation : `pnpm check`; 241 tests frontend; 9 tests backend du centre de commande, dont la double validation et la tentative d’alias même adresse.

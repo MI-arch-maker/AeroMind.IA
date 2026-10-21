@@ -21,9 +21,9 @@ from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
-from .admin import activity as admin_activity, create_account, delete_account, list_accounts, rotate_authorization_code, update_account, verify_authorization_code
+from .admin import activity as admin_activity, create_account, delete_account, list_accounts, migrate_legacy_registry, rotate_authorization_code, update_account, verify_authorization_code
 from .app_auth_helpers import current_user as resolve_current_user
-from .oidc import _session_token, _verified, router as oidc_router
+from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
 from .business_api import router as business_router
 from .hardware_api import router as hardware_router, _controllers
 from .operational_state import router as operational_state_router
@@ -81,6 +81,12 @@ async def lifespan(_: FastAPI):
             'schema (AEROMIND_AUTO_CREATE_SCHEMA=false).',
             flush=True,
         )
+    try:
+        migrated = migrate_legacy_registry()
+        if migrated['accounts'] or migrated['events']:
+            print(f"Imported legacy admin registry into the main database: {migrated}", flush=True)
+    except SQLAlchemyError as exc:
+        print(f"WARNING: legacy account registry import deferred ({type(exc).__name__}); apply the admin account schema before retrying.", flush=True)
     yield
 
 
@@ -141,14 +147,14 @@ def health():
         'status': 'ok' if connected else 'degraded',
         'version': app.version,
         'db': database,
-        'oidc': 'configured' if settings.oidc else 'not_configured',
+        'oidc': 'configured' if settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']) else 'not_configured',
     }
 
 
 @app.get('/api/platform/config.js', include_in_schema=False)
 def platform_config():
     """Public, non-secret runtime configuration consumed by the React cockpit."""
-    oidc_enabled = bool(settings.oidc)
+    oidc_enabled = bool(settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']))
     provider = 'Microsoft Entra ID' if oidc_enabled else ''
     script = (
         'window.__MANUS_CONFIG__ = '
@@ -560,7 +566,7 @@ def ready():
 
 @app.get('/api/capabilities')
 def capabilities():
-    return {'service': 'aeromind-ai', 'version': '2.0.0', 'oidc': bool(settings.oidc), 'llm': bool(settings.openai_api_key), 'sitl': True, 'hardware_control': False, 'mission_upload': False, 'telemetry_write': False}
+    return {'service': 'aeromind-ai', 'version': '2.0.0', 'oidc': bool(settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer'])), 'identity_provider': 'microsoft-entra' if settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']) else None, 'llm': bool(settings.openai_api_key), 'sitl': True, 'hardware_control': False, 'mission_upload': False, 'telemetry_write': False}
 
 
 @app.get('/api/system/status')

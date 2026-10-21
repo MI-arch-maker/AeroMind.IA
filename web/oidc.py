@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import secrets
 import time
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlparse
 
 import httpx
 import jwt
@@ -60,16 +60,31 @@ def _settings():
     cfg = get_settings().oidc
     if not cfg:
         raise HTTPException(503, 'OIDC/Entra is not configured')
+    if not _is_microsoft_entra_issuer(cfg['issuer']):
+        raise HTTPException(503, 'Microsoft Entra OIDC is required for AeroMind user accounts')
     return cfg
+
+
+def _is_microsoft_entra_issuer(issuer: str) -> bool:
+    host = (urlparse(issuer).hostname or '').lower().rstrip('.')
+    return host in {'login.microsoftonline.com', 'login.microsoftonline.us', 'login.microsoftonline.de', 'login.chinacloudapi.cn'}
 
 
 def _identity_email(claims: dict) -> str | None:
     """Microsoft Entra peut exposer l’adresse sous plusieurs claims selon le tenant."""
+    candidates = _identity_email_candidates(claims)
+    return candidates[0] if candidates else None
+
+
+def _identity_email_candidates(claims: dict) -> list[str]:
+    candidates = []
     for key in ('email', 'preferred_username', 'upn', 'unique_name'):
         value = claims.get(key)
         if isinstance(value, str) and '@' in value:
-            return value.strip().casefold()
-    return None
+            normalized = value.strip().casefold()
+            if normalized not in candidates:
+                candidates.append(normalized)
+    return candidates
 
 
 def _cookie_security() -> dict[str, object]:
@@ -82,7 +97,8 @@ def _cookie_security() -> dict[str, object]:
 @router.get('/status')
 def status():
     cfg = get_settings().oidc
-    return {'configured': bool(cfg), 'provider': 'oidc' if get_settings().oidc_issuer else ('entra' if cfg else None)}
+    configured = bool(cfg and _is_microsoft_entra_issuer(cfg['issuer']))
+    return {'configured': configured, 'provider': 'entra' if configured else None}
 
 
 @router.get('/me')
@@ -101,7 +117,7 @@ def me(
         raise HTTPException(401, 'Invalid session')
     account = account_for_identity(email, subject)
     if account is None:
-        raise HTTPException(403, 'Compte AeroMind absent, évalué ou suspendu')
+        raise HTTPException(403, 'Compte Entra préexistant absent du registre AeroMind, évalué ou suspendu')
     role = 'super_admin' if get_settings().is_superadmin_email(email) else account.get('role', 'user')
     return {
         'authenticated': True,
@@ -161,11 +177,13 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
         tokens = token_response.json()
         signing_key = jwt.PyJWKClient(discovery['jwks_uri']).get_signing_key_from_jwt(tokens['id_token']).key
         claims = jwt.decode(tokens['id_token'], signing_key, algorithms=['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512'], audience=cfg['client_id'], issuer=cfg['issuer'])
-    identity_email = _identity_email(claims)
-    if claims.get('nonce') != nonce or not identity_email:
+    email_candidates = _identity_email_candidates(claims)
+    if claims.get('nonce') != nonce or not email_candidates:
         raise HTTPException(403, 'OIDC identity validation failed')
-    if account_for_identity(identity_email, str(claims.get('sub'))) is None:
-        raise HTTPException(403, 'Cette adresse n’est pas autorisée par le Super-Admin AeroMind')
+    identity_email = next((candidate for candidate in email_candidates
+                           if account_for_identity(candidate, str(claims.get('sub'))) is not None), None)
+    if identity_email is None:
+        raise HTTPException(403, 'Compte Microsoft Entra préexistant requis et adresse non autorisée dans le registre AeroMind')
     session = _signed(_b64(f"{claims.get('sub')}|{identity_email}".encode()))
     response = RedirectResponse(f"/#aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')

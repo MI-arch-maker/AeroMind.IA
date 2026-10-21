@@ -17,6 +17,28 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class AdminAccountRecord(Base):
+    """Durable AeroMind allowlist for identities authenticated by Microsoft Entra OIDC."""
+    __tablename__ = "admin_accounts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
+    data_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+
+
+class AdminAccountEvent(Base):
+    """Durable audit trail for account and authorization changes."""
+    __tablename__ = "admin_account_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    actor_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    target_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
+
+
 class Project(Base):
     __tablename__ = "projects"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

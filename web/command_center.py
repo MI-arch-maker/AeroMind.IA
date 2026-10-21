@@ -44,7 +44,8 @@ COMMANDS = {
         "risk": "Aucun effet physique. Résultat synthétique uniquement.",
     },
 }
-ACTIVE_STATES = {"prepared", "pending_approval", "approved"}
+ACTIVE_STATES = {"prepared", "pending_approval", "pending_second_approval", "approved"}
+REVIEWER_ROLES = {"surveillant", "admin", "super_admin"}
 
 
 def _now() -> datetime:
@@ -154,6 +155,7 @@ def _serialize(db: Session, row: CommandRequestRecord) -> dict:
         "checks": json.loads(row.checks_json),
         "request_sha256": row.request_sha256,
         "status": row.status,
+        "approval_policy": {"required_human_approvals": 2, "distinct_verified_identities": True, "physical_output_enabled": False},
         "prepared_at": _utc(row.prepared_at).isoformat(),
         "presented_at": _utc(row.presented_at).isoformat() if row.presented_at else None,
         "expires_at": _utc(row.expires_at).isoformat(),
@@ -185,6 +187,20 @@ def _transition(db: Session, row: CommandRequestRecord, actor: dict, expected: s
     db.refresh(row)
 
 
+def _review_transition(db: Session, row: CommandRequestRecord, actor: dict, expected: str, target: str, event_type: str, details: dict | None = None) -> None:
+    result = db.execute(update(CommandRequestRecord).where(
+        CommandRequestRecord.id == row.id,
+        CommandRequestRecord.status == expected,
+    ).values(status=target))
+    if result.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, f"Transition {expected} → {target} is no longer available")
+    row.status = target
+    _event(db, row, actor, event_type, details)
+    db.commit()
+    db.refresh(row)
+
+
 @router.get("/requests")
 def list_requests(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
@@ -194,6 +210,21 @@ def list_requests(aeromind_session: str | None = Cookie(default=None, convert_un
     for row in rows:
         _expire_if_needed(db, row, actor)
     return {"mode": "simulation_only", "physical_output_enabled": False, "items": [_serialize(db, row) for row in rows]}
+
+
+@router.get("/approvals")
+def list_second_approval_requests(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+    actor = _user(aeromind_session, db)
+    if actor.get("role") not in REVIEWER_ROLES:
+        raise HTTPException(403, "A verified AeroMind reviewer role is required for the second approval")
+    rows = db.scalars(select(CommandRequestRecord).where(
+        CommandRequestRecord.status == "pending_second_approval",
+        CommandRequestRecord.user_id != actor["id"],
+        CommandRequestRecord.target_id == SIMULATED_DEVICE_ID,
+    ).order_by(CommandRequestRecord.presented_at.asc()).limit(100)).all()
+    for row in rows:
+        _expire_if_needed(db, row, actor)
+    return {"mode": "simulation_only", "physical_output_enabled": False, "required_human_approvals": 2, "items": [_serialize(db, row) for row in rows if row.status == "pending_second_approval"]}
 
 
 @router.post("/requests", status_code=201)
@@ -254,7 +285,57 @@ def approve_request(request_id: str, aeromind_session: str | None = Cookie(defau
     if row.target_id != SIMULATED_DEVICE_ID:
         raise HTTPException(409, "Physical target approval is disabled")
     row.decided_by, row.decided_at = actor["id"], _now()
-    _transition(db, row, actor, "pending_approval", "approved", "approved", {"request_sha256": row.request_sha256, "human_button_confirmation": True})
+    email_digest = hashlib.sha256(actor["email"].strip().casefold().encode("utf-8")).hexdigest()
+    _transition(db, row, actor, "pending_approval", "pending_second_approval", "approved_first", {"request_sha256": row.request_sha256, "approval_stage": 1, "human_button_confirmation": True, "verified_identity_email_sha256": email_digest})
+    return _serialize(db, row)
+
+
+@router.post("/requests/{request_id}/approve-second")
+def approve_second_request(request_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+    actor = _user(aeromind_session, db)
+    if actor.get("role") not in REVIEWER_ROLES:
+        raise HTTPException(403, "A verified AeroMind reviewer role is required for the second approval")
+    row = db.get(CommandRequestRecord, request_id)
+    if row is None or row.target_id != SIMULATED_DEVICE_ID:
+        raise HTTPException(404, "Simulation request not found")
+    _expire_if_needed(db, row, actor)
+    if row.status != "pending_second_approval":
+        raise HTTPException(409, "Request is not awaiting its second human approval")
+    if row.user_id == actor["id"]:
+        raise HTTPException(403, "The request owner cannot provide both human approvals")
+    if _utc(row.expires_at) <= _now() or row.request_sha256 != _digest(row):
+        raise HTTPException(409, "Expired or modified request cannot be approved")
+    first = db.scalar(select(CommandAuditEvent).where(
+        CommandAuditEvent.request_id == row.id,
+        CommandAuditEvent.event_type == "approved_first",
+    ).order_by(CommandAuditEvent.occurred_at.asc()).limit(1))
+    if first is None or first.actor_id == actor["id"]:
+        raise HTTPException(409, "A separate first human approval is required")
+    first_details = json.loads(first.details_json)
+    email_digest = hashlib.sha256(actor["email"].strip().casefold().encode("utf-8")).hexdigest()
+    if first_details.get("verified_identity_email_sha256") == email_digest:
+        raise HTTPException(403, "The two approvals must use distinct verified OIDC identities")
+    row.decided_by, row.decided_at = actor["id"], _now()
+    _review_transition(db, row, actor, "pending_second_approval", "approved", "approved_second", {"request_sha256": row.request_sha256, "approval_stage": 2, "human_button_confirmation": True, "verified_identity_email_sha256": email_digest, "distinct_from_first_approver": True})
+    return _serialize(db, row)
+
+
+@router.post("/requests/{request_id}/reject-second")
+def reject_second_request(request_id: str, body: DecisionInput, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+    actor = _user(aeromind_session, db)
+    if actor.get("role") not in REVIEWER_ROLES:
+        raise HTTPException(403, "A verified AeroMind reviewer role is required for the second decision")
+    row = db.get(CommandRequestRecord, request_id)
+    if row is None or row.target_id != SIMULATED_DEVICE_ID:
+        raise HTTPException(404, "Simulation request not found")
+    _expire_if_needed(db, row, actor)
+    if row.status != "pending_second_approval":
+        raise HTTPException(409, "Request is not awaiting its second human decision")
+    if row.user_id == actor["id"]:
+        raise HTTPException(403, "The request owner cannot provide the independent second decision")
+    if _utc(row.expires_at) <= _now() or row.request_sha256 != _digest(row):
+        raise HTTPException(409, "Expired or modified request cannot be rejected")
+    _review_transition(db, row, actor, "pending_second_approval", "rejected", "rejected_second", {"reason": body.reason.strip(), "request_sha256": row.request_sha256, "approval_stage": 2})
     return _serialize(db, row)
 
 
@@ -275,7 +356,7 @@ def cancel_request(request_id: str, aeromind_session: str | None = Cookie(defaul
     actor = _user(aeromind_session, db)
     row = _owned(db, actor["id"], request_id)
     _expire_if_needed(db, row, actor)
-    if row.status not in {"prepared", "pending_approval", "approved"}:
+    if row.status not in {"prepared", "pending_approval", "pending_second_approval", "approved"}:
         raise HTTPException(409, "Request can no longer be cancelled")
     _transition(db, row, actor, row.status, "cancelled", "cancelled")
     return _serialize(db, row)

@@ -308,8 +308,8 @@ function SessionControls() {
   if (!user) {
     return (
       <div className="session-controls">
-        <div className="session-copy"><strong>Session fermée</strong><small>Connectez-vous pour synchroniser AeroMind.</small></div>
-        <button className="primary-button session-button" onClick={login} type="button"><LogIn size={14} /> Se connecter</button>
+        <div className="session-copy"><strong>Session fermée</strong><small>{window.__MANUS_CONFIG__?.externalOidcEnabled ? "Un compte Microsoft Entra autorisé est requis." : "Connexion indisponible · SSO Microsoft Entra non configuré."}</small></div>
+        <button className="primary-button session-button" onClick={login} disabled={!window.__MANUS_CONFIG__?.externalOidcEnabled} type="button"><LogIn size={14} /> {window.__MANUS_CONFIG__?.externalOidcEnabled ? "Se connecter via Entra" : "Entra non configuré"}</button>
       </div>
     );
   }
@@ -13836,30 +13836,47 @@ export default function Home() {
                       />
                     )}
                     {activeView === "simulation" && (
-                      <VirtualSimulationCenter
-                        simulation={simulation}
-                        requirements={requirements}
-                        onRunSimulation={runSimulationNow}
-                        isRunning={isRunning}
-                        config={config}
-                        setConfig={setConfig}
-                        history={
-                          (serverRunsQuery.data ?? []) as Array<{
-                            id: number;
-                            runId: string;
-                            engineVersion: string;
-                            createdAt: Date;
-                          }>
-                        }
-                        versions={
-                          (serverVersionsQuery.data ?? []) as Array<{
-                            id: number;
-                            version: string;
-                            createdAt: Date;
-                          }>
-                        }
-                        onRestoreVersion={restoreDesignVersion}
-                      />
+                      <>
+                        <section className="simulation-engineering-lab" aria-label="Laboratoire d’ingénierie et de simulation">
+                          <header className="simulation-engineering-lab-heading">
+                            <span>ENVIRONNEMENT DE TEST · MÊME CELLULE DE CONCEPTION</span>
+                            <h2>Laboratoire d’ingénierie & simulation</h2>
+                            <p>Essais virtuels synchronisés avec le modèle, les paramètres, le plan de mission et les résultats du moteur AeroMind.</p>
+                          </header>
+                          <VirtualFlightTestHall
+                            config={config}
+                            setConfig={setConfig}
+                            simulation={simulation}
+                            requirements={requirements}
+                            workflowRun={workflowRun}
+                            onOpenBuilder={() => document.querySelector(".vsc-mission-control")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                          />
+                        </section>
+                        <VirtualSimulationCenter
+                          simulation={simulation}
+                          requirements={requirements}
+                          onRunSimulation={runSimulationNow}
+                          isRunning={isRunning}
+                          config={config}
+                          setConfig={setConfig}
+                          history={
+                            (serverRunsQuery.data ?? []) as Array<{
+                              id: number;
+                              runId: string;
+                              engineVersion: string;
+                              createdAt: Date;
+                            }>
+                          }
+                          versions={
+                            (serverVersionsQuery.data ?? []) as Array<{
+                              id: number;
+                              version: string;
+                              createdAt: Date;
+                            }>
+                          }
+                          onRestoreVersion={restoreDesignVersion}
+                        />
+                      </>
                     )}
                     {activeView === "labbench" && <LabBench />}
                     {activeView === "command-center" && <HumanCommandCenter />}
