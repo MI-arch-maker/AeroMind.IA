@@ -128,7 +128,6 @@ export function VirtualFlightTestHall({ config, setConfig, simulation, requireme
     };
   };
   const launch = () => {
-    if (!hasActiveUserDesign) return;
     const runConfig = configForScenario(config, scenario);
     setConfig(runConfig);
     onRunSimulation?.(runConfig);
@@ -183,9 +182,9 @@ export function VirtualFlightTestHall({ config, setConfig, simulation, requireme
     </header>
     <div className="vfth-command">
       <div className="vfth-status"><span className={playing ? "live" : ""} /> TEST {playing ? "EN EXÉCUTION" : !hasActiveUserDesign ? "CELLULE REQUISE" : time >= current.duration ? "TERMINÉ" : "EN ATTENTE"}<small>{hasActiveUserDesign ? `${droneName} · ${config.airframe || "architecture à définir"} · ${motorCount} moteur(s)` : "Aucun modèle ni dessin de démonstration chargé"}</small></div>
-      <button className="vfth-primary" disabled={!hasActiveUserDesign || (isRunning && !playing)} onClick={playing ? () => setPlaying(false) : launch}>{playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Suspendre" : isRunning ? "Calcul…" : "Lancer l’essai"}</button>
-      <button disabled={!hasActiveUserDesign || isRunning} onClick={() => onRunSimulation?.(config)} title="Recalculer la cellule active avec le moteur de simulation AeroMind"><Activity size={14} /> {isRunning ? "Analyse…" : "Lancer l’analyse"}</button>
-      <button disabled={!hasActiveUserDesign} aria-expanded={comparisonOpen} onClick={() => setComparisonOpen(value => !value)}><Layers3 size={14} /> {comparisonOpen ? "Masquer comparaison" : "Comparer les essais"}</button>
+      <button className="vfth-primary" disabled={isRunning && !playing} onClick={playing ? () => setPlaying(false) : launch}>{playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Suspendre" : isRunning ? "Calcul…" : "Lancer l’essai"}</button>
+      <button disabled={isRunning} onClick={() => onRunSimulation?.(config)} title="Recalculer localement en mode virtuel AeroMind"><Activity size={14} /> {isRunning ? "Analyse…" : "Lancer l’analyse"}</button>
+      <button aria-expanded={comparisonOpen} onClick={() => setComparisonOpen(value => !value)}><Layers3 size={14} /> {comparisonOpen ? "Masquer comparaison" : "Comparer les essais"}</button>
       <button onClick={reset}><RotateCcw size={14} /> Réinitialiser</button>
       <button onClick={onOpenBuilder}><ArrowLeft size={14} /> Mission Control</button>
     </div>
@@ -223,8 +222,8 @@ export function VirtualFlightTestHall({ config, setConfig, simulation, requireme
       </section>
 
       <aside className="vfth-panel vfth-scenarios"><div className="vfth-panel-head"><div><span className="vfth-index">B / CAMPAGNE</span><h3>Scénarios d’essai</h3></div><Route size={17} className="vfth-icon" /></div>
-        <div className="vfth-scenario-list">{scenarios.map((item, index) => <button key={item.id} className={scenario === item.id ? "is-active" : ""} onClick={() => chooseScenario(item.id)} disabled={!hasActiveUserDesign}><span className="scenario-number">0{index + 1}</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><em>{item.duration}s</em></button>)}</div>
-        <div className="vfth-launch-card"><strong>{hasActiveUserDesign ? current.label : "Sélection requise"}</strong><small>{activeScenarioLabel} · {runs ? `run ${String(runs).padStart(2, "0")}` : "aucun essai préchargé"}</small><button onClick={launch} disabled={!hasActiveUserDesign || playing}><Play size={13} /> Exécuter le scénario</button></div>
+        <div className="vfth-scenario-list">{scenarios.map((item, index) => <button key={item.id} className={scenario === item.id ? "is-active" : ""} onClick={() => chooseScenario(item.id)}><span className="scenario-number">0{index + 1}</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><em>{item.duration}s</em></button>)}</div>
+        <div className="vfth-launch-card"><strong>{hasActiveUserDesign ? current.label : `${current.label} · MODE VIRTUEL`}</strong><small>{activeScenarioLabel} · {runs ? `run ${String(runs).padStart(2, "0")}` : "aucun essai préchargé"}</small><button onClick={launch} disabled={playing}><Play size={13} /> Exécuter le scénario</button></div>
         <div className="vfth-placement"><span>INITIALISATION · POSITION & CAP</span><label>X <input type="range" min="15" max="80" value={initialX} onChange={event => updateHomePosition("homeX", Number(event.target.value))} /><b>{initialX}%</b></label><label>Y <input type="range" min="25" max="78" value={initialY} onChange={event => updateHomePosition("homeY", Number(event.target.value))} /><b>{initialY}%</b></label><label>CAP DE RÉFÉRENCE <input type="range" min="-180" max="180" value={headingOffset} onChange={event => updateHeadingReference(Number(event.target.value))} /><b>{headingOffset}°</b></label></div>
       </aside>
 

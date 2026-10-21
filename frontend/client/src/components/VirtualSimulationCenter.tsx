@@ -90,7 +90,9 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
   const altitude = targetAltitude;
   const speed = config.cruiseSpeedKmh;
   const battery = config.batteryWh > 0 ? Math.round(clamp(simulation.energyUsableWh / config.batteryWh * 100, 0, 100)) : 0;
-  const canRunSimulation = Boolean(config.airframe && config.motorCount && config.motorCount > 0 && config.batteryWh > 0);
+  // Les commandes de ce centre pilotent uniquement la simulation locale.
+  // Elles restent donc interactives même lorsqu’une cellule matérielle n’est pas chargée.
+  const canRunSimulation = true;
   const stability = canRunSimulation ? Math.round(simulation.windMarginPercent) : 0;
   const failedMetrics = canRunSimulation ? simulation.metrics.filter(metric => metric.status === "fail") : [];
   const openHighRisks = canRunSimulation ? simulation.risks.filter(risk => risk.status === "open" && risk.severity === "high") : [];

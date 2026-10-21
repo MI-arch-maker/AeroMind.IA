@@ -12994,13 +12994,35 @@ export default function Home() {
     setActions(current => ({ ...current, [id]: action }));
   const runSimulationNow = (candidateConfig: ConceptConfig = config) => {
     if (isRunning) return;
-    if (!candidateConfig.airframe || !candidateConfig.motorCount) return;
-    const simulationConfig = candidateConfig;
+    const virtualFallback = !candidateConfig.airframe || !candidateConfig.motorCount || candidateConfig.batteryWh <= 0;
+    const simulationConfig = virtualFallback
+      ? normalizeConcept({
+          ...defaultConcept,
+          ...candidateConfig,
+          wingspan: candidateConfig.wingspan > 0 ? candidateConfig.wingspan : defaultConcept.wingspan,
+          chord: candidateConfig.chord > 0 ? candidateConfig.chord : defaultConcept.chord,
+          fuselageLength: candidateConfig.fuselageLength > 0 ? candidateConfig.fuselageLength : defaultConcept.fuselageLength,
+          propDiameter: candidateConfig.propDiameter > 0 ? candidateConfig.propDiameter : defaultConcept.propDiameter,
+          airframe: candidateConfig.airframe ?? defaultConcept.airframe,
+          motorCount: candidateConfig.motorCount ?? defaultConcept.motorCount,
+          batteryWh: candidateConfig.batteryWh > 0 ? candidateConfig.batteryWh : defaultConcept.batteryWh,
+          payloadKg: candidateConfig.payloadKg > 0 ? candidateConfig.payloadKg : defaultConcept.payloadKg,
+          cruiseSpeedKmh: candidateConfig.cruiseSpeedKmh > 0 ? candidateConfig.cruiseSpeedKmh : defaultConcept.cruiseSpeedKmh,
+          windSpeedKmh: candidateConfig.windSpeedKmh > 0 ? candidateConfig.windSpeedKmh : defaultConcept.windSpeedKmh,
+          reserveFraction: candidateConfig.reserveFraction > 0 ? candidateConfig.reserveFraction : defaultConcept.reserveFraction,
+          maxTakeoffKg: candidateConfig.maxTakeoffKg > 0 ? candidateConfig.maxTakeoffKg : defaultConcept.maxTakeoffKg,
+          altitudeM: candidateConfig.altitudeM > 0 ? candidateConfig.altitudeM : defaultConcept.altitudeM,
+          designName: "Démonstrateur virtuel AeroMind",
+        })
+      : candidateConfig;
+    if (virtualFallback) setConfig(simulationConfig);
 
     setIsRunning(true);
     setAction("simulation", {
       status: "loading",
-      message: "Simulation modulaire en cours…",
+      message: virtualFallback
+        ? "Simulation virtuelle locale en cours · aucune commande matérielle…"
+        : "Simulation modulaire en cours…",
     });
     window.setTimeout(async () => {
       try {
