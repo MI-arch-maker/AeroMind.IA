@@ -135,3 +135,7 @@
 .vsc-shell .vsc-scenario-list button.is-active { border-color: var(--vsc-cyan); box-shadow: inset 2px 0 var(--vsc-cyan); }
 .vsc-shell .vsc-kpi-grid span { border-color: rgba(139, 226, 139, .18); }
 .vsc-shell .vsc-command button:focus-visible, .vsc-shell .vsc-panel button:focus-visible { outline-color: var(--vsc-cyan); }
+
+/* Le trajet géographique est dessiné en coordonnées écran : le découper au viewport de sa carte de navigation. */
+.vsc-mc-navmap-view.aeromind-open-map{overflow:hidden;isolation:isolate}
+.vsc-mc-navmap-view .aeromind-open-map-route{overflow:hidden}
