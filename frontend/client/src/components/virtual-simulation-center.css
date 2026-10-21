@@ -102,3 +102,16 @@
 .simulation-engineering-lab-heading p{margin:0;color:#8daeb0;font-size:10px;line-height:1.5}
 .simulation-engineering-lab .vfth-shell{margin:0}
 @media(max-width:650px){.simulation-engineering-lab{padding:8px}.simulation-engineering-lab-heading h2{font-size:17px}}
+
+/* Panorama moderne pour l’espace Simulation & analyses : scène large, relief et lecture cockpit. */
+.vsc-mission-control{--mc-line:rgba(104,174,194,.22);padding:clamp(12px,2vw,28px);border:1px solid rgba(137,205,220,.35);border-radius:24px;background:radial-gradient(ellipse at 50% -16%,rgba(69,140,180,.28),transparent 52%),linear-gradient(145deg,#071321 0%,#0c1d2d 54%,#102739 100%);box-shadow:0 28px 80px rgba(3,15,27,.38);color:#e7f4ff;overflow:hidden}
+.vsc-mc-header{min-height:62px;border-radius:16px;background:rgba(15,35,52,.78);border:1px solid rgba(143,202,224,.22);backdrop-filter:blur(14px);padding:10px 16px}
+.vsc-mc-topgrid{gap:14px;min-height:clamp(390px,48vw,650px)}
+.vsc-mc-primary-scene,.vsc-mc-map-scene,.vsc-mc-terrain{border-radius:18px;border:1px solid rgba(130,197,220,.26);box-shadow:inset 0 0 70px rgba(77,163,197,.08),0 14px 32px rgba(0,0,0,.18)}
+.vsc-mc-primary-scene{min-height:clamp(350px,43vw,590px);background:radial-gradient(ellipse at 50% 58%,rgba(56,140,174,.25),transparent 55%),linear-gradient(180deg,#102b40,#0a1927 74%)}
+.vsc-mc-left,.vsc-mc-right,.vsc-mc-bottomgrid,.vsc-mc-ops-grid{gap:12px}
+.vsc-mc-readout,.vsc-mc-scenario,.vsc-mc-navmap,.vsc-mc-performance,.vsc-mc-ops-grid>section{border-radius:15px;border-color:rgba(130,197,220,.2);background:linear-gradient(145deg,rgba(18,43,61,.95),rgba(10,26,39,.94));box-shadow:0 10px 25px rgba(0,0,0,.12)}
+.vsc-mc-readout>strong{color:#f0fbff;text-shadow:0 0 20px rgba(89,206,235,.28)}
+.vsc-mc-nav button,.vsc-mc-header button{transition:background .2s ease,color .2s ease,transform .2s ease}.vsc-mc-nav button:hover,.vsc-mc-header button:hover{transform:translateY(-1px)}
+.vsc-mc-footer{margin-top:4px;border-top-color:rgba(130,197,220,.18);padding-top:12px}
+@media(max-width:700px){.vsc-mission-control{border-radius:16px;padding:9px}.vsc-mc-primary-scene{min-height:340px}.vsc-mc-header{border-radius:12px}}
