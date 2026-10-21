@@ -88,6 +88,8 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
   const openHighRisks = canRunSimulation ? simulation.risks.filter(risk => risk.status === "open" && risk.severity === "high") : [];
   const anomaly = failedMetrics.length > 0 || openHighRisks.length > 0;
   const activeDroneName = config.engineeringSelection?.droneLabel || config.designName || config.platformProfile || "AUCUN DRONE SÉLECTIONNÉ";
+  const sharedScenarioLabel: Record<NonNullable<ConceptConfig["activeFlightTestScenario"]>, string> = { hover: "Vol stationnaire", route: "Trajectoire active", wind: "Vent latéral", obstacles: "Obstacles virtuels", return: "Retour d’urgence" };
+  const activeSharedScenario = sharedScenarioLabel[config.activeFlightTestScenario ?? "route"];
   const activeModelType = String(config.modelType ?? "").toLowerCase();
   const isVtol = config.airframe === "vtol" || activeModelType.includes("vtol") || activeModelType.includes("tiltrotor") || activeModelType.includes("tilt-wing");
   const isWinged = config.airframe === "fixed-wing" || isVtol || ["aile-volante","voilure-conventionnelle","planeur","biplan","canard","tandem-wing","stealth-wing","blended-pusher"].some(type=>activeModelType.includes(type));
@@ -136,7 +138,7 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
     setTerrain(scenario.terrain ?? config.missionEnvironment?.surfaceProfile ?? "Relief synthétique");
     setLocation(scenario.location ?? config.missionEnvironment?.locationLabel ?? "Zone littorale synthétique");
     const weather = scenario.weather;
-    setConfig(current => ({ ...current, windSpeedKmh: scenario.wind, altitudeM: scenario.altitude, missionEnvironment: { ambientC: weather === "Brume de simulation" ? 8 : weather === "Thermiques artificielles" ? 32 : 20, windKmh: weather === "Rafales synthétiques" ? scenario.wind + 12 : scenario.wind, emiLevel: weather === "Brume de simulation" ? 0.1 : 0, surfaceProfile: scenario.terrain ?? current.missionEnvironment?.surfaceProfile ?? "Relief synthétique", locationLabel: scenario.location ?? current.missionEnvironment?.locationLabel ?? "Zone littorale synthétique" } }));
+    setConfig(current => ({ ...current, activeFlightTestScenario: weather === "Rafales synthétiques" ? "wind" : "route", windSpeedKmh: scenario.wind, altitudeM: scenario.altitude, missionEnvironment: { ambientC: weather === "Brume de simulation" ? 8 : weather === "Thermiques artificielles" ? 32 : 20, windKmh: weather === "Rafales synthétiques" ? scenario.wind + 12 : scenario.wind, emiLevel: weather === "Brume de simulation" ? 0.1 : 0, surfaceProfile: scenario.terrain ?? current.missionEnvironment?.surfaceProfile ?? "Relief synthétique", locationLabel: scenario.location ?? current.missionEnvironment?.locationLabel ?? "Zone littorale synthétique" } }));
     setIsPlaying(false);
     setSimTime(0);
   };
@@ -271,7 +273,7 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
   };
   const updateWind = (value: number) => {
     setWind(value);
-    setConfig(current => ({ ...current, windSpeedKmh: value, missionEnvironment: { ambientC: current.missionEnvironment?.ambientC ?? 20, windKmh: current.missionEnvironment?.windKmh !== undefined && current.missionEnvironment.windKmh > current.windSpeedKmh ? value + 12 : value, emiLevel: current.missionEnvironment?.emiLevel ?? 0, surfaceProfile: current.missionEnvironment?.surfaceProfile, locationLabel: current.missionEnvironment?.locationLabel } }));
+    setConfig(current => ({ ...current, activeFlightTestScenario: "wind", windSpeedKmh: value, missionEnvironment: { ambientC: current.missionEnvironment?.ambientC ?? 20, windKmh: current.missionEnvironment?.windKmh !== undefined && current.missionEnvironment.windKmh > current.windSpeedKmh ? value + 12 : value, emiLevel: current.missionEnvironment?.emiLevel ?? 0, surfaceProfile: current.missionEnvironment?.surfaceProfile, locationLabel: current.missionEnvironment?.locationLabel } }));
     setScenarios(current => current.map(item => item.id === activeScenario ? { ...item, wind: value, status: "DRAFT" } : item));
   };
   const updateAltitude = (value: number) => {
@@ -281,7 +283,7 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
   const updateWeather = (value: string) => {
     setEnvironment(value);
     setScenarios(current => current.map(item => item.id === activeScenario ? { ...item, weather: value, status: "DRAFT" } : item));
-    setConfig(current => ({ ...current, missionEnvironment: { ambientC: value === "Brume de simulation" ? 8 : value === "Thermiques artificielles" ? 32 : 20, windKmh: value === "Rafales synthétiques" ? current.windSpeedKmh + 12 : current.windSpeedKmh, emiLevel: value === "Brume de simulation" ? 0.1 : 0, surfaceProfile: current.missionEnvironment?.surfaceProfile, locationLabel: current.missionEnvironment?.locationLabel } }));
+    setConfig(current => ({ ...current, activeFlightTestScenario: value === "Rafales synthétiques" ? "wind" : "route", missionEnvironment: { ambientC: value === "Brume de simulation" ? 8 : value === "Thermiques artificielles" ? 32 : 20, windKmh: value === "Rafales synthétiques" ? current.windSpeedKmh + 12 : current.windSpeedKmh, emiLevel: value === "Brume de simulation" ? 0.1 : 0, surfaceProfile: current.missionEnvironment?.surfaceProfile, locationLabel: current.missionEnvironment?.locationLabel } }));
   };
   const chooseTab = (tab: MissionTab) => {
     setActiveTab(tab);
@@ -303,7 +305,7 @@ export function VirtualSimulationCenter({ simulation, requirements, onRunSimulat
       <nav className="vsc-mc-nav" aria-label="Vues Mission Control">{tabs.map(tab => <button key={tab} className={activeTab === tab ? "is-active" : ""} aria-current={activeTab === tab ? "page" : undefined} onClick={() => chooseTab(tab)}>{tab}</button>)}</nav>
       <div className="vsc-mc-mission"><strong>{activeDroneName.toUpperCase()}</strong><span>SCÉNARIO · {selectedScenario.name.toUpperCase()}</span><span><i /> T+ {elapsed}:00 · {missionEnded ? "TERMINÉE" : isPlaying ? "EN COURS" : "EN PAUSE"}</span></div>
     </header>
-    <div className="vsc-mc-statusline"><span>LINK <b>LOCAL</b></span><span>SAT <b>N/D</b></span><span>GNSS <b>N/D</b></span><span>DATA <b>{config.engineeringSelection?.droneId ? "CELLULE LIÉE" : "SOURCE REQUISE"}</b></span><span className="vsc-mc-source">{navSummary[activeTab]}</span></div>
+    <div className="vsc-mc-statusline"><span>LINK <b>LOCAL</b></span><span>SAT <b>N/D</b></span><span>GNSS <b>N/D</b></span><span>ESSAI PARTAGÉ <b>{activeSharedScenario}</b></span><span>DATA <b>{config.engineeringSelection?.droneId ? "CELLULE LIÉE" : "SOURCE REQUISE"}</b></span><span className="vsc-mc-source">{navSummary[activeTab]}</span></div>
     <div className="vsc-mc-topgrid">
       <aside className="vsc-mc-left">
         <section className="vsc-mc-card vsc-mc-readout"><span>ALTITUDE CIBLE</span><strong>{altitude > 0 ? altitude.toLocaleString("fr-FR") : "—"} <small>M</small></strong><div className="vsc-mc-metric-bar" aria-label="Altitude cible configurée"><i style={{width:`${clamp(targetAltitude/6000*100,0,100)}%`}}/></div></section>

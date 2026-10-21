@@ -59,6 +59,8 @@ export type LocalMissionPlan = {
   radiusKm: number;
   returnAltitudeM: number;
   lostLinkAction: "return" | "hold" | "land";
+  /** Cap de référence local de l’aperçu, en degrés. */
+  referenceHeadingDeg?: number;
   homeX: number;
   homeY: number;
   waypoints: MissionWaypoint[];
@@ -281,6 +283,10 @@ export type ConceptConfig = {
   missionPlan?: LocalMissionPlan;
   /** Conditions de simulation dégradées, persistées avec la configuration locale. */
   missionEnvironment?: MissionEnvironment;
+  /** Scénario d’essai courant partagé entre le laboratoire, Mission Control et les analyses. */
+  activeFlightTestScenario?: "hover" | "route" | "wind" | "obstacles" | "return";
+  /** Préférences de visualisation de l’essai, conservées avec le projet. */
+  flightTestDisplay?: { showExpected: boolean; showZones: boolean; showGrid: boolean };
   /** Cible virtuelle personnalisée, sans commande ni coordonnées opérationnelles. */
   missionTarget?: { name: string; brief: string };
   /** Étape manuellement active dans la progression de conception du Digital Twin (0 à 4). */

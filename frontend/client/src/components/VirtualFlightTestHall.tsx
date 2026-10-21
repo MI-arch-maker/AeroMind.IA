@@ -1,39 +1,43 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Activity, AlertTriangle, ArrowLeft, BatteryCharging, CircleDot, Compass, Gauge, History, Layers3, Pause, Play, Radio, RotateCcw, Route, ShieldCheck, Sparkles, Target, Wind, Zap } from "lucide-react";
-import type { ConceptConfig, SimulationResult } from "../lib/aeroEngine";
+import { runSimulation, type ConceptConfig, type Requirement, type SimulationResult } from "../lib/aeroEngine";
 import type { WorkflowRun } from "../lib/integratedWorkflow";
+import { createCompatibleDemoMissionPlan } from "../lib/flightEngineering";
 import { estimateFlightTestBatteryPercent, hasSynchronizedMissionRoute, projectFlightTestPoint } from "../lib/flightTestSync";
 import "./virtual-flight-test-hall.css";
 
-type Props = { config: ConceptConfig; setConfig: (config: ConceptConfig) => void; simulation: SimulationResult; requirements: unknown[]; workflowRun?: WorkflowRun | null; onOpenBuilder: () => void; viewMode?: "panoramic" | "spatial" };
-type ScenarioId = "hover" | "route" | "obstacles" | "return";
+type Props = { config: ConceptConfig; setConfig: Dispatch<SetStateAction<ConceptConfig>>; simulation: SimulationResult; requirements: Requirement[]; workflowRun?: WorkflowRun | null; onOpenBuilder: () => void; onRunSimulation?: (config?: ConceptConfig) => void; isRunning?: boolean; viewMode?: "panoramic" | "spatial" };
+type ScenarioId = "hover" | "route" | "wind" | "obstacles" | "return";
 type Point = { x: number; y: number; altitudeM: number; speedKmh: number; name: string };
 const scenarios: Array<{ id: ScenarioId; label: string; detail: string; duration: number }> = [
-  { id: "hover", label: "Vol stationnaire", detail: "Maintien positionnel et stabilisation synthétiques", duration: 90 },
-  { id: "route", label: "Trajectoire active", detail: "Suivi du plan mission ou route de démonstration", duration: 150 },
-  { id: "obstacles", label: "Obstacles virtuels", detail: "Évaluation de proximité dans des volumes dessinés", duration: 180 },
-  { id: "return", label: "Retour au point de départ", detail: "Séquence de retour et atterrissage simulée", duration: 120 },
+  { id: "hover", label: "Vol stationnaire", detail: "Maintien et stabilisation dans la cellule locale", duration: 90 },
+  { id: "route", label: "Trajectoire active", detail: "Plan mission partagé avec la carte et Mission Control", duration: 150 },
+  { id: "wind", label: "Vent latéral", detail: "Vent synthétique appliqué au moteur de simulation (+12 km/h)", duration: 150 },
+  { id: "obstacles", label: "Obstacles virtuels", detail: "Proximité XY illustrative dans le volume d’essai", duration: 180 },
+  { id: "return", label: "Retour d’urgence", detail: "Trajet inversé et action de perte de liaison réglée sur retour", duration: 120 },
 ];
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const fallbackOffsets: Record<ScenarioId, Array<[number, number]>> = {
   hover: [[0, 0], [2, -1], [0, 0], [-2, -1], [0, 0]],
+  wind: [[-32, 18], [-16, 3], [2, -8], [20, -13], [38, -23]],
   route: [[-32, 18], [-16, 5], [1, -4], [18, -15], [36, -23]],
   obstacles: [[-32, 18], [-18, 2], [-5, 14], [10, -8], [24, 6], [38, -18]],
   return: [[-32, 18], [-14, 9], [5, -2], [21, -12], [36, -23]],
 };
 const bearing = (from: Point, to: Point) => (Math.atan2(to.x - from.x, from.y - to.y) * 180 / Math.PI + 360) % 360;
 
-export function VirtualFlightTestHall({ config, simulation, requirements, workflowRun, onOpenBuilder, viewMode = "spatial" }: Props) {
-  const [scenario, setScenario] = useState<ScenarioId>("route");
+export function VirtualFlightTestHall({ config, setConfig, simulation, requirements, workflowRun, onOpenBuilder, onRunSimulation, isRunning = false, viewMode = "spatial" }: Props) {
+  const [scenario, setScenario] = useState<ScenarioId>(config.activeFlightTestScenario ?? "route");
+  const [comparisonOpen, setComparisonOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
-  const [initialX, setInitialX] = useState(50);
-  const [initialY, setInitialY] = useState(58);
-  const [headingOffset, setHeadingOffset] = useState(0);
+  const [initialX, setInitialX] = useState(config.missionPlan?.homeX ?? 50);
+  const [initialY, setInitialY] = useState(config.missionPlan?.homeY ?? 58);
+  const [headingOffset, setHeadingOffset] = useState(config.missionPlan?.referenceHeadingDeg ?? 0);
   const [runs, setRuns] = useState(0);
-  const [showExpected, setShowExpected] = useState(true);
-  const [showZones, setShowZones] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
+  const [showExpected, setShowExpected] = useState(config.flightTestDisplay?.showExpected ?? true);
+  const [showZones, setShowZones] = useState(config.flightTestDisplay?.showZones ?? true);
+  const [showGrid, setShowGrid] = useState(config.flightTestDisplay?.showGrid ?? true);
   const hasUserSketch = Boolean(config.customSketch?.strokes.some(stroke => stroke.tool !== "annotation"));
   const hasActiveUserDesign = Boolean(config.engineeringSelection?.droneId || config.platformProfile || hasUserSketch);
   const current = scenarios.find(item => item.id === scenario) ?? scenarios[0];
@@ -41,7 +45,20 @@ export function VirtualFlightTestHall({ config, simulation, requirements, workfl
     setPlaying(false);
     setTime(0);
     setRuns(0);
-  }, [config, simulation.runId]);
+  }, [config.engineeringSelection?.droneId, config.designName]);
+  useEffect(() => {
+    setScenario(config.activeFlightTestScenario ?? "route");
+  }, [config.activeFlightTestScenario]);
+  useEffect(() => {
+    setInitialX(config.missionPlan?.homeX ?? 50);
+    setInitialY(config.missionPlan?.homeY ?? 58);
+    setHeadingOffset(config.missionPlan?.referenceHeadingDeg ?? 0);
+  }, [config.missionPlan?.homeX, config.missionPlan?.homeY, config.missionPlan?.referenceHeadingDeg]);
+  useEffect(() => {
+    setShowExpected(config.flightTestDisplay?.showExpected ?? true);
+    setShowZones(config.flightTestDisplay?.showZones ?? true);
+    setShowGrid(config.flightTestDisplay?.showGrid ?? true);
+  }, [config.flightTestDisplay?.showExpected, config.flightTestDisplay?.showZones, config.flightTestDisplay?.showGrid]);
   useEffect(() => {
     if (!playing) return;
     const timer = window.setInterval(() => setTime(value => Math.min(current.duration, value + 1)), 80);
@@ -93,9 +110,51 @@ export function VirtualFlightTestHall({ config, simulation, requirements, workfl
   const droneName = hasActiveUserDesign ? config.engineeringSelection?.droneLabel || config.platformProfile || config.designName || "Esquisse personnalisée" : "Aucune cellule sélectionnée";
   const hasSynchronizedMission = hasSynchronizedMissionRoute(config.missionPlan?.waypoints);
   const activeScenarioLabel = !hasActiveUserDesign ? "EN ATTENTE D’UNE SÉLECTION" : hasSynchronizedMission ? "PLAN MISSION SYNCHRONISÉ" : "TRAJECTOIRE DE TEST SYNTHÉTIQUE";
-  const launch = () => { if (!hasActiveUserDesign) return; setTime(0); setPlaying(true); setRuns(value => value + 1); };
+  const configForScenario = (base: ConceptConfig, id: ScenarioId): ConceptConfig => ({
+    ...base,
+    activeFlightTestScenario: id,
+    missionEnvironment: {
+      ambientC: base.missionEnvironment?.ambientC ?? 20,
+      windKmh: id === "wind" ? base.windSpeedKmh + 12 : base.windSpeedKmh,
+      emiLevel: base.missionEnvironment?.emiLevel ?? 0,
+      surfaceProfile: base.missionEnvironment?.surfaceProfile,
+      locationLabel: base.missionEnvironment?.locationLabel,
+    },
+    ...(id === "return" && base.missionPlan ? { missionPlan: { ...base.missionPlan, lostLinkAction: "return" as const } } : {}),
+  });
+  const launch = () => {
+    if (!hasActiveUserDesign) return;
+    const runConfig = configForScenario(config, scenario);
+    setConfig(runConfig);
+    onRunSimulation?.(runConfig);
+    setTime(0);
+    setPlaying(true);
+    setRuns(value => value + 1);
+  };
   const reset = () => { setPlaying(false); setTime(0); };
-  const chooseScenario = (id: ScenarioId) => { setScenario(id); setTime(0); setPlaying(false); };
+  const chooseScenario = (id: ScenarioId) => {
+    setScenario(id); setTime(0); setPlaying(false);
+    setConfig(current => configForScenario(current, id));
+  };
+  const updateHomePosition = (axis: "homeX" | "homeY", value: number) => {
+    if (axis === "homeX") setInitialX(value); else setInitialY(value);
+    setConfig(current => ({ ...current, missionPlan: { ...(current.missionPlan ?? createCompatibleDemoMissionPlan(current)), [axis]: value } }));
+  };
+  const updateHeadingReference = (value: number) => {
+    setHeadingOffset(value);
+    setConfig(current => ({ ...current, missionPlan: { ...(current.missionPlan ?? createCompatibleDemoMissionPlan(current)), referenceHeadingDeg: value } }));
+  };
+  const updateDisplay = (key: "showExpected" | "showZones" | "showGrid", value: boolean) => {
+    if (key === "showExpected") setShowExpected(value);
+    if (key === "showZones") setShowZones(value);
+    if (key === "showGrid") setShowGrid(value);
+    setConfig(current => ({ ...current, flightTestDisplay: { showExpected: current.flightTestDisplay?.showExpected ?? true, showZones: current.flightTestDisplay?.showZones ?? true, showGrid: current.flightTestDisplay?.showGrid ?? true, [key]: value } }));
+  };
+  const comparisonBase = useMemo(() => {
+    const baseline: ConceptConfig = { ...config, activeFlightTestScenario: "route", missionEnvironment: { ambientC: config.missionEnvironment?.ambientC ?? 20, windKmh: config.windSpeedKmh, emiLevel: config.missionEnvironment?.emiLevel ?? 0, surfaceProfile: config.missionEnvironment?.surfaceProfile, locationLabel: config.missionEnvironment?.locationLabel } };
+    return runSimulation(baseline, requirements);
+  }, [config, requirements]);
+  const comparisonCurrent = useMemo(() => runSimulation(config, requirements), [config, requirements]);
   const altitudeExtentM = Math.max(1, ...[config.altitudeM, currentAltitude, ...playbackRoute.map(point => point.altitudeM), ...(!hasActiveUserDesign ? [120] : [])].filter(Number.isFinite));
   const projectToSpace = (point: Point) => projectFlightTestPoint(point, altitudeExtentM);
   const spaceRouteSource: Point[] = hasActiveUserDesign ? (isHover ? [{ x: initialX, y: initialY, altitudeM: config.altitudeM * 0.68, speedKmh: config.cruiseSpeedKmh, name: "HOLD" }] : playbackRoute) : [
@@ -119,12 +178,15 @@ export function VirtualFlightTestHall({ config, simulation, requirements, workfl
     </header>
     <div className="vfth-command">
       <div className="vfth-status"><span className={playing ? "live" : ""} /> TEST {playing ? "EN EXÉCUTION" : !hasActiveUserDesign ? "CELLULE REQUISE" : time >= current.duration ? "TERMINÉ" : "EN ATTENTE"}<small>{hasActiveUserDesign ? `${droneName} · ${config.airframe || "architecture à définir"} · ${motorCount} moteur(s)` : "Aucun modèle ni dessin de démonstration chargé"}</small></div>
-      <button className="vfth-primary" disabled={!hasActiveUserDesign} onClick={playing ? () => setPlaying(false) : launch}>{playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Suspendre" : "Lancer l’essai"}</button>
+      <button className="vfth-primary" disabled={!hasActiveUserDesign || (isRunning && !playing)} onClick={playing ? () => setPlaying(false) : launch}>{playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Suspendre" : isRunning ? "Calcul…" : "Lancer l’essai"}</button>
+      <button disabled={!hasActiveUserDesign || isRunning} onClick={() => onRunSimulation?.(config)} title="Recalculer la cellule active avec le moteur de simulation AeroMind"><Activity size={14} /> {isRunning ? "Analyse…" : "Lancer l’analyse"}</button>
+      <button disabled={!hasActiveUserDesign} aria-expanded={comparisonOpen} onClick={() => setComparisonOpen(value => !value)}><Layers3 size={14} /> {comparisonOpen ? "Masquer comparaison" : "Comparer les essais"}</button>
       <button onClick={reset}><RotateCcw size={14} /> Réinitialiser</button>
       <button onClick={onOpenBuilder}><ArrowLeft size={14} /> Mission Control</button>
     </div>
 
-    <div className="vfth-live-strip"><span><CircleDot size={13} /> {activeScenarioLabel}</span><span><Activity size={13} /> PUISSANCE <b>{hasActiveUserDesign ? `${simulation.estimatedPowerW.toFixed(0)} W` : "—"}</b></span><span><Gauge size={13} /> AUTONOMIE <b>{hasActiveUserDesign ? `${simulation.enduranceH.toFixed(2)} h` : "—"}</b></span><span><Route size={13} /> PORTÉE <b>{hasActiveUserDesign ? `${simulation.rangeKm.toFixed(1)} km` : "—"}</b></span><span><Layers3 size={13} /> {requirements.length} exigence(s) projet</span></div>
+    <div className="vfth-live-strip"><span><CircleDot size={13} /> {activeScenarioLabel}</span><span><Activity size={13} /> PUISSANCE <b>{hasActiveUserDesign ? `${simulation.estimatedPowerW.toFixed(0)} W` : "—"}</b></span><span><Gauge size={13} /> AUTONOMIE <b>{hasActiveUserDesign ? `${simulation.enduranceH.toFixed(2)} h` : "—"}</b></span><span><Route size={13} /> PORTÉE <b>{hasActiveUserDesign ? `${simulation.rangeKm.toFixed(1)} km` : "—"}</b></span><span><Layers3 size={13} /> {requirements.length} exigence(s) projet</span><span>RUN <b>{simulation.runId}</b></span></div>
+    {comparisonOpen && <section className="vfth-panel vfth-comparison" aria-live="polite"><div className="vfth-panel-head"><div><span className="vfth-index">ANALYSE CALCULÉE · MOTEUR AEROMIND</span><h3>Comparaison du scénario et de la référence</h3></div><span className="vfth-chip">{activeScenarioLabel}</span></div><div className="vfth-compare-grid"><span>PUISSANCE · RÉFÉRENCE <b>{comparisonBase.estimatedPowerW.toFixed(0)} W</b></span><span>PUISSANCE · SCÉNARIO <b>{comparisonCurrent.estimatedPowerW.toFixed(0)} W</b></span><span>ÉCART <b>{(comparisonCurrent.estimatedPowerW-comparisonBase.estimatedPowerW>=0?"+":"")}{(comparisonCurrent.estimatedPowerW-comparisonBase.estimatedPowerW).toFixed(0)} W</b></span><span>AUTONOMIE · RÉFÉRENCE <b>{comparisonBase.enduranceH.toFixed(2)} h</b></span><span>AUTONOMIE · SCÉNARIO <b>{comparisonCurrent.enduranceH.toFixed(2)} h</b></span><span>RUN PERSISTÉ <b>{simulation.runId}</b></span></div><small>Calcul local déterministe à partir de la configuration projet partagée. Les indicateurs ne sont ni une mesure physique ni une validation de vol.</small></section>}
 
     <div className="vfth-layout">
       <section className="vfth-panel vfth-hangar">
@@ -152,13 +214,13 @@ export function VirtualFlightTestHall({ config, simulation, requirements, workfl
           <div className="vfth-observation-post"><Radio size={13} /> TÉLÉMÉTRIE · SIMULATION</div>
           <div className="vfth-scene-crosshair"><CrosshairIcon /></div>
         </div>
-        <div className="vfth-scene-controls"><label><input type="checkbox" checked={showExpected} onChange={event => setShowExpected(event.target.checked)} /> trajectoire & waypoints</label><label><input type="checkbox" checked={showZones} onChange={event => setShowZones(event.target.checked)} /> volumes illustratifs</label><label><input type="checkbox" checked={showGrid} onChange={event => setShowGrid(event.target.checked)} /> grille XYZ</label><span><i className="expected-dot" /> prévue <i className="actual-dot" /> parcourue</span></div>
+        <div className="vfth-scene-controls"><label><input type="checkbox" checked={showExpected} onChange={event => updateDisplay("showExpected", event.target.checked)} /> trajectoire & waypoints</label><label><input type="checkbox" checked={showZones} onChange={event => updateDisplay("showZones", event.target.checked)} /> volumes illustratifs</label><label><input type="checkbox" checked={showGrid} onChange={event => updateDisplay("showGrid", event.target.checked)} /> grille XYZ</label><span><i className="expected-dot" /> prévue <i className="actual-dot" /> parcourue</span></div>
       </section>
 
       <aside className="vfth-panel vfth-scenarios"><div className="vfth-panel-head"><div><span className="vfth-index">B / CAMPAGNE</span><h3>Scénarios d’essai</h3></div><Route size={17} className="vfth-icon" /></div>
         <div className="vfth-scenario-list">{scenarios.map((item, index) => <button key={item.id} className={scenario === item.id ? "is-active" : ""} onClick={() => chooseScenario(item.id)} disabled={!hasActiveUserDesign}><span className="scenario-number">0{index + 1}</span><span><strong>{item.label}</strong><small>{item.detail}</small></span><em>{item.duration}s</em></button>)}</div>
         <div className="vfth-launch-card"><strong>{hasActiveUserDesign ? current.label : "Sélection requise"}</strong><small>{activeScenarioLabel} · {runs ? `run ${String(runs).padStart(2, "0")}` : "aucun essai préchargé"}</small><button onClick={launch} disabled={!hasActiveUserDesign || playing}><Play size={13} /> Exécuter le scénario</button></div>
-        <div className="vfth-placement"><span>INITIALISATION · POSITION & CAP</span><label>X <input type="range" min="15" max="80" value={initialX} onChange={event => setInitialX(Number(event.target.value))} /><b>{initialX}%</b></label><label>Y <input type="range" min="25" max="78" value={initialY} onChange={event => setInitialY(Number(event.target.value))} /><b>{initialY}%</b></label><label>CAP DE RÉFÉRENCE <input type="range" min="-180" max="180" value={headingOffset} onChange={event => setHeadingOffset(Number(event.target.value))} /><b>{headingOffset}°</b></label></div>
+        <div className="vfth-placement"><span>INITIALISATION · POSITION & CAP</span><label>X <input type="range" min="15" max="80" value={initialX} onChange={event => updateHomePosition("homeX", Number(event.target.value))} /><b>{initialX}%</b></label><label>Y <input type="range" min="25" max="78" value={initialY} onChange={event => updateHomePosition("homeY", Number(event.target.value))} /><b>{initialY}%</b></label><label>CAP DE RÉFÉRENCE <input type="range" min="-180" max="180" value={headingOffset} onChange={event => updateHeadingReference(Number(event.target.value))} /><b>{headingOffset}°</b></label></div>
       </aside>
 
       <section className="vfth-panel vfth-timeline"><div className="vfth-panel-head"><div><span className="vfth-index">C / SÉQUENCE</span><h3>Timeline de l’essai</h3></div><span className="vfth-chip">T+{String(time).padStart(3, "0")}s / {current.duration}s</span></div><input aria-label="Position temporelle du test" type="range" min="0" max={current.duration} value={time} onChange={event => setTime(Number(event.target.value))} /><div className="vfth-sequence"><span>INITIALISATION</span><span className={time > current.duration * .18 ? "done" : ""}>DÉCOLLAGE</span><span className={time > current.duration * .4 ? "done" : ""}>CROISIÈRE</span><span className={time > current.duration * .8 ? "done" : ""}>RETOUR</span><span className={time >= current.duration ? "done" : ""}>TERMINÉ</span></div><div className="vfth-timeline-meta"><span>PROGRESSION <b>{Math.round(phase * 100)}%</b></span><span>WAYPOINT <b>{to.name}</b></span><span>CAP <b>{Math.round(yaw)}°</b></span></div></section>

@@ -12992,10 +12992,10 @@ export default function Home() {
   };
   const setAction = (id: string, action: ActionState) =>
     setActions(current => ({ ...current, [id]: action }));
-  const runSimulationNow = () => {
+  const runSimulationNow = (candidateConfig: ConceptConfig = config) => {
     if (isRunning) return;
-    if (!config.airframe || !config.motorCount) return;
-    const simulationConfig = config;
+    if (!candidateConfig.airframe || !candidateConfig.motorCount) return;
+    const simulationConfig = candidateConfig;
 
     setIsRunning(true);
     setAction("simulation", {
@@ -13837,22 +13837,17 @@ export default function Home() {
                     )}
                     {activeView === "simulation" && (
                       <>
-                        <section className="simulation-engineering-lab" aria-label="Laboratoire d’ingénierie et de simulation">
-                          <header className="simulation-engineering-lab-heading">
-                            <span>ENVIRONNEMENT DE TEST · MÊME CELLULE DE CONCEPTION</span>
-                            <h2>Laboratoire d’ingénierie & simulation</h2>
-                            <p>Essais virtuels synchronisés avec le modèle, les paramètres, le plan de mission et les résultats du moteur AeroMind.</p>
-                          </header>
-                          <VirtualFlightTestHall
-                            viewMode="panoramic"
-                            config={config}
-                            setConfig={setConfig}
-                            simulation={simulation}
-                            requirements={requirements}
-                            workflowRun={workflowRun}
-                            onOpenBuilder={() => document.querySelector(".vsc-mission-control")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                          />
-                        </section>
+                        <VirtualFlightTestHall
+                          viewMode="panoramic"
+                          config={config}
+                          setConfig={setConfig}
+                          simulation={simulation}
+                          requirements={requirements}
+                          workflowRun={workflowRun}
+                          isRunning={isRunning}
+                          onRunSimulation={runSimulationNow}
+                          onOpenBuilder={() => document.querySelector(".vsc-mission-control")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                        />
                         <VirtualSimulationCenter
                           simulation={simulation}
                           requirements={requirements}
@@ -13860,21 +13855,8 @@ export default function Home() {
                           isRunning={isRunning}
                           config={config}
                           setConfig={setConfig}
-                          history={
-                            (serverRunsQuery.data ?? []) as Array<{
-                              id: number;
-                              runId: string;
-                              engineVersion: string;
-                              createdAt: Date;
-                            }>
-                          }
-                          versions={
-                            (serverVersionsQuery.data ?? []) as Array<{
-                              id: number;
-                              version: string;
-                              createdAt: Date;
-                            }>
-                          }
+                          history={(serverRunsQuery.data ?? []) as Array<{ id: number; runId: string; engineVersion: string; createdAt: Date }>}
+                          versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
                           onRestoreVersion={restoreDesignVersion}
                         />
                       </>
@@ -13889,6 +13871,8 @@ export default function Home() {
                         simulation={simulation}
                         requirements={requirements}
                         workflowRun={workflowRun}
+                        isRunning={isRunning}
+                        onRunSimulation={runSimulationNow}
                         onOpenBuilder={() => setActiveView("simulation")}
                       />
                     )}
