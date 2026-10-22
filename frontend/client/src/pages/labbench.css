@@ -43,3 +43,79 @@
 .lb-instrument-strip>div:last-child strong{color:var(--lb-amber)}
 .lb-instrument-strip span{color:#89a5ad;font-size:10px;line-height:1.4}
 @media(max-width:720px){.lb-instrument-strip{grid-template-columns:repeat(2,minmax(0,1fr));margin:-8px 0 18px}.lb-instrument-strip>div{padding:10px}.lb-instrument-strip strong{font-size:11px}}
+
+
+/* Disposition ergonomique LABBENCH 01 : navigation persistante, contenu centré et lecture par étapes. */
+@media (min-width: 721px) {
+  .lb-rail {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    min-height: 0;
+    width: 248px;
+    padding: 20px 12px 16px;
+    overflow-y: auto;
+  }
+  .lb-main {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0 clamp(22px, 3.2vw, 48px) 48px;
+    overflow: visible;
+  }
+  .lb-topbar,
+  .lb-safety-banner,
+  .lb-note,
+  .lb-mode-row,
+  .lb-instrument-strip,
+  .lb-main > .lb-panel,
+  .lb-content {
+    width: 100%;
+    max-width: 1440px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .lb-topbar { min-height: 104px; }
+  .lb-content { margin-top: 4px; }
+  .lb-instrument-strip { margin-top: 0; margin-bottom: 16px; }
+  .lb-mode-row { margin-bottom: 18px; }
+  .lb-mode { min-height: 84px; }
+  .lb-mode:focus-visible,
+  .lb-nav-item:focus-visible,
+  .lb-primary:focus-visible,
+  .lb-secondary:focus-visible {
+    outline: 2px solid var(--lb-cyan);
+    outline-offset: 3px;
+  }
+  .lb-rail nav { display: grid; gap: 3px; }
+  .lb-nav-item { min-height: 54px; }
+  .lb-nav-item[aria-current="page"] { position: relative; }
+}
+
+@media (max-width: 1050px) and (min-width: 721px) {
+  .lb-rail { width: 218px; }
+  .lb-main { padding-left: 22px; padding-right: 22px; }
+  .lb-instrument-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .lb-rail nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #0c1a28;
+    margin: 0 -14px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--lb-line);
+    border-bottom: 1px solid var(--lb-line);
+    scroll-snap-type: x proximity;
+  }
+  .lb-nav-item { scroll-snap-align: start; }
+  .lb-nav-item[aria-current="page"] { box-shadow: inset 0 -2px var(--lb-cyan); }
+  .lb-main { overflow: visible; }
+  .lb-topbar { gap: 10px; }
+  .lb-chip { font-size: 9px; padding: 7px 8px; }
+  .lb-safety-banner { padding: 10px 11px; }
+  .lb-safety-banner span { font-size: 11px; }
+  .lb-instrument-strip { margin-top: 0; }
+}

@@ -720,6 +720,7 @@ export default function LabBench() {
             <button
               key={item.id}
               className={`lb-nav-item ${view === item.id ? "is-active" : ""}`}
+              aria-current={view === item.id ? "page" : undefined}
               onClick={() => setView(item.id)}
             >
               <item.icon size={17} />
