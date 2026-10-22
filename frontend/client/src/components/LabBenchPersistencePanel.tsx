@@ -19,7 +19,7 @@ export function LabBenchPersistencePanel({ projectId: controlledProjectId }: { p
   const meQuery = trpc.auth.me.useQuery(undefined, { staleTime: 60_000 });
   const projectsQuery = trpc.projects.list.useQuery(undefined, { enabled: Boolean(meQuery.data), retry: false });
   const [projectId, setProjectId] = useState<string | null>(null);
-  const projects = (projectsQuery.data ?? []).map(project => ({ ...project, id: String(project.id) })) as RemoteProject[];
+  const projects = (Array.isArray(projectsQuery.data) ? projectsQuery.data : []).map(project => ({ ...project, id: String(project.id) })) as RemoteProject[];
   const selectedProject = projects.find(project => project.id === (controlledProjectId ?? projectId)) ?? projects[0];
   const selectedProjectId = selectedProject?.id ?? null;
   const registryQuery = trpc.labBench.registry.useQuery(selectedProjectId ?? "0", { enabled: Boolean(selectedProjectId), retry: false });
@@ -37,7 +37,8 @@ export function LabBenchPersistencePanel({ projectId: controlledProjectId }: { p
   });
   const persistMutation = trpc.labBench.persistSimulation.useMutation({
     onSuccess(result) {
-      toast.success("Run N2 archivé", { description: `${result.runId} · ${result.telemetry.length} échantillons · audit projet créé.` });
+      const sampleCount = Array.isArray(result.telemetry) ? result.telemetry.length : 0;
+      toast.success("Run N2 archivé", { description: `${result.runId} · ${sampleCount} échantillons · audit projet créé.` });
       void registryQuery.refetch();
     },
     onError(error) { toast.error("Archivage refusé", { description: error.message }); },
@@ -61,5 +62,9 @@ export function LabBenchPersistencePanel({ projectId: controlledProjectId }: { p
   if (!selectedProject) return <section className="lb-persistence lb-panel"><Database size={18} /><div><strong>Projet requis pour l’archivage LabBench</strong><span>Créez d’abord un projet dans le cockpit AeroMind ; aucun registre ni run n’est créé sans propriétaire.</span></div></section>;
 
   const registry = registryQuery.data;
-  return <section className="lb-persistence lb-panel"><div className="lb-persistence-heading"><div><Database size={18} /><span><strong>Persistance officielle du projet</strong><small>{selectedProject.project.name} · {selectedProject.project.version}</small></span></div>{projects.length > 1 && !controlledProjectId && <select aria-label="Projet AeroMind cible" value={selectedProjectId} onChange={event => setProjectId(event.target.value)}>{projects.map(project => <option value={project.id} key={project.id}>{project.project.name}</option>)}</select>}</div><div className="lb-persistence-stats"><span><b>{registry?.requirements.length ?? 0}</b> exigences</span><span><b>{registry?.devices.length ?? 0}</b> appareil(s)</span><span><b>{registry?.drivers.length ?? 0}</b> pilote(s)</span><span><b>{registry?.runs.length ?? 0}</b> run(s)</span></div><div className="lb-persistence-actions"><button className="lb-secondary" disabled={seedMutation.isPending} onClick={() => seedMutation.mutate({ id: selectedProjectId })}><Save size={14} />{seedMutation.isPending ? "Initialisation…" : "Initialiser le registre"}</button><button className="lb-secondary" disabled={persistMutation.isPending} onClick={() => persistMutation.mutate({ id: selectedProjectId, ...simulationInput })}><RotateCw size={14} />{persistMutation.isPending ? "Archivage…" : "Archiver le run N2"}</button><button className="lb-secondary" disabled={reportMutation.isPending} onClick={archiveReport}><Archive size={14} />{reportMutation.isPending ? "Archivage…" : "Archiver le rapport"}</button></div><p><CheckCircle2 size={14} />Les écritures sont associées au propriétaire du projet, à un run, aux échantillons de télémétrie et à l’audit. Elles ne lèvent aucun verrou matériel.</p></section>;
+  const registryRequirements = Array.isArray(registry?.requirements) ? registry.requirements : [];
+  const registryDevices = Array.isArray(registry?.devices) ? registry.devices : [];
+  const registryDrivers = Array.isArray(registry?.drivers) ? registry.drivers : [];
+  const registryRuns = Array.isArray(registry?.runs) ? registry.runs : [];
+  return <section className="lb-persistence lb-panel"><div className="lb-persistence-heading"><div><Database size={18} /><span><strong>Persistance officielle du projet</strong><small>{selectedProject.project.name} · {selectedProject.project.version}</small></span></div>{projects.length > 1 && !controlledProjectId && <select aria-label="Projet AeroMind cible" value={selectedProjectId} onChange={event => setProjectId(event.target.value)}>{projects.map(project => <option value={project.id} key={project.id}>{project.project.name}</option>)}</select>}</div><div className="lb-persistence-stats"><span><b>{registryRequirements.length}</b> exigences</span><span><b>{registryDevices.length}</b> appareil(s)</span><span><b>{registryDrivers.length}</b> pilote(s)</span><span><b>{registryRuns.length}</b> run(s)</span></div><div className="lb-persistence-actions"><button className="lb-secondary" disabled={seedMutation.isPending} onClick={() => seedMutation.mutate({ id: selectedProjectId })}><Save size={14} />{seedMutation.isPending ? "Initialisation…" : "Initialiser le registre"}</button><button className="lb-secondary" disabled={persistMutation.isPending} onClick={() => persistMutation.mutate({ id: selectedProjectId, ...simulationInput })}><RotateCw size={14} />{persistMutation.isPending ? "Archivage…" : "Archiver le run N2"}</button><button className="lb-secondary" disabled={reportMutation.isPending} onClick={archiveReport}><Archive size={14} />{reportMutation.isPending ? "Archivage…" : "Archiver le rapport"}</button></div><p><CheckCircle2 size={14} />Les écritures sont associées au propriétaire du projet, à un run, aux échantillons de télémétrie et à l’audit. Elles ne lèvent aucun verrou matériel.</p></section>;
 }

@@ -159,3 +159,143 @@
 @media (prefers-reduced-motion: reduce) {
   .aero-field-station *, .aero-field-station *::before, .aero-field-station *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* Lecture visuelle de l’itinéraire : prévu, parcouru et étapes. */
+.afs-route-shadow {
+  stroke: rgba(4, 15, 18, .9);
+  stroke-width: 10px;
+  opacity: .96;
+}
+.afs-route-line {
+  stroke: #ffc65b;
+  stroke-width: 3.5px;
+  stroke-dasharray: 7 6;
+  filter: drop-shadow(0 0 3px rgba(255, 194, 74, .8));
+  animation: afs-route-dash 1.15s linear infinite;
+}
+.afs-route-flown {
+  stroke: #64f2d3;
+  stroke-width: 4.5px;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 5px rgba(67, 243, 210, .95));
+}
+@keyframes afs-route-dash {
+  to { stroke-dashoffset: -26px; }
+}
+.afs-waypoint { transition: filter .16s ease; }
+.afs-waypoint:hover { filter: drop-shadow(0 0 5px rgba(255, 255, 255, .85)); }
+.afs-waypoint .afs-wp-halo {
+  fill: rgba(5, 17, 22, .88);
+  stroke: rgba(250, 255, 247, .96);
+  stroke-width: 1.25px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .85));
+}
+.afs-waypoint .afs-wp-dot {
+  fill: #ffd05f;
+  stroke: #17241e;
+  stroke-width: 1.25px;
+}
+.afs-route-layer > .afs-waypoint:first-of-type .afs-wp-dot { fill: #58edbd; }
+.afs-route-layer > .afs-waypoint:last-of-type .afs-wp-dot { fill: #ff9075; }
+.afs-waypoint.is-selected .afs-wp-halo {
+  fill: rgba(63, 241, 211, .25);
+  stroke: #86ffe2;
+  stroke-width: 2px;
+  filter: drop-shadow(0 0 4px rgba(69, 255, 222, .9));
+}
+.afs-waypoint.is-selected .afs-wp-dot { fill: #f5fffb; }
+.afs-waypoint text {
+  fill: #fff;
+  stroke: rgba(3, 13, 17, .96);
+  stroke-width: 2.7px;
+  paint-order: stroke fill;
+  font-size: 2.1px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .65));
+}
+.afs-field-legend .afs-legend-plan {
+  height: 3px;
+  background: repeating-linear-gradient(90deg, #ffc65b 0 7px, transparent 7px 11px);
+  box-shadow: 0 0 5px rgba(255, 194, 74, .4);
+}
+.afs-field-legend .afs-legend-flown {
+  height: 4px;
+  background: #64f2d3;
+  box-shadow: 0 0 6px rgba(67, 243, 210, .65);
+}
+.afs-waypoint-list {
+  position: relative;
+  gap: 7px;
+  max-height: 270px;
+  padding: 2px 2px 2px 0;
+}
+.afs-waypoint-list::before {
+  position: absolute;
+  z-index: 0;
+  top: 18px;
+  bottom: 18px;
+  left: 19px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(88, 237, 189, .8), rgba(255, 198, 91, .55) 55%, rgba(255, 144, 117, .8));
+  content: "";
+}
+.afs-waypoint-list li {
+  position: relative;
+  z-index: 1;
+  min-height: 43px;
+  gap: 7px;
+  border-color: rgba(177, 206, 193, .2);
+  border-radius: 9px;
+  background: linear-gradient(105deg, rgba(17, 39, 40, .96), rgba(11, 27, 32, .88));
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.afs-waypoint-list li:hover:not(.is-selected) {
+  border-color: rgba(255, 198, 91, .44);
+  transform: translateX(2px);
+}
+.afs-waypoint-list li.is-selected {
+  border-color: rgba(100, 242, 211, .72);
+  background: linear-gradient(105deg, rgba(25, 68, 64, .96), rgba(14, 42, 47, .94));
+  box-shadow: inset 3px 0 0 #64f2d3, 0 4px 14px rgba(0, 0, 0, .18);
+}
+.afs-waypoint-list .afs-wp-select { gap: 9px; min-height: 43px; padding: 6px 8px; }
+.afs-waypoint-list .afs-wp-select > b {
+  width: 27px;
+  height: 27px;
+  border: 2px solid rgba(255, 255, 255, .62);
+  color: #18251e;
+  background: #ffd05f;
+  box-shadow: 0 0 0 3px rgba(255, 208, 95, .12), 0 2px 7px rgba(0, 0, 0, .35);
+  font-size: 9px;
+}
+.afs-waypoint-list li:first-child .afs-wp-select > b { background: #58edbd; }
+.afs-waypoint-list li:last-child .afs-wp-select > b { background: #ff9075; }
+.afs-waypoint-list li.is-selected .afs-wp-select > b {
+  border-color: #e7fff7;
+  background: #64f2d3;
+  box-shadow: 0 0 0 3px rgba(100, 242, 211, .18), 0 0 12px rgba(100, 242, 211, .45);
+}
+.afs-waypoint-list .afs-wp-select > span { gap: 4px; font-weight: 650; }
+.afs-waypoint-list .afs-wp-select small { color: #a7c1b9; font-size: 8px; }
+.afs-waypoint-list .afs-wp-delete { border-color: transparent; border-radius: 6px; }
+.afs-waypoint-list .afs-wp-delete:hover:not(:disabled) {
+  border-color: rgba(255, 144, 117, .35);
+  color: #ffc0b2;
+  background: rgba(99, 37, 34, .4);
+}
+.afs-wp-editor {
+  border-color: rgba(100, 242, 211, .34);
+  background: linear-gradient(145deg, rgba(11, 36, 39, .9), rgba(8, 24, 30, .88));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .025);
+}
+.afs-route-actions button.is-active {
+  border-color: rgba(255, 198, 91, .82);
+  color: #ffe7a4;
+  background: linear-gradient(110deg, rgba(91, 68, 24, .9), rgba(59, 52, 27, .88));
+  box-shadow: inset 0 0 0 1px rgba(255, 198, 91, .12), 0 0 12px rgba(255, 198, 91, .1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .afs-route-line { animation: none; }
+  .afs-waypoint, .afs-waypoint-list li { transition: none; }
+}
