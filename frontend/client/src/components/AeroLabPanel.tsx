@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -92,6 +92,10 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
   const liveTelemetry: TelemetryPoint | null = visibleResult
     ? telemetryAt(progress, visibleResult)
     : null;
+  const chamberActive = status === "running" || status === "paused" || status === "complete";
+  const chamberX = chamberActive ? 24 + progress * 0.52 : 50;
+  const chamberY = 50 + (liveTelemetry ? clamp(liveTelemetry.crossTrackM / Math.max(labConfig.criteria.maxCrossTrackM, 1) * 12, -12, 12) : 0);
+  const chamberTilt = liveTelemetry ? clamp(liveTelemetry.crossTrackM * 1.8, -14, 14) : 0;
   const samples = useMemo(
     () => (visibleResult ? makeTelemetrySeries(visibleResult) : []),
     [visibleResult],
@@ -824,14 +828,14 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
         <div className="aerolab-workspace-right">
           <section
             className={`aerolab-console aerolab-state-${status}`}
-            aria-label={t("Console d’essais locale")}
+            aria-label={t("Poste de pilotage d’essai local")}
           >
             <div className="aerolab-section-title">
               <div>
                 <span className="aerolab-kicker">
                   02 · {t("EXÉCUTION LOCALE")}
                 </span>
-                <h3>{t("Console d’essais")}</h3>
+                <h3>{t("Poste de pilotage d’essai")}</h3>
               </div>
               <span className="aerolab-run-state">
                 <i />
@@ -843,7 +847,7 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
                 <span>{t("CHAMBRE D’ESSAI NUMÉRIQUE")}</span>
                 <span>{t("MODÈLE CONCEPTUEL · SANS MATÉRIEL")}</span>
               </div>
-              <div className="aerolab-wind-lines" aria-hidden="true">
+              <div className={`aerolab-wind-lines ${status === "running" ? "is-flowing" : ""}`} style={{ "--wind-speed": `${Math.max(0.8, 3.5 - labConfig.conditions.windMps * 0.08)}s` } as CSSProperties} aria-hidden="true">
                 <i />
                 <i />
                 <i />
@@ -868,7 +872,8 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
                 </span>
               </div>
               <svg
-                className={`aerolab-drone ${status === "running" ? "is-flying" : ""}`}
+                className={`aerolab-drone ${status === "running" ? "is-flying" : ""} aerolab-airframe-${labConfig.drone.profile.toLowerCase().includes("wing") || labConfig.drone.profile.toLowerCase().includes("fixed") ? "wing" : labConfig.drone.profile.toLowerCase().includes("vtol") ? "vtol" : "multirotor"}`}
+                style={{ left: `${chamberX}%`, top: `${chamberY}%`, "--drone-tilt": `${chamberTilt}deg` } as CSSProperties}
                 viewBox="0 0 420 170"
                 role="img"
                 aria-label={t(
@@ -883,20 +888,20 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
                   fill="rgba(0,0,0,.28)"
                 />
                 <g fill="#bbc9ca" stroke="#ecf5f1" strokeWidth="2">
-                  <path d="M70 85h82l47-24h38l48 24h75v12h-75l-48 24h-38l-47-24H70z" />
-                  <path d="M194 64l-25-28 44 19 33 0 33-19-25 28v54l25 24-46-18-36 0-29 18 26-25z" />
+                  {labConfig.drone.profile.toLowerCase().includes("wing") || labConfig.drone.profile.toLowerCase().includes("fixed") ? <path d="M38 87 176 77l31-43 16 38 64-8 95 23-95 23-64-8-16 38-31-43z" /> : <><path d="M70 85h82l47-24h38l48 24h75v12h-75l-48 24h-38l-47-24H70z" /><path d="M194 64l-25-28 44 19 33 0 33-19-25 28v54l25 24-46-18-36 0-29 18 26-25z" /></>}
                 </g>
                 <g stroke="#819a9e" strokeWidth="5" strokeLinecap="round">
                   <path d="M120 82L63 60M120 99L63 121M303 82l57-22M303 99l57 22" />
                 </g>
                 <g fill="#0b2730" stroke="#76b7b7" strokeWidth="4">
-                  <circle cx="58" cy="58" r="14" />
-                  <circle cx="58" cy="123" r="14" />
-                  <circle cx="365" cy="58" r="14" />
-                  <circle cx="365" cy="123" r="14" />
+                  <circle className="aerolab-propeller" cx="58" cy="58" r="14" />
+                  <circle className="aerolab-propeller" cx="58" cy="123" r="14" />
+                  <circle className="aerolab-propeller" cx="365" cy="58" r="14" />
+                  <circle className="aerolab-propeller" cx="365" cy="123" r="14" />
                 </g>
                 <circle cx="216" cy="88" r="5" fill="#8be1d7" />
               </svg>
+              <div className="aerolab-chamber-readout"><b>{labConfig.drone.profile}</b><span>{selectedScenario === "aeromind-project" ? projectOutdated ? "PROFIL AEROMIND À RESYNCHRONISER" : "PROFIL AEROMIND RELIÉ · À JOUR" : "SCÉNARIO LOCAL PERSONNALISÉ"}</span><span>{labConfig.mission.label} · {Math.round(labConfig.conditions.altitudeM)} m</span><span>{visibleResult ? `${format(visibleResult.groundSpeedMps)} m/s sol` : "Configuration à compléter"} · vent {format(labConfig.conditions.windMps)} m/s</span></div>
               <div className="aerolab-tunnel-axis">
                 <span>{t("FLUX D’AIR SIMULÉ")}</span>
                 <span>{t("VISUALISATION SCHÉMATIQUE")}</span>

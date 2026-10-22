@@ -46,8 +46,7 @@ import { DroneBehaviorPanel } from "../components/DroneBehaviorPanel";
 import { DroneSketchProWorkbench } from "../components/DroneSketchProWorkbench";
 import { VirtualAssemblyWorkshop } from "../components/VirtualAssemblyWorkshop";
 import { VirtualSimulationCenter } from "../components/VirtualSimulationCenter";
-import { AeroLabPanel } from "../components/AeroLabPanel";
-import { VirtualFlightTestHall } from "../components/VirtualFlightTestHall";
+import { AeroTestFieldStation } from "../components/AeroTestFieldStation";
 import type { MissionTelemetryFrame } from "../lib/missionBridge";
 import {
   authorizeControlCommand,
@@ -7583,12 +7582,16 @@ function LiveSimulationView({
   simulation,
   requirements,
   setConfig,
+  activeProfile,
+  activeDroneLabel,
   onOpenBuilder,
 }: {
   config: ConceptConfig;
   setConfig: SetConceptConfig;
   simulation: SimulationResult;
   requirements: Requirement[];
+  activeProfile?: DroneCatalogDesign;
+  activeDroneLabel: string;
   onOpenBuilder: () => void;
 }) {
   const configured = Boolean(
@@ -7613,6 +7616,8 @@ function LiveSimulationView({
   const [showOrbit, setShowOrbit] = useState(true);
   const [showTelemetryOverlay, setShowTelemetryOverlay] = useState(true);
   const [trajectoryFrame, setTrajectoryFrame] = useState<"tactical" | "clean">("tactical");
+  const [trajectoryView, setTrajectoryView] = useState<"plan" | "perspective" | "follow">("plan");
+  const [cameraZoom, setCameraZoom] = useState(1);
   const [sensorActive, setSensorActive] = useState(true);
   const [testStep, setTestStep] = useState(0);
   const [selectedTestId, setSelectedTestId] =
@@ -7722,6 +7727,43 @@ function LiveSimulationView({
   );
   const heading =
     Math.round(((phase * 57.3 + 180 + rollInput * 0.45) % 360) + 360) % 360;
+  const userSketchSelected = Boolean(config.customSketch?.strokes.some(stroke => stroke.tool !== "annotation"));
+  const hasSelectedDrone = Boolean(
+    activeProfile ||
+    (activeDroneLabel && activeDroneLabel !== "Aucun drone sélectionné" && activeDroneLabel !== "No drone selected") ||
+    userSketchSelected
+  );
+  const modelTypeHint = config.modelType ?? activeProfile?.modelType;
+  const inferredKey = modelTypeHint && ["aile-volante", "voilure-conventionnelle", "planeur", "canard", "tandem-wing", "hale-voilure", "male-voilure", "stealth-wing", "blended-pusher", "biplan"].includes(modelTypeHint) ? "fixed-wing" : modelTypeHint && ["tiltrotor", "tilt-wing", "tail-sitter"].includes(modelTypeHint) ? "vtol" : modelTypeHint ? "quadcopter" : undefined;
+  const droneKey = config.airframe ?? activeProfile?.key ?? inferredKey;
+  const droneModelType = modelTypeHint ?? (droneKey === "fixed-wing" ? "voilure-conventionnelle" : droneKey === "vtol" ? "tiltrotor" : "multirotor");
+  const droneLabel = hasSelectedDrone
+    ? activeProfile?.label ?? config.engineeringSelection?.droneLabel ?? activeDroneLabel ?? config.designName ?? config.platformProfile ?? "Drone personnalisé"
+    : "Aucun drone sélectionné";
+  const droneDesign: DroneCatalogDesign | undefined = activeProfile ?? (hasSelectedDrone && droneKey ? {
+    key: droneKey,
+    modelType: droneModelType,
+    id: config.engineeringSelection?.droneId ?? config.platformProfile ?? "custom-selected",
+    label: droneLabel,
+    family: String(droneModelType),
+    mission: config.missionBrief ?? "Configuration personnalisée AeroMind",
+    specs: `${config.wingspan.toFixed(1)} m · ${config.fuselageLength.toFixed(1)} m`,
+    disciplines: "Configuration active · simulation locale",
+    tone: "cyan",
+    configuration: { ...config },
+    role: "civil",
+    defenseUse: "Visualisation locale de conception.",
+    origin: "aeromind-parametric",
+  } : undefined);
+  const typeToken = String(droneDesign?.modelType ?? "").toLowerCase();
+  const isWingedDrone = droneDesign?.key === "fixed-wing" || ["aile", "wing", "plane", "planeur", "canard", "tandem", "blended"].some(token => typeToken.includes(token));
+  const isVtolDrone = droneDesign?.key === "vtol" || ["vtol", "tiltrotor", "tilt-wing", "tail-sitter"].some(token => typeToken.includes(token));
+  const droneMotorCount = Math.max(1, Math.min(12, Math.round(droneDesign?.configuration.motorCount ?? config.motorCount ?? (isWingedDrone ? 1 : 4))));
+  const cameraTransform = trajectoryView === "follow"
+    ? `translate(${50 - x * 1.45} ${50 - y * 1.45}) scale(${1.45 * cameraZoom})`
+    : trajectoryView === "perspective"
+      ? `translate(50 50) skewX(-11) scale(${cameraZoom} ${0.72 * cameraZoom}) translate(-50 -50)`
+      : `translate(50 50) scale(${cameraZoom}) translate(-50 -50)`;
   return (
     <div className="view-stack">
       <SectionHeading
@@ -7876,16 +7918,27 @@ function LiveSimulationView({
             <button type="button" className={trajectoryFrame === "tactical" ? "is-active" : ""} aria-pressed={trajectoryFrame === "tactical"} onClick={() => setTrajectoryFrame("tactical")}>TACTIQUE</button>
             <button type="button" className={trajectoryFrame === "clean" ? "is-active" : ""} aria-pressed={trajectoryFrame === "clean"} onClick={() => setTrajectoryFrame("clean")}>ÉPURÉE</button>
             <i />
+            <span className="trajectory-strip-label trajectory-camera-label">CAMÉRA</span>
+            <button type="button" className={trajectoryView === "plan" ? "is-active" : ""} aria-pressed={trajectoryView === "plan"} onClick={() => setTrajectoryView("plan")}>PLAN</button>
+            <button type="button" className={trajectoryView === "perspective" ? "is-active" : ""} aria-pressed={trajectoryView === "perspective"} onClick={() => setTrajectoryView("perspective")}>PERSPECTIVE</button>
+            <button type="button" className={trajectoryView === "follow" ? "is-active" : ""} aria-pressed={trajectoryView === "follow"} onClick={() => setTrajectoryView("follow")}>SUIVI</button>
+            <i />
             <button type="button" className={showGrid ? "is-active" : ""} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>GRILLE</button>
             <button type="button" className={showOrbit ? "is-active" : ""} aria-pressed={showOrbit} onClick={() => setShowOrbit(value => !value)}>ORBITE</button>
             <button type="button" className={showTelemetryOverlay ? "is-active" : ""} aria-pressed={showTelemetryOverlay} onClick={() => setShowTelemetryOverlay(value => !value)}>HUD</button>
-            <button type="button" onClick={() => { setElapsed(0); setPlaying(false); setStickRoll(0); setStickPitch(0); setThrottlePct(50); }}>RECADRER</button>
+            <button type="button" onClick={() => { setElapsed(0); setPlaying(false); setStickRoll(0); setStickPitch(0); setThrottlePct(50); setCameraZoom(1); setTrajectoryView("plan"); }}>RECADRER</button>
+            <i />
+            <button type="button" aria-label="Réduire le zoom" title="Réduire le zoom" onClick={() => setCameraZoom(value => Math.max(0.7, Number((value - 0.1).toFixed(1))))}>−</button>
+            <span className="trajectory-zoom-readout">{Math.round(cameraZoom * 100)}%</span>
+            <button type="button" aria-label="Augmenter le zoom" title="Augmenter le zoom" onClick={() => setCameraZoom(value => Math.min(1.8, Number((value + 0.1).toFixed(1))))}>+</button>
           </div>
-          <div className={`live-canvas trajectory-frame-${trajectoryFrame}`}>
+          <div className={`live-canvas trajectory-frame-${trajectoryFrame} trajectory-view-${trajectoryView}`} data-view={trajectoryView}>
+            <div className="trajectory-model-banner" aria-live="polite"><span>JUMEAU ACTIF</span><strong>{droneDesign ? droneLabel : "Aucun drone sélectionné"}</strong><small>{droneDesign ? `${droneModelType} · ${droneMotorCount} moteur(s) · configuration projet` : "Sélectionnez un drone pour afficher sa silhouette personnalisée."}</small></div>
+            {!droneDesign && <div className="trajectory-no-model"><strong>AUCUNE CELLULE À AFFICHER</strong><span>La trajectoire reste vide jusqu’à la sélection d’un drone.</span><button type="button" onClick={onOpenBuilder}>Ouvrir la sélection du drone</button></div>}
             <svg
               viewBox="0 0 100 100"
               role="img"
-              aria-label="Simulation animée de la trajectoire du drone"
+              aria-label={droneDesign ? `Maquette ${droneLabel}, trajectoire locale simulée, vue ${trajectoryView}` : "Trajectoire locale vide, aucun drone sélectionné"}
             >
               <defs>
                 <pattern
@@ -7909,40 +7962,24 @@ function LiveSimulationView({
                   </feMerge>
                 </filter>
               </defs>
-              {showGrid && (
-                <rect width="100" height="100" fill="url(#liveGrid)" />
-              )}
-              {showOrbit && <circle
-                cx="50"
-                cy="50"
-                r="31"
-                fill="none"
-                stroke="rgba(117,226,220,.25)"
-                strokeDasharray="1 2"
-              />}
-              {showOrbit && <path
-                d="M22 52 C30 20 72 18 82 46 S68 79 45 72 S22 52 22 52"
-                fill="none"
-                stroke="#75e2dc"
-                strokeWidth=".7"
-                opacity=".55"
-              />}
-              {showOrbit && <circle cx="50" cy="50" r="2" fill="#86d5a5" />}
-              <g
-                filter="url(#droneGlow)"
-                transform={`translate(${x - 4} ${y - 3}) rotate(${heading} 4 3)`}
-              >
-                <path
-                  d="M0 3 L5 0 L8 3 L5 6 Z"
-                  fill="#d9f3f3"
-                  stroke="#75e2dc"
-                  strokeWidth=".45"
-                />
-                <path
-                  d="M2 3 L-2 1 M6 3 L10 1"
-                  stroke="#75e2dc"
-                  strokeWidth=".65"
-                />
+              <g className="trajectory-camera-scene" transform={cameraTransform}>
+                {showGrid && <rect width="100" height="100" fill="url(#liveGrid)" />}
+                {showOrbit && <circle cx="50" cy="50" r="31" fill="none" stroke="rgba(117,226,220,.25)" strokeDasharray="1 2" />}
+                {showOrbit && <path d="M22 52 C30 20 72 18 82 46 S68 79 45 72 S22 52 22 52" fill="none" stroke="#75e2dc" strokeWidth=".7" opacity=".55" />}
+                {showOrbit && <circle cx="50" cy="50" r="2" fill="#86d5a5" />}
+                {droneDesign && <g className={`trajectory-drone-model ${isWingedDrone ? "is-winged" : "is-multirotor"} ${isVtolDrone ? "is-vtol" : ""}`} filter="url(#droneGlow)" transform={`translate(${x} ${y}) rotate(${heading})`} aria-label={`Maquette ${droneLabel}`}>
+                  {isWingedDrone ? <g>
+                    <path className="trajectory-drone-wing" d="M0 -5.7L-7.6 -2.1L-7.4 -.8L-1.5 -.1L-4.2 3.6L-3.3 4.5L0 2.7L3.3 4.5L4.2 3.6L1.5 -.1L7.4 -.8L7.6 -2.1Z" />
+                    <path className="trajectory-drone-body" d="M0 -7.2L.9 -2.3L.9 3.2L0 6.5L-.9 3.2L-.9 -2.3Z" />
+                    <path className="trajectory-drone-canopy" d="M0 -3.5L.55 -1.1L0 -.4L-.55 -1.1Z" />
+                    {isVtolDrone && Array.from({ length: droneMotorCount }, (_, index) => { const angle = -Math.PI / 2 + index / droneMotorCount * Math.PI * 2; const mx = Math.cos(angle) * 5.6; const my = Math.sin(angle) * 3.8; return <circle key={index} className="trajectory-drone-rotor" cx={mx} cy={my} r="1" />; })}
+                  </g> : <g>
+                    {Array.from({ length: droneMotorCount }, (_, index) => { const angle = -Math.PI / 2 + index / droneMotorCount * Math.PI * 2; const mx = Math.cos(angle) * 5.8; const my = Math.sin(angle) * 4.2; return <g key={index}><line className="trajectory-drone-arm" x1="0" y1="0" x2={mx} y2={my} /><circle className="trajectory-drone-rotor" cx={mx} cy={my} r="1.35" /></g>; })}
+                    <path className="trajectory-drone-body" d="M0 -2.3L1.8 0L0 2.3L-1.8 0Z" />
+                    <circle className="trajectory-drone-canopy" cx="0" cy="-.6" r=".55" />
+                  </g>}
+                  <circle className="trajectory-drone-beacon" cx="0" cy="0" r=".62" />
+                </g>}
               </g>
               <text x="4" y="8" fill="#829a9b" fontSize="3">
                 TRAJECTOIRE LOCALE · SANS GPS
@@ -13420,38 +13457,46 @@ export default function Home() {
     const preset = architecturePresets[airframe];
     const profileMaterials = buildProfileMaterials(design);
     const selectedAt = new Date().toISOString();
-    setConfig(current => normalizeConcept({
-      ...current,
-      ...(!current.airframe && !current.engineeringSelection?.droneId ? {
-        windSpeedKmh: 8,
-        reserveFraction: defaultConcept.reserveFraction,
-        maxTakeoffKg: defaultConcept.maxTakeoffKg,
-      } : {}),
-      ...preset,
-      ...design.configuration,
-      airframe,
-      modelType: design.modelType,
-      platformProfile: design.id,
-      designName: `${design.label} / variante de travail`,
-      missionBrief: design.mission,
-      customSketch: undefined,
-      installedMaterials: profileMaterials,
-      engineeringSelection: {
-        source: "catalog",
-        droneId: design.id,
-        droneLabel: design.label,
-        updatedAt: selectedAt,
-      },
-      constructionMassKg: profileMaterials.reduce(
-        (sum, material) => sum + material.massKg * (material.quantity ?? 1),
-        0
-      ),
-      flightControls: { ...defaultFlightControls },
-      missionPlan: {
-        ...defaultLocalMissionPlan,
-        waypoints: defaultLocalMissionPlan.waypoints.map(item => ({ ...item })),
-      },
-    }));
+    const hasActiveCell = (candidate: ConceptConfig) =>
+      Boolean(candidate.platformProfile || (candidate.engineeringSelection?.droneId && candidate.engineeringSelection.droneId !== "unselected"));
+    const estimatedTakeoffMass = !hasActiveCell(config) && !Number.isFinite(design.configuration.maxTakeoffKg);
+    setConfig(current => {
+      const next = normalizeConcept({
+        ...current,
+        ...(!hasActiveCell(current) ? {
+          windSpeedKmh: 8,
+          reserveFraction: defaultConcept.reserveFraction,
+          maxTakeoffKg: defaultConcept.maxTakeoffKg,
+        } : {}),
+        ...preset,
+        ...design.configuration,
+        airframe,
+        modelType: design.modelType,
+        platformProfile: design.id,
+        designName: `${design.label} / variante de travail`,
+        missionBrief: design.mission,
+        customSketch: undefined,
+        installedMaterials: profileMaterials,
+        engineeringSelection: {
+          source: "catalog",
+          droneId: design.id,
+          droneLabel: design.label,
+          updatedAt: selectedAt,
+        },
+        constructionMassKg: profileMaterials.reduce(
+          (sum, material) => sum + material.massKg * (material.quantity ?? 1),
+          0
+        ),
+        flightControls: { ...defaultFlightControls },
+        missionPlan: {
+          ...defaultLocalMissionPlan,
+          waypoints: defaultLocalMissionPlan.waypoints.map(item => ({ ...item })),
+        },
+      });
+      if (hasActiveCell(current) || Number.isFinite(design.configuration.maxTakeoffKg)) return next;
+      const calculatedTakeoffKg = runSimulation(next, [], "CATALOG-BASELINE").totalMassKg * 1.1;
+      return { ...next, maxTakeoffKg: Math.max(next.maxTakeoffKg, calculatedTakeoffKg) };
+    });
     setRequirements(requirementsForDroneProfile(design));
     if (activeProjectId) {
       setProject(current => ({
@@ -13466,7 +13511,7 @@ export default function Home() {
     if (navigateAfterLoad) setActiveView(keepStudioOpen ? "design-studio" : "digital-twin");
     setAction("catalog", {
       status: "success",
-      message: `${design.label} chargé après action humaine. Données synchronisées; ${requirementsForDroneProfile(design).length} exigences proposées, non approuvées et personnalisables dans Exigences.`,
+      message: `${design.label} chargé après action humaine. Données synchronisées; ${estimatedTakeoffMass ? "la MTOW de banc a été estimée à partir de la masse calculée (+10 %, hypothèse locale non certifiée) car aucune valeur source n’est fournie. " : ""}${requirementsForDroneProfile(design).length} exigences proposées, non approuvées et personnalisables dans Exigences.`,
     });
   };
   const activeLibraryProfile = config.engineeringSelection?.source !== "custom" && !hasDroneGeometry(config.customSketch?.strokes) && config.platformProfile
@@ -13813,11 +13858,12 @@ export default function Home() {
                     {activeView === "catalog" && (
                       <DroneCatalogView
                         onLoad={loadDroneExample}
-                        // La sélection synchronise la cellule sans imposer une
-                        // navigation : l’opérateur conserve la console ouverte
-                        // et peut continuer à utiliser IDDS, l’assemblage et
-                        // l’atelier équipements/calibration.
-                        onSelect={design => loadDroneExample(design, false, false)}
+                        // La sélection charge le profil partagé puis ouvre immédiatement
+                        // la chambre d’essai afin que l’opérateur voie la cellule synchronisée.
+                        onSelect={design => {
+                          loadDroneExample(design, false, false);
+                          setActiveView("simulation");
+                        }}
                         activeDroneId={config.engineeringSelection?.droneId ?? config.platformProfile}
                         onOpenTools={() => setActiveView("digital-twin")}
                         onApplyIndustrial={applyIndustrialReference}
@@ -13860,18 +13906,7 @@ export default function Home() {
                     )}
                     {activeView === "simulation" && (
                       <>
-                        <AeroLabPanel project={config} projectSimulation={simulation} />
-                        <VirtualFlightTestHall
-                          viewMode="panoramic"
-                          config={config}
-                          setConfig={setConfig}
-                          simulation={simulation}
-                          requirements={requirements}
-                          workflowRun={workflowRun}
-                          isRunning={isRunning}
-                          onRunSimulation={runSimulationNow}
-                          onOpenBuilder={() => document.querySelector(".vsc-mission-control")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                        />
+                        <AeroTestFieldStation config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
                         <VirtualSimulationCenter
                           simulation={simulation}
                           requirements={requirements}
@@ -13888,15 +13923,13 @@ export default function Home() {
                     {activeView === "labbench" && <LabBench />}
                     {activeView === "command-center" && <HumanCommandCenter />}
                     {activeView === "live" && (
-                      <VirtualFlightTestHall
-                        viewMode="spatial"
+                      <LiveSimulationView
                         config={config}
                         setConfig={setConfig}
+                        activeProfile={activeLibraryDesign}
+                        activeDroneLabel={activeDroneLabel}
                         simulation={simulation}
                         requirements={requirements}
-                        workflowRun={workflowRun}
-                        isRunning={isRunning}
-                        onRunSimulation={runSimulationNow}
                         onOpenBuilder={() => setActiveView("simulation")}
                       />
                     )}

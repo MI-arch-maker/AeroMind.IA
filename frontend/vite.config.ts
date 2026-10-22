@@ -16,6 +16,8 @@ export default defineConfig({
   publicDir: path.resolve(__dirname, "client/public"),
   server: {
     allowedHosts: [
+      "3000-iel35nf60gvxme8mqf73n-98421080.us3.manus.computer",
+      "3000-ixku6stn6csb960kx4l2l-6c2f1ae8.us4.manus.computer",
       "4173-i8499769arsb08biho52f-81622e4c.us4.manus.computer",
       "3000-i7u6uno6c6qhl9beag8nu-d4712787.us5.manus.computer",
       "3000-in4v8iateaaynnal2sokv-5c4f33d9.sg2.manus.computer",
@@ -45,6 +47,8 @@ export default defineConfig({
   },
   preview: {
     allowedHosts: [
+      "3000-iel35nf60gvxme8mqf73n-98421080.us3.manus.computer",
+      "3000-ixku6stn6csb960kx4l2l-6c2f1ae8.us4.manus.computer",
       "4173-i8499769arsb08biho52f-81622e4c.us4.manus.computer",
       "3000-i7u6uno6c6qhl9beag8nu-d4712787.us5.manus.computer",
       "3000-in4v8iateaaynnal2sokv-5c4f33d9.sg2.manus.computer",

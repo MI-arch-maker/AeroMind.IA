@@ -39,7 +39,7 @@ const DEFAULT_LAYOUT: WindowLayout = {
 const FULL_WORKSPACE_VIEWS = new Set(["design-studio", "construction", "digital-twin", "tools", "inspector"]);
 const VIEW_LAYOUTS: Record<string, Partial<WindowLayout>> = {
   simulation: { x: 18, y: 76, width: 1280, height: 820 },
-  live: { x: 18, y: 76, width: 1280, height: 820 },
+  live: { x: 18, y: 76, width: 1540, height: 940 },
   labbench: { x: 28, y: 84, width: 1180, height: 760 },
   report: { x: 32, y: 84, width: 1120, height: 740 },
 };
@@ -80,7 +80,15 @@ export function WorkspaceWindow({
   const [layout, setLayout] = useState<WindowLayout>(() => {
     const saved = loadLayouts()[viewId];
     const preset = VIEW_LAYOUTS[viewId] ?? {};
-    return clampLayout({ ...DEFAULT_LAYOUT, ...preset, ...saved, maximized: saved?.maximized ?? FULL_WORKSPACE_VIEWS.has(viewId), zIndex: 10 });
+    const upgradeLegacyLiveSize = viewId === "live" && saved?.width === 1280 && saved?.height === 820;
+    return clampLayout({
+      ...DEFAULT_LAYOUT,
+      ...preset,
+      ...saved,
+      ...(upgradeLegacyLiveSize ? { width: preset.width, height: preset.height } : {}),
+      maximized: saved?.maximized ?? FULL_WORKSPACE_VIEWS.has(viewId),
+      zIndex: 10,
+    });
   });
   const [isInteracting, setIsInteracting] = useState(false);
   const interactionRef = useRef<{

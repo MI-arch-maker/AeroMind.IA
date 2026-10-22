@@ -15526,3 +15526,79 @@ button:disabled {
   .workspace-window-simulation,
   .workspace-window-live { top: 64px !important; height: calc(100vh - 76px) !important; }
 }
+
+/* Agrandissement du cockpit « TRAJECTOIRE LOCALE · SANS GPS ». */
+.live-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 260px);
+  gap: 18px;
+}
+.live-canvas-panel {
+  padding: 18px;
+}
+.live-canvas {
+  min-height: clamp(560px, 72vh, 820px);
+}
+.live-canvas svg {
+  height: clamp(560px, 72vh, 820px);
+  min-height: 0;
+}
+@media (max-width: 900px) {
+  .live-grid { grid-template-columns: minmax(0, 1fr); }
+  .live-canvas { min-height: clamp(440px, 62vh, 680px); }
+  .live-canvas svg { height: clamp(440px, 62vh, 680px); }
+}
+@media (max-width: 620px) {
+  .live-canvas-panel { padding: 12px; }
+  .live-canvas { min-height: clamp(360px, 56vh, 520px); }
+  .live-canvas svg { height: clamp(360px, 56vh, 520px); }
+}
+
+
+/* Cockpit local sans GPS — affichage large, caméra multi-vues et cellule liée au projet. */
+.workspace-window-live { min-width: min(420px, calc(100vw - 24px)); }
+.workspace-window-live .workspace-window-content { overflow: auto; }
+.workspace-window-live .live-canvas-panel { padding: 20px; }
+.workspace-window-live .live-grid { grid-template-columns: minmax(0, 1fr) minmax(250px, 300px); gap: 20px; }
+.workspace-window-live .live-canvas { min-height: clamp(620px, 76vh, 920px); }
+.workspace-window-live .live-canvas > svg { height: clamp(620px, 76vh, 920px); min-height: 0; }
+.workspace-window-live .trajectory-control-strip { gap: 7px; padding: 9px; }
+.workspace-window-live .trajectory-control-strip button { min-height: 32px; padding: 0 10px; font-size: 9px; }
+.trajectory-camera-label { color: #b6c7bd !important; }
+.trajectory-zoom-readout { min-width: 36px; color: #b4d7ce; font: 700 8px ui-monospace, monospace; text-align: center; }
+.trajectory-camera-scene { transition: transform .32s cubic-bezier(.2,.7,.2,1); }
+.trajectory-drone-model { stroke-linejoin: round; stroke-linecap: round; }
+.trajectory-drone-wing { fill: rgba(111, 212, 207, .8); stroke: #c2fff0; stroke-width: .4; }
+.trajectory-drone-body { fill: #e8faf1; stroke: #68e1d4; stroke-width: .42; }
+.trajectory-drone-canopy { fill: #66d9d1; stroke: #f0fffa; stroke-width: .25; }
+.trajectory-drone-arm { stroke: #c5eee5; stroke-width: .7; }
+.trajectory-drone-rotor { fill: rgba(17, 29, 33, .7); stroke: #fff0ad; stroke-width: .4; }
+.trajectory-drone-beacon { fill: #a2ffd5; stroke: #effffb; stroke-width: .25; }
+.trajectory-model-banner { position: absolute; z-index: 3; top: 14px; left: 14px; display: grid; gap: 3px; max-width: min(42%, 340px); padding: 9px 11px; border: 1px solid rgba(117,226,220,.28); border-radius: 7px; background: rgba(3,14,19,.82); backdrop-filter: blur(6px); pointer-events: none; }
+.trajectory-model-banner span { color: #78d9cf; font: 700 8px ui-monospace,monospace; letter-spacing: .12em; }
+.trajectory-model-banner strong { overflow: hidden; color: #f0fff7; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.trajectory-model-banner small { color: #9db7ad; font-size: 8px; line-height: 1.4; }
+.trajectory-no-model { position: absolute; z-index: 4; inset: 50% auto auto 50%; display: grid; justify-items: center; gap: 8px; width: min(310px, calc(100% - 32px)); padding: 18px; border: 1px dashed rgba(117,226,220,.42); border-radius: 10px; color: #d7e9df; background: rgba(5,20,25,.9); text-align: center; transform: translate(-50%,-50%); backdrop-filter: blur(8px); }
+.trajectory-no-model strong { color: #a4d8ca; font: 700 9px ui-monospace,monospace; letter-spacing: .1em; }
+.trajectory-no-model span { color: #a8b8b0; font-size: 10px; line-height: 1.45; }
+.trajectory-no-model button { min-height: 30px; padding: 6px 10px; border: 1px solid rgba(117,226,220,.34); border-radius: 5px; color: #c9f5e6; background: rgba(27,68,64,.55); font-size: 9px; cursor: pointer; }
+.trajectory-no-model button:hover { border-color: #75e2dc; background: rgba(41,91,84,.7); }
+.trajectory-view-perspective .trajectory-model-banner,
+.trajectory-view-follow .trajectory-model-banner { border-color: rgba(139,226,139,.35); }
+@media (max-width: 1100px) {
+  .workspace-window-live .live-grid { grid-template-columns: minmax(0, 1fr) 250px; gap: 14px; }
+  .workspace-window-live .live-canvas-panel { padding: 14px; }
+}
+@media (max-width: 900px) {
+  .workspace-window-live { min-width: 0; }
+  .workspace-window-live .live-grid { grid-template-columns: minmax(0, 1fr); }
+  .workspace-window-live .live-canvas { min-height: clamp(480px, 68vh, 760px); }
+  .workspace-window-live .live-canvas > svg { height: clamp(480px, 68vh, 760px); }
+}
+@media (max-width: 620px) {
+  .workspace-window-live .live-canvas-panel { padding: 10px; }
+  .workspace-window-live .live-canvas { min-height: clamp(380px, 62vh, 560px); }
+  .workspace-window-live .live-canvas > svg { height: clamp(380px, 62vh, 560px); }
+  .trajectory-model-banner { top: 8px; left: 8px; max-width: calc(100% - 16px); padding: 7px 8px; }
+  .trajectory-model-banner small { display: none; }
+  .trajectory-control-strip .trajectory-camera-label { width: 100%; }
+}

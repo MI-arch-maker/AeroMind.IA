@@ -5340,7 +5340,6 @@
   "OpenStreetMap standard": "OpenStreetMap standard",
   "CARTO Dark": "CARTO Dark",
   "Tuiles locales (MBTiles via XYZ)": "Local tiles (MBTiles via XYZ)",
-
   "AEROMIND · LABORATOIRE D’ESSAIS VIRTUEL": "AEROMIND · VIRTUAL TEST LAB",
   "Activer un facteur déterministe de turbulence dans le modèle.": "Enable a deterministic turbulence factor in the model.",
   "Altitude simulée": "Simulated altitude",
@@ -5513,14 +5512,12 @@
   "Configuration personnalisée sélectionnée.": "Custom configuration selected.",
   "Calcul déterministe local en cours; aucune commande matérielle n’est envoyée.": "Deterministic local calculation in progress; no hardware command is sent.",
   "Un essai physique": "A physical test",
-
   "Durée / endurance": "Duration / endurance",
   "SIMULATION LOCALE · AUCUNE LIAISON MATÉRIELLE": "LOCAL SIMULATION · NO HARDWARE LINK",
   "km": "km",
   "m/s": "m/s",
   "°C": "°C",
   "m": "m",
-
   "Décrivez l’objectif de mission avant de lancer l’essai.": "Describe the mission objective before starting the test.",
   "Exporter rapport JSON": "Export JSON report",
   "Progression de l’essai simulé": "Simulated test progress",
@@ -5537,7 +5534,6 @@
   "La masse à vide influe sur la puissance estimée par un coefficient conceptuel de 2,5 %/kg autour de 3 kg; cette relation n’est pas étalonnée.": "Empty mass affects estimated power using a conceptual coefficient of 2.5%/kg around 3 kg; this relationship is not calibrated.",
   "Vent et turbulence sont agrégés en pénalités; le relief, les obstacles, les rafales locales et la météo réelle ne sont pas représentés.": "Wind and turbulence are aggregated as penalties; terrain, obstacles, local gusts, and actual weather are not represented.",
   "Puissance, stabilité, dérive et qualité sont des estimations indicatives, non des performances certifiées.": "Power, stability, cross-track error, and quality are indicative estimates, not certified performance.",
-
   "Durée mission ≤ endurance estimée": "Mission duration ≤ estimated endurance",
   "Indice conceptuel combinant vent, charge déclarée, altitude et stabilité de référence du profil.": "Conceptual index combining wind, declared payload, altitude, and the profile’s reference stability.",
   "Énergie restante estimée après le parcours et le temps de service modélisés.": "Estimated energy remaining after the modeled route and service time.",
@@ -5546,12 +5542,11 @@
   "Comparaison de la charge saisie à la limite déclarée du profil.": "Comparison of entered payload with the declared profile limit.",
   "Temps estimé comparé à l’endurance disponible après application de la réserve cible.": "Estimated duration compared with available endurance after applying the target reserve.",
   "Les critères configurés sont respectés dans ce modèle conceptuel. Confirmer les hypothèses avant tout essai physique.": "Configured criteria are met in this conceptual model. Confirm assumptions before any physical test.",
-
   "La puissance de départ est issue de l’estimation AeroMind normalisée; la stabilité initiale est une hypothèse modifiable.": "Starting power is derived from the normalized AeroMind estimate; initial stability is an editable assumption.",
   "Le profil AeroMind actif a changé; le laboratoire conserve l’instantané de cette séquence jusqu’à réinitialisation ou resynchronisation.": "The active AeroMind profile has changed; the lab keeps this sequence snapshot until it is reset or resynchronized.",
   "Profil AeroMind actif actualisé depuis le projet.": "Active AeroMind profile updated from the project.",
   "Profil AeroMind actif resynchronisé après la séquence.": "Active AeroMind profile resynchronized after the sequence.",
-
-  "Cartographie de zone": "Area mapping"
-
+  "Cartographie de zone": "Area mapping",
+  "Poste de pilotage d’essai": "Test flight station",
+  "Poste de pilotage d’essai local": "Local test flight station"
 }

@@ -5340,7 +5340,6 @@
   "OpenStreetMap standard": "OpenStreetMap standard",
   "CARTO Dark": "CARTO Dark",
   "Tuiles locales (MBTiles via XYZ)": "Tuiles locales (MBTiles via XYZ)",
-
   "AEROMIND · LABORATOIRE D’ESSAIS VIRTUEL": "AEROMIND · LABORATOIRE D’ESSAIS VIRTUEL",
   "Activer un facteur déterministe de turbulence dans le modèle.": "Activer un facteur déterministe de turbulence dans le modèle.",
   "Altitude simulée": "Altitude simulée",
@@ -5513,14 +5512,12 @@
   "Configuration personnalisée sélectionnée.": "Configuration personnalisée sélectionnée.",
   "Calcul déterministe local en cours; aucune commande matérielle n’est envoyée.": "Calcul déterministe local en cours; aucune commande matérielle n’est envoyée.",
   "Un essai physique": "Un essai physique",
-
   "Durée / endurance": "Durée / endurance",
   "SIMULATION LOCALE · AUCUNE LIAISON MATÉRIELLE": "SIMULATION LOCALE · AUCUNE LIAISON MATÉRIELLE",
   "km": "km",
   "m/s": "m/s",
   "°C": "°C",
   "m": "m",
-
   "Décrivez l’objectif de mission avant de lancer l’essai.": "Décrivez l’objectif de mission avant de lancer l’essai.",
   "Exporter rapport JSON": "Exporter rapport JSON",
   "Progression de l’essai simulé": "Progression de l’essai simulé",
@@ -5537,7 +5534,6 @@
   "La masse à vide influe sur la puissance estimée par un coefficient conceptuel de 2,5 %/kg autour de 3 kg; cette relation n’est pas étalonnée.": "La masse à vide influe sur la puissance estimée par un coefficient conceptuel de 2,5 %/kg autour de 3 kg; cette relation n’est pas étalonnée.",
   "Vent et turbulence sont agrégés en pénalités; le relief, les obstacles, les rafales locales et la météo réelle ne sont pas représentés.": "Vent et turbulence sont agrégés en pénalités; le relief, les obstacles, les rafales locales et la météo réelle ne sont pas représentés.",
   "Puissance, stabilité, dérive et qualité sont des estimations indicatives, non des performances certifiées.": "Puissance, stabilité, dérive et qualité sont des estimations indicatives, non des performances certifiées.",
-
   "Durée mission ≤ endurance estimée": "Durée mission ≤ endurance estimée",
   "Indice conceptuel combinant vent, charge déclarée, altitude et stabilité de référence du profil.": "Indice conceptuel combinant vent, charge déclarée, altitude et stabilité de référence du profil.",
   "Énergie restante estimée après le parcours et le temps de service modélisés.": "Énergie restante estimée après le parcours et le temps de service modélisés.",
@@ -5546,12 +5542,11 @@
   "Comparaison de la charge saisie à la limite déclarée du profil.": "Comparaison de la charge saisie à la limite déclarée du profil.",
   "Temps estimé comparé à l’endurance disponible après application de la réserve cible.": "Temps estimé comparé à l’endurance disponible après application de la réserve cible.",
   "Les critères configurés sont respectés dans ce modèle conceptuel. Confirmer les hypothèses avant tout essai physique.": "Les critères configurés sont respectés dans ce modèle conceptuel. Confirmer les hypothèses avant tout essai physique.",
-
   "La puissance de départ est issue de l’estimation AeroMind normalisée; la stabilité initiale est une hypothèse modifiable.": "La puissance de départ est issue de l’estimation AeroMind normalisée; la stabilité initiale est une hypothèse modifiable.",
   "Le profil AeroMind actif a changé; le laboratoire conserve l’instantané de cette séquence jusqu’à réinitialisation ou resynchronisation.": "Le profil AeroMind actif a changé; le laboratoire conserve l’instantané de cette séquence jusqu’à réinitialisation ou resynchronisation.",
   "Profil AeroMind actif actualisé depuis le projet.": "Profil AeroMind actif actualisé depuis le projet.",
   "Profil AeroMind actif resynchronisé après la séquence.": "Profil AeroMind actif resynchronisé après la séquence.",
-
-  "Cartographie de zone": "Cartographie de zone"
-
+  "Cartographie de zone": "Cartographie de zone",
+  "Poste de pilotage d’essai": "Poste de pilotage d’essai",
+  "Poste de pilotage d’essai local": "Poste de pilotage d’essai"
 }
