@@ -560,6 +560,41 @@ async def trpc_compat(
                 data = labbench_service.registry(db, current_user, str(project_id or ''))
         except labbench_service.LabBenchError as exc:
             return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.gateState'):
+        try:
+            project_id = payload if isinstance(payload, str) else payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.gate_state(db, current_user, str(project_id or ''))
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.completeHardwareChecklist'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.complete_hardware_checklist(db, current_user, str(project_id or ''), payload if isinstance(payload, dict) else {})
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.armN3'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.arm_n3_gate(db, current_user, str(project_id or ''), payload if isinstance(payload, dict) else {})
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.disarmN3'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.disarm_n3_gate(db, current_user, str(project_id or ''))
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.signOffN4'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.sign_off_n4_gate(db, current_user, str(project_id or ''), payload if isinstance(payload, dict) else {})
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
     else:
         data = None
     # The legacy React client uses the SuperJSON transformer. Its wire format
@@ -612,6 +647,83 @@ def ready():
 @app.get('/api/capabilities')
 def capabilities():
     return {'service': 'aeromind-ai', 'version': '2.0.0', 'oidc': bool(settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer'])), 'identity_provider': 'microsoft-entra' if settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']) else None, 'llm': bool(settings.openai_api_key), 'sitl': True, 'hardware_control': False, 'virtual_control': True, 'mission_upload': False, 'telemetry_write': False}
+
+
+@app.get('/api/labbench/gates', include_in_schema=False)
+def labbench_gates_get(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """REST mirror of the tRPC `labBench.gateState` procedure for external tools.
+
+    The query input may be provided as `?projectId=...`; this endpoint stays
+    read-only and never accepts a body that flips physical output flags.
+    """
+    user = _current_user(aeromind_session, authorization)
+    project_id = request.query_params.get('projectId') or request.query_params.get('id') or ''
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.gate_state(db, user, str(project_id or ''))
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/labbench/gates/hardware-checklist', include_in_schema=False)
+async def labbench_gates_hardware_checklist(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.complete_hardware_checklist(db, user, str(payload.get('projectId') or ''), payload)
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/labbench/gates/arm-n3', include_in_schema=False)
+async def labbench_gates_arm_n3(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.arm_n3_gate(db, user, str(payload.get('projectId') or ''), payload)
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/labbench/gates/disarm-n3', include_in_schema=False)
+async def labbench_gates_disarm_n3(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.disarm_n3_gate(db, user, str(payload.get('projectId') or ''))
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/labbench/gates/sign-off-n4', include_in_schema=False)
+async def labbench_gates_sign_off_n4(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.sign_off_n4_gate(db, user, str(payload.get('projectId') or ''), payload)
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
 
 
 @app.get('/api/system/status')

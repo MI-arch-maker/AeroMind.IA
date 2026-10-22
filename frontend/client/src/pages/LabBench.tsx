@@ -19,6 +19,7 @@ import {
   FolderKanban,
   Gauge,
   History,
+  KeyRound,
   LockKeyhole,
   Play,
   Radio,
@@ -26,8 +27,10 @@ import {
   SlidersHorizontal,
   Thermometer,
   TriangleAlert,
+  Unlock,
   Wifi,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -46,6 +49,22 @@ import {
 import { useLanguage } from "../contexts/LanguageContext";
 import "./labbench.css";
 
+// ===========================================================================
+// LabBench 01 — Modernized modular architecture (5 zones, gate progression).
+//
+// The navigation is grouped into 5 functional zones instead of a flat list of
+// views:
+//   1. Gouvernance & Exigences  (N1 — read only)
+//   2. Simulation & HIL         (N2 — virtual)
+//   3. Hardware & Drivers       (N3 — registry / checklist)
+//   4. Banc de test & Commandes (N3 → N4 — supervised arm/disarm)
+//   5. Preuves & Audit          (all levels)
+//
+// The "permanent block" of the previous version is replaced by an explicit
+// gate progression: the operator drives each gate from the UI, with
+// server-side persistence and double confirmation for the N3 arm.
+// ===========================================================================
+
 type ViewId =
   | "projects"
   | "overview"
@@ -57,59 +76,190 @@ type ViewId =
   | "audit";
 type ModeId = "simulation" | "connected" | "authorized";
 
-const navigation: Array<{
-  id: ViewId;
+type ZoneId = "governance" | "simulation" | "hardware" | "bench" | "audit";
+
+type GateState = "passed" | "open" | "pending";
+
+type GateDefinition = {
+  code: string;
   label: string;
-  caption: string;
-  icon: typeof Gauge;
+  description: string;
+  level: string;
+  zone: ZoneId;
+  requiredConditions: string[];
+  conditions: Record<string, boolean>;
+  state: GateState;
+};
+
+type ZoneProgress = {
+  zone: ZoneId;
+  label: string;
+  passed: boolean;
+  openCount: number;
+  gates: Array<{ code: string; state: GateState }>;
+};
+
+type GateStateResponse = {
+  projectId: string;
+  gateStateId: string;
+  updatedAt: string;
+  conditions: Record<string, boolean>;
+  gates: GateDefinition[];
+  currentGate: string;
+  armEvents: Array<Record<string, unknown>>;
+  reviewEvents: Array<Record<string, unknown>>;
+  hardwareChecklist: {
+    deviceIdentified: boolean;
+    driverValidated: boolean;
+    calibrationSimulated: boolean;
+    complete: boolean;
+  };
+  physicalOutputEnabled: false;
+  physicalCommandsEmitted: false;
+  physicalExecutionPermitted: false;
+  zoneProgress: ZoneProgress[];
+};
+
+type LocalGateState = {
+  gates: GateDefinition[];
+  zoneProgress: ZoneProgress[];
+  currentGate: string;
+  conditions: Record<string, boolean>;
+  hardwareChecklist: GateStateResponse["hardwareChecklist"];
+  armEvents: Array<Record<string, unknown>>;
+  reviewEvents: Array<Record<string, unknown>>;
+  updatedAt: string | null;
+};
+
+const initialLocalGateState: LocalGateState = {
+  gates: [
+    {
+      code: "N1",
+      label: "Conception",
+      description: "Registre exigences + identité appareil/émulateur créés.",
+      level: "N1",
+      zone: "governance",
+      requiredConditions: ["registry_initialized"],
+      conditions: { registry_initialized: false },
+      state: "open",
+    },
+    {
+      code: "N2",
+      label: "Simulation",
+      description: "Au moins un run N2 archivé côté serveur (empreinte SHA-256).",
+      level: "N2",
+      zone: "simulation",
+      requiredConditions: ["registry_initialized", "n2_run_archived"],
+      conditions: { registry_initialized: false, n2_run_archived: false },
+      state: "pending",
+    },
+    {
+      code: "N3-READY",
+      label: "Conformité matérielle",
+      description: "Pilote + identité appareil vérifiés ; calibration simulée exécutée.",
+      level: "N3",
+      zone: "hardware",
+      requiredConditions: ["registry_initialized", "n2_run_archived", "hardware_checklist_complete"],
+      conditions: { registry_initialized: false, n2_run_archived: false, hardware_checklist_complete: false },
+      state: "pending",
+    },
+    {
+      code: "N3-ARMED",
+      label: "Armement N3 supervisé",
+      description: "Armement explicite après double confirmation humaine.",
+      level: "N3",
+      zone: "bench",
+      requiredConditions: ["n3_ready", "arm_double_confirmed"],
+      conditions: { n3_ready: false, arm_double_confirmed: false },
+      state: "pending",
+    },
+    {
+      code: "N4",
+      label: "Mise en service (revue indépendante)",
+      description: "Revue indépendante signée après démonstration N3 supervisée.",
+      level: "N4",
+      zone: "audit",
+      requiredConditions: ["n3_armed", "independent_review_signed"],
+      conditions: { n3_armed: false, independent_review_signed: false },
+      state: "pending",
+    },
+  ],
+  zoneProgress: [
+    { zone: "governance", label: "Gouvernance & Exigences", passed: false, openCount: 1, gates: [{ code: "N1", state: "open" }] },
+    { zone: "simulation", label: "Simulation & HIL", passed: false, openCount: 0, gates: [{ code: "N2", state: "pending" }] },
+    { zone: "hardware", label: "Hardware & Drivers", passed: false, openCount: 0, gates: [{ code: "N3-READY", state: "pending" }] },
+    { zone: "bench", label: "Banc de test & Commandes", passed: false, openCount: 0, gates: [{ code: "N3-ARMED", state: "pending" }] },
+    { zone: "audit", label: "Preuves & Audit", passed: false, openCount: 0, gates: [{ code: "N4", state: "pending" }] },
+  ],
+  currentGate: "N1",
+  conditions: {
+    registry_initialized: false,
+    n2_run_archived: false,
+    hardware_checklist_complete: false,
+    n3_ready: false,
+    arm_double_confirmed: false,
+    n3_armed: false,
+    independent_review_signed: false,
+  },
+  hardwareChecklist: {
+    deviceIdentified: false,
+    driverValidated: false,
+    calibrationSimulated: false,
+    complete: false,
+  },
+  armEvents: [],
+  reviewEvents: [],
+  updatedAt: null,
+};
+
+const ZONE_GROUPS: Array<{
+  id: ZoneId;
+  label: string;
+  description: string;
+  views: Array<{ id: ViewId; label: string; caption: string; icon: typeof Gauge }>;
 }> = [
   {
-    id: "projects",
-    label: "Projets",
-    caption: "Rattachement & versions",
-    icon: FolderKanban,
-  },
-  {
-    id: "overview",
-    label: "Vue de preuve",
-    caption: "Niveaux & services",
-    icon: Gauge,
-  },
-  {
-    id: "requirements",
-    label: "Exigences",
-    caption: "Critères traçables",
-    icon: ClipboardCheck,
+    id: "governance",
+    label: "01 · Gouvernance & Exigences",
+    description: "N1 · registre, exigences et projets",
+    views: [
+      { id: "projects", label: "Projets", caption: "Rattachement officiel", icon: FolderKanban },
+      { id: "overview", label: "Vue preuves", caption: "Chaîne N1→N4", icon: ClipboardCheck },
+      { id: "requirements", label: "Exigences", caption: "Référentiel", icon: ShieldCheck },
+    ],
   },
   {
     id: "simulation",
-    label: "Simulation",
-    caption: "Modèle thermique",
-    icon: Activity,
+    label: "02 · Simulation & HIL",
+    description: "N2 · moteur thermique synthétique",
+    views: [
+      { id: "simulation", label: "Simulation", caption: "Moteur N2", icon: Activity },
+    ],
   },
   {
     id: "hardware",
-    label: "Matériel & pilotes",
-    caption: "Registre contrôlé",
-    icon: Cpu,
+    label: "03 · Hardware & Drivers",
+    description: "N3 · registre appareil + pilote",
+    views: [
+      { id: "hardware", label: "Hardware", caption: "Checklist + pilote", icon: Cpu },
+    ],
   },
   {
     id: "bench",
-    label: "Banc d’essai",
-    caption: "Diagnostic & mesures",
-    icon: Radio,
-  },
-  {
-    id: "reports",
-    label: "Rapports",
-    caption: "Dossier de preuve",
-    icon: FileCheck2,
+    label: "04 · Banc de test & Commandes",
+    description: "N3 → N4 · armement supervisé",
+    views: [
+      { id: "bench", label: "Banc", caption: "Commandes supervisées", icon: Radio },
+      { id: "reports", label: "Rapports", caption: "Dossier de preuve", icon: FileCheck2 },
+    ],
   },
   {
     id: "audit",
-    label: "Journal d’audit",
-    caption: "Événements & reçus",
-    icon: History,
+    label: "05 · Preuves & Audit",
+    description: "tous niveaux · traçabilité",
+    views: [
+      { id: "audit", label: "Journal d’audit", caption: "Événements & reçus", icon: History },
+    ],
   },
 ];
 
@@ -135,7 +285,7 @@ const modeItems: Array<{
   {
     id: "authorized",
     label: "Commande virtuelle supervisée",
-    eyebrow: "N2",
+    eyebrow: "N3",
     detail:
       "Consigne simulée après deux confirmations humaines ; sorties physiques interdites.",
   },
@@ -279,6 +429,26 @@ function catalogStatusLabel(status: string) {
   );
 }
 
+function zoneOfView(view: ViewId): ZoneId | null {
+  for (const group of ZONE_GROUPS) {
+    if (group.views.some((v) => v.id === view)) return group.id;
+  }
+  return null;
+}
+
+function gateStateLabel(state: GateState): string {
+  return state === "passed" ? "Réussi" : state === "open" ? "À passer" : "En attente";
+}
+
+function GateBadge({ state }: { state: GateState }) {
+  return (
+    <span className={`lb-gate-badge lb-gate-${state}`} aria-label={gateStateLabel(state)}>
+      {state === "passed" ? <CheckCircle2 size={12} /> : state === "open" ? <CircleDot size={12} /> : <LockKeyhole size={12} />}
+      {gateStateLabel(state)}
+    </span>
+  );
+}
+
 export default function LabBench() {
   const { tKey } = useLanguage();
   const [view, setView] = useState<ViewId>("overview");
@@ -286,6 +456,12 @@ export default function LabBench() {
   const [scenario, setScenario] = useState(readLabBenchScenario);
   const [humanConfirmed, setHumanConfirmed] = useState(false);
   const [safetyConfirmed, setSafetyConfirmed] = useState(false);
+  const [secondOperatorCode, setSecondOperatorCode] = useState("");
+  const [armDialogOpen, setArmDialogOpen] = useState(false);
+  const [reviewer, setReviewer] = useState("");
+  const [reviewToken, setReviewToken] = useState("");
+  const [reviewNote, setReviewNote] = useState("");
+  const [signOffDialogOpen, setSignOffDialogOpen] = useState(false);
   const [virtualPosition, setVirtualPosition] = useState<number | null>(null);
   const [storageError, setStorageError] = useState(false);
   const pendingCommand = useRef<string | null>(null);
@@ -296,6 +472,8 @@ export default function LabBench() {
   const [localWorkspace, setLocalWorkspace] = useState<LocalWorkspace>(() =>
     readJson(LOCAL_WORKSPACE_KEY, {} as LocalWorkspace),
   );
+  const [gateState, setGateState] = useState<LocalGateState>(initialLocalGateState);
+
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -333,6 +511,7 @@ export default function LabBench() {
     window.addEventListener("storage", refreshLocalWorkspace);
     return () => window.removeEventListener("storage", refreshLocalWorkspace);
   }, []);
+
   const statusQuery = trpc.labBench.status.useQuery(undefined, {
     staleTime: 30_000,
     retry: false,
@@ -383,10 +562,53 @@ export default function LabBench() {
     remoteProjectId ?? "0",
     { enabled: Boolean(remoteProjectId && meQuery.data), retry: false },
   );
+  const gateStateQuery = trpc.labBench.gateState.useQuery(
+    remoteProjectId ?? "0",
+    {
+      enabled: Boolean(remoteProjectId && meQuery.data),
+      retry: false,
+      refetchOnMount: true,
+      staleTime: 5_000,
+    },
+  );
   const remoteAuditQuery = trpc.auditEvents.list.useQuery(
     remoteProjectId ?? "0",
     { enabled: Boolean(remoteProjectId && meQuery.data), retry: false },
   );
+
+  useEffect(() => {
+    if (gateStateQuery.data && typeof gateStateQuery.data === "object") {
+      const data = gateStateQuery.data as Partial<GateStateResponse>;
+      setGateState({
+        gates: Array.isArray(data.gates) ? (data.gates as GateDefinition[]) : initialLocalGateState.gates,
+        zoneProgress: Array.isArray(data.zoneProgress) ? (data.zoneProgress as ZoneProgress[]) : initialLocalGateState.zoneProgress,
+        currentGate: typeof data.currentGate === "string" ? data.currentGate : initialLocalGateState.currentGate,
+        conditions:
+          data.conditions && typeof data.conditions === "object"
+            ? (data.conditions as Record<string, boolean>)
+            : initialLocalGateState.conditions,
+        hardwareChecklist:
+          data.hardwareChecklist && typeof data.hardwareChecklist === "object"
+            ? (data.hardwareChecklist as GateStateResponse["hardwareChecklist"])
+            : initialLocalGateState.hardwareChecklist,
+        armEvents: Array.isArray(data.armEvents) ? data.armEvents : [],
+        reviewEvents: Array.isArray(data.reviewEvents) ? data.reviewEvents : [],
+        updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : null,
+      });
+    }
+  }, [gateStateQuery.data]);
+
+  // Sync the active mode from gate state: when N3 is armed, switch to authorized
+  useEffect(() => {
+    if (gateState.conditions.n3_armed && mode !== "authorized") {
+      setMode("authorized");
+    }
+    if (!gateState.conditions.n3_armed && mode === "authorized") {
+      setMode("simulation");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateState.conditions.n3_armed]);
+
   const [localResult, setLocalResult] = useState<LabBenchResult | null>(null);
   const [runScenarioSignature, setRunScenarioSignature] = useState<
     string | null
@@ -397,6 +619,7 @@ export default function LabBench() {
     setRunScenarioSignature(null);
     setHumanConfirmed(false);
     setSafetyConfirmed(false);
+    setSecondOperatorCode("");
     setVirtualPosition(null);
     setConnectionChecked(false);
     setAudit([]);
@@ -432,6 +655,7 @@ export default function LabBench() {
       toast.success(`Simulation ${result.runId} terminée`, {
         description: `Température synthétique : ${result.predictedTemperatureC} °C.`,
       });
+      void gateStateQuery.refetch();
     },
     onError(error, variables) {
       if (simulationEpoch.current !== projectEpoch.current) return;
@@ -453,6 +677,101 @@ export default function LabBench() {
       });
     },
   });
+  const persistSimulationMutation = trpc.labBench.persistSimulation.useMutation({
+    onSuccess: () => {
+      void gateStateQuery.refetch();
+      void remoteAuditQuery.refetch();
+    },
+  });
+  const hardwareChecklistMutation = trpc.labBench.completeHardwareChecklist.useMutation({
+    onSuccess: (data: any) => {
+      toast.success("Checklist hardware simulée enregistrée", {
+        description: "N3-READY évalué à partir des preuves serveur.",
+      });
+      void gateStateQuery.refetch();
+      void remoteAuditQuery.refetch();
+      setAudit((entries) => [
+        {
+          time: new Date().toLocaleTimeString("fr-FR"),
+          type: "gate.hardware_checklist",
+          message: `Checklist simulée ${data?.checklist?.complete ? "complète" : "partielle"} ; aucune commande matérielle.`,
+          status: data?.checklist?.complete ? "success" : "warning",
+        },
+        ...entries,
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error("Checklist hardware indisponible", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+  const armN3Mutation = trpc.labBench.armN3.useMutation({
+    onSuccess: (data: any) => {
+      toast.success("N3 armé (virtuel)", {
+        description: data?.reason ?? "Armement enregistré ; aucune sortie physique.",
+      });
+      setArmDialogOpen(false);
+      setHumanConfirmed(false);
+      setSafetyConfirmed(false);
+      setSecondOperatorCode("");
+      void gateStateQuery.refetch();
+      void remoteAuditQuery.refetch();
+      setAudit((entries) => [
+        {
+          time: new Date().toLocaleTimeString("fr-FR"),
+          type: "gate.arm_n3",
+          message: "Armement N3 supervisé enregistré après double confirmation.",
+          status: "success",
+        },
+        ...entries,
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error("Armement N3 refusé", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+  const disarmN3Mutation = trpc.labBench.disarmN3.useMutation({
+    onSuccess: () => {
+      toast.info("N3 désarmé", { description: "Aucune commande active résiduelle." });
+      void gateStateQuery.refetch();
+      void remoteAuditQuery.refetch();
+      setAudit((entries) => [
+        {
+          time: new Date().toLocaleTimeString("fr-FR"),
+          type: "gate.disarm_n3",
+          message: "Désarmement N3 enregistré.",
+          status: "warning",
+        },
+        ...entries,
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error("Désarmement indisponible", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+  const signOffN4Mutation = trpc.labBench.signOffN4.useMutation({
+    onSuccess: () => {
+      toast.success("Revue N4 signée", { description: "Aucune commande matérielle." });
+      setSignOffDialogOpen(false);
+      setReviewer("");
+      setReviewToken("");
+      setReviewNote("");
+      void gateStateQuery.refetch();
+      void remoteAuditQuery.refetch();
+      setAudit((entries) => [
+        {
+          time: new Date().toLocaleTimeString("fr-FR"),
+          type: "gate.sign_off_n4",
+          message: "Revue indépendante N4 signée.",
+          status: "success",
+        },
+        ...entries,
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error("Signature N4 refusée", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+
   const finishVirtualCommand = (receipt: any) => {
     const executed =
       receipt?.executed === true && receipt?.physicalCommandsEmitted === false;
@@ -568,6 +887,8 @@ export default function LabBench() {
     ? remoteAuditQuery.data
     : [];
 
+  const currentZone = zoneOfView(view);
+
   const runLocalSimulation = () => {
     simulationMutation.reset();
     const result = calculateLocalLabBenchResult(scenario);
@@ -600,6 +921,21 @@ export default function LabBench() {
     simulationEpoch.current = projectEpoch.current;
     simulationMutation.mutate({ mode: "simulation", ...scenario });
   };
+  const persistSimulation = () => {
+    if (!remoteProjectId) {
+      toast.error("Aucun projet authentifié", {
+        description: "La persistance officielle exige un projet AeroMind.",
+      });
+      return;
+    }
+    if (!latestResult) {
+      toast.error("Aucun run à archiver", {
+        description: "Lancez d’abord une simulation.",
+      });
+      return;
+    }
+    persistSimulationMutation.mutate({ mode: "simulation", projectId: remoteProjectId, ...scenario });
+  };
   const downloadReport = () => {
     if (!latestResult) {
       toast.error("Aucun run à exporter", {
@@ -614,6 +950,10 @@ export default function LabBench() {
       inputs: latestResult.inputs,
       formula: latestResult.formula,
       result: latestResult,
+      gateState: {
+        currentGate: gateState.currentGate,
+        conditions: gateState.conditions,
+      },
       evidenceLevel: "N2 — simulation synthétique",
       physicalCommandsEmitted: false,
     };
@@ -644,6 +984,100 @@ export default function LabBench() {
     ]);
     toast.info("Identité de l’émulateur vérifiée", {
       description: "Aucun équipement réel n’est déclaré connecté.",
+    });
+  };
+  const submitHardwareChecklist = () => {
+    if (!remoteProjectId) {
+      toast.error("Aucun projet authentifié", {
+        description: "La checklist nécessite un projet AeroMind.",
+      });
+      return;
+    }
+    hardwareChecklistMutation.mutate({
+      projectId: remoteProjectId,
+      deviceIdentified: true,
+      driverValidated: true,
+      calibrationSimulated: true,
+      physicalOutputEnabled: false,
+    });
+  };
+  const openArmDialog = () => {
+    if (!remoteProjectId) {
+      toast.error("Aucun projet authentifié", {
+        description: "L’armement N3 nécessite un projet AeroMind.",
+      });
+      return;
+    }
+    if (!gateState.conditions.n3_ready) {
+      toast.error("Gate N3-READY non atteinte", {
+        description: "Complétez d’abord la checklist hardware.",
+      });
+      return;
+    }
+    setHumanConfirmed(false);
+    setSafetyConfirmed(false);
+    setSecondOperatorCode("");
+    setArmDialogOpen(true);
+  };
+  const confirmArm = () => {
+    if (!remoteProjectId) {
+      toast.error("Aucun projet authentifié");
+      return;
+    }
+    if (!humanConfirmed || !safetyConfirmed) {
+      toast.error("Double confirmation requise", {
+        description: "Cochez les deux cases avant l’armement.",
+      });
+      return;
+    }
+    if (secondOperatorCode.trim().length < 6) {
+      toast.error("Code second opérateur invalide", {
+        description: "Saisir au moins 6 caractères.",
+      });
+      return;
+    }
+    armN3Mutation.mutate({
+      projectId: remoteProjectId,
+      humanConfirmed,
+      safetyConfirmed,
+      secondOperatorCode: secondOperatorCode.trim(),
+      physicalOutputEnabled: false,
+    });
+  };
+  const disarm = () => {
+    if (!remoteProjectId) return;
+    disarmN3Mutation.mutate({ projectId: remoteProjectId });
+  };
+  const openSignOffDialog = () => {
+    if (!remoteProjectId) {
+      toast.error("Aucun projet authentifié");
+      return;
+    }
+    if (!gateState.conditions.n3_armed) {
+      toast.error("N3 doit être armé", {
+        description: "Armez N3 avant la revue indépendante N4.",
+      });
+      return;
+    }
+    setReviewer("");
+    setReviewToken("");
+    setReviewNote("");
+    setSignOffDialogOpen(true);
+  };
+  const confirmSignOff = () => {
+    if (!remoteProjectId) return;
+    if (!reviewer.trim() || reviewToken.trim().length < 8) {
+      toast.error("Revue invalide", {
+        description: "Reviewer + jeton (≥ 8 caractères) requis.",
+      });
+      return;
+    }
+    signOffN4Mutation.mutate({
+      projectId: remoteProjectId,
+      reviewer: reviewer.trim(),
+      reviewToken: reviewToken.trim(),
+      note: reviewNote.trim(),
+      physicalOutputEnabled: false,
     });
   };
   const prepareCommand = () => {
@@ -697,6 +1131,77 @@ export default function LabBench() {
     ]);
   };
 
+  // Modernized sidebar: group views by zone, show per-zone gate state.
+  const renderSidebarNav = () => (
+    <nav aria-label="Navigation LabBench 5 zones">
+      {ZONE_GROUPS.map((group) => {
+        const progress = gateState.zoneProgress.find(
+          (zp) => zp.zone === group.id,
+        );
+        const allPassed = progress?.passed ?? false;
+        return (
+          <div key={group.id} className="lb-zone-group">
+            <div className="lb-zone-header">
+              <span className="lb-zone-label">{group.label}</span>
+              <span className="lb-zone-meta">{group.description}</span>
+              {progress && (
+                <span
+                  className={`lb-zone-pill ${allPassed ? "is-passed" : progress.openCount > 0 ? "is-open" : "is-pending"}`}
+                >
+                  {allPassed ? (
+                    <>
+                      <CheckCircle2 size={11} /> Validé
+                    </>
+                  ) : progress.openCount > 0 ? (
+                    <>
+                      <CircleDot size={11} /> {progress.openCount} ouverte(s)
+                    </>
+                  ) : (
+                    <>
+                      <LockKeyhole size={11} /> En attente
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+            <div className="lb-zone-views">
+              {group.views.map((item) => (
+                <button
+                  key={item.id}
+                  className={`lb-nav-item ${view === item.id ? "is-active" : ""}`}
+                  aria-current={view === item.id ? "page" : undefined}
+                  onClick={() => setView(item.id)}
+                >
+                  <item.icon size={17} />
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.caption}</small>
+                  </span>
+                  <ChevronRight size={14} />
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </nav>
+  );
+
+  const renderGateProgressPanel = () => {
+    if (view === "overview" || view === "audit") return null;
+    return (
+      <section className="lb-gate-strip" aria-label="Progression des gates LabBench">
+        {gateState.gates.map((gate) => (
+          <div key={gate.code} className={`lb-gate-strip-item lb-gate-${gate.state}`}>
+            <span className="lb-gate-strip-code">{gate.code}</span>
+            <span className="lb-gate-strip-label">{gate.label}</span>
+            <GateBadge state={gate.state} />
+          </div>
+        ))}
+      </section>
+    );
+  };
+
   return (
     <main className="labbench-shell">
       <aside className="lb-rail">
@@ -711,33 +1216,17 @@ export default function LabBench() {
           </span>
           <div>
             <strong>AeroMind</strong>
-            <span>LABBENCH 01</span>
+            <span>LABBENCH 01 · v2</span>
           </div>
         </div>
-        <div className="lb-rail-label">ENVIRONNEMENT D’ESSAI</div>
-        <nav aria-label="Navigation LabBench">
-          {navigation.map((item) => (
-            <button
-              key={item.id}
-              className={`lb-nav-item ${view === item.id ? "is-active" : ""}`}
-              aria-current={view === item.id ? "page" : undefined}
-              onClick={() => setView(item.id)}
-            >
-              <item.icon size={17} />
-              <span>
-                <strong>{item.label}</strong>
-                <small>{item.caption}</small>
-              </span>
-              <ChevronRight size={14} />
-            </button>
-          ))}
-        </nav>
+        <div className="lb-rail-label">ENVIRONNEMENT D’ESSAI · 5 ZONES</div>
+        {renderSidebarNav()}
         <div className="lb-rail-foot">
           <ShieldCheck size={17} />
           <span>
             <strong>Frontière de contrôle</strong>
             <small>
-              Commandes virtuelles supervisées · aucune sortie physique
+              Progression par gates · sorties physiques interdites
             </small>
           </span>
         </div>
@@ -747,14 +1236,13 @@ export default function LabBench() {
         <header className="lb-topbar">
           <div>
             <p className="lb-eyebrow">
-              PROJET ACTIF · {status?.project?.code ?? "LABBENCH-01"}
+              PROJET ACTIF · {status?.project?.code ?? "LABBENCH-01"} · ZONE {currentZone?.toUpperCase()}
             </p>
             <h1>{status?.project?.name ?? tKey("labbench.screen.title")}</h1>
           </div>
           <div className="lb-top-status">
             <span className="lb-chip">
-              <CircleDot size={14} />{" "}
-              {status?.project?.proofLevel ?? "N2 — Simulation"}
+              <CircleDot size={14} /> Gate courant : {gateState.currentGate}
             </span>
             <span className="lb-lock">
               <LockKeyhole size={14} /> Aucune commande physique
@@ -764,11 +1252,12 @@ export default function LabBench() {
         <div className="lb-safety-banner">
           <ShieldCheck size={19} />
           <div>
-            <strong>Barrière de sûreté active</strong>
+            <strong>Barrière de sûreté orchestrée par progression</strong>
             <span>
-              Le changement de mode ne contrôle aucun appareil réel. Les
-              consignes virtuelles sont bornées et exigent deux confirmations
-              humaines par action. Les sorties physiques restent interdites.
+              Le passage N2 → N3 → N4 se déverrouille par gates explicites.
+              L’armement N3 exige une double confirmation humaine et un code
+              second opérateur. Les sorties physiques restent interdites ;
+              l’armement ne commande aucun matériel réel.
             </span>
           </div>
         </div>
@@ -819,17 +1308,25 @@ export default function LabBench() {
             </p>
           )}
         </section>
+        {renderGateProgressPanel()}
         <section className="lb-mode-row" aria-label="Mode de travail">
           {modeItems.map((item) => (
             <button
               key={item.id}
               onClick={() => {
+                if (item.id === "authorized" && !gateState.conditions.n3_armed) {
+                  toast.error("Armement N3 requis", {
+                    description: "Armez N3 depuis le banc de test pour activer la commande supervisée.",
+                  });
+                  return;
+                }
                 pendingCommand.current = null;
                 setMode(item.id);
                 setHumanConfirmed(false);
                 setSafetyConfirmed(false);
               }}
               className={`lb-mode ${mode === item.id ? "is-active" : ""}`}
+              aria-disabled={item.id === "authorized" && !gateState.conditions.n3_armed}
             >
               <span>{item.eyebrow}</span>
               <strong>{item.label}</strong>
@@ -842,8 +1339,8 @@ export default function LabBench() {
           aria-label="État instrumenté du LabBench"
         >
           <div>
-            <small>MODE ACTIF</small>
-            <strong>{currentMode.label}</strong>
+            <small>GATE COURANT</small>
+            <strong>{gateState.currentGate}</strong>
             <span>
               {status?.project?.code ?? "LABBENCH-01"} ·{" "}
               {status?.project?.proofLevel ?? "N2 — Simulation"}
@@ -868,9 +1365,21 @@ export default function LabBench() {
             </span>
           </div>
           <div>
-            <small>PASSERELLE MATÉRIELLE</small>
-            <strong>VERROUILLÉE</strong>
-            <span>Émulateur uniquement · aucune sortie physique</span>
+            <small>N3 ARMÉ</small>
+            <strong>
+              {gateState.conditions.n3_armed ? (
+                <span className="lb-text-warning">
+                  <Unlock size={13} /> OUI (virtuel)
+                </span>
+              ) : (
+                <span>VERROUILLÉ</span>
+              )}
+            </strong>
+            <span>
+              {gateState.conditions.n3_armed
+                ? "Consignes virtuelles actives ; pas de sortie physique"
+                : "Armement requis via le banc de test"}
+            </span>
           </div>
         </section>
 
@@ -954,33 +1463,42 @@ export default function LabBench() {
         {view === "overview" && (
           <div className="lb-content">
             <SectionHeading
-              eyebrow="CHAÎNE DE PREUVE"
-              title="État de référence du démonstrateur"
-              detail="Le niveau actuel est calculé à partir de preuves affichées, jamais d’une étiquette d’interface."
+              eyebrow="CHAÎNE DE PREUVE MODERNE"
+              title="Progression par gates — LabBench 01 v2"
+              detail="Le niveau actuel est calculé à partir des preuves serveur (registre, runs archivés, checklist, armement, revue) — jamais d’une étiquette d’interface."
             />
-            <div className="lb-proof-track">
-              {[
-                ["N1", "Conception", "Exigences et registre créés", true],
-                ["N2", "Simulation", "Calcul et données synthétiques", true],
-                ["N3", "Essais physiques", "Mesures réelles archivées", false],
-                ["N4", "Mise en service", "Revue indépendante", false],
-              ].map(([level, title, detail, complete], index) => (
+            <div className="lb-gate-track">
+              {gateState.gates.map((gate, index) => (
                 <div
-                  className={`lb-proof ${complete ? "is-complete" : ""}`}
-                  key={String(level)}
+                  className={`lb-gate-card lb-gate-${gate.state}`}
+                  key={gate.code}
                 >
-                  <span>
-                    {complete ? (
-                      <CheckCircle2 size={18} />
-                    ) : (
-                      <span className="lb-proof-number">{level}</span>
-                    )}
-                  </span>
-                  <div>
-                    <strong>{title}</strong>
-                    <small>{detail}</small>
+                  <div className="lb-gate-card-head">
+                    <span className="lb-gate-card-code">{gate.code}</span>
+                    {index < gateState.gates.length - 1 && <i />}
                   </div>
-                  {index < 3 && <i />}
+                  <div className="lb-gate-card-body">
+                    <strong>{gate.label}</strong>
+                    <small>{gate.description}</small>
+                  </div>
+                  <div className="lb-gate-card-state">
+                    <GateBadge state={gate.state} />
+                  </div>
+                  <div className="lb-gate-card-conditions">
+                    {gate.requiredConditions.map((cond) => (
+                      <span
+                        key={cond}
+                        className={`lb-gate-cond ${gate.conditions[cond] ? "is-met" : "is-missing"}`}
+                      >
+                        {gate.conditions[cond] ? (
+                          <CheckCircle2 size={11} />
+                        ) : (
+                          <XCircle size={11} />
+                        )}
+                        {cond}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1058,11 +1576,11 @@ export default function LabBench() {
                   <span>Portes de passage</span>
                 </div>
                 {[
-                  ["Modèle et exigences versionnés", true],
-                  ["Calcul documenté et rejouable", true],
-                  ["Matériel physique identifié", false],
-                  ["Arrêt et état sûr vérifiés", false],
-                  ["Revue indépendante terminée", false],
+                  ["Modèle et exigences versionnés", gateState.conditions.registry_initialized],
+                  ["Calcul documenté et rejouable", gateState.conditions.n2_run_archived],
+                  ["Matériel physique identifié (checklist)", gateState.conditions.hardware_checklist_complete],
+                  ["Armement N3 supervisé (double confirmation)", gateState.conditions.n3_armed],
+                  ["Revue indépendante terminée", gateState.conditions.independent_review_signed],
                 ].map(([label, passed]) => (
                   <div className="lb-gate" key={String(label)}>
                     {passed ? (
@@ -1070,7 +1588,7 @@ export default function LabBench() {
                     ) : (
                       <XCircle size={17} />
                     )}
-                    <span>{label}</span>
+                    <span>{String(label)}</span>
                     <strong>{passed ? "Réussi" : "Requis"}</strong>
                   </div>
                 ))}
@@ -1084,6 +1602,7 @@ export default function LabBench() {
                   Entrées structurées, limites de type et de plage, permissions,
                   liste blanche, journal d’erreur et retour à l’état sûr sont
                   appliqués avant toute future intégration d’adaptateur.
+                  L’armement N3 n’ouvre qu’un aperçu virtuel supervisé.
                 </p>
               </div>
               <div className="lb-boundary-list">
@@ -1095,6 +1614,9 @@ export default function LabBench() {
                 </span>
                 <span>
                   <CheckCircle2 size={15} /> Émulateur avant banc physique
+                </span>
+                <span>
+                  <CheckCircle2 size={15} /> Armement à double confirmation
                 </span>
               </div>
             </section>
@@ -1169,21 +1691,31 @@ export default function LabBench() {
             <SectionHeading
               eyebrow="MOTEUR D’INGÉNIERIE"
               title="Simulation thermique reproductible"
-              detail="Le moteur est déterministe, ses entrées sont bornées et le résultat conserve une version, une formule et une empreinte."
+              detail="Le moteur est déterministe, ses entrées sont bornées et le résultat conserve une version, une formule et une empreinte. L’archivage serveur valide la gate N2."
               actions={
-                <button
-                  className="lb-primary"
-                  disabled={
-                    simulationMutation.isPending ||
-                    Boolean(validateLabBenchScenario(scenario))
-                  }
-                  onClick={runSimulation}
-                >
-                  <Play size={15} />
-                  {simulationMutation.isPending
-                    ? "Calcul en cours…"
-                    : "Exécuter la simulation"}
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    className="lb-secondary"
+                    onClick={persistSimulation}
+                    disabled={!remoteProjectId || !latestResult || persistSimulationMutation.isPending}
+                  >
+                    <Archive size={14} />
+                    {persistSimulationMutation.isPending ? "Archivage…" : "Archiver le run (N2)"}
+                  </button>
+                  <button
+                    className="lb-primary"
+                    disabled={
+                      simulationMutation.isPending ||
+                      Boolean(validateLabBenchScenario(scenario))
+                    }
+                    onClick={runSimulation}
+                  >
+                    <Play size={15} />
+                    {simulationMutation.isPending
+                      ? "Calcul en cours…"
+                      : "Exécuter la simulation"}
+                  </button>
+                </div>
               }
             />
             <div className="lb-simulation-grid">
@@ -1349,6 +1881,16 @@ export default function LabBench() {
                     </b>
                   </span>
                 </div>
+                <div className="lb-gate-inline">
+                  <span>
+                    Gate N2 —{" "}
+                    {gateState.conditions.n2_run_archived ? (
+                      <strong className="lb-text-good">PASSÉE (run archivé)</strong>
+                    ) : (
+                      <strong className="lb-text-warning">OUVERTE — archivez le run pour la valider</strong>
+                    )}
+                  </span>
+                </div>
               </section>
             </div>
             <section className="lb-note">
@@ -1359,6 +1901,7 @@ export default function LabBench() {
                   Cette simulation utilise des données synthétiques et ne
                   constitue ni une mesure physique, ni un jumeau numérique
                   calibré, ni une autorisation d’actionner du matériel.
+                  L’archivage serveur persiste le run et déclenche la gate N2.
                 </span>
               </div>
             </section>
@@ -1368,13 +1911,61 @@ export default function LabBench() {
         {view === "hardware" && (
           <div className="lb-content">
             <SectionHeading
-              eyebrow="REGISTRES P1"
-              title="Équipement et pilote déclarés"
-              detail="Les identités, interfaces, versions et limites sont montrées avant toute lecture de banc."
+              eyebrow="REGISTRES N3 · CHECKLIST CONFORMITÉ"
+              title="Hardware & Drivers — checklist simulée"
+              detail="La checklist est simulée : elle ne commande aucun appareil réel. Sa complétude déclenche la gate N3-READY et autorise l’armement N3."
+              actions={
+                <button
+                  className="lb-primary"
+                  onClick={submitHardwareChecklist}
+                  disabled={!remoteProjectId || hardwareChecklistMutation.isPending}
+                >
+                  <ClipboardCheck size={15} />
+                  {hardwareChecklistMutation.isPending ? "Enregistrement…" : "Compléter la checklist (N3-READY)"}
+                </button>
+              }
             />
-            <HardwareControlPanel />
-            <LabBenchHardwareConfig />
             <div className="lb-hardware-grid">
+              <section className="lb-panel">
+                <div className="lb-panel-title">
+                  <ClipboardCheck size={17} />
+                  <span>Checklist conformité matérielle (simulée)</span>
+                </div>
+                <div className="lb-checklist">
+                  <div className={`lb-checklist-item ${gateState.hardwareChecklist.deviceIdentified ? "is-met" : "is-missing"}`}>
+                    {gateState.hardwareChecklist.deviceIdentified ? <CheckCircle2 size={17} /> : <XCircle size={17} />}
+                    <div>
+                      <strong>Identité appareil vérifiée</strong>
+                      <small>Émulateur LB01-EMU-001 référencé dans le registre.</small>
+                    </div>
+                    <span>{gateState.hardwareChecklist.deviceIdentified ? "Validé" : "Requis"}</span>
+                  </div>
+                  <div className={`lb-checklist-item ${gateState.hardwareChecklist.driverValidated ? "is-met" : "is-missing"}`}>
+                    {gateState.hardwareChecklist.driverValidated ? <CheckCircle2 size={17} /> : <XCircle size={17} />}
+                    <div>
+                      <strong>Pilote validé</strong>
+                      <small>AeroMind Device Gateway · liste blanche de commandes lecture seule.</small>
+                    </div>
+                    <span>{gateState.hardwareChecklist.driverValidated ? "Validé" : "Requis"}</span>
+                  </div>
+                  <div className={`lb-checklist-item ${gateState.hardwareChecklist.calibrationSimulated ? "is-met" : "is-missing"}`}>
+                    {gateState.hardwareChecklist.calibrationSimulated ? <CheckCircle2 size={17} /> : <XCircle size={17} />}
+                    <div>
+                      <strong>Calibration simulée exécutée</strong>
+                      <small>Capteurs TMP-01 et POS-02 initialisés en synthétique.</small>
+                    </div>
+                    <span>{gateState.hardwareChecklist.calibrationSimulated ? "Validé" : "Requis"}</span>
+                  </div>
+                  <div className={`lb-checklist-item ${gateState.conditions.n3_ready ? "is-met" : "is-missing"}`}>
+                    {gateState.conditions.n3_ready ? <CheckCircle2 size={17} /> : <XCircle size={17} />}
+                    <div>
+                      <strong>Gate N3-READY atteinte</strong>
+                      <small>Conditions : registre + run N2 + checklist complète.</small>
+                    </div>
+                    <span>{gateState.conditions.n3_ready ? "Réussi" : "En attente"}</span>
+                  </div>
+                </div>
+              </section>
               <section className="lb-panel">
                 <div className="lb-panel-title">
                   <Cpu size={17} />
@@ -1437,138 +2028,9 @@ export default function LabBench() {
                   </div>
                 </dl>
               </section>
-              <section className="lb-panel">
-                <div className="lb-panel-title">
-                  <ShieldCheck size={17} />
-                  <span>Registre pilote</span>
-                </div>
-                <div className="lb-asset-name">
-                  <span>ADAPTATEUR</span>
-                  <strong>
-                    {selectedRegistryDriver?.name ??
-                      status?.driver?.name ??
-                      "AeroMind Device Gateway"}
-                  </strong>
-                  <small>
-                    {selectedRegistryDriver?.version ??
-                      status?.driver?.version ??
-                      "0.1.0-sim"}{" "}
-                    ·{" "}
-                    {selectedRegistryDriver?.protocol ??
-                      status?.driver?.protocol ??
-                      "AMDG"}
-                  </small>
-                </div>
-                <dl className="lb-definition-list">
-                  <div>
-                    <dt>Permissions</dt>
-                    <dd>
-                      {selectedRegistryDriver?.permissions ??
-                        status?.driver?.permissions ??
-                        "Lecture seule"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Validation</dt>
-                    <dd>
-                      {selectedRegistryDriver?.validationStatus ??
-                        status?.driver?.validation ??
-                        "Émulateur"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Liste blanche</dt>
-                    <dd>
-                      {selectedRegistryDriver
-                        ? registryFieldLabels(
-                            selectedRegistryDriver.allowlistJson,
-                          )
-                        : (Array.isArray(status?.driver?.allowedCommands)
-                            ? status.driver.allowedCommands.join(" · ")
-                            : "") || "read.temperature"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Commande libre IA</dt>
-                    <dd className="lb-text-danger">Refusée</dd>
-                  </div>
-                </dl>
-              </section>
             </div>
-            <section className="lb-panel lb-catalog-panel">
-              <div className="lb-panel-title">
-                <Archive size={17} />
-                <span>Catalogue importé</span>
-                <small>NON VÉRIFIÉ</small>
-              </div>
-              <p className="lb-catalog-intro">
-                Les références ci-dessous proviennent du JSON fourni. Elles sont
-                conservées comme catalogue uniquement : aucun modèle, firmware,
-                pilote ou fabricant n’est déclaré vérifié.
-              </p>
-              <div className="lb-catalog-list">
-                {catalogDevices.map((device) => (
-                  <article className="lb-catalog-card" key={device.id}>
-                    <div className="lb-catalog-card-head">
-                      <div>
-                        <span className="lb-catalog-code">{device.id}</span>
-                        <h3>{device.name}</h3>
-                        <small>
-                          {device.manufacturer?.name ??
-                            "Référence non renseignée"}{" "}
-                          · {device.category}
-                        </small>
-                      </div>
-                      <span className="lb-catalog-status">
-                        {catalogStatusLabel(device.operationalState)}
-                      </span>
-                    </div>
-                    <div className="lb-catalog-facts">
-                      <span>
-                        <b>Criticité</b>
-                        {catalogStatusLabel(
-                          device.criticality?.level ?? "unspecified",
-                        )}
-                      </span>
-                      <span>
-                        <b>Connexion</b>
-                        {catalogStatusLabel(device.connectionState)}
-                      </span>
-                      <span>
-                        <b>Validation</b>
-                        {catalogStatusLabel(device.validationStatus)}
-                      </span>
-                      <span>
-                        <b>Pilote</b>
-                        {catalogStatusLabel(
-                          device.driver?.status ?? "not_registered",
-                        )}
-                      </span>
-                    </div>
-                    <p>{device.description}</p>
-                    <div className="lb-catalog-tags">
-                      {(Array.isArray(device.specifications?.interfaces)
-                        ? device.specifications.interfaces
-                        : []
-                      ).map((item) => (
-                        <span key={item.type}>
-                          {item.type} · {catalogStatusLabel(item.security)}
-                        </span>
-                      ))}
-                      {(Array.isArray(device.specifications?.standards)
-                        ? device.specifications.standards
-                        : []
-                      ).map((standard) => (
-                        <span key={standard.code}>
-                          {standard.code} ·{" "}
-                          {catalogStatusLabel(standard.status)}
-                        </span>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
+            <HardwareControlPanel />
+            <LabBenchHardwareConfig />
             <section className="lb-panel lb-protocol">
               <div>
                 <p className="lb-eyebrow">PROTOCOLE D’INTÉGRATION</p>
@@ -1602,6 +2064,7 @@ export default function LabBench() {
                 setLocalResult(archived);
                 setRunScenarioSignature(JSON.stringify(archived.inputs));
                 void remoteAuditQuery.refetch();
+                void gateStateQuery.refetch();
               }}
             />
           </div>
@@ -1610,9 +2073,32 @@ export default function LabBench() {
         {view === "bench" && (
           <div className="lb-content">
             <SectionHeading
-              eyebrow="CONSOLE DE DIAGNOSTIC"
-              title="Banc de test protégé"
-              detail={`${currentMode.label} — ${currentMode.detail}`}
+              eyebrow="BANC DE TEST · ARMEMENT N3"
+              title="Procédure d’armement supervisée"
+              detail={`${currentMode.label} — ${currentMode.detail}. L’armement exige la gate N3-READY, une double confirmation humaine et un code second opérateur.`}
+              actions={
+                <div style={{ display: "flex", gap: 8 }}>
+                  {gateState.conditions.n3_armed ? (
+                    <button
+                      className="lb-secondary"
+                      onClick={disarm}
+                      disabled={disarmN3Mutation.isPending}
+                    >
+                      <LockKeyhole size={15} />
+                      {disarmN3Mutation.isPending ? "Désarmement…" : "Désarmer N3"}
+                    </button>
+                  ) : (
+                    <button
+                      className="lb-primary"
+                      onClick={openArmDialog}
+                      disabled={!gateState.conditions.n3_ready}
+                    >
+                      <Unlock size={15} />
+                      Armer N3 (double confirmation)
+                    </button>
+                  )}
+                </div>
+              }
             />
             <div className="lb-bench-grid">
               <section className="lb-panel lb-console">
@@ -1664,14 +2150,14 @@ export default function LabBench() {
               <section className="lb-panel lb-command-panel">
                 <div className="lb-panel-title">
                   <LockKeyhole size={17} />
-                  <span>Commande supervisée</span>
+                  <span>Commande supervisée {gateState.conditions.n3_armed ? "(ARMÉE)" : "(VERROUILLÉE)"}</span>
                 </div>
                 <div className="lb-command-readout">
                   <span>Commande structurée</span>
                   <strong>simulate.servo.setpoint</strong>
                   <small>
                     {scenario.positionSetpointDeg}° · plage autorisée 0–90° ·
-                    simulation uniquement
+                    {gateState.conditions.n3_armed ? " armée virtuellement" : " armement requis"}
                   </small>
                 </div>
                 <label className="lb-confirm">
@@ -1744,10 +2230,36 @@ export default function LabBench() {
                 <p>
                   Deux confirmations distinctes par le même opérateur ; ce
                   panneau ne remplace pas la revue indépendante du centre de
-                  commande.
+                  commande. L’armement N3 persiste côté serveur et reste
+                  traçable dans le journal d’audit.
                 </p>
               </section>
             </div>
+            {!gateState.conditions.n3_ready && (
+              <section className="lb-note">
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>N3-READY non atteinte.</strong>
+                  <span>
+                    Complétez d’abord la checklist hardware depuis la zone 03.
+                    L’armement n’est disponible qu’après la gate N3-READY.
+                  </span>
+                </div>
+              </section>
+            )}
+            {gateState.conditions.n3_armed && !gateState.conditions.independent_review_signed && (
+              <section className="lb-note lb-note-info">
+                <ShieldCheck size={18} />
+                <div>
+                  <strong>N4 disponible.</strong>
+                  <span>
+                    N3 est armée. La revue indépendante N4 peut être signée
+                    depuis la zone 05 (Preuves & Audit) pour clore la
+                    progression.
+                  </span>
+                </div>
+              </section>
+            )}
           </div>
         )}
 
@@ -1756,7 +2268,7 @@ export default function LabBench() {
             <SectionHeading
               eyebrow="DOSSIER DE PREUVE"
               title="Rapports et archivage"
-              detail="Un rapport affirme le niveau de preuve disponible, pas les capacités futures du système."
+              detail="Un rapport affirme le niveau de preuve disponible, pas les capacités futures du système. La gate N4 conditionne la mise en service."
             />
             <div className="lb-reports-grid">
               <section className="lb-panel">
@@ -1802,14 +2314,14 @@ export default function LabBench() {
                     "Paramètres et version moteur conservés",
                     Boolean(latestResult),
                   ],
-                  ["Mesures physiques archivées", false],
-                  ["Défaut de capteur injecté et traité", false],
-                  ["État sûr matériel démontré", false],
-                  ["Décision indépendante de mise en service", false],
+                  ["Run N2 archivé côté serveur", gateState.conditions.n2_run_archived],
+                  ["Checklist hardware complète (N3-READY)", gateState.conditions.hardware_checklist_complete],
+                  ["Armement N3 supervisé actif", gateState.conditions.n3_armed],
+                  ["Revue indépendante N4 signée", gateState.conditions.independent_review_signed],
                 ].map(([label, done]) => (
                   <div className="lb-gate" key={String(label)}>
                     {done ? <CheckCircle2 size={17} /> : <XCircle size={17} />}
-                    <span>{label}</span>
+                    <span>{String(label)}</span>
                     <strong>{done ? "Présent" : "Ouvert"}</strong>
                   </div>
                 ))}
@@ -1832,14 +2344,43 @@ export default function LabBench() {
         {view === "audit" && (
           <div className="lb-content">
             <SectionHeading
-              eyebrow="TRAÇABILITÉ"
-              title="Journal d’audit du projet actif"
+              eyebrow="TRAÇABILITÉ · SIGN-OFF N4"
+              title="Journal d’audit & revue indépendante"
               detail={
                 remoteProjectId
-                  ? "Les événements persistants du projet sont affichés avec les reçus de la session courante."
+                  ? "Les événements persistants du projet sont affichés avec les reçus de la session courante. La revue N4 signée clôt la progression."
                   : "Mode aperçu : le journal affiché est local à cette session et ne constitue pas une preuve serveur."
               }
+              actions={
+                gateState.conditions.n3_armed && !gateState.conditions.independent_review_signed ? (
+                  <button className="lb-primary" onClick={openSignOffDialog}>
+                    <KeyRound size={15} />
+                    Signer la revue N4
+                  </button>
+                ) : undefined
+              }
             />
+            {gateState.reviewEvents.length > 0 && (
+              <section className="lb-panel lb-review-events">
+                <div className="lb-panel-title">
+                  <FileCheck2 size={17} />
+                  <span>Revues N4 signées</span>
+                </div>
+                {gateState.reviewEvents.map((event, index) => (
+                  <div className="lb-review-event" key={String(event.id ?? index)}>
+                    <CheckCircle2 size={16} />
+                    <div>
+                      <strong>
+                        Revue signée par {String(event.reviewer ?? "—")} ·{" "}
+                        {String(event.at ?? "—").slice(0, 19).replace("T", " ")}
+                      </strong>
+                      <small>{String(event.note ?? "Revue indépendante.")}</small>
+                    </div>
+                    <span className="lb-text-good">Signée</span>
+                  </div>
+                ))}
+              </section>
+            )}
             <section className="lb-panel lb-audit-panel">
               <div className="lb-audit-head">
                 <span>Heure</span>
@@ -1880,6 +2421,146 @@ export default function LabBench() {
           </div>
         )}
       </section>
+
+      {armDialogOpen && (
+        <div className="lb-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="arm-dialog-title">
+          <div className="lb-modal">
+            <div className="lb-modal-header">
+              <Zap size={18} />
+              <h2 id="arm-dialog-title">Armement N3 supervisé — double confirmation</h2>
+            </div>
+            <div className="lb-modal-body">
+              <p className="lb-modal-warning">
+                <AlertTriangle size={16} />
+                Cet armement ne déclenche <strong>aucune commande physique</strong>.
+                Il déverrouille uniquement les consignes virtuelles supervisées
+                de la zone 04 et reste traçable côté serveur.
+              </p>
+              <label className="lb-confirm">
+                <input
+                  type="checkbox"
+                  checked={humanConfirmed}
+                  onChange={(event) => setHumanConfirmed(event.target.checked)}
+                />
+                <span>
+                  Je confirme avoir lu la procédure d’armement et l’absence de
+                  sortie physique.
+                </span>
+              </label>
+              <label className="lb-confirm">
+                <input
+                  type="checkbox"
+                  checked={safetyConfirmed}
+                  onChange={(event) => setSafetyConfirmed(event.target.checked)}
+                />
+                <span>
+                  Je confirme le périmètre virtuel exclusif et la possibilité
+                  d’arrêt immédiat.
+                </span>
+              </label>
+              <label className="lb-input-row">
+                <span>Code second opérateur (≥ 6 caractères) :</span>
+                <input
+                  type="password"
+                  value={secondOperatorCode}
+                  onChange={(event) => setSecondOperatorCode(event.target.value)}
+                  placeholder="Saisir le code du second opérateur"
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+            <div className="lb-modal-footer">
+              <button
+                className="lb-secondary"
+                onClick={() => setArmDialogOpen(false)}
+                disabled={armN3Mutation.isPending}
+              >
+                Annuler
+              </button>
+              <button
+                className="lb-primary"
+                onClick={confirmArm}
+                disabled={
+                  armN3Mutation.isPending ||
+                  !humanConfirmed ||
+                  !safetyConfirmed ||
+                  secondOperatorCode.trim().length < 6
+                }
+              >
+                <Unlock size={15} />
+                {armN3Mutation.isPending ? "Armement…" : "Armer N3"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {signOffDialogOpen && (
+        <div className="lb-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="signoff-dialog-title">
+          <div className="lb-modal">
+            <div className="lb-modal-header">
+              <KeyRound size={18} />
+              <h2 id="signoff-dialog-title">Revue indépendante N4 — signature</h2>
+            </div>
+            <div className="lb-modal-body">
+              <p className="lb-modal-warning">
+                <ShieldCheck size={16} />
+                La signature N4 clôt la progression. Elle ne déclenche aucune
+                commande matérielle ; elle est persistée et auditée.
+              </p>
+              <label className="lb-input-row">
+                <span>Revue par (nom / email) :</span>
+                <input
+                  type="text"
+                  value={reviewer}
+                  onChange={(event) => setReviewer(event.target.value)}
+                  placeholder="Ex. Marie Lefèvre — Independent Reviewer"
+                />
+              </label>
+              <label className="lb-input-row">
+                <span>Jeton de revue (≥ 8 caractères) :</span>
+                <input
+                  type="password"
+                  value={reviewToken}
+                  onChange={(event) => setReviewToken(event.target.value)}
+                  placeholder="Jeton délivré hors bande"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="lb-input-row">
+                <span>Note de revue (optionnel) :</span>
+                <textarea
+                  value={reviewNote}
+                  onChange={(event) => setReviewNote(event.target.value)}
+                  placeholder="Ex. Démonstration N3 supervisée conforme ; aucune anomalie."
+                  rows={3}
+                />
+              </label>
+            </div>
+            <div className="lb-modal-footer">
+              <button
+                className="lb-secondary"
+                onClick={() => setSignOffDialogOpen(false)}
+                disabled={signOffN4Mutation.isPending}
+              >
+                Annuler
+              </button>
+              <button
+                className="lb-primary"
+                onClick={confirmSignOff}
+                disabled={
+                  signOffN4Mutation.isPending ||
+                  !reviewer.trim() ||
+                  reviewToken.trim().length < 8
+                }
+              >
+                <FileCheck2 size={15} />
+                {signOffN4Mutation.isPending ? "Signature…" : "Signer la revue N4"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

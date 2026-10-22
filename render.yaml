@@ -1,3 +1,22 @@
+# AeroMind — Render Blueprint moderne (LabBench 01 v2)
+#
+# Déploiement : service Docker FastAPI qui sert aussi le frontend Vite compilé,
+# base PostgreSQL Render, authentification OIDC/Entra optionnelle, observateur
+# MAVLink strictement lecture seule, LLM OpenAI-compatible optionnel.
+#
+# Procédure :
+# 1. Pousser ce dossier `aeromind` dans un dépôt GitHub/GitLab.
+# 2. Render → New → Blueprint → sélectionner le dépôt.
+# 3. Région frankfurt pour le service web ET PostgreSQL (même région requise
+#    pour utiliser l'URL interne PostgreSQL).
+# 4. Appliquer le Blueprint ; Render crée le service `aeromind-ai` et la base
+#    `aeromind-db`.
+# 5. Compléter les variables `sync: false` dans Environment.
+# 6. Enregistrer le domaine Render obtenu (ex : aeromind-ai.onrender.com).
+# 7. Mettre à jour AEROMIND_ALLOWED_HOSTS et AEROMIND_ALLOWED_ORIGINS avec ce
+#    domaine, ainsi que ENTRA_REDIRECT_URI / OIDC_REDIRECT_URI.
+# 8. Lancer un nouveau déploiement.
+
 services:
   - type: web
     name: aeromind-ai
@@ -7,7 +26,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/ready
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - key: AEROMIND_ENV
         value: production
@@ -21,8 +40,10 @@ services:
           property: connectionString
       - key: AEROMIND_SESSION_SECRET
         generateValue: true
+      # Hôtes autorisés : ajouter le domaine Render obtenu après le premier déploiement.
       - key: AEROMIND_ALLOWED_HOSTS
         sync: false
+      # Origine HTTPS exacte du frontend, sans slash final.
       - key: AEROMIND_ALLOWED_ORIGINS
         sync: false
       - key: AEROMIND_SUPERADMIN_EMAILS
@@ -31,6 +52,7 @@ services:
         value: demo@example.com
       - key: DEFAULT_DEMO_EMAIL
         value: mcgregoralvin14@gmail.com
+      # Option A — Microsoft Entra ID (laisser vide si OIDC générique utilisé)
       - key: ENTRA_TENANT_ID
         sync: false
       - key: ENTRA_CLIENT_ID
@@ -39,7 +61,7 @@ services:
         sync: false
       - key: ENTRA_REDIRECT_URI
         sync: false
-      # Alternative : utiliser OIDC_* au lieu de ENTRA_*.
+      # Option B — OIDC générique (laisser vide si Entra utilisé)
       - key: OIDC_ISSUER
         sync: false
       - key: OIDC_CLIENT_ID
@@ -48,14 +70,17 @@ services:
         sync: false
       - key: OIDC_REDIRECT_URI
         sync: false
+      # LLM OpenAI-compatible (optionnel)
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_API_BASE
         value: https://api.openai.com/v1
       - key: OPENAI_MODEL
         value: gpt-5-mini
+      # Frontière de contrôle — toujours false sur ce service.
       - key: HARDWARE_CONTROL
         value: "false"
+      # MAVLink observer (lecture seule)
       - key: AEROMIND_GEOFENCE
         sync: false
       - key: AEROMIND_MAVLINK_URL

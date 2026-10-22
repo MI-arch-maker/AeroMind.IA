@@ -3,6 +3,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
+// RENDER-ready Vite config: the previous manus.computer preview hosts are
+// removed; only local dev/preview hosts are allowed. Render deploys the
+// compiled bundle via FastAPI (see Dockerfile + web/app.py), so Vite's
+// preview server is only used for local development.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -15,68 +19,31 @@ export default defineConfig({
   root: path.resolve(__dirname, "client"),
   publicDir: path.resolve(__dirname, "client/public"),
   server: {
+    host: "0.0.0.0",
+    port: Number(process.env.PORT ?? 5173),
+    strictPort: false,
     allowedHosts: [
-      "3000-iel35nf60gvxme8mqf73n-98421080.us3.manus.computer",
-      "3000-ixku6stn6csb960kx4l2l-6c2f1ae8.us4.manus.computer",
-      "4173-i8499769arsb08biho52f-81622e4c.us4.manus.computer",
-      "3000-i7u6uno6c6qhl9beag8nu-d4712787.us5.manus.computer",
-      "3000-in4v8iateaaynnal2sokv-5c4f33d9.sg2.manus.computer",
-      "3000-i5pm0bqkbexzy6d31pvcf-4f97cf01.us5.manus.computer",
-      "4173-i5m4fm8k0l5z7oqnc2btd-187b75dc.us5.manus.computer",
-      "4173-ikmjrxr58su2o4j7q0o2v-36d27552.us5.manus.computer",
-      "4173-i5evebq43iaqwsg5zey9e-4f7060bc.us4.manus.computer",
-      "4173-if67e6avaqxt0tako0cms-dc27c0f5.us4.manus.computer",
-      "4173-iwbdyikvisza4x9zc3wma-8f8e7834.us5.manus.computer",
-      "3000-iuqie534lwon0gsmqlasy-bb2b100d.sg2.manus.computer",
-      "4173-ijm96f0ejf7sq19tcjpqy-b098a50c.us4.manus.computer",
-      "3000-iimdjknh083b399o5bqk1-e245f7a6.us4.manus.computer",
-      "4173-ij6xa0v2zidxxet449kob-ab21c135.us4.manus.computer",
-      "4173-ijsw1j2n6is5kib2l4r1k-b0af3abd.us4.manus.computer",
-      "4173-igpkw26ra0ud836qekoju-8e1d88a0.us1.manus.computer",
-      "3000-idbvo6hmq21jxmjp0epd1-963eb28e.us4.manus.computer",
-      "4173-ixrz3rtdz3jmzlc5yu8bs-4475e009.us1.manus.computer",
-      "3000-ivje0xdim6qwcfle78h5h-0da2ced2.us4.manus.computer",
-      "3000-ilgj0vedt9l2dpho2k05j-2e101a36.us4.manus.computer",
-      "3000-i52jzkbnocuf3cv5ig5t8-34ddc3e0.us5.manus.computer",
-      "3000-ibg5900ytdr7zr3ht8e7k-453a8c56.us5.manus.computer",
-      "3000-i0t0uyur3b5wkj7lxu230-c2e281fa.us5.manus.computer",
-      "3000-i8pneduwahblxg2db1g17-a0a1f1ae.us5.manus.computer",
-      "3000-idwse37o5mchsveov4hco-392a97ec.us4.manus.computer",
-      "3000-iokuhammx2jun2i2uv924-689b1f1e.sg2.manus.computer",
+      "localhost",
+      "127.0.0.1",
+      "0.0.0.0",
+      // Render preview host pattern (used only in dev/preview; the production
+      // build is served by FastAPI, not by Vite preview).
+      "*.onrender.com",
     ],
   },
   preview: {
+    host: "0.0.0.0",
+    port: Number(process.env.PORT ?? 4173),
     allowedHosts: [
-      "3000-iel35nf60gvxme8mqf73n-98421080.us3.manus.computer",
-      "3000-ixku6stn6csb960kx4l2l-6c2f1ae8.us4.manus.computer",
-      "4173-i8499769arsb08biho52f-81622e4c.us4.manus.computer",
-      "3000-i7u6uno6c6qhl9beag8nu-d4712787.us5.manus.computer",
-      "3000-in4v8iateaaynnal2sokv-5c4f33d9.sg2.manus.computer",
-      "3000-i5pm0bqkbexzy6d31pvcf-4f97cf01.us5.manus.computer",
-      "4173-i5m4fm8k0l5z7oqnc2btd-187b75dc.us5.manus.computer",
-      "4173-ikmjrxr58su2o4j7q0o2v-36d27552.us5.manus.computer",
-      "4173-i5evebq43iaqwsg5zey9e-4f7060bc.us4.manus.computer",
-      "4173-if67e6avaqxt0tako0cms-dc27c0f5.us4.manus.computer",
-      "4173-iwbdyikvisza4x9zc3wma-8f8e7834.us5.manus.computer",
-      "4173-i52jzkbnocuf3cv5ig5t8-34ddc3e0.us5.manus.computer",
-      "3000-iuqie534lwon0gsmqlasy-bb2b100d.sg2.manus.computer",
-      "4173-iy9cxc1zpskcr27b2mp06-1936727a.us4.manus.computer",
-      "4173-ijm96f0ejf7sq19tcjpqy-b098a50c.us4.manus.computer",
-      "3000-iimdjknh083b399o5bqk1-e245f7a6.us4.manus.computer",
-      "3000-idbvo6hmq21jxmjp0epd1-963eb28e.us4.manus.computer",
-      "4173-ixrz3rtdz3jmzlc5yu8bs-4475e009.us1.manus.computer",
-      "3000-ivje0xdim6qwcfle78h5h-0da2ced2.us4.manus.computer",
-      "3000-ilgj0vedt9l2dpho2k05j-2e101a36.us4.manus.computer",
-      "3000-i52jzkbnocuf3cv5ig5t8-34ddc3e0.us5.manus.computer",
-      "3000-ibg5900ytdr7zr3ht8e7k-453a8c56.us5.manus.computer",
-      "3000-i0t0uyur3b5wkj7lxu230-c2e281fa.us5.manus.computer",
-      "3000-i8pneduwahblxg2db1g17-a0a1f1ae.us5.manus.computer",
-      "3000-idwse37o5mchsveov4hco-392a97ec.us4.manus.computer",
-      "3000-iokuhammx2jun2i2uv924-689b1f1e.sg2.manus.computer",
+      "localhost",
+      "127.0.0.1",
+      "*.onrender.com",
     ],
   },
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
+    sourcemap: false,
+    chunkSizeWarningLimit: 1024,
   },
 });

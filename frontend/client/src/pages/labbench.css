@@ -119,3 +119,94 @@
   .lb-safety-banner span { font-size: 11px; }
   .lb-instrument-strip { margin-top: 0; }
 }
+
+/* ===========================================================================
+   LabBench 01 v2 — Modernized 5-zone architecture
+   =========================================================================== */
+
+.lb-zone-group { margin-bottom: 14px; padding: 0 4px; }
+.lb-zone-header { padding: 12px 8px 6px; border-bottom: 1px dashed rgba(160,215,222,.1); margin-bottom: 4px; }
+.lb-zone-label { display: block; color: #d9f1f3; font: 600 11px "IBM Plex Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+.lb-zone-meta { display: block; color: #6a8d96; font-size: 10px; margin-top: 3px; }
+.lb-zone-pill { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font: 600 9px "IBM Plex Mono", monospace; padding: 4px 7px; border-radius: 100px; }
+.lb-zone-pill.is-passed { background: rgba(117,215,173,.13); color: #8adfb6; border: 1px solid rgba(117,215,173,.3); }
+.lb-zone-pill.is-open { background: rgba(241,185,84,.12); color: #f1c772; border: 1px solid rgba(241,185,84,.3); }
+.lb-zone-pill.is-pending { background: rgba(255,255,255,.05); color: #88a4ad; border: 1px solid var(--lb-line); }
+.lb-zone-views { display: grid; gap: 2px; margin-top: 4px; }
+
+.lb-gate-strip { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 20px; padding: 10px 12px; border: 1px solid var(--lb-line); border-radius: 8px; background: linear-gradient(135deg, rgba(16,37,51,.96), rgba(8,21,31,.96)); }
+.lb-gate-strip-item { display: flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--lb-line); border-radius: 6px; background: rgba(255,255,255,.02); font-size: 10px; }
+.lb-gate-strip-code { font: 600 10px "IBM Plex Mono", monospace; color: var(--lb-cyan); }
+.lb-gate-strip-label { color: #c0d4d8; flex: 1; }
+.lb-gate-badge { display: inline-flex; align-items: center; gap: 4px; font: 600 9px "IBM Plex Mono", monospace; padding: 3px 6px; border-radius: 100px; }
+.lb-gate-badge.lb-gate-passed { color: #8adfb6; background: rgba(117,215,173,.13); border: 1px solid rgba(117,215,173,.28); }
+.lb-gate-badge.lb-gate-open { color: #f1c772; background: rgba(241,185,84,.13); border: 1px solid rgba(241,185,84,.28); }
+.lb-gate-badge.lb-gate-pending { color: #88a4ad; background: rgba(255,255,255,.04); border: 1px solid var(--lb-line); }
+.lb-gate-strip-item.lb-gate-passed { border-color: rgba(117,215,173,.28); background: rgba(117,215,173,.04); }
+.lb-gate-strip-item.lb-gate-open { border-color: rgba(241,185,84,.28); background: rgba(241,185,84,.05); }
+
+.lb-gate-track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin-bottom: 22px; border: 1px solid var(--lb-line); border-radius: 10px; background: #0d1b28; overflow: hidden; }
+.lb-gate-card { position: relative; padding: 16px 14px; border-right: 1px solid var(--lb-line); display: flex; flex-direction: column; gap: 8px; }
+.lb-gate-card:last-child { border-right: 0; }
+.lb-gate-card-head { display: flex; align-items: center; justify-content: space-between; }
+.lb-gate-card-code { font: 600 11px "IBM Plex Mono", monospace; color: var(--lb-cyan); border: 1px solid rgba(37,208,217,.2); padding: 3px 7px; border-radius: 100px; }
+.lb-gate-card-head i { display: block; flex: 1; height: 1px; background: var(--lb-line); margin: 0 8px; }
+.lb-gate-card-body strong { font-size: 13px; display: block; color: #e5f4f5; line-height: 1.25; }
+.lb-gate-card-body small { display: block; color: #88a4ad; font-size: 10px; line-height: 1.4; margin-top: 4px; }
+.lb-gate-card-state { padding: 4px 0; }
+.lb-gate-card-conditions { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 4px; border-top: 1px dashed rgba(160,215,222,.1); }
+.lb-gate-cond { display: inline-flex; align-items: center; gap: 4px; font: 500 9px "IBM Plex Mono", monospace; padding: 3px 6px; border-radius: 4px; }
+.lb-gate-cond.is-met { color: #8adfb6; background: rgba(117,215,173,.08); border: 1px solid rgba(117,215,173,.2); }
+.lb-gate-cond.is-missing { color: #88a4ad; background: rgba(255,255,255,.03); border: 1px solid var(--lb-line); }
+.lb-gate-card.lb-gate-passed { background: linear-gradient(180deg, rgba(117,215,173,.06), transparent); }
+.lb-gate-card.lb-gate-open { background: linear-gradient(180deg, rgba(241,185,84,.06), transparent); }
+.lb-gate-card.lb-gate-pending { opacity: .55; }
+
+.lb-gate-inline { padding: 12px 17px 16px; font-size: 11px; color: #88a4ad; }
+
+.lb-checklist { display: grid; gap: 1px; padding: 4px 0; }
+.lb-checklist-item { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 13px 17px; background: rgba(255,255,255,.02); border-bottom: 1px solid var(--lb-line); }
+.lb-checklist-item:last-child { border-bottom: 0; }
+.lb-checklist-item.is-met { background: rgba(117,215,173,.04); }
+.lb-checklist-item.is-missing { background: rgba(241,185,84,.03); }
+.lb-checklist-item>svg { color: var(--lb-red); }
+.lb-checklist-item.is-met>svg { color: var(--lb-green); }
+.lb-checklist-item strong { font-size: 12px; display: block; color: #e0f0f1; }
+.lb-checklist-item small { font-size: 10px; color: #8aa5ad; display: block; margin-top: 3px; }
+.lb-checklist-item>span { font: 600 10px "IBM Plex Mono", monospace; color: var(--lb-cyan); }
+
+.lb-note.lb-note-info { border-color: rgba(37,208,217,.25); background: rgba(37,208,217,.05); color: #79d4d8; }
+.lb-note.lb-note-info strong { color: #8de7eb; }
+.lb-note.lb-note-info span { color: #88c5c9; }
+
+.lb-review-events { padding: 0; }
+.lb-review-event { display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; align-items: center; padding: 13px 17px; border-bottom: 1px solid var(--lb-line); }
+.lb-review-event:last-child { border-bottom: 0; }
+.lb-review-event>svg { color: var(--lb-green); }
+.lb-review-event strong { display: block; font-size: 12px; color: #e0f0f1; }
+.lb-review-event small { font-size: 10px; color: #8aa5ad; display: block; margin-top: 3px; }
+
+.lb-modal-overlay { position: fixed; inset: 0; background: rgba(7,15,24,.78); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 90; padding: 24px; }
+.lb-modal { width: 100%; max-width: 520px; background: linear-gradient(160deg, #14283a, #0c1a28); border: 1px solid var(--lb-line); border-radius: 12px; box-shadow: 0 24px 60px rgba(0,0,0,.45); overflow: hidden; }
+.lb-modal-header { display: flex; align-items: center; gap: 10px; padding: 18px 22px; border-bottom: 1px solid var(--lb-line); color: var(--lb-cyan); }
+.lb-modal-header h2 { font-size: 16px; color: #e5f4f5; margin: 0; letter-spacing: -.02em; }
+.lb-modal-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; }
+.lb-modal-warning { display: flex; gap: 9px; align-items: flex-start; padding: 12px 13px; border: 1px solid rgba(241,185,84,.27); background: rgba(241,185,84,.06); color: #f1c772; border-radius: 6px; font-size: 11px; line-height: 1.5; }
+.lb-modal-warning strong { color: #f5cf85; }
+.lb-input-row { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #9bb6bd; }
+.lb-input-row input, .lb-input-row textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid rgba(132,170,180,.25); border-radius: 6px; background: #081419; color: #e0f0f1; font: 12px "IBM Plex Mono", monospace; }
+.lb-input-row input:focus, .lb-input-row textarea:focus { outline: 1px solid var(--lb-cyan); border-color: var(--lb-cyan); }
+.lb-input-row textarea { resize: vertical; min-height: 60px; }
+.lb-modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px 18px; border-top: 1px solid var(--lb-line); }
+
+@media (max-width: 1050px) {
+  .lb-gate-track { grid-template-columns: repeat(2, 1fr); }
+  .lb-gate-card { border-right: 0; border-bottom: 1px solid var(--lb-line); }
+  .lb-gate-card:nth-child(2n) { border-right: 0; }
+}
+@media (max-width: 720px) {
+  .lb-gate-track { grid-template-columns: 1fr; }
+  .lb-gate-card { border-bottom: 1px solid var(--lb-line); }
+  .lb-gate-card:last-child { border-bottom: 0; }
+  .lb-modal { max-width: 100%; }
+}

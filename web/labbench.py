@@ -592,3 +592,515 @@ def validate_command(payload: dict[str, Any]) -> dict[str, Any]:
     reason = "Validation uniquement : elle ne commande ni modèle serveur ni matériel; l’aperçu virtuel reste local au client."
     receipt = {**common, "allowed": True, "executed": False, "authorized": True, "status": "validated_preview_only", "reason": reason}
     return {**receipt, "receiptSha256": _canonical_sha256(receipt)}
+
+
+# ---------------------------------------------------------------------------
+# Modernized LabBench 01 — gate progression (N1 → N2 → N3 armed → N4)
+#
+# This module deliberately keeps the simulation-only contract: no physical
+# output is ever produced. The gates below orchestrate the *visible* path
+# from conception (N1) to supervised virtual command (N3) to independent
+# sign-off (N4), replacing the previous "permanent block" UX with a clear,
+# auditable progression that the operator drives explicitly.
+# ---------------------------------------------------------------------------
+
+GATE_KIND = "labbench_gate_state.v1"
+
+# Each gate has a stable code, a level and the conditions required to pass it.
+# Conditions are evaluated server-side from the persisted LabSession records
+# (registry, simulation runs, gate events) — never from the client.
+GATE_DEFINITIONS: list[dict[str, Any]] = [
+    {
+        "code": "N1",
+        "label": "Conception",
+        "description": "Registre exigences + identité appareil/émulateur créés.",
+        "level": "N1",
+        "zone": "governance",
+        "requiredConditions": ["registry_initialized"],
+    },
+    {
+        "code": "N2",
+        "label": "Simulation",
+        "description": "Au moins un run N2 archivé côté serveur (empreinte SHA-256).",
+        "level": "N2",
+        "zone": "simulation",
+        "requiredConditions": ["registry_initialized", "n2_run_archived"],
+    },
+    {
+        "code": "N3-READY",
+        "label": "Conformité matérielle",
+        "description": "Pilote + identité appareil vérifiés ; calibration simulée exécutée.",
+        "level": "N3",
+        "zone": "hardware",
+        "requiredConditions": ["registry_initialized", "n2_run_archived", "hardware_checklist_complete"],
+    },
+    {
+        "code": "N3-ARMED",
+        "label": "Armement N3 supervisé",
+        "description": "Armement explicite après double confirmation humaine.",
+        "level": "N3",
+        "zone": "bench",
+        "requiredConditions": ["n3_ready", "arm_double_confirmed"],
+    },
+    {
+        "code": "N4",
+        "label": "Mise en service (revue indépendante)",
+        "description": "Revue indépendante signée après démonstration N3 supervisée.",
+        "level": "N4",
+        "zone": "audit",
+        "requiredConditions": ["n3_armed", "independent_review_signed"],
+    },
+]
+
+
+def _gate_state_row(db: Session, project_id: str, user_id: str) -> tuple[LabSession | None, dict[str, Any] | None]:
+    rows = db.scalars(
+        select(LabSession)
+        .where(LabSession.project_id == project_id, LabSession.user_id == user_id)
+        .order_by(LabSession.created_at.asc())
+    ).all()
+    for row in rows:
+        data = _decode_session(row)
+        if data and data.get("kind") == GATE_KIND:
+            return row, data
+    return None, None
+
+
+def _new_gate_state(project: Project, user: dict[str, Any]) -> dict[str, Any]:
+    now = datetime.now(UTC).isoformat()
+    return {
+        "kind": GATE_KIND,
+        "schemaVersion": 1,
+        "projectId": project.id,
+        "ownerId": user["id"],
+        "createdAt": now,
+        "updatedAt": now,
+        # Conditions are persisted so the UI can show which checklist items
+        # are still open even when the operator refreshes the page.
+        "conditions": {
+            "registry_initialized": False,
+            "n2_run_archived": False,
+            "hardware_checklist_complete": False,
+            "n3_ready": False,
+            "arm_double_confirmed": False,
+            "n3_armed": False,
+            "independent_review_signed": False,
+        },
+        "armEvents": [],
+        "reviewEvents": [],
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+    }
+
+
+def _ensure_gate_state(db: Session, project: Project, user: dict[str, Any]) -> tuple[LabSession, dict[str, Any], bool]:
+    row, data = _gate_state_row(db, project.id, user["id"])
+    if row is not None and data is not None:
+        return row, data, False
+    data = _new_gate_state(project, user)
+    row = LabSession(id=str(uuid4()), user_id=user["id"], project_id=project.id, data_json=json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+    db.add(row)
+    return row, data, True
+
+
+def _evaluate_conditions(db: Session, project: Project, user: dict[str, Any], gate_state: dict[str, Any]) -> dict[str, bool]:
+    """Re-evaluate each gate condition from persisted evidence."""
+    conditions = dict(gate_state.get("conditions", {}))
+    # Always reset to false before re-evaluation; this prevents stale state
+    # if the underlying evidence rows were removed out of band.
+    for key in ("registry_initialized", "n2_run_archived", "hardware_checklist_complete", "n3_ready", "n3_armed"):
+        conditions[key] = False
+
+    # registry_initialized: a registry row of kind REGISTRY_KIND exists
+    registry_row, _ = _registry_row(db, project.id, user["id"])
+    conditions["registry_initialized"] = registry_row is not None
+
+    # n2_run_archived: at least one server-archived simulation run exists
+    n2_archived = False
+    for row in db.scalars(
+        select(LabSession)
+        .where(LabSession.project_id == project.id, LabSession.user_id == user["id"])
+        .order_by(LabSession.created_at.desc())
+    ):
+        item = _decode_session(row)
+        candidate = item.get("run") if item and item.get("kind") == RUN_KIND else None
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("source") == "server-archived"
+            and candidate.get("persisted") is True
+        ):
+            n2_archived = True
+            break
+    conditions["n2_run_archived"] = n2_archived
+
+    # hardware_checklist_complete: emulator identity verified + driver validated.
+    # Both flags are persisted by the arm/checklist mutation below; the
+    # server refuses to flip them purely from a client request.
+    checklist = bool(gate_state.get("hardwareChecklist", {}).get("complete") is True)
+    conditions["hardware_checklist_complete"] = checklist and conditions["registry_initialized"] and conditions["n2_run_archived"]
+
+    # n3_ready: N3-READY gate is passed (registry + n2 + hardware checklist)
+    conditions["n3_ready"] = (
+        conditions["registry_initialized"]
+        and conditions["n2_run_archived"]
+        and conditions["hardware_checklist_complete"]
+    )
+
+    # n3_armed: at least one ARMED event is active (no disarm since)
+    arm_events = gate_state.get("armEvents", [])
+    armed_active = False
+    if isinstance(arm_events, list):
+        for event in arm_events:
+            if (
+                isinstance(event, dict)
+                and event.get("action") == "arm"
+                and event.get("active") is True
+            ):
+                armed_active = True
+                break
+    conditions["n3_armed"] = armed_active and conditions["n3_ready"]
+
+    # arm_double_confirmed is a transient flag; it is set true only when the
+    # operator completed the arm procedure (and reset after each arm event).
+    conditions.setdefault("arm_double_confirmed", False)
+    # independent_review_signed persists across reads; do not reset it.
+    conditions["independent_review_signed"] = bool(
+        gate_state.get("reviewEvents")
+        and isinstance(gate_state.get("reviewEvents"), list)
+        and any(isinstance(e, dict) and e.get("action") == "sign-off" for e in gate_state["reviewEvents"])
+    )
+
+    return conditions
+
+
+def _resolved_gates(conditions: dict[str, bool]) -> list[dict[str, Any]]:
+    """Project the boolean conditions onto the ordered gate definitions."""
+    resolved: list[dict[str, Any]] = []
+    passed_so_far = True
+    for definition in GATE_DEFINITIONS:
+        required = definition["requiredConditions"]
+        all_met = all(conditions.get(name) is True for name in required)
+        # Once a gate fails, subsequent gates cannot be "passed" — they are "pending".
+        state = "passed" if (passed_so_far and all_met) else ("pending" if not passed_so_far else "open")
+        if not all_met and passed_so_far:
+            state = "open"
+            passed_so_far = False
+        resolved.append({
+            "code": definition["code"],
+            "label": definition["label"],
+            "description": definition["description"],
+            "level": definition["level"],
+            "zone": definition["zone"],
+            "requiredConditions": required,
+            "conditions": {name: bool(conditions.get(name)) for name in required},
+            "state": state,
+        })
+    return resolved
+
+
+def gate_state(db: Session, user: dict[str, Any] | None, project_id: str) -> dict[str, Any]:
+    """Return the current gate progression for a project."""
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    row, data = _gate_state_row(db, project.id, user["id"])
+    if row is None or data is None:
+        # Lazily initialize the gate state on first read; the operator has
+        # not yet started the progression, so all conditions are false.
+        data = _new_gate_state(project, user)
+        row = LabSession(
+            id=str(uuid4()),
+            user_id=user["id"],
+            project_id=project.id,
+            data_json=json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    conditions = _evaluate_conditions(db, project, user, data)
+    data["conditions"] = conditions
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    db.commit()
+    gates = _resolved_gates(conditions)
+    return {
+        "projectId": project.id,
+        "gateStateId": row.id,
+        "updatedAt": data["updatedAt"],
+        "conditions": conditions,
+        "gates": gates,
+        "currentGate": next((g["code"] for g in gates if g["state"] != "passed"), "N4"),
+        "armEvents": data.get("armEvents", []),
+        "reviewEvents": data.get("reviewEvents", []),
+        "hardwareChecklist": data.get("hardwareChecklist", {
+            "deviceIdentified": False,
+            "driverValidated": False,
+            "calibrationSimulated": False,
+            "complete": False,
+        }),
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+        "physicalExecutionPermitted": False,
+        "zoneProgress": _zone_progress(gates),
+    }
+
+
+def _zone_progress(gates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Aggregate per-zone state for the modernized 5-zone sidebar."""
+    zones_order = ["governance", "simulation", "hardware", "bench", "audit"]
+    zone_labels = {
+        "governance": "Gouvernance & Exigences",
+        "simulation": "Simulation & HIL",
+        "hardware": "Hardware & Drivers",
+        "bench": "Banc de test & Commandes",
+        "audit": "Preuves & Audit",
+    }
+    progress: list[dict[str, Any]] = []
+    for zone in zones_order:
+        zone_gates = [g for g in gates if g["zone"] == zone]
+        passed = all(g["state"] == "passed" for g in zone_gates) if zone_gates else False
+        open_count = sum(1 for g in zone_gates if g["state"] == "open")
+        progress.append({
+            "zone": zone,
+            "label": zone_labels[zone],
+            "passed": passed,
+            "openCount": open_count,
+            "gates": [{"code": g["code"], "state": g["state"]} for g in zone_gates],
+        })
+    return progress
+
+
+def complete_hardware_checklist(db: Session, user: dict[str, Any] | None, project_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist the simulated hardware checklist (driver + identity + calibration).
+
+    The checklist is *simulated*: it does not command any real device. It is the
+    server-side equivalent of the operator ticking the boxes on the bench-side
+    checklist before requesting the N3-READY gate.
+    """
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    _official_write_allowed(user)
+    if payload.get("physicalOutputEnabled") is True:
+        raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
+    row, data, _ = _ensure_gate_state(db, project, user)
+    checklist = {
+        "deviceIdentified": bool(payload.get("deviceIdentified") is True),
+        "driverValidated": bool(payload.get("driverValidated") is True),
+        "calibrationSimulated": bool(payload.get("calibrationSimulated") is True),
+    }
+    checklist["complete"] = all(checklist.values())
+    data["hardwareChecklist"] = checklist
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    audit_id = str(uuid4())
+    db.add(
+        AuditEvent(
+            id=audit_id,
+            project_id=project.id,
+            user_id=user["id"],
+            actor_role=user.get("role", "user"),
+            event_type="labbench.gate.hardware_checklist",
+            message="Checklist hardware simulée complétée ; aucune commande matérielle.",
+            payload_json=json.dumps({
+                "scope": "labbench-gate",
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+                "checklist": checklist,
+            }, ensure_ascii=False, separators=(",", ":")),
+            occurred_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return {
+        "projectId": project.id,
+        "gateStateId": row.id,
+        "checklist": checklist,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+    }
+
+
+def arm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Arm the N3 gate after a double human confirmation.
+
+    The arm event is recorded server-side and audit-logged. The receipt returned
+    to the UI makes explicit that no physical command is enabled; the arm only
+    unlocks the *virtual* N3 commands in the supervised bench view.
+    """
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    _official_write_allowed(user)
+    if not isinstance(payload, dict):
+        raise LabBenchError(400, "BAD_REQUEST", "Arm payload must be an object")
+    if payload.get("physicalOutputEnabled") is True or payload.get("deviceConnected") is True:
+        raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
+    human_confirmed = payload.get("humanConfirmed") is True
+    safety_confirmed = payload.get("safetyConfirmed") is True
+    second_operator = str(payload.get("secondOperatorCode") or "").strip()
+    if not (human_confirmed and safety_confirmed):
+        raise LabBenchError(400, "ARM_CONFIRMATION_MISSING", "humanConfirmed and safetyConfirmed are both required")
+    if len(second_operator) < 6:
+        raise LabBenchError(400, "ARM_SECOND_OPERATOR_CODE_REQUIRED", "A second operator code (≥ 6 characters) is required to arm N3")
+
+    row, data, _ = _ensure_gate_state(db, project, user)
+    # Re-evaluate conditions to confirm N3-READY is met.
+    conditions = _evaluate_conditions(db, project, user, data)
+    if not conditions.get("n3_ready"):
+        raise LabBenchError(409, "GATE_NOT_READY", "N3-READY gate must be passed before arming N3")
+
+    arm_event = {
+        "id": str(uuid4()),
+        "action": "arm",
+        "active": True,
+        "at": datetime.now(UTC).isoformat(),
+        "actorId": user["id"],
+        "actorRole": user.get("role", "user"),
+        "secondOperatorCodeHash": hashlib.sha256(second_operator.encode("utf-8")).hexdigest(),
+        "humanConfirmed": True,
+        "safetyConfirmed": True,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+        "reason": "Armement N3 supervisé enregistré ; sorties physiques toujours interdites.",
+    }
+    data.setdefault("armEvents", []).append(arm_event)
+    data["conditions"]["arm_double_confirmed"] = True
+    data["conditions"]["n3_armed"] = True
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+    audit_id = str(uuid4())
+    db.add(
+        AuditEvent(
+            id=audit_id,
+            project_id=project.id,
+            user_id=user["id"],
+            actor_role=user.get("role", "user"),
+            event_type="labbench.gate.arm_n3",
+            message="Armement N3 supervisé enregistré après double confirmation humaine ; aucune sortie physique.",
+            payload_json=json.dumps({
+                "scope": "labbench-gate",
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+                "armEventId": arm_event["id"],
+                "humanConfirmed": True,
+                "safetyConfirmed": True,
+            }, ensure_ascii=False, separators=(",", ":")),
+            occurred_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return {
+        "projectId": project.id,
+        "gateStateId": row.id,
+        "armEventId": arm_event["id"],
+        "armed": True,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+        "physicalExecutionPermitted": False,
+        "reason": arm_event["reason"],
+    }
+
+
+def disarm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str) -> dict[str, Any]:
+    """Disarm the N3 gate; mark the last arm event inactive and audit-log it."""
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    row, data = _gate_state_row(db, project.id, user["id"])
+    if row is None or data is None:
+        raise LabBenchError(404, "NOT_FOUND", "No gate state to disarm")
+    arm_events = data.get("armEvents", [])
+    if not isinstance(arm_events, list) or not arm_events:
+        raise LabBenchError(409, "NOT_ARMED", "N3 gate is not armed")
+    last = arm_events[-1]
+    if not isinstance(last, dict) or last.get("active") is not True:
+        raise LabBenchError(409, "NOT_ARMED", "N3 gate is not armed")
+    last["active"] = False
+    last["disarmedAt"] = datetime.now(UTC).isoformat()
+    data["conditions"]["arm_double_confirmed"] = False
+    data["conditions"]["n3_armed"] = False
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    db.add(
+        AuditEvent(
+            id=str(uuid4()),
+            project_id=project.id,
+            user_id=user["id"],
+            actor_role=user.get("role", "user"),
+            event_type="labbench.gate.disarm_n3",
+            message="Désarmement N3 enregistré ; aucune commande active résiduelle.",
+            payload_json=json.dumps({
+                "scope": "labbench-gate",
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+                "disarmedEventId": last.get("id"),
+            }, ensure_ascii=False, separators=(",", ":")),
+            occurred_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return {
+        "projectId": project.id,
+        "gateStateId": row.id,
+        "armed": False,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+    }
+
+
+def sign_off_n4_gate(db: Session, user: dict[str, Any] | None, project_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Sign off the independent N4 review. Requires the N3 gate to be armed first."""
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    _official_write_allowed(user)
+    if not isinstance(payload, dict):
+        raise LabBenchError(400, "BAD_REQUEST", "Sign-off payload must be an object")
+    reviewer = str(payload.get("reviewer") or "").strip()
+    review_token = str(payload.get("reviewToken") or "").strip()
+    if not reviewer or len(review_token) < 8:
+        raise LabBenchError(400, "BAD_REQUEST", "reviewer and reviewToken (≥ 8 chars) are required")
+    row, data, _ = _ensure_gate_state(db, project, user)
+    conditions = _evaluate_conditions(db, project, user, data)
+    if not conditions.get("n3_armed"):
+        raise LabBenchError(409, "GATE_NOT_READY", "N3 must be armed before the independent N4 sign-off")
+    event = {
+        "id": str(uuid4()),
+        "action": "sign-off",
+        "at": datetime.now(UTC).isoformat(),
+        "reviewer": reviewer,
+        "reviewTokenHash": hashlib.sha256(review_token.encode("utf-8")).hexdigest(),
+        "actorId": user["id"],
+        "actorRole": user.get("role", "user"),
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+        "note": str(payload.get("note") or "Revue indépendante signée."),
+    }
+    data.setdefault("reviewEvents", []).append(event)
+    data["conditions"]["independent_review_signed"] = True
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    db.add(
+        AuditEvent(
+            id=str(uuid4()),
+            project_id=project.id,
+            user_id=user["id"],
+            actor_role=user.get("role", "user"),
+            event_type="labbench.gate.sign_off_n4",
+            message="Revue indépendante N4 signée ; aucune commande matérielle.",
+            payload_json=json.dumps({
+                "scope": "labbench-gate",
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+                "reviewer": reviewer,
+                "reviewEventId": event["id"],
+            }, ensure_ascii=False, separators=(",", ":")),
+            occurred_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return {
+        "projectId": project.id,
+        "gateStateId": row.id,
+        "reviewEventId": event["id"],
+        "signedOff": True,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+    }
