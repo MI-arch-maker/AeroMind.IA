@@ -88,3 +88,16 @@ Les commandes cartographiques conservent leurs boutons dans une couche supérieu
 
 ## Extension — double validation humaine du centre de commande
 Le workflow des commandes de démonstration locales exige désormais deux approbations successives avant exécution simulée : (1) approbation explicite de la demande exacte par son propriétaire authentifié; (2) approbation par un autre compte OIDC vérifié disposant du rôle AeroMind `surveillant`, `admin` ou `super_admin`. La seconde étape est bloquée si l’identité OIDC ou l’adresse vérifiée correspond à la première. Les deux validations sont horodatées dans l’audit, liées à l’empreinte SHA-256 immuable et limitées par la durée d’expiration de la demande. L’absence de seconde validation bloque l’API d’exécution côté serveur. Cela n’autorise que la simulation locale : l’API refuse toujours les transports HIL et les commandes/actionneurs physiques; aucun lien de commande ni adaptateur matériel n’est activé.
+
+## Extension — remise en état LABBENCH 01 et contrôle virtuel supervisé
+
+L’archive fournie reste la base de travail, sans reconstruction ni modification du déploiement distant. Compléter le pont FastAPI/tRPC pour le statut et le référentiel LABBENCH, les calculs thermiques et les écritures de simulation associées au propriétaire. Stabiliser l’écran et le profil local face aux réponses incomplètes, valeurs anciennes et stockage navigateur indisponible. Le panneau de contrôle distingue explicitement `VIRTUAL` de `HARDWARE` : seules les actions synthétiques et bornées sont ouvertes après confirmations humaines distinctes. `hardware_control=false`, aucune importation d’adaptateur, aucune sortie physique et aucun changement du workflow existant de double approbation inter-comptes du centre de commande.
+
+Conserver les styles sombres/cyan et l’architecture React/FastAPI. `web/labbench.py` centralise les contrats et calculs LABBENCH ; `web/hardware_api.py` et le service virtuel maintiennent l’état de contrôle synthétique ; `frontend/client/src/lib/labBench.ts` centralise la validation, la normalisation et le calcul local ; les trois composants LABBENCH restent intégrés à la page existante. Les tests s’exécutent avec une base SQLite temporaire, jamais contre une base externe.
+
+## Extension — arborescence d’atelier et vérité des synchronisations
+
+- Structurer le diagnostic suivant l’arbre : **Projet → Cellule/configuration → Exigences → Conception/version prototype → Vérification (simulation/essais) → Rapports/audit**. Chaque branche expose son état réel `LIÉ`, `PARTIEL` ou `EN ATTENTE`.
+- L’état global ne peut être `READY` que si toutes les liaisons attendues sont `linked` et qu’aucun avertissement ne subsiste; toute branche partielle ou en attente donne `PARTIAL`, une erreur bloquante donne `BLOCKED`.
+- Conserver la distinction entre workspace local inter-onglets, snapshot API projet-scopé et preuve versionnée `PrototypeVersion → WorkflowRun → Report`, sans transformer une sauvegarde cockpit automatique en version immuable.
+- Le stockage snapshot actuel ne fournit pas de révision serveur compare-and-swap pour arbitrer deux clients concurrents; afficher cette limite et traiter `SERVER-ACK` comme une confirmation d’écriture, non une garantie de fusion multi-utilisateur.

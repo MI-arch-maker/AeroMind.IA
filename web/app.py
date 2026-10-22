@@ -26,8 +26,9 @@ from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
 from .local_auth import router as local_auth_router
 from .business_api import router as business_router
-from .hardware_api import router as hardware_router, _controllers
+from .hardware_api import router as hardware_router
 from .operational_state import router as operational_state_router
+from . import labbench as labbench_service
 from .database import Base, engine, ping_database, SessionLocal
 from .models import User, Project, Drone, Simulation, Report, AuditEvent, LabSession
 from sqlalchemy import select
@@ -259,7 +260,39 @@ async def trpc_compat(
     elif name.endswith('ai.status'):
         data = {'available': bool(settings.openai_api_key), 'provider': 'OpenAI-compatible' if settings.openai_api_key else 'local'}
     elif name.endswith('labBench.status'):
-        data = {'ready': True, 'mode': 'safe-python'}
+        data = labbench_service.status()
+    elif name.endswith('labBench.runSimulation'):
+        try:
+            data = labbench_service.run_simulation(payload)
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.validateCommand'):
+        try:
+            data = labbench_service.validate_command(payload)
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.seedRegistry'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.seed_registry(db, current_user, str(project_id or ''))
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.persistSimulation'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.persist_simulation(db, current_user, str(project_id or ''), payload)
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.createReport'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            run_id = payload.get('runId') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.create_report(db, current_user, str(project_id or ''), str(run_id or ''))
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
     elif name.endswith('superAdmin.accounts'):
         data = list_accounts()
     elif name.endswith('superAdmin.activity'):
@@ -521,7 +554,12 @@ async def trpc_compat(
     elif name.endswith('designVersions.list'):
         data = []
     elif name.endswith('labBench.registry'):
-        data = {'devices': [], 'drivers': [], 'updatedAt': None}
+        try:
+            project_id = payload if isinstance(payload, str) else payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.registry(db, current_user, str(project_id or ''))
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
     else:
         data = None
     # The legacy React client uses the SuperJSON transformer. Its wire format
@@ -573,7 +611,7 @@ def ready():
 
 @app.get('/api/capabilities')
 def capabilities():
-    return {'service': 'aeromind-ai', 'version': '2.0.0', 'oidc': bool(settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer'])), 'identity_provider': 'microsoft-entra' if settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']) else None, 'llm': bool(settings.openai_api_key), 'sitl': True, 'hardware_control': False, 'mission_upload': False, 'telemetry_write': False}
+    return {'service': 'aeromind-ai', 'version': '2.0.0', 'oidc': bool(settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer'])), 'identity_provider': 'microsoft-entra' if settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']) else None, 'llm': bool(settings.openai_api_key), 'sitl': True, 'hardware_control': False, 'virtual_control': True, 'mission_upload': False, 'telemetry_write': False}
 
 
 @app.get('/api/system/status')
