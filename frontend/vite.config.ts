@@ -44,6 +44,42 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
     sourcemap: false,
-    chunkSizeWarningLimit: 1024,
+    chunkSizeWarningLimit: 1536,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Split heavy vendors into dedicated chunks so the initial app
+          // chunk stays small. The chat box (Streamdown) is already lazy
+          // loaded; the chunks below capture the rest of the heavy deps.
+          if (id.includes("node_modules")) {
+            // 3D rendering (three.js + react-three-fiber + drei) — only
+            // consumed by MechanicalTwinViewport and similar 3D views.
+            if (id.includes("/three/") || id.includes("@react-three/")) {
+              return "vendor-three";
+            }
+            // Streamdown + shiki/mermaid/cytoscape markdown rendering.
+            if (id.includes("/streamdown/") || id.includes("/shiki/") || id.includes("/mermaid/") || id.includes("/cytoscape/")) {
+              return "vendor-markdown";
+            }
+            // HLS video player — only consumed by Home stream view.
+            if (id.includes("/hls.js/")) {
+              return "vendor-hls";
+            }
+            // Recharts + framer-motion + Radix primitives are heavy but
+            // widely used across the app — keep them in a shared vendor chunk.
+            if (id.includes("/recharts/") || id.includes("/framer-motion/")) {
+              return "vendor-ui";
+            }
+            if (id.includes("/@radix-ui/")) {
+              return "vendor-radix";
+            }
+            if (id.includes("/@tanstack/") || id.includes("/@trpc/")) {
+              return "vendor-data";
+            }
+          }
+          return undefined;
+        },
+      },
+    },
   },
 });

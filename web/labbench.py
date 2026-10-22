@@ -1104,3 +1104,576 @@ def sign_off_n4_gate(db: Session, user: dict[str, Any] | None, project_id: str, 
         "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
+
+
+# ===========================================================================
+# Multi-drone (fleet) support — LabBench 01 v3.
+#
+# Each drone in a project has its OWN gate state, so N3 can be armed on
+# drone A while drone B stays in N2. The fleet view aggregates all per-drone
+# states; fleet simulation runs N2 scenarios in parallel for a list of
+# drones.
+# ===========================================================================
+
+PER_DRONE_GATE_KIND = "labbench_gate_state_per_drone.v1"
+
+# Hard cap to keep the fleet view bounded; UI can paginate beyond.
+MAX_FLEET_SIZE = 12
+
+
+def _require_drone_owner(db: Session, project: Project, user_id: str, drone_id: str) -> Any:
+    """Resolve a drone that belongs to the project + user, else raise."""
+    from .models import Drone
+    drone_id = str(drone_id or "").strip()
+    if not drone_id:
+        raise LabBenchError(400, "BAD_REQUEST", "A drone id is required")
+    drone = db.scalar(
+        select(Drone).where(
+            Drone.id == drone_id,
+            Drone.project_id == project.id,
+            Drone.user_id == user_id,
+        )
+    )
+    if drone is None:
+        raise LabBenchError(404, "NOT_FOUND", "Drone not found in this project")
+    return drone
+
+
+def _per_drone_gate_rows(db: Session, project_id: str, user_id: str) -> list[tuple[LabSession, dict[str, Any], str]]:
+    """Return all per-drone gate state rows for a project, with the drone_id."""
+    rows: list[tuple[LabSession, dict[str, Any], str]] = []
+    for row in db.scalars(
+        select(LabSession)
+        .where(LabSession.project_id == project_id, LabSession.user_id == user_id)
+        .order_by(LabSession.created_at.asc())
+    ):
+        data = _decode_session(row)
+        if (
+            data
+            and data.get("kind") == PER_DRONE_GATE_KIND
+            and isinstance(data.get("droneId"), str)
+        ):
+            rows.append((row, data, data["droneId"]))
+    return rows
+
+
+def _per_drone_gate_row(db: Session, project_id: str, user_id: str, drone_id: str) -> tuple[LabSession | None, dict[str, Any] | None]:
+    for row, data, did in _per_drone_gate_rows(db, project_id, user_id):
+        if did == drone_id:
+            return row, data
+    return None, None
+
+
+def _new_per_drone_gate_state(project: Project, user: dict[str, Any], drone_id: str, drone_name: str) -> dict[str, Any]:
+    now = datetime.now(UTC).isoformat()
+    state = _new_gate_state(project, user)
+    state["kind"] = PER_DRONE_GATE_KIND
+    state["droneId"] = drone_id
+    state["droneName"] = drone_name
+    state["createdAt"] = now
+    state["updatedAt"] = now
+    return state
+
+
+def _ensure_per_drone_gate_state(
+    db: Session,
+    project: Project,
+    user: dict[str, Any],
+    drone_id: str,
+    drone_name: str,
+) -> tuple[LabSession, dict[str, Any], bool]:
+    row, data = _per_drone_gate_row(db, project.id, user["id"], drone_id)
+    if row is not None and data is not None:
+        return row, data, False
+    data = _new_per_drone_gate_state(project, user, drone_id, drone_name)
+    row = LabSession(
+        id=str(uuid4()),
+        user_id=user["id"],
+        project_id=project.id,
+        data_json=json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+    )
+    db.add(row)
+    return row, data, True
+
+
+def _per_drone_n2_archived(db: Session, project: Project, user: dict[str, Any], drone_id: str) -> bool:
+    """Return True if at least one server-archived N2 run is tagged for this drone."""
+    for row in db.scalars(
+        select(LabSession)
+        .where(LabSession.project_id == project.id, LabSession.user_id == user["id"])
+        .order_by(LabSession.created_at.desc())
+    ):
+        item = _decode_session(row)
+        candidate = item.get("run") if item and item.get("kind") == RUN_KIND else None
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("source") == "server-archived"
+            and candidate.get("persisted") is True
+            and candidate.get("droneId") == drone_id
+        ):
+            return True
+    return False
+
+
+def _evaluate_per_drone_conditions(
+    db: Session,
+    project: Project,
+    user: dict[str, Any],
+    gate_state: dict[str, Any],
+    drone_id: str,
+) -> dict[str, bool]:
+    """Per-drone condition evaluation. Same logic as _evaluate_conditions but
+    the N2 archive check is filtered by drone_id."""
+    conditions = dict(gate_state.get("conditions", {}))
+    for key in ("registry_initialized", "n2_run_archived", "hardware_checklist_complete", "n3_ready", "n3_armed"):
+        conditions[key] = False
+
+    registry_row, _ = _registry_row(db, project.id, user["id"])
+    conditions["registry_initialized"] = registry_row is not None
+    conditions["n2_run_archived"] = _per_drone_n2_archived(db, project, user, drone_id)
+
+    checklist = bool(gate_state.get("hardwareChecklist", {}).get("complete") is True)
+    conditions["hardware_checklist_complete"] = (
+        checklist and conditions["registry_initialized"] and conditions["n2_run_archived"]
+    )
+    conditions["n3_ready"] = (
+        conditions["registry_initialized"]
+        and conditions["n2_run_archived"]
+        and conditions["hardware_checklist_complete"]
+    )
+
+    arm_events = gate_state.get("armEvents", [])
+    armed_active = False
+    if isinstance(arm_events, list):
+        for event in arm_events:
+            if (
+                isinstance(event, dict)
+                and event.get("action") == "arm"
+                and event.get("active") is True
+            ):
+                armed_active = True
+                break
+    conditions["n3_armed"] = armed_active and conditions["n3_ready"]
+
+    conditions.setdefault("arm_double_confirmed", False)
+    conditions["independent_review_signed"] = bool(
+        gate_state.get("reviewEvents")
+        and isinstance(gate_state.get("reviewEvents"), list)
+        and any(isinstance(e, dict) and e.get("action") == "sign-off" for e in gate_state["reviewEvents"])
+    )
+    return conditions
+
+
+def per_drone_gate_state(
+    db: Session,
+    user: dict[str, Any] | None,
+    project_id: str,
+    drone_id: str,
+) -> dict[str, Any]:
+    """Return the gate progression scoped to one drone in the fleet."""
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    drone = _require_drone_owner(db, project, user["id"], drone_id)
+    row, data = _per_drone_gate_row(db, project.id, user["id"], drone.id)
+    if row is None or data is None:
+        data = _new_per_drone_gate_state(project, user, drone.id, drone.name)
+        row = LabSession(
+            id=str(uuid4()),
+            user_id=user["id"],
+            project_id=project.id,
+            data_json=json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    conditions = _evaluate_per_drone_conditions(db, project, user, data, drone.id)
+    data["conditions"] = conditions
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    db.commit()
+    gates = _resolved_gates(conditions)
+    return {
+        "projectId": project.id,
+        "droneId": drone.id,
+        "droneName": drone.name,
+        "gateStateId": row.id,
+        "updatedAt": data["updatedAt"],
+        "conditions": conditions,
+        "gates": gates,
+        "currentGate": next((g["code"] for g in gates if g["state"] != "passed"), "N4"),
+        "armEvents": data.get("armEvents", []),
+        "reviewEvents": data.get("reviewEvents", []),
+        "hardwareChecklist": data.get("hardwareChecklist", {
+            "deviceIdentified": False,
+            "driverValidated": False,
+            "calibrationSimulated": False,
+            "complete": False,
+        }),
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+        "physicalExecutionPermitted": False,
+    }
+
+
+def fleet_gate_state(
+    db: Session,
+    user: dict[str, Any] | None,
+    project_id: str,
+) -> dict[str, Any]:
+    """Aggregate gate progressions for every drone in a project's fleet."""
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    from .models import Drone
+    drones = db.scalars(
+        select(Drone)
+        .where(Drone.project_id == project.id, Drone.user_id == user["id"])
+        .order_by(Drone.name.asc())
+    ).all()
+    if len(drones) > MAX_FLEET_SIZE:
+        raise LabBenchError(400, "FLEET_TOO_LARGE", f"Fleet size capped at {MAX_FLEET_SIZE} drones; archive or split the project")
+    per_drone: list[dict[str, Any]] = []
+    for drone in drones:
+        per_drone.append(per_drone_gate_state(db, user, project.id, drone.id))
+    # Aggregate: a project-wide gate is "passed" if it has passed for ALL drones.
+    gates_aggregate: list[dict[str, Any]] = []
+    if per_drone:
+        for gate_def in GATE_DEFINITIONS:
+            code = gate_def["code"]
+            states = []
+            for entry in per_drone:
+                gate = next((g for g in entry["gates"] if g["code"] == code), None)
+                states.append(gate["state"] if gate else "pending")
+            if all(s == "passed" for s in states):
+                state = "passed"
+            elif any(s == "open" for s in states):
+                state = "open"
+            else:
+                state = "pending"
+            gates_aggregate.append({
+                "code": code,
+                "label": gate_def["label"],
+                "description": gate_def["description"],
+                "level": gate_def["level"],
+                "zone": gate_def["zone"],
+                "state": state,
+                "perDroneStates": states,
+            })
+    return {
+        "projectId": project.id,
+        "fleetSize": len(per_drone),
+        "maxFleetSize": MAX_FLEET_SIZE,
+        "perDrone": per_drone,
+        "gatesAggregate": gates_aggregate,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+        "physicalExecutionPermitted": False,
+    }
+
+
+def arm_n3_gate_drone(
+    db: Session,
+    user: dict[str, Any] | None,
+    project_id: str,
+    drone_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Arm N3 for a specific drone — independent of the rest of the fleet."""
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    _official_write_allowed(user)
+    drone = _require_drone_owner(db, project, user["id"], drone_id)
+    if not isinstance(payload, dict):
+        raise LabBenchError(400, "BAD_REQUEST", "Arm payload must be an object")
+    if payload.get("physicalOutputEnabled") is True or payload.get("deviceConnected") is True:
+        raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
+    human_confirmed = payload.get("humanConfirmed") is True
+    safety_confirmed = payload.get("safetyConfirmed") is True
+    second_operator = str(payload.get("secondOperatorCode") or "").strip()
+    if not (human_confirmed and safety_confirmed):
+        raise LabBenchError(400, "ARM_CONFIRMATION_MISSING", "humanConfirmed and safetyConfirmed are both required")
+    if len(second_operator) < 6:
+        raise LabBenchError(400, "ARM_SECOND_OPERATOR_CODE_REQUIRED", "A second operator code (≥ 6 characters) is required to arm N3")
+
+    row, data, _ = _ensure_per_drone_gate_state(db, project, user, drone.id, drone.name)
+    conditions = _evaluate_per_drone_conditions(db, project, user, data, drone.id)
+    if not conditions.get("n3_ready"):
+        raise LabBenchError(409, "GATE_NOT_READY", f"N3-READY gate must be passed for drone {drone.name} before arming")
+
+    arm_event = {
+        "id": str(uuid4()),
+        "action": "arm",
+        "active": True,
+        "at": datetime.now(UTC).isoformat(),
+        "actorId": user["id"],
+        "actorRole": user.get("role", "user"),
+        "droneId": drone.id,
+        "droneName": drone.name,
+        "secondOperatorCodeHash": hashlib.sha256(second_operator.encode("utf-8")).hexdigest(),
+        "humanConfirmed": True,
+        "safetyConfirmed": True,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+        "reason": f"Armement N3 supervisé enregistré pour {drone.name} ; sorties physiques toujours interdites.",
+    }
+    data.setdefault("armEvents", []).append(arm_event)
+    data["conditions"]["arm_double_confirmed"] = True
+    data["conditions"]["n3_armed"] = True
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+    db.add(
+        AuditEvent(
+            id=str(uuid4()),
+            project_id=project.id,
+            user_id=user["id"],
+            actor_role=user.get("role", "user"),
+            event_type="labbench.gate.arm_n3_drone",
+            message=f"Armement N3 drone {drone.name} enregistré ; aucune sortie physique.",
+            payload_json=json.dumps({
+                "scope": "labbench-gate-per-drone",
+                "droneId": drone.id,
+                "droneName": drone.name,
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+                "armEventId": arm_event["id"],
+            }, ensure_ascii=False, separators=(",", ":")),
+            occurred_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return {
+        "projectId": project.id,
+        "droneId": drone.id,
+        "droneName": drone.name,
+        "gateStateId": row.id,
+        "armEventId": arm_event["id"],
+        "armed": True,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+        "physicalExecutionPermitted": False,
+        "reason": arm_event["reason"],
+    }
+
+
+def disarm_n3_gate_drone(
+    db: Session,
+    user: dict[str, Any] | None,
+    project_id: str,
+    drone_id: str,
+) -> dict[str, Any]:
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    drone = _require_drone_owner(db, project, user["id"], drone_id)
+    row, data = _per_drone_gate_row(db, project.id, user["id"], drone.id)
+    if row is None or data is None:
+        raise LabBenchError(404, "NOT_FOUND", "No gate state to disarm for this drone")
+    arm_events = data.get("armEvents", [])
+    if not isinstance(arm_events, list) or not arm_events:
+        raise LabBenchError(409, "NOT_ARMED", f"N3 gate is not armed for drone {drone.name}")
+    last = arm_events[-1]
+    if not isinstance(last, dict) or last.get("active") is not True:
+        raise LabBenchError(409, "NOT_ARMED", f"N3 gate is not armed for drone {drone.name}")
+    last["active"] = False
+    last["disarmedAt"] = datetime.now(UTC).isoformat()
+    data["conditions"]["arm_double_confirmed"] = False
+    data["conditions"]["n3_armed"] = False
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    db.add(
+        AuditEvent(
+            id=str(uuid4()),
+            project_id=project.id,
+            user_id=user["id"],
+            actor_role=user.get("role", "user"),
+            event_type="labbench.gate.disarm_n3_drone",
+            message=f"Désarmement N3 drone {drone.name} enregistré.",
+            payload_json=json.dumps({
+                "scope": "labbench-gate-per-drone",
+                "droneId": drone.id,
+                "droneName": drone.name,
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+            }, ensure_ascii=False, separators=(",", ":")),
+            occurred_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return {
+        "projectId": project.id,
+        "droneId": drone.id,
+        "droneName": drone.name,
+        "gateStateId": row.id,
+        "armed": False,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+    }
+
+
+def complete_hardware_checklist_drone(
+    db: Session,
+    user: dict[str, Any] | None,
+    project_id: str,
+    drone_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Persist the simulated hardware checklist scoped to a single drone."""
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    _official_write_allowed(user)
+    drone = _require_drone_owner(db, project, user["id"], drone_id)
+    if payload.get("physicalOutputEnabled") is True:
+        raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
+    row, data, _ = _ensure_per_drone_gate_state(db, project, user, drone.id, drone.name)
+    checklist = {
+        "deviceIdentified": bool(payload.get("deviceIdentified") is True),
+        "driverValidated": bool(payload.get("driverValidated") is True),
+        "calibrationSimulated": bool(payload.get("calibrationSimulated") is True),
+    }
+    checklist["complete"] = all(checklist.values())
+    data["hardwareChecklist"] = checklist
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    db.add(
+        AuditEvent(
+            id=str(uuid4()),
+            project_id=project.id,
+            user_id=user["id"],
+            actor_role=user.get("role", "user"),
+            event_type="labbench.gate.hardware_checklist_drone",
+            message=f"Checklist hardware simulée complétée pour {drone.name} ; aucune commande matérielle.",
+            payload_json=json.dumps({
+                "scope": "labbench-gate-per-drone",
+                "droneId": drone.id,
+                "droneName": drone.name,
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+                "checklist": checklist,
+            }, ensure_ascii=False, separators=(",", ":")),
+            occurred_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return {
+        "projectId": project.id,
+        "droneId": drone.id,
+        "droneName": drone.name,
+        "gateStateId": row.id,
+        "checklist": checklist,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+    }
+
+
+def run_fleet_simulation(
+    db: Session,
+    user: dict[str, Any] | None,
+    project_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Run a fleet simulation: one N2 scenario per drone, in parallel.
+
+    `payload.scenarios` is a list of `{droneId, scenario}` objects. Each
+    scenario is run through `run_simulation()` (no hardware). The results are
+    persisted as server-archived LabSessions tagged with `droneId`, so the
+    per-drone gate N2 advances independently.
+    """
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    _official_write_allowed(user)
+    if not isinstance(payload, dict):
+        raise LabBenchError(400, "BAD_REQUEST", "Fleet payload must be an object")
+    if payload.get("physicalOutputEnabled") is True:
+        raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
+    scenarios = payload.get("scenarios")
+    if not isinstance(scenarios, list) or not scenarios:
+        raise LabBenchError(400, "BAD_REQUEST", "scenarios must be a non-empty array")
+    if len(scenarios) > MAX_FLEET_SIZE:
+        raise LabBenchError(400, "FLEET_TOO_LARGE", f"Fleet size capped at {MAX_FLEET_SIZE}")
+    # Validate each entry references a real drone in this project.
+    validated: list[tuple[Any, dict[str, Any]]] = []
+    for entry in scenarios:
+        if not isinstance(entry, dict):
+            raise LabBenchError(400, "BAD_REQUEST", "Each scenario entry must be an object")
+        drone_id = str(entry.get("droneId") or "").strip()
+        if not drone_id:
+            raise LabBenchError(400, "BAD_REQUEST", "Each scenario entry requires a droneId")
+        drone = _require_drone_owner(db, project, user["id"], drone_id)
+        scenario_payload = entry.get("scenario") or entry
+        if not isinstance(scenario_payload, dict):
+            raise LabBenchError(400, "BAD_REQUEST", "scenario must be an object")
+        scenario_payload = {**scenario_payload, "mode": "simulation"}
+        validated.append((drone, scenario_payload))
+
+    # Run + persist each scenario. Each persist_simulation call writes its own
+    # LabSession + AuditEvent atomically.
+    results: list[dict[str, Any]] = []
+    for drone, scenario_payload in validated:
+        try:
+            run_payload = {**scenario_payload, "droneId": drone.id, "droneName": drone.name}
+            run = run_simulation(run_payload)
+            run["source"] = "server-archived"
+            run["persisted"] = True
+            run["droneId"] = drone.id
+            run["droneName"] = drone.name
+            registry_row, registry_data, seeded = _ensure_registry(db, project, user)
+            registry_data["updatedAt"] = datetime.now(UTC).isoformat()
+            registry_row.data_json = json.dumps(registry_data, ensure_ascii=False, separators=(",", ":"))
+            audit_id = str(uuid4())
+            record = LabSession(
+                id=str(uuid4()),
+                user_id=user["id"],
+                project_id=project.id,
+                data_json=json.dumps(
+                    {"kind": RUN_KIND, "run": run, "auditEventId": audit_id},
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+            )
+            db.add(record)
+            db.add(
+                AuditEvent(
+                    id=audit_id,
+                    project_id=project.id,
+                    user_id=user["id"],
+                    actor_role=user.get("role", "user"),
+                    event_type="labbench.simulation.fleet_run",
+                    message=f"Run LABBENCH synthétique {run['runId']} archivé pour drone {drone.name}",
+                    payload_json=json.dumps({
+                        "scope": "local-simulation-only",
+                        "droneId": drone.id,
+                        "droneName": drone.name,
+                        "physicalOutputEnabled": False,
+                        "physicalCommandsEmitted": False,
+                        "runId": run["runId"],
+                        "contentSha256": run["contentSha256"],
+                    }, ensure_ascii=False, separators=(",", ":")),
+                    occurred_at=datetime.now(UTC),
+                )
+            )
+            results.append({
+                "droneId": drone.id,
+                "droneName": drone.name,
+                "runId": run["runId"],
+                "predictedTemperatureC": run["predictedTemperatureC"],
+                "verdict": run["verdict"],
+                "contentSha256": run["contentSha256"],
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+            })
+        except LabBenchError as exc:
+            results.append({
+                "droneId": drone.id,
+                "droneName": drone.name,
+                "error": {"code": exc.code, "message": exc.message},
+                "physicalOutputEnabled": False,
+                "physicalCommandsEmitted": False,
+            })
+    db.commit()
+    return {
+        "projectId": project.id,
+        "fleetSize": len(validated),
+        "results": results,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+    }
+

@@ -210,3 +210,33 @@
   .lb-gate-card:last-child { border-bottom: 0; }
   .lb-modal { max-width: 100%; }
 }
+
+/* ===========================================================================
+   Fleet (multi-drone) view — LabBench 01 v3
+   =========================================================================== */
+
+.lb-fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.lb-fleet-card { padding: 0; }
+.lb-fleet-card.is-armed { border-color: rgba(241,185,84,.32); box-shadow: 0 0 0 1px rgba(241,185,84,.12); }
+.lb-fleet-config { display: flex; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--lb-line); flex-wrap: wrap; font-size: 10px; color: #88a4ad; }
+.lb-fleet-config b { color: #6a8d96; margin-right: 4px; font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+.lb-fleet-gates { display: flex; gap: 3px; padding: 9px 16px; border-bottom: 1px solid var(--lb-line); flex-wrap: wrap; }
+.lb-fleet-gate { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 4px; font: 600 9px "IBM Plex Mono", monospace; }
+.lb-fleet-gate.lb-gate-passed { background: rgba(117,215,173,.13); color: #8adfb6; border: 1px solid rgba(117,215,173,.28); }
+.lb-fleet-gate.lb-gate-open { background: rgba(241,185,84,.13); color: #f1c772; border: 1px solid rgba(241,185,84,.28); }
+.lb-fleet-gate.lb-gate-pending { background: rgba(255,255,255,.03); color: #88a4ad; border: 1px solid var(--lb-line); }
+.lb-fleet-gate-state { display: inline-flex; align-items: center; }
+.lb-fleet-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--lb-line); }
+.lb-fleet-inputs label { display: flex; flex-direction: column; gap: 4px; font-size: 10px; color: #88a4ad; }
+.lb-fleet-inputs input { width: 100%; box-sizing: border-box; padding: 7px 8px; border: 1px solid rgba(132,170,180,.22); border-radius: 4px; background: #081419; color: #e0f0f1; font: 11px "IBM Plex Mono", monospace; }
+.lb-fleet-inputs input:focus { outline: 1px solid var(--lb-cyan); border-color: var(--lb-cyan); }
+.lb-fleet-result { padding: 9px 16px; border-bottom: 1px solid var(--lb-line); font: 10px "IBM Plex Mono", monospace; color: #c0d4d8; }
+.lb-fleet-result b { color: var(--lb-cyan); margin-right: 2px; }
+.lb-fleet-actions { display: flex; gap: 7px; padding: 11px 16px; }
+.lb-fleet-actions .lb-primary, .lb-fleet-actions .lb-secondary { padding: 7px 11px; font-size: 11px; flex: 1; justify-content: center; }
+
+@media (max-width: 720px) {
+  .lb-fleet-grid { grid-template-columns: 1fr; }
+  .lb-fleet-inputs { grid-template-columns: 1fr; }
+  .lb-fleet-actions { flex-direction: column; }
+}

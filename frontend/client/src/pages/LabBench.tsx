@@ -72,6 +72,7 @@ type ViewId =
   | "simulation"
   | "hardware"
   | "bench"
+  | "fleet"
   | "reports"
   | "audit";
 type ModeId = "simulation" | "connected" | "authorized";
@@ -250,6 +251,7 @@ const ZONE_GROUPS: Array<{
     description: "N3 → N4 · armement supervisé",
     views: [
       { id: "bench", label: "Banc", caption: "Commandes supervisées", icon: Radio },
+      { id: "fleet", label: "Flotte", caption: "Multi-drones", icon: Gauge },
       { id: "reports", label: "Rapports", caption: "Dossier de preuve", icon: FileCheck2 },
     ],
   },
@@ -771,6 +773,198 @@ export default function LabBench() {
       toast.error("Signature N4 refusée", { description: error?.message ?? "Erreur serveur" });
     },
   });
+
+  // === Multi-drone (fleet) state ===
+  const [fleetDrones, setFleetDrones] = useState<Array<{
+    id: string;
+    name: string;
+    config: Record<string, unknown>;
+    isActive: boolean;
+  }>>([]);
+  const [fleetResults, setFleetResults] = useState<Array<Record<string, unknown>> | null>(null);
+  const [fleetDroneScenarios, setFleetDroneScenarios] = useState<Record<string, LabBenchScenario>>({});
+  const [fleetArmDialogDrone, setFleetArmDialogDrone] = useState<{ id: string; name: string } | null>(null);
+  const [fleetHumanConfirmed, setFleetHumanConfirmed] = useState(false);
+  const [fleetSafetyConfirmed, setFleetSafetyConfirmed] = useState(false);
+  const [fleetSecondOperatorCode, setFleetSecondOperatorCode] = useState("");
+
+  const fleetQuery = trpc.labBench.fleetGateState.useQuery(
+    remoteProjectId ?? "0",
+    {
+      enabled: Boolean(remoteProjectId && meQuery.data && view === "fleet"),
+      retry: false,
+      staleTime: 10_000,
+    },
+  );
+
+  // Refresh drone list when entering fleet view.
+  useEffect(() => {
+    if (view !== "fleet" || !remoteProjectId) return;
+    let cancelled = false;
+    fetch(`/api/projects/${encodeURIComponent(remoteProjectId)}/drones`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: Array<Record<string, unknown>>) => {
+        if (cancelled) return;
+        const drones = rows.map((row) => ({
+          id: String(row.id ?? ""),
+          name: String(row.name ?? "Drone"),
+          config: (row.config && typeof row.config === "object" ? row.config : {}) as Record<string, unknown>,
+          isActive: Boolean(row.is_active),
+        })).filter((d) => d.id);
+        setFleetDrones(drones);
+        // Initialize per-drone scenario defaults if missing.
+        setFleetDroneScenarios((prev) => {
+          const next: Record<string, LabBenchScenario> = { ...prev };
+          for (const d of drones) {
+            if (!next[d.id]) next[d.id] = { ...defaultLabBenchScenario };
+          }
+          return next;
+        });
+      })
+      .catch(() => { if (!cancelled) setFleetDrones([]); });
+    return () => { cancelled = true; };
+  }, [view, remoteProjectId]);
+
+  const fleetSimMutation = trpc.labBench.runFleetSimulation.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`Simulation flotte terminée · ${data?.fleetSize ?? 0} drone(s)`);
+      setFleetResults(Array.isArray(data?.results) ? data.results : []);
+      void fleetQuery.refetch();
+      void remoteAuditQuery.refetch();
+      setAudit((entries) => [
+        {
+          time: new Date().toLocaleTimeString("fr-FR"),
+          type: "fleet.simulation.completed",
+          message: `Run flotte ${data?.fleetSize ?? 0} drones ; aucune mesure physique.`,
+          status: "success",
+        },
+        ...entries,
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error("Simulation flotte indisponible", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+  const fleetArmMutation = trpc.labBench.armN3Drone.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`N3 armé pour ${data?.droneName ?? "drone"}`, {
+        description: data?.reason ?? "Armement enregistré ; aucune sortie physique.",
+      });
+      setFleetArmDialogDrone(null);
+      setFleetHumanConfirmed(false);
+      setFleetSafetyConfirmed(false);
+      setFleetSecondOperatorCode("");
+      void fleetQuery.refetch();
+      void remoteAuditQuery.refetch();
+      setAudit((entries) => [
+        {
+          time: new Date().toLocaleTimeString("fr-FR"),
+          type: "fleet.arm_n3_drone",
+          message: `Armement N3 drone ${data?.droneName ?? ""} enregistré.`,
+          status: "success",
+        },
+        ...entries,
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error("Armement drone refusé", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+  const fleetDisarmMutation = trpc.labBench.disarmN3Drone.useMutation({
+    onSuccess: (_data: any, vars: any) => {
+      toast.info("N3 désarmé", { description: `Drone ${vars?.droneName ?? ""} désarmé.` });
+      void fleetQuery.refetch();
+      void remoteAuditQuery.refetch();
+    },
+    onError: (error: any) => {
+      toast.error("Désarmement indisponible", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+  const fleetChecklistMutation = trpc.labBench.completeHardwareChecklistDrone.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`Checklist drone ${data?.droneName ?? ""} enregistrée`);
+      void fleetQuery.refetch();
+      void remoteAuditQuery.refetch();
+    },
+    onError: (error: any) => {
+      toast.error("Checklist drone indisponible", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+
+  const addDroneToProject = async () => {
+    if (!remoteProjectId) return;
+    try {
+      const resp = await fetch(`/api/projects/${encodeURIComponent(remoteProjectId)}/drones`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: `Drone ${fleetDrones.length + 1}`, data: { airframe: "multirotor", motor_count: 4, mass_kg: 1.2, battery_wh: 100 } }),
+      });
+      if (resp.ok) {
+        toast.success("Drone ajouté à la flotte");
+        // Refresh drone list
+        const list = await fetch(`/api/projects/${encodeURIComponent(remoteProjectId)}/drones`, { credentials: "include" });
+        if (list.ok) {
+          const rows = await list.json();
+          setFleetDrones(rows.map((r: Record<string, unknown>) => ({
+            id: String(r.id ?? ""),
+            name: String(r.name ?? "Drone"),
+            config: (r.config && typeof r.config === "object" ? r.config : {}) as Record<string, unknown>,
+            isActive: Boolean(r.is_active),
+          })).filter((d: { id: string }) => d.id));
+        }
+      } else {
+        toast.error("Ajout impossible", { description: "Récupérez un projet authentifié pour ajouter un drone." });
+      }
+    } catch {
+      toast.error("Ajout impossible");
+    }
+  };
+
+  const runFleetSimulationAll = () => {
+    if (!remoteProjectId) {
+      toast.error("Aucun projet authentifié");
+      return;
+    }
+    if (fleetDrones.length === 0) {
+      toast.error("Flotte vide", { description: "Ajoutez au moins un drone à la flotte." });
+      return;
+    }
+    const scenarios = fleetDrones.map((d) => {
+      const sc = fleetDroneScenarios[d.id] ?? defaultLabBenchScenario;
+      return { droneId: d.id, ...sc };
+    });
+    fleetSimMutation.mutate({ projectId: remoteProjectId, scenarios });
+  };
+
+  const openFleetArmDialog = (drone: { id: string; name: string }) => {
+    const perDroneState = (fleetQuery.data as any)?.perDrone?.find((p: any) => p.droneId === drone.id);
+    if (!perDroneState?.conditions?.n3_ready) {
+      toast.error("Gate N3-READY non atteinte", {
+        description: `Complétez la checklist + archivez un run N2 pour ${drone.name}.`,
+      });
+      return;
+    }
+    setFleetArmDialogDrone(drone);
+    setFleetHumanConfirmed(false);
+    setFleetSafetyConfirmed(false);
+    setFleetSecondOperatorCode("");
+  };
+  const confirmFleetArm = () => {
+    if (!fleetArmDialogDrone || !remoteProjectId) return;
+    if (!fleetHumanConfirmed || !fleetSafetyConfirmed || fleetSecondOperatorCode.trim().length < 6) {
+      toast.error("Double confirmation requise", { description: "Cochez les deux cases + code second opérateur (≥ 6 caractères)." });
+      return;
+    }
+    fleetArmMutation.mutate({
+      projectId: remoteProjectId,
+      droneId: fleetArmDialogDrone.id,
+      humanConfirmed: fleetHumanConfirmed,
+      safetyConfirmed: fleetSafetyConfirmed,
+      secondOperatorCode: fleetSecondOperatorCode.trim(),
+      physicalOutputEnabled: false,
+    });
+  };
 
   const finishVirtualCommand = (receipt: any) => {
     const executed =
@@ -2263,6 +2457,189 @@ export default function LabBench() {
           </div>
         )}
 
+        {view === "fleet" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="MULTI-DRONES · FLOTTE PARALLÈLE"
+              title="Pilotage multi-drones — LabBench 01 v3"
+              detail="Chaque drone a sa propre progression de gates (N1 → N4). N3 peut être armé indépendamment par drone. La simulation de flotte archive un run N2 par drone en parallèle."
+              actions={
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    className="lb-secondary"
+                    onClick={addDroneToProject}
+                    disabled={!remoteProjectId}
+                  >
+                    <Activity size={14} /> Ajouter un drone
+                  </button>
+                  <button
+                    className="lb-primary"
+                    onClick={runFleetSimulationAll}
+                    disabled={!remoteProjectId || fleetDrones.length === 0 || fleetSimMutation.isPending}
+                  >
+                    <Play size={14} />
+                    {fleetSimMutation.isPending ? "Simulation flotte…" : `Simuler flotte (${fleetDrones.length})`}
+                  </button>
+                </div>
+              }
+            />
+            {!remoteProjectId ? (
+              <section className="lb-note">
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>Projet authentifié requis.</strong>
+                  <span>La vue flotte nécessite un projet AeroMind authentifié pour persister les gates par drone.</span>
+                </div>
+              </section>
+            ) : fleetDrones.length === 0 ? (
+              <section className="lb-note">
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>Flotte vide.</strong>
+                  <span>Cliquez « Ajouter un drone » pour démarrer. Chaque projet peut contenir jusqu'à 12 drones.</span>
+                </div>
+              </section>
+            ) : (
+              <div className="lb-fleet-grid">
+                {fleetDrones.map((drone) => {
+                  const perDroneState = (fleetQuery.data as any)?.perDrone?.find((p: any) => p.droneId === drone.id);
+                  const gates = perDroneState?.gates ?? [];
+                  const gateByCode: Record<string, string> = {};
+                  gates.forEach((g: any) => { gateByCode[g.code] = g.state; });
+                  const n3Armed = perDroneState?.conditions?.n3_armed === true;
+                  const scenario = fleetDroneScenarios[drone.id] ?? defaultLabBenchScenario;
+                  const result = fleetResults?.find((r: any) => r.droneId === drone.id);
+                  return (
+                    <section key={drone.id} className={`lb-panel lb-fleet-card ${n3Armed ? "is-armed" : ""}`}>
+                      <div className="lb-panel-title">
+                        <Radio size={15} />
+                        <span>{drone.name}</span>
+                        <small>{drone.isActive ? "PRIMAIRE" : "SECONDAIRE"}</small>
+                      </div>
+                      <div className="lb-fleet-config">
+                        <span>
+                          <b>airframe</b>{String(drone.config.airframe ?? "multirotor")}
+                        </span>
+                        <span>
+                          <b>moteurs</b>{String(drone.config.motorCount ?? drone.config.motor_count ?? "—")}
+                        </span>
+                        <span>
+                          <b>masse</b>{String(drone.config.massKg ?? drone.config.mass_kg ?? "—")} kg
+                        </span>
+                      </div>
+                      <div className="lb-fleet-gates">
+                        {["N1", "N2", "N3-READY", "N3-ARMED", "N4"].map((code) => (
+                          <span key={code} className={`lb-fleet-gate lb-gate-${gateByCode[code] ?? "pending"}`}>
+                            <span className="lb-fleet-gate-code">{code}</span>
+                            <span className="lb-fleet-gate-state">
+                              {gateByCode[code] === "passed" ? <CheckCircle2 size={11} /> :
+                                gateByCode[code] === "open" ? <CircleDot size={11} /> :
+                                <LockKeyhole size={11} />}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="lb-fleet-inputs">
+                        <label>
+                          <span>Consigne (°)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={90}
+                            step={1}
+                            value={scenario.positionSetpointDeg}
+                            onChange={(event) =>
+                              setFleetDroneScenarios((prev) => ({
+                                ...prev,
+                                [drone.id]: { ...scenario, positionSetpointDeg: Number(event.target.value) },
+                              }))
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>Ambient (°C)</span>
+                          <input
+                            type="number"
+                            min={-10}
+                            max={50}
+                            step={0.5}
+                            value={scenario.ambientC}
+                            onChange={(event) =>
+                              setFleetDroneScenarios((prev) => ({
+                                ...prev,
+                                [drone.id]: { ...scenario, ambientC: Number(event.target.value) },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      {result && (
+                        <div className="lb-fleet-result">
+                          {result.error ? (
+                            <span className="lb-text-danger">
+                              {String((result.error as any).code)}: {String((result.error as any).message)}
+                            </span>
+                          ) : (
+                            <span>
+                              <b>Run</b> {String(result.runId)} · <b>T°</b> {String(result.predictedTemperatureC)} °C ·{" "}
+                              <b>Verdict</b> {String(result.verdict)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div className="lb-fleet-actions">
+                        <button
+                          className="lb-secondary"
+                          onClick={() =>
+                            fleetChecklistMutation.mutate({
+                              projectId: remoteProjectId,
+                              droneId: drone.id,
+                              deviceIdentified: true,
+                              driverValidated: true,
+                              calibrationSimulated: true,
+                            })
+                          }
+                          disabled={fleetChecklistMutation.isPending}
+                        >
+                          <ClipboardCheck size={13} /> Checklist N3
+                        </button>
+                        {n3Armed ? (
+                          <button
+                            className="lb-secondary"
+                            onClick={() => {
+                              fleetDisarmMutation.mutate({ projectId: remoteProjectId, droneId: drone.id, droneName: drone.name });
+                            }}
+                            disabled={fleetDisarmMutation.isPending}
+                          >
+                            <LockKeyhole size={13} /> Désarmer
+                          </button>
+                        ) : (
+                          <button
+                            className="lb-primary"
+                            onClick={() => openFleetArmDialog(drone)}
+                            disabled={!perDroneState?.conditions?.n3_ready}
+                          >
+                            <Unlock size={13} /> Armer N3
+                          </button>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            )}
+            <section className="lb-note">
+              <ShieldCheck size={18} />
+              <div>
+                <strong>Frontière de contrôle — pilotage multi-drones.</strong>
+                <span>
+                  L'armement N3 d'un drone ne commande aucun matériel réel. Les consignes restent virtuelles et bornées 0–90°. Chaque armement est persisté et audit-trailé par drone.
+                </span>
+              </div>
+            </section>
+          </div>
+        )}
+
         {view === "reports" && (
           <div className="lb-content">
             <SectionHeading
@@ -2556,6 +2933,82 @@ export default function LabBench() {
               >
                 <FileCheck2 size={15} />
                 {signOffN4Mutation.isPending ? "Signature…" : "Signer la revue N4"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fleetArmDialogDrone && (
+        <div className="lb-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fleet-arm-dialog-title">
+          <div className="lb-modal">
+            <div className="lb-modal-header">
+              <Zap size={18} />
+              <h2 id="fleet-arm-dialog-title">
+                Armement N3 — drone {fleetArmDialogDrone.name}
+              </h2>
+            </div>
+            <div className="lb-modal-body">
+              <p className="lb-modal-warning">
+                <AlertTriangle size={16} />
+                Cet armement ne déclenche <strong>aucune commande physique</strong>.
+                Il déverrouille uniquement les consignes virtuelles supervisées
+                pour le drone <b>{fleetArmDialogDrone.name}</b> et reste traçable
+                côté serveur (audit `labbench.gate.arm_n3_drone`).
+              </p>
+              <label className="lb-confirm">
+                <input
+                  type="checkbox"
+                  checked={fleetHumanConfirmed}
+                  onChange={(event) => setFleetHumanConfirmed(event.target.checked)}
+                />
+                <span>
+                  Je confirme avoir lu la procédure d’armement et l’absence de
+                  sortie physique pour le drone {fleetArmDialogDrone.name}.
+                </span>
+              </label>
+              <label className="lb-confirm">
+                <input
+                  type="checkbox"
+                  checked={fleetSafetyConfirmed}
+                  onChange={(event) => setFleetSafetyConfirmed(event.target.checked)}
+                />
+                <span>
+                  Je confirme le périmètre virtuel exclusif du drone {fleetArmDialogDrone.name} et la
+                  possibilité d’arrêt immédiat.
+                </span>
+              </label>
+              <label className="lb-input-row">
+                <span>Code second opérateur (≥ 6 caractères) :</span>
+                <input
+                  type="password"
+                  value={fleetSecondOperatorCode}
+                  onChange={(event) => setFleetSecondOperatorCode(event.target.value)}
+                  placeholder="Saisir le code du second opérateur"
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+            <div className="lb-modal-footer">
+              <button
+                className="lb-secondary"
+                onClick={() => setFleetArmDialogDrone(null)}
+                disabled={fleetArmMutation.isPending}
+              >
+                Annuler
+              </button>
+              <button
+                className="lb-primary"
+                onClick={confirmFleetArm}
+                disabled={
+                  fleetArmMutation.isPending ||
+                  !fleetHumanConfirmed ||
+                  !fleetSafetyConfirmed ||
+                  fleetSecondOperatorCode.trim().length < 6
+                }
+              >
+                <Unlock size={15} />
+                {fleetArmMutation.isPending ? "Armement…" : `Armer N3 — ${fleetArmDialogDrone.name}`}
               </button>
             </div>
           </div>

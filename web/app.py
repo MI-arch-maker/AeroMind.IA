@@ -595,6 +595,52 @@ async def trpc_compat(
                 data = labbench_service.sign_off_n4_gate(db, current_user, str(project_id or ''), payload if isinstance(payload, dict) else {})
         except labbench_service.LabBenchError as exc:
             return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.fleetGateState'):
+        try:
+            project_id = payload if isinstance(payload, str) else payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.fleet_gate_state(db, current_user, str(project_id or ''))
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.perDroneGateState'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            drone_id = payload.get('droneId') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.per_drone_gate_state(db, current_user, str(project_id or ''), str(drone_id or ''))
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.completeHardwareChecklistDrone'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            drone_id = payload.get('droneId') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.complete_hardware_checklist_drone(db, current_user, str(project_id or ''), str(drone_id or ''), payload if isinstance(payload, dict) else {})
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.armN3Drone'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            drone_id = payload.get('droneId') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.arm_n3_gate_drone(db, current_user, str(project_id or ''), str(drone_id or ''), payload if isinstance(payload, dict) else {})
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.disarmN3Drone'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            drone_id = payload.get('droneId') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.disarm_n3_gate_drone(db, current_user, str(project_id or ''), str(drone_id or ''))
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.runFleetSimulation'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.run_fleet_simulation(db, current_user, str(project_id or ''), payload if isinstance(payload, dict) else {})
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
     else:
         data = None
     # The legacy React client uses the SuperJSON transformer. Its wire format
@@ -721,6 +767,97 @@ async def labbench_gates_sign_off_n4(request: Request, aeromind_session: str | N
     try:
         with SessionLocal() as db:
             data = labbench_service.sign_off_n4_gate(db, user, str(payload.get('projectId') or ''), payload)
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+# === Multi-drone (fleet) endpoints — LabBench 01 v3 ===
+
+@app.get('/api/labbench/fleet', include_in_schema=False)
+def labbench_fleet_get(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Aggregate gate progressions for every drone in a project's fleet."""
+    user = _current_user(aeromind_session, authorization)
+    project_id = request.query_params.get('projectId') or request.query_params.get('id') or ''
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.fleet_gate_state(db, user, str(project_id or ''))
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.get('/api/labbench/drones/{drone_id}/gate', include_in_schema=False)
+def labbench_drone_gate_get(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    project_id = request.query_params.get('projectId') or request.query_params.get('id') or ''
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.per_drone_gate_state(db, user, str(project_id or ''), str(drone_id or ''))
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/labbench/drones/{drone_id}/hardware-checklist', include_in_schema=False)
+async def labbench_drone_hardware_checklist(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.complete_hardware_checklist_drone(db, user, str(payload.get('projectId') or ''), str(drone_id or ''), payload)
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/labbench/drones/{drone_id}/arm-n3', include_in_schema=False)
+async def labbench_drone_arm_n3(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.arm_n3_gate_drone(db, user, str(payload.get('projectId') or ''), str(drone_id or ''), payload)
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/labbench/drones/{drone_id}/disarm-n3', include_in_schema=False)
+async def labbench_drone_disarm_n3(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.disarm_n3_gate_drone(db, user, str(payload.get('projectId') or ''), str(drone_id or ''))
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/labbench/fleet/run-simulation', include_in_schema=False)
+async def labbench_fleet_run_simulation(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Run a fleet simulation: one N2 scenario per drone in parallel.
+
+    Body: { projectId: string, scenarios: [{ droneId, ...scenarioInputs }] }
+    """
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = labbench_service.run_fleet_simulation(db, user, str(payload.get('projectId') or ''), payload)
     except labbench_service.LabBenchError as exc:
         return _trpc_error(exc.status_code, exc.code, exc.message)
     return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})

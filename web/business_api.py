@@ -214,6 +214,158 @@ def set_drone(
     return dump(drone, "config")
 
 
+# ---------------------------------------------------------------------------
+# Multi-drone endpoints — fleet management per project.
+#
+# A project can have N drones. The `active_drone_id` field stays as the
+# primary drone for backward compatibility, but the LabBench 01 v3 can drive
+# multiple drones in parallel via `/api/projects/{id}/drones/{drone_id}/...`.
+# ---------------------------------------------------------------------------
+
+@router.get("/projects/{project_id}/drones")
+def list_drones(
+    project_id: str,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    db: Session = Depends(get_db),
+):
+    """List all drones attached to a project (fleet view)."""
+    user_id = owner(aeromind_session, db)
+    project = get_project(db, user_id, project_id)
+    rows = db.scalars(
+        select(Drone)
+        .where(Drone.project_id == project_id, Drone.user_id == user_id)
+        .order_by(Drone.name.asc())
+    ).all()
+    return [
+        {
+            **dump(drone, "config"),
+            "is_active": drone.id == project.active_drone_id,
+        }
+        for drone in rows
+    ]
+
+
+@router.post("/projects/{project_id}/drones", status_code=201)
+def create_drone(
+    project_id: str,
+    body: RecordIn,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    db: Session = Depends(get_db),
+):
+    """Add a new drone to the project's fleet."""
+    user_id = owner(aeromind_session, db)
+    project = get_project(db, user_id, project_id)
+    drone_id = str(uuid4())
+    drone_data = body.data or {
+        "mass_kg": 1.2,
+        "battery_wh": 100,
+        "motor_count": 4,
+        "airframe": "multirotor",
+    }
+    drone = Drone(
+        id=drone_id,
+        user_id=user_id,
+        project_id=project_id,
+        name=body.name or f"Drone {drone_id[:6]}",
+        config_json=json.dumps(drone_data),
+    )
+    db.add(drone)
+    # If no active drone yet, set this one as active for backward compat.
+    if not project.active_drone_id:
+        project.active_drone_id = drone_id
+    db.commit()
+    db.refresh(drone)
+    return {**dump(drone, "config"), "is_active": drone.id == project.active_drone_id}
+
+
+@router.get("/projects/{project_id}/drones/{drone_id}")
+def read_drone(
+    project_id: str,
+    drone_id: str,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    db: Session = Depends(get_db),
+):
+    user_id = owner(aeromind_session, db)
+    project = get_project(db, user_id, project_id)
+    drone = db.scalar(
+        select(Drone).where(Drone.id == drone_id, Drone.project_id == project_id, Drone.user_id == user_id)
+    )
+    if drone is None:
+        raise HTTPException(404, "Drone not found")
+    return {**dump(drone, "config"), "is_active": drone.id == project.active_drone_id}
+
+
+@router.put("/projects/{project_id}/drones/{drone_id}")
+def update_drone(
+    project_id: str,
+    drone_id: str,
+    body: RecordIn,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    db: Session = Depends(get_db),
+):
+    user_id = owner(aeromind_session, db)
+    project = get_project(db, user_id, project_id)
+    drone = db.scalar(
+        select(Drone).where(Drone.id == drone_id, Drone.project_id == project_id, Drone.user_id == user_id)
+    )
+    if drone is None:
+        raise HTTPException(404, "Drone not found")
+    if body.name:
+        drone.name = body.name
+    if "data" in body.model_fields_set:
+        drone.config_json = json.dumps(body.data)
+    db.commit()
+    db.refresh(drone)
+    return {**dump(drone, "config"), "is_active": drone.id == project.active_drone_id}
+
+
+@router.post("/projects/{project_id}/drones/{drone_id}/activate")
+def activate_drone(
+    project_id: str,
+    drone_id: str,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    db: Session = Depends(get_db),
+):
+    """Mark a drone as the project's primary active drone."""
+    user_id = owner(aeromind_session, db)
+    project = get_project(db, user_id, project_id)
+    drone = db.scalar(
+        select(Drone).where(Drone.id == drone_id, Drone.project_id == project_id, Drone.user_id == user_id)
+    )
+    if drone is None:
+        raise HTTPException(404, "Drone not found")
+    project.active_drone_id = drone.id
+    db.commit()
+    return {"ok": True, "active_drone_id": drone.id}
+
+
+@router.delete("/projects/{project_id}/drones/{drone_id}", status_code=204)
+def delete_drone(
+    project_id: str,
+    drone_id: str,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    db: Session = Depends(get_db),
+):
+    user_id = owner(aeromind_session, db)
+    project = get_project(db, user_id, project_id)
+    drone = db.scalar(
+        select(Drone).where(Drone.id == drone_id, Drone.project_id == project_id, Drone.user_id == user_id)
+    )
+    if drone is None:
+        raise HTTPException(404, "Drone not found")
+    if project.active_drone_id == drone.id:
+        # Pick another drone from the fleet as the new active, or null.
+        other = db.scalar(
+            select(Drone)
+            .where(Drone.project_id == project_id, Drone.user_id == user_id, Drone.id != drone.id)
+            .order_by(Drone.name.asc())
+        )
+        project.active_drone_id = other.id if other else None
+    db.delete(drone)
+    db.commit()
+    return Response(status_code=204)
+
+
 # All child resources use identical owner-scoped REST semantics.
 for route, model in [
     ("simulations", Simulation),
