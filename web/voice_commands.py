@@ -147,33 +147,40 @@ async def parse_endpoint(
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "text is required"}})
     parsed = parse_voice_command(text)
     if parsed is None:
-        # Audit unrecognized attempt
+        # Audit unrecognized attempt — wrapped in try/except so DB errors
+        # don't crash the API (e.g. missing table in production)
+        try:
+            with SessionLocal() as db:
+                db.add(AuditEvent(
+                    id=str(uuid4()),
+                    project_id=None,
+                    user_id=user["id"],
+                    actor_role=user.get("role", "user"),
+                    event_type="labbench.voice.unrecognized",
+                    message=f"Commande vocale non reconnue: {text[:100]}",
+                    payload_json=json.dumps({"scope": "voice", "raw": text[:200]}, ensure_ascii=False),
+                    occurred_at=datetime.now(UTC),
+                ))
+                db.commit()
+        except Exception:
+            pass  # audit log is best-effort, never block the API
+        return JSONResponse(status_code=422, content={"error": {"code": "UNRECOGNIZED", "message": f"Commande non reconnue: {text}"}})
+    # Audit the parse
+    try:
         with SessionLocal() as db:
             db.add(AuditEvent(
                 id=str(uuid4()),
                 project_id=None,
                 user_id=user["id"],
                 actor_role=user.get("role", "user"),
-                event_type="labbench.voice.unrecognized",
-                message=f"Commande vocale non reconnue: {text[:100]}",
-                payload_json=json.dumps({"scope": "voice", "raw": text[:200]}, ensure_ascii=False),
+                event_type="labbench.voice.parsed",
+                message=f"Commande vocale parsée: {parsed['preview']}",
+                payload_json=json.dumps({"scope": "voice", "command": parsed["command"], "raw": text[:200]}, ensure_ascii=False),
                 occurred_at=datetime.now(UTC),
             ))
             db.commit()
-        return JSONResponse(status_code=422, content={"error": {"code": "UNRECOGNIZED", "message": f"Commande non reconnue: {text}"}})
-    # Audit the parse
-    with SessionLocal() as db:
-        db.add(AuditEvent(
-            id=str(uuid4()),
-            project_id=None,
-            user_id=user["id"],
-            actor_role=user.get("role", "user"),
-            event_type="labbench.voice.parsed",
-            message=f"Commande vocale parsée: {parsed['preview']}",
-            payload_json=json.dumps({"scope": "voice", "command": parsed["command"], "raw": text[:200]}, ensure_ascii=False),
-            occurred_at=datetime.now(UTC),
-        ))
-        db.commit()
+    except Exception:
+        pass  # audit log is best-effort
     return JSONResponse({
         "command": parsed["command"],
         "parameters": parsed["parameters"],
@@ -214,18 +221,21 @@ async def execute_endpoint(
     if is_estop or command == "EMERGENCY_STOP":
         pool = pool_mod.get_pool()
         result = geo.emergency_stop_all(pool, audit_logger=None)
-        with SessionLocal() as db:
-            db.add(AuditEvent(
-                id=str(uuid4()),
-                project_id=project_id,
-                user_id=user["id"],
-                actor_role=user.get("role", "user"),
-                event_type="labbench.voice.estop",
-                message="E-stop vocal déclenché",
-                payload_json=json.dumps({"scope": "voice", "results": result.get("results", [])}, ensure_ascii=False),
-                occurred_at=datetime.now(UTC),
-            ))
-            db.commit()
+        try:
+            with SessionLocal() as db:
+                db.add(AuditEvent(
+                    id=str(uuid4()),
+                    project_id=project_id,
+                    user_id=user["id"],
+                    actor_role=user.get("role", "user"),
+                    event_type="labbench.voice.estop",
+                    message="E-stop vocal déclenché",
+                    payload_json=json.dumps({"scope": "voice", "results": result.get("results", [])}, ensure_ascii=False),
+                    occurred_at=datetime.now(UTC),
+                ))
+                db.commit()
+        except Exception:
+            pass  # audit log is best-effort
         return JSONResponse(result, headers={"Cache-Control": "no-store", "Vary": "Cookie"})
 
     # Normal command — full gate
@@ -246,26 +256,29 @@ async def execute_endpoint(
             confirmation_token=confirmation_token,
             geofence_validation=lambda p: geo.validate_command_geofence(p, geofence),
         )
-        with SessionLocal() as db:
-            db.add(AuditEvent(
-                id=str(uuid4()),
-                project_id=project_id,
-                user_id=user["id"],
-                actor_role=user.get("role", "user"),
-                event_type="labbench.voice.command_sent" if receipt.sent_to_hardware else "labbench.voice.command_refused",
-                message=f"Commande vocale {command} drone {drone_id}: {'envoyée' if receipt.sent_to_hardware else 'refusée'}",
-                payload_json=json.dumps({
-                    "scope": "voice",
-                    "command": command,
-                    "droneId": drone_id,
-                    "receiptId": receipt.receipt_id,
-                    "sentToHardware": receipt.sent_to_hardware,
-                    "physicalOutputEnabled": receipt.sent_to_hardware,
-                    "physicalCommandsEmitted": receipt.sent_to_hardware,
-                }, ensure_ascii=False),
-                occurred_at=datetime.now(UTC),
-            ))
-            db.commit()
+        try:
+            with SessionLocal() as db:
+                db.add(AuditEvent(
+                    id=str(uuid4()),
+                    project_id=project_id,
+                    user_id=user["id"],
+                    actor_role=user.get("role", "user"),
+                    event_type="labbench.voice.command_sent" if receipt.sent_to_hardware else "labbench.voice.command_refused",
+                    message=f"Commande vocale {command} drone {drone_id}: {'envoyée' if receipt.sent_to_hardware else 'refusée'}",
+                    payload_json=json.dumps({
+                        "scope": "voice",
+                        "command": command,
+                        "droneId": drone_id,
+                        "receiptId": receipt.receipt_id,
+                        "sentToHardware": receipt.sent_to_hardware,
+                        "physicalOutputEnabled": receipt.sent_to_hardware,
+                        "physicalCommandsEmitted": receipt.sent_to_hardware,
+                    }, ensure_ascii=False),
+                    occurred_at=datetime.now(UTC),
+                ))
+                db.commit()
+        except Exception:
+            pass  # audit log is best-effort
         return JSONResponse({
             "command": command,
             "accepted": receipt.accepted,

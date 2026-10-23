@@ -89,10 +89,10 @@ class AuditEvent(Base):
     """Owner-scoped, append-only project validation/audit entry."""
     __tablename__ = "audit_events"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    project_id: Mapped[str] = mapped_column(
-        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True, nullable=True
     )
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
     actor_role: Mapped[str] = mapped_column(String(40), nullable=False)
     event_type: Mapped[str] = mapped_column(String(80), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)

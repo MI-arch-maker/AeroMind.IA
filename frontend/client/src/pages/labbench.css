@@ -525,3 +525,11 @@
   .lb-flights-row > span:nth-child(n+3) { display: none; }
 }
 
+
+/* === FIX: Diagnostic banner when no remote project is active === */
+.lb-diagnostic-banner { margin: 16px 0; padding: 14px 18px; border: 1px solid rgba(249,127,120,.4); border-radius: 8px; background: linear-gradient(90deg, rgba(249,127,120,.12), rgba(249,127,120,.04)); color: #f0a7a2; display: flex; gap: 12px; align-items: flex-start; }
+.lb-diagnostic-banner > svg { flex: none; margin-top: 2px; }
+.lb-diagnostic-banner strong { font-size: 13px; display: block; margin-bottom: 4px; color: #f7b7b2; }
+.lb-diagnostic-banner span { font-size: 12px; line-height: 1.5; display: block; }
+.lb-diagnostic-link { display: inline-block; margin-left: 6px; color: var(--lb-cyan); text-decoration: none; font-weight: 600; }
+.lb-diagnostic-link:hover { text-decoration: underline; }

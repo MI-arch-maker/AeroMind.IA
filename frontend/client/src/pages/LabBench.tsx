@@ -565,11 +565,15 @@ export default function LabBench() {
   });
   const meQuery = trpc.auth.me.useQuery(undefined, {
     staleTime: 60_000,
-    retry: false,
+    retry: 1,
   });
   const projectsQuery = trpc.projects.list.useQuery(undefined, {
-    enabled: Boolean(meQuery.data),
-    retry: false,
+    // Fire even without auth — the API may return local projects or 401
+    // (which we handle gracefully). Don't block the entire LabBench on auth.
+    enabled: true,
+    retry: 2,
+    retryDelay: 2000,
+    staleTime: 30_000,
   });
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const remoteProjects = normalizeLabBenchProjects(projectsQuery.data);
@@ -591,6 +595,25 @@ export default function LabBench() {
     remoteProjects.some((project) => project.id === selectedProjectId)
       ? selectedProjectId
       : null;
+
+  // === FIX: auto-select remote project from localStorage when projects load ===
+  // This syncs the project selected in Home.tsx to LabBench when the
+  // projects query finally returns data (e.g. after auth).
+  useEffect(() => {
+    if (remoteProjects.length === 0) return;
+    // If we already have a valid remoteProjectId, don't override.
+    if (remoteProjectId) return;
+    // Check if localStorage has an activeProjectId that matches a remote project.
+    const localActiveId = localWorkspace?.activeProjectId;
+    if (localActiveId && remoteProjects.some((p) => p.id === localActiveId)) {
+      setActiveProjectId(localActiveId);
+      return;
+    }
+    // Otherwise auto-select the first remote project.
+    if (!activeProjectId && remoteProjects[0]) {
+      setActiveProjectId(remoteProjects[0].id);
+    }
+  }, [remoteProjects, remoteProjectId, localWorkspace?.activeProjectId, activeProjectId]);
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId,
   );
@@ -607,12 +630,12 @@ export default function LabBench() {
   }, [remoteProjectId, JSON.stringify(selectedProject?.config)]);
   const registryQuery = trpc.labBench.registry.useQuery(
     remoteProjectId ?? "0",
-    { enabled: Boolean(remoteProjectId && meQuery.data), retry: false },
+    { enabled: Boolean(remoteProjectId), retry: false },
   );
   const gateStateQuery = trpc.labBench.gateState.useQuery(
     remoteProjectId ?? "0",
     {
-      enabled: Boolean(remoteProjectId && meQuery.data),
+      enabled: Boolean(remoteProjectId),
       retry: false,
       refetchOnMount: true,
       staleTime: 5_000,
@@ -620,7 +643,7 @@ export default function LabBench() {
   );
   const remoteAuditQuery = trpc.auditEvents.list.useQuery(
     remoteProjectId ?? "0",
-    { enabled: Boolean(remoteProjectId && meQuery.data), retry: false },
+    { enabled: Boolean(remoteProjectId), retry: false },
   );
 
   useEffect(() => {
@@ -836,7 +859,7 @@ export default function LabBench() {
   const fleetQuery = trpc.labBench.fleetGateState.useQuery(
     remoteProjectId ?? "0",
     {
-      enabled: Boolean(remoteProjectId && meQuery.data && view === "fleet"),
+      enabled: Boolean(remoteProjectId && view === "fleet"),
       retry: false,
       staleTime: 10_000,
     },
@@ -1912,6 +1935,46 @@ export default function LabBench() {
             aucune preuve serveur.
           </p>
         )}
+        {/* === FIX: Diagnostic banner when no remote project is active === */}
+        {!remoteProjectId && (
+          <div className="lb-diagnostic-banner" role="alert">
+            <AlertTriangle size={19} />
+            <div>
+              <strong>LabBench en mode aperçu — projet non reconnu côté serveur</strong>
+              <span>
+                {!meQuery.data ? (
+                  <>
+                    Vous n'êtes pas authentifié (OIDC). Les gates, la flotte, le radar
+                    et le hardware control restent en mode aperçu local.
+                    <Link href="/" className="lb-diagnostic-link">
+                      → Se connecter depuis le cockpit principal
+                    </Link>
+                  </>
+                ) : remoteProjects.length === 0 ? (
+                  <>
+                    Aucun projet serveur trouvé. Créez un projet depuis le cockpit
+                    principal AeroMind, puis revenez ici.
+                    <Link href="/" className="lb-diagnostic-link">
+                      → Créer un projet
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    Projet sélectionné dans le cockpit non trouvé côté LabBench.
+                    Sélectionnez un projet ci-dessous (vue Projets, zone 01) pour
+                    activer les gates et le hardware control.
+                  </>
+                )}
+              </span>
+              {projectsQuery.error && (
+                <span className="lb-text-danger" style={{ display: "block", marginTop: 4 }}>
+                  Détail API : {String(projectsQuery.error?.message ?? "").slice(0, 120)}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+        {/* === END diagnostic banner === */}
         <section
           className="lb-panel"
           aria-label="Configuration drone active du projet"
