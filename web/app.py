@@ -29,6 +29,18 @@ from .business_api import router as business_router
 from .hardware_api import router as hardware_router
 from .operational_state import router as operational_state_router
 from . import labbench as labbench_service
+from . import hardware_gate as hardware_gate_service
+from . import mavlink_command_api as mavlink_command_service
+from . import mavlink_pool as mavlink_pool_service
+from . import geofence_validator as geofence_service
+from .fleet_telemetry import router as fleet_telemetry_router
+from .material_library import router as material_library_router
+from .mission_planner import router as mission_planner_router
+from .preflight import router as preflight_router
+from .maintenance import router as maintenance_router
+from .dashboard import router as dashboard_router
+from .voice_commands import router as voice_commands_router
+from .realtime import router as realtime_router
 from .database import Base, engine, ping_database, SessionLocal
 from .models import User, Project, Drone, Simulation, Report, AuditEvent, LabSession
 from sqlalchemy import select
@@ -116,6 +128,14 @@ app.include_router(command_center_router)
 app.include_router(engineering_document_router)
 app.include_router(sitl_router)
 app.include_router(mavlink_telemetry_router)
+app.include_router(fleet_telemetry_router)
+app.include_router(material_library_router)
+app.include_router(mission_planner_router)
+app.include_router(preflight_router)
+app.include_router(maintenance_router)
+app.include_router(dashboard_router)
+app.include_router(voice_commands_router)
+app.include_router(realtime_router)
 
 
 @app.middleware('http')
@@ -861,6 +881,448 @@ async def labbench_fleet_run_simulation(request: Request, aeromind_session: str 
     except labbench_service.LabBenchError as exc:
         return _trpc_error(exc.status_code, exc.code, exc.message)
     return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+# ===========================================================================
+# Phase A-D — Hardware endpoints (MAVLink commands, pool, geofence, gate N4 HW)
+#
+# All endpoints are dormant unless HARDWARE_CONTROL=true. The contract stays:
+# physicalOutputEnabled is the answer of the endpoint, not the request.
+# ===========================================================================
+
+@app.get('/api/hardware/status', include_in_schema=False)
+def hardware_status():
+    """Public status of the hardware subsystem."""
+    return {
+        'hardwareControlEnabled': mavlink_command_service.hardware_commands_enabled(),
+        'allowedCommands': list(mavlink_command_service.ALLOWED_COMMANDS),
+        'allowedModes': list(mavlink_command_service.ALLOWED_MODES),
+        'maxFleetSize': mavlink_pool_service.MAX_POOL_SIZE,
+        'poolSize': mavlink_pool_service.get_pool().size(),
+        'physicalOutputEnabled': False,
+        'physicalCommandsEmitted': False,
+    }
+
+
+@app.get('/api/hardware/pool', include_in_schema=False)
+def hardware_pool_list(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """List all drones registered in the MAVLink pool."""
+    _user = _current_user(aeromind_session, authorization)
+    if not _user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    pool = mavlink_pool_service.get_pool()
+    return JSONResponse({'drones': pool.list()}, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/hardware/pool/register', include_in_schema=False)
+async def hardware_pool_register(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    drone_id = str(payload.get('droneId') or '').strip()
+    drone_name = str(payload.get('droneName') or drone_id).strip()
+    connection_url = str(payload.get('connectionUrl') or '').strip()
+    project_id = str(payload.get('projectId') or '').strip()
+    if not drone_id or not connection_url:
+        return _trpc_error(400, 'BAD_REQUEST', 'droneId and connectionUrl are required')
+    try:
+        pool = mavlink_pool_service.get_pool()
+        entry = pool.register(drone_id, drone_name, connection_url)
+        # Mark the drone as registered in the hardware gate state.
+        if project_id:
+            with SessionLocal() as db:
+                row, data, _ = hardware_gate_service._ensure_hardware_gate_state(db, _require_project(db, user['id'], project_id), user)
+                data.setdefault('conditions', {})['drone_registered_in_pool'] = True
+                data['updatedAt'] = datetime.now(UTC).isoformat()
+                row.data_json = _json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+                db.commit()
+        return JSONResponse({
+            'droneId': entry.drone_id,
+            'droneName': entry.drone_name,
+            'connectionUrl': entry.connection_url,
+            'registeredAt': entry.registered_at,
+            'hardwareControlEnabled': mavlink_command_service.hardware_commands_enabled(),
+        }, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+    except mavlink_command_service.HardwareCommandError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+
+
+@app.post('/api/hardware/pool/{drone_id}/unregister', include_in_schema=False)
+def hardware_pool_unregister(drone_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    removed = mavlink_pool_service.get_pool().unregister(drone_id)
+    return JSONResponse({'removed': removed, 'droneId': drone_id})
+
+
+@app.get('/api/hardware/gate', include_in_schema=False)
+def hardware_gate_get(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Hardware N4 gate state for a project."""
+    user = _current_user(aeromind_session, authorization)
+    project_id = request.query_params.get('projectId') or request.query_params.get('id') or ''
+    try:
+        with SessionLocal() as db:
+            data = hardware_gate_service.hardware_gate_state(db, user, str(project_id or ''))
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/hardware/gate/sign-review', include_in_schema=False)
+async def hardware_gate_sign_review(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = hardware_gate_service.sign_hardware_review(db, user, str(payload.get('projectId') or ''), payload)
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/hardware/gate/issue-token', include_in_schema=False)
+async def hardware_gate_issue_token(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Issue a single-use hardware confirmation token for one physical command."""
+    user = _current_user(aeromind_session, authorization)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        with SessionLocal() as db:
+            data = hardware_gate_service.issue_hardware_confirmation_token(
+                db, user, str(payload.get('projectId') or ''), str(payload.get('droneId') or '')
+            )
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/hardware/drones/{drone_id}/command', include_in_schema=False)
+async def hardware_drone_command(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Send ONE physical MAVLink command to a drone. Requires:
+      - HARDWARE_CONTROL=true
+      - command on the allowlist
+      - valid single-use confirmation token (issued by /issue-token)
+      - geofence validation passes
+    """
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    command = str(payload.get('command') or '').strip()
+    confirmation_token = str(payload.get('confirmationToken') or '').strip()
+    parameters = payload.get('parameters') if isinstance(payload.get('parameters'), dict) else {}
+    project_id = str(payload.get('projectId') or '').strip()
+
+    try:
+        # Consume the token (single-use)
+        confirmation = hardware_gate_service.consume_hardware_confirmation_token(confirmation_token, command)
+        if confirmation.drone_id != drone_id:
+            return _trpc_error(403, 'TOKEN_DRONE_MISMATCH', 'Le jeton ne correspond pas à ce drone')
+        # Get the pilot from the pool
+        pool = mavlink_pool_service.get_pool()
+        pilot = pool.pilot(drone_id)
+        # Geofence validation
+        geofence = geofence_service.get_geofence(project_id) if project_id else None
+        receipt = pilot.send_command(
+            command,
+            parameters=parameters,
+            confirmation_token=confirmation_token,
+            geofence_validation=lambda p: geofence_service.validate_command_geofence(p, geofence),
+        )
+        # Audit the command (success or failure)
+        with SessionLocal() as db:
+            db.add(AuditEvent(
+                id=str(uuid4()),
+                project_id=project_id or None,
+                user_id=user['id'],
+                actor_role=user.get('role', 'user'),
+                event_type='labbench.hardware.command_sent' if receipt.sent_to_hardware else 'labbench.hardware.command_refused',
+                message=f"Commande hardware {command} drone {drone_id}: {'envoyée' if receipt.sent_to_hardware else 'refusée'}",
+                payload_json=_json.dumps({
+                    'scope': 'hardware-command',
+                    'droneId': drone_id,
+                    'command': command,
+                    'sentToHardware': receipt.sent_to_hardware,
+                    'accepted': receipt.accepted,
+                    'reason': receipt.reason,
+                    'receiptId': receipt.receipt_id,
+                    'physicalOutputEnabled': receipt.sent_to_hardware,
+                    'physicalCommandsEmitted': receipt.sent_to_hardware,
+                    'tokenId': confirmation_token[:8] + '…',
+                }, ensure_ascii=False, separators=(',', ':')),
+                occurred_at=datetime.now(UTC),
+            ))
+            db.commit()
+        return JSONResponse({
+            'droneId': drone_id,
+            'command': command,
+            'accepted': receipt.accepted,
+            'sentToHardware': receipt.sent_to_hardware,
+            'physicalOutputEnabled': receipt.sent_to_hardware,
+            'physicalCommandsEmitted': receipt.sent_to_hardware,
+            'reason': receipt.reason,
+            'receiptId': receipt.receipt_id,
+        }, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+    except mavlink_command_service.HardwareCommandError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+    except labbench_service.LabBenchError as exc:
+        return _trpc_error(exc.status_code, exc.code, exc.message)
+
+
+@app.post('/api/hardware/emergency-stop', include_in_schema=False)
+def hardware_emergency_stop(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Broadcast NAV_LAND to every drone in the pool. Single-click e-stop."""
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    pool = mavlink_pool_service.get_pool()
+    def audit_logger(drone_id: str, event_type: str, payload: dict):
+        with SessionLocal() as db:
+            db.add(AuditEvent(
+                id=str(uuid4()),
+                project_id=None,
+                user_id=user['id'],
+                actor_role=user.get('role', 'user'),
+                event_type=event_type,
+                message=f"E-stop déclenché pour drone {drone_id}",
+                payload_json=_json.dumps(payload, ensure_ascii=False, separators=(',', ':')),
+                occurred_at=datetime.now(UTC),
+            ))
+            db.commit()
+    result = geofence_service.emergency_stop_all(pool, audit_logger=audit_logger)
+    return JSONResponse(result, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.get('/api/hardware/geofence', include_in_schema=False)
+def hardware_geofence_get(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Get the geofence for a project."""
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    project_id = request.query_params.get('projectId') or ''
+    geofence = geofence_service.get_geofence(project_id)
+    if geofence is None:
+        return JSONResponse({'projectId': project_id, 'configured': False})
+    return JSONResponse({
+        'projectId': geofence.project_id,
+        'configured': True,
+        'polygon': geofence.polygon,
+        'maxAltitudeM': geofence.max_altitude_m,
+        'maxDistanceM': geofence.max_distance_m,
+        'homeLat': geofence.home_lat,
+        'homeLon': geofence.home_lon,
+        'updatedAt': geofence.updated_at,
+    })
+
+
+@app.put('/api/hardware/geofence', include_in_schema=False)
+async def hardware_geofence_set(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Set the geofence for a project."""
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    project_id = str(payload.get('projectId') or '').strip()
+    polygon = payload.get('polygon') or []
+    if not isinstance(polygon, list):
+        return _trpc_error(400, 'BAD_REQUEST', 'polygon must be an array of [lat, lon] pairs')
+    try:
+        polygon_pairs = [(float(p[0]), float(p[1])) for p in polygon if isinstance(p, (list, tuple)) and len(p) == 2]
+    except (TypeError, ValueError):
+        return _trpc_error(400, 'BAD_REQUEST', 'polygon values must be numeric')
+    if len(polygon_pairs) > 0 and len(polygon_pairs) < 3:
+        return _trpc_error(400, 'BAD_REQUEST', 'polygon must have at least 3 points or be empty')
+    geofence = geofence_service.Geofence(
+        project_id=project_id,
+        polygon=polygon_pairs,
+        max_altitude_m=float(payload.get('maxAltitudeM') or geofence_service.DEFAULT_MAX_ALTITUDE_M),
+        max_distance_m=float(payload.get('maxDistanceM') or geofence_service.DEFAULT_MAX_DISTANCE_M),
+        home_lat=payload.get('homeLat'),
+        home_lon=payload.get('homeLon'),
+    )
+    geofence_service.set_geofence(geofence)
+    return JSONResponse({'ok': True, 'projectId': project_id, 'polygonSize': len(polygon_pairs)})
+
+
+# ===========================================================================
+# v7 — Alerts endpoints + map view support
+# ===========================================================================
+
+@app.get('/api/hardware/alerts', include_in_schema=False)
+def hardware_alerts_list(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """List recent unacknowledged alerts."""
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    project_id = request.query_params.get('projectId')
+    drone_id = request.query_params.get('droneId')
+    only_unack = request.query_params.get('all') != 'true'
+    with SessionLocal() as db:
+        from . import alerts as alert_service
+        from .models import AlertEvent
+        alerts = alert_service.list_recent_alerts(db, project_id=project_id, drone_id=drone_id, only_unacknowledged=only_unack, limit=100)
+    return JSONResponse({'alerts': alerts}, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.post('/api/hardware/alerts/{alert_id}/acknowledge', include_in_schema=False)
+def hardware_alerts_acknowledge(alert_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Acknowledge an alert (remove from live feed)."""
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    with SessionLocal() as db:
+        from . import alerts as alert_service
+        result = alert_service.acknowledge_alert(db, alert_id, user['id'], user.get('email'))
+    if result.get('error'):
+        return _trpc_error(404, 'NOT_FOUND', result['error'])
+    return JSONResponse(result, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.get('/api/hardware/map/tiles-status', include_in_schema=False)
+def hardware_map_tiles_status():
+    """Public endpoint: indicates whether offline map tiles are configured."""
+    offline_url = os.getenv('VITE_OFFLINE_TILE_URL', '').strip()
+    return {
+        'offlineTilesConfigured': bool(offline_url),
+        'tileTemplate': offline_url if offline_url else None,
+        'onlineProviders': ['osm', 'esri-world-imagery', 'esri-world-street', 'carto-dark'],
+    }
+
+
+# ===========================================================================
+# v9 — Flight history + CSV export
+# ===========================================================================
+
+@app.get('/api/flights/history', include_in_schema=False)
+def flights_history(
+    request: Request,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    authorization: str | None = Header(default=None),
+):
+    """Flight history — list of completed flights (missions uploaded + executed)."""
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    project_id = request.query_params.get('projectId')
+    drone_id = request.query_params.get('droneId')
+    minutes = int(request.query_params.get('minutes', '60'))
+    if minutes < 1 or minutes > 1440:
+        minutes = 60
+    from datetime import UTC, datetime, timedelta
+    since = datetime.now(UTC) - timedelta(minutes=minutes)
+    with SessionLocal() as db:
+        from .models import FleetTelemetrySample
+        stmt = select(FleetTelemetrySample).where(FleetTelemetrySample.sample_time >= since)
+        if drone_id:
+            stmt = stmt.where(FleetTelemetrySample.drone_id == drone_id)
+        elif project_id:
+            stmt = stmt.where(FleetTelemetrySample.project_id == project_id)
+        stmt = stmt.order_by(FleetTelemetrySample.sample_time.asc()).limit(5000)
+        rows = db.scalars(stmt).all()
+        samples = [
+            {
+                'sampleTime': row.sample_time.astimezone(UTC).isoformat() if row.sample_time.tzinfo else row.sample_time.replace(tzinfo=UTC).isoformat(),
+                'droneId': row.drone_id,
+                'droneName': row.drone_name,
+                'latitude_deg': row.latitude_deg,
+                'longitude_deg': row.longitude_deg,
+                'altitude_m': row.altitude_m,
+                'relative_altitude_m': row.relative_altitude_m,
+                'heading_deg': row.heading_deg,
+                'battery_remaining_pct': row.battery_remaining_pct,
+                'voltage_v': row.voltage_v,
+                'current_a': row.current_a,
+                'armed': row.armed,
+                'connected': row.connected,
+                'inside_geofence': row.inside_geofence,
+            }
+            for row in rows
+        ]
+    return JSONResponse({'rangeMinutes': minutes, 'totalCount': len(samples), 'samples': samples}, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+
+
+@app.get('/api/flights/export.csv', include_in_schema=False)
+def flights_export_csv(
+    request: Request,
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    authorization: str | None = Header(default=None),
+):
+    """Export telemetry samples as CSV (for offline analysis)."""
+    user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    project_id = request.query_params.get('projectId')
+    drone_id = request.query_params.get('droneId')
+    minutes = int(request.query_params.get('minutes', '60'))
+    if minutes < 1 or minutes > 1440:
+        minutes = 60
+    from datetime import UTC, datetime, timedelta
+    since = datetime.now(UTC) - timedelta(minutes=minutes)
+    with SessionLocal() as db:
+        from .models import FleetTelemetrySample
+        stmt = select(FleetTelemetrySample).where(FleetTelemetrySample.sample_time >= since)
+        if drone_id:
+            stmt = stmt.where(FleetTelemetrySample.drone_id == drone_id)
+        elif project_id:
+            stmt = stmt.where(FleetTelemetrySample.project_id == project_id)
+        stmt = stmt.order_by(FleetTelemetrySample.sample_time.asc()).limit(10000)
+        rows = db.scalars(stmt).all()
+        import csv as csv_mod
+        import io
+        output = io.StringIO()
+        writer = csv_mod.writer(output)
+        writer.writerow(['sample_time', 'drone_id', 'drone_name', 'latitude_deg', 'longitude_deg', 'altitude_m', 'relative_altitude_m', 'heading_deg', 'battery_pct', 'voltage_v', 'current_a', 'armed', 'connected', 'inside_geofence'])
+        for r in rows:
+            writer.writerow([
+                r.sample_time.astimezone(UTC).isoformat() if r.sample_time.tzinfo else r.sample_time.replace(tzinfo=UTC).isoformat(),
+                r.drone_id,
+                r.drone_name,
+                r.latitude_deg,
+                r.longitude_deg,
+                r.altitude_m,
+                r.relative_altitude_m,
+                r.heading_deg,
+                r.battery_remaining_pct,
+                r.voltage_v,
+                r.current_a,
+                int(r.armed),
+                int(r.connected),
+                int(r.inside_geofence),
+            ])
+        csv_content = output.getvalue()
+    from fastapi.responses import Response
+    return Response(
+        content=csv_content,
+        media_type='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename="aeromind-telemetry-{minutes}min.csv"',
+            'Cache-Control': 'no-store',
+        },
+    )
+
+
+def _require_project(db, user_id: str, project_id: str) -> Project:
+    """Helper for the pool register endpoint."""
+    record = db.scalar(select(Project).where(Project.id == project_id, Project.user_id == user_id))
+    if not record:
+        raise HTTPException(404, 'Project not found')
+    return record
 
 
 @app.get('/api/system/status')

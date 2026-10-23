@@ -2,6 +2,18 @@ import { trpc } from "@/lib/trpc";
 import { LabBenchPersistencePanel } from "@/components/LabBenchPersistencePanel";
 import { LabBenchHardwareConfig } from "@/components/LabBenchHardwareConfig";
 import { HardwareControlPanel } from "@/components/HardwareControlPanel";
+import { FleetRadar } from "@/components/FleetRadar";
+import { FleetMap } from "@/components/FleetMap";
+import { MaterialLibraryView } from "@/components/MaterialLibraryView";
+import { DashboardView } from "@/components/DashboardView";
+import { TelemetryCharts } from "@/components/TelemetryCharts";
+import { PreFlightChecklist } from "@/components/PreFlightChecklist";
+import { MissionPlanner } from "@/components/MissionPlanner";
+import { MaintenanceView } from "@/components/MaintenanceView";
+import { FlightHistory } from "@/components/FlightHistory";
+import { AdvancedReplay } from "@/components/AdvancedReplay";
+import { VoiceCommandBar } from "@/components/VoiceCommandBar";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { subscribeToActiveDrone } from "@/lib/hardwareControl";
 import { toast } from "sonner";
 import {
@@ -14,6 +26,7 @@ import {
   CircleDot,
   ClipboardCheck,
   Cpu,
+  Crosshair,
   Database,
   FileCheck2,
   FolderKanban,
@@ -21,6 +34,9 @@ import {
   History,
   KeyRound,
   LockKeyhole,
+  Map,
+  Mic,
+  Plane,
   Play,
   Radio,
   ShieldCheck,
@@ -28,6 +44,8 @@ import {
   Thermometer,
   TriangleAlert,
   Unlock,
+  Users,
+  Volume2,
   Wifi,
   XCircle,
   Zap,
@@ -68,11 +86,24 @@ import "./labbench.css";
 type ViewId =
   | "projects"
   | "overview"
+  | "dashboard"
   | "requirements"
   | "simulation"
   | "hardware"
+  | "materials"
   | "bench"
   | "fleet"
+  | "radar"
+  | "map"
+  | "mission"
+  | "preflight"
+  | "charts"
+  | "flights"
+  | "replay-adv"
+  | "voice"
+  | "collaboration"
+  | "maintenance"
+  | "hardware-control"
   | "reports"
   | "audit";
 type ModeId = "simulation" | "connected" | "authorized";
@@ -225,6 +256,7 @@ const ZONE_GROUPS: Array<{
     description: "N1 · registre, exigences et projets",
     views: [
       { id: "projects", label: "Projets", caption: "Rattachement officiel", icon: FolderKanban },
+      { id: "dashboard", label: "Dashboard", caption: "Vue multi-projets", icon: Activity },
       { id: "overview", label: "Vue preuves", caption: "Chaîne N1→N4", icon: ClipboardCheck },
       { id: "requirements", label: "Exigences", caption: "Référentiel", icon: ShieldCheck },
     ],
@@ -243,6 +275,8 @@ const ZONE_GROUPS: Array<{
     description: "N3 · registre appareil + pilote",
     views: [
       { id: "hardware", label: "Hardware", caption: "Checklist + pilote", icon: Cpu },
+      { id: "materials", label: "Matériels", caption: "Catalogue étendu", icon: Database },
+      { id: "maintenance", label: "Maintenance", caption: "Records + batteries", icon: ShieldCheck },
     ],
   },
   {
@@ -252,6 +286,16 @@ const ZONE_GROUPS: Array<{
     views: [
       { id: "bench", label: "Banc", caption: "Commandes supervisées", icon: Radio },
       { id: "fleet", label: "Flotte", caption: "Multi-drones", icon: Gauge },
+      { id: "radar", label: "Radar", caption: "Temps réel + replay", icon: Crosshair },
+      { id: "map", label: "Carte", caption: "Vue géographique", icon: Map },
+      { id: "mission", label: "Mission", caption: "Waypoints + upload", icon: Plane },
+      { id: "preflight", label: "Pré-vol", caption: "Checklist", icon: ClipboardCheck },
+      { id: "charts", label: "Charts", caption: "Télémétrie", icon: Activity },
+      { id: "replay-adv", label: "Replay 3D", caption: "Timeline + 3D trail", icon: Crosshair },
+      { id: "voice", label: "Voix", caption: "Commandes vocales", icon: Mic },
+      { id: "collaboration", label: "Multi-op", caption: "Opérateurs live", icon: Users },
+      { id: "flights", label: "Vols", caption: "Historique + CSV", icon: History },
+      { id: "hardware-control", label: "Hardware", caption: "Pilote matériel v5", icon: Zap },
       { id: "reports", label: "Rapports", caption: "Dossier de preuve", icon: FileCheck2 },
     ],
   },
@@ -469,6 +513,7 @@ export default function LabBench() {
   const pendingCommand = useRef<string | null>(null);
   const projectEpoch = useRef(0);
   const simulationEpoch = useRef<number | null>(null);
+  const materialsRef = useRef<{ refresh: () => void } | null>(null);
   const [connectionChecked, setConnectionChecked] = useState(false);
   const [audit, setAudit] = useState(initialAudit);
   const [localWorkspace, setLocalWorkspace] = useState<LocalWorkspace>(() =>
@@ -966,6 +1011,346 @@ export default function LabBench() {
     });
   };
 
+  // === Hardware control v5 state (Phase A-D exposed in cockpit) ===
+  // The hardware endpoints are REST-only (no tRPC bridge), so we use fetch.
+  // All state is gated by the HARDWARE_CONTROL env var on the server side;
+  // the UI shows clearly when hardware is dormant.
+  type HardwareStatus = {
+    hardwareControlEnabled: boolean;
+    allowedCommands: string[];
+    allowedModes: number[];
+    maxFleetSize: number;
+    poolSize: number;
+    physicalOutputEnabled: false;
+    physicalCommandsEmitted: false;
+  };
+  type PoolEntry = {
+    droneId: string;
+    droneName: string;
+    connectionUrl: string;
+    registeredAt: string;
+    lastStatus?: string;
+    hardwareControlEnabled?: boolean;
+  };
+  type HardwareGateState = {
+    projectId: string;
+    gateStateId: string;
+    updatedAt: string;
+    conditions: {
+      virtual_n3_armed: boolean;
+      hardware_review_signed: boolean;
+      drone_registered_in_pool: boolean;
+    };
+    reviewEvents: Array<Record<string, unknown>>;
+    physicalOutputEnabled: false;
+    physicalCommandsEmitted: false;
+  };
+  type GeofenceState = {
+    projectId: string;
+    configured: boolean;
+    polygon?: Array<[number, number]>;
+    maxAltitudeM?: number;
+    maxDistanceM?: number;
+    homeLat?: number;
+    homeLon?: number;
+    updatedAt?: string;
+  };
+
+  const [hardwareStatus, setHardwareStatus] = useState<HardwareStatus | null>(null);
+  const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
+  const [hardwareGate, setHardwareGate] = useState<HardwareGateState | null>(null);
+  const [geofenceState, setGeofenceState] = useState<GeofenceState | null>(null);
+
+  // Pool registration form state
+  const [hwRegDroneId, setHwRegDroneId] = useState("");
+  const [hwRegDroneName, setHwRegDroneName] = useState("");
+  const [hwRegConnectionUrl, setHwRegConnectionUrl] = useState("udpout:127.0.0.1:14550");
+
+  // Geofence form state
+  const [hwGeofencePolygon, setHwGeofencePolygon] = useState("");
+  const [hwGeofenceMaxAlt, setHwGeofenceMaxAlt] = useState(120);
+  const [hwGeofenceMaxDist, setHwGeofenceMaxDist] = useState(500);
+  const [hwGeofenceHomeLat, setHwGeofenceHomeLat] = useState("");
+  const [hwGeofenceHomeLon, setHwGeofenceHomeLon] = useState("");
+
+  // Hardware review form state
+  const [hwReviewer, setHwReviewer] = useState("");
+  const [hwReviewToken, setHwReviewToken] = useState("");
+  const [hwReviewNote, setHwReviewNote] = useState("");
+  const [hwReviewDialogOpen, setHwReviewDialogOpen] = useState(false);
+
+  // Issue token state
+  const [hwIssuedToken, setHwIssuedToken] = useState("");
+  const [hwIssuedForDrone, setHwIssuedForDrone] = useState("");
+
+  // Command form state
+  const [hwCommand, setHwCommand] = useState("NAV_TAKEOFF");
+  const [hwCommandParams, setHwCommandParams] = useState('{"p7": 30}');
+  const [hwCommandToken, setHwCommandToken] = useState("");
+  const [hwCommandDroneId, setHwCommandDroneId] = useState("");
+
+  const refreshHardware = async () => {
+    try {
+      const r = await fetch("/api/hardware/status", { credentials: "include" });
+      if (r.ok) setHardwareStatus(await r.json());
+    } catch { /* API indisponible en mode dormant */ }
+  };
+  const refreshPool = async () => {
+    try {
+      const r = await fetch("/api/hardware/pool", { credentials: "include" });
+      if (r.ok) {
+        const body = await r.json();
+        setPoolEntries(Array.isArray(body?.drones) ? body.drones : []);
+      }
+    } catch { /* ignore */ }
+  };
+  const refreshHardwareGate = async () => {
+    if (!remoteProjectId) { setHardwareGate(null); return; }
+    try {
+      const r = await fetch(`/api/hardware/gate?projectId=${encodeURIComponent(remoteProjectId)}`, { credentials: "include" });
+      if (r.ok) setHardwareGate(await r.json());
+    } catch { /* ignore */ }
+  };
+  const refreshGeofence = async () => {
+    if (!remoteProjectId) { setGeofenceState(null); return; }
+    try {
+      const r = await fetch(`/api/hardware/geofence?projectId=${encodeURIComponent(remoteProjectId)}`, { credentials: "include" });
+      if (r.ok) setGeofenceState(await r.json());
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    if (view !== "hardware-control" && view !== "radar") return;
+    if (view === "hardware-control") {
+      void refreshHardware();
+      void refreshPool();
+      void refreshHardwareGate();
+    }
+    void refreshGeofence();
+  }, [view, remoteProjectId]);
+
+  const submitPoolRegister = async () => {
+    if (!remoteProjectId) {
+      toast.error("Aucun projet authentifié");
+      return;
+    }
+    if (!hwRegDroneId.trim() || !hwRegConnectionUrl.trim()) {
+      toast.error("Champs requis", { description: "droneId + connectionUrl" });
+      return;
+    }
+    try {
+      const r = await fetch("/api/hardware/pool/register", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          droneId: hwRegDroneId.trim(),
+          droneName: hwRegDroneName.trim() || hwRegDroneId.trim(),
+          connectionUrl: hwRegConnectionUrl.trim(),
+          projectId: remoteProjectId,
+        }),
+      });
+      if (r.ok) {
+        toast.success("Drone enregistré dans le pool matériel");
+        setHwRegDroneId("");
+        setHwRegDroneName("");
+        void refreshPool();
+        void refreshHardwareGate();
+        void refreshHardware();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast.error("Échec enregistrement", { description: err?.error?.message ?? `HTTP ${r.status}` });
+      }
+    } catch (e: any) {
+      toast.error("Réseau indisponible", { description: e?.message });
+    }
+  };
+
+  const submitUnregister = async (droneId: string) => {
+    try {
+      const r = await fetch(`/api/hardware/pool/${encodeURIComponent(droneId)}/unregister`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (r.ok) {
+        toast.info(`Drone ${droneId} retiré du pool`);
+        void refreshPool();
+        void refreshHardwareGate();
+        void refreshHardware();
+      }
+    } catch { /* ignore */ }
+  };
+
+  const submitGeofence = async () => {
+    if (!remoteProjectId) {
+      toast.error("Aucun projet authentifié");
+      return;
+    }
+    let polygon: Array<[number, number]> = [];
+    if (hwGeofencePolygon.trim()) {
+      try {
+        const parsed = JSON.parse(hwGeofencePolygon);
+        if (!Array.isArray(parsed) || parsed.length < 3) throw new Error("polygone ≥ 3 points");
+        polygon = parsed.map((p: any) => [Number(p[0]), Number(p[1])]);
+      } catch (e: any) {
+        toast.error("Polygone invalide", { description: "Format: [[lat,lon],...]" });
+        return;
+      }
+    }
+    try {
+      const r = await fetch("/api/hardware/geofence", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: remoteProjectId,
+          polygon,
+          maxAltitudeM: Number(hwGeofenceMaxAlt) || 120,
+          maxDistanceM: Number(hwGeofenceMaxDist) || 500,
+          homeLat: hwGeofenceHomeLat ? Number(hwGeofenceHomeLat) : null,
+          homeLon: hwGeofenceHomeLon ? Number(hwGeofenceHomeLon) : null,
+        }),
+      });
+      if (r.ok) {
+        toast.success("Géofence enregistrée");
+        void refreshGeofence();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast.error("Échec géofence", { description: err?.error?.message ?? `HTTP ${r.status}` });
+      }
+    } catch (e: any) {
+      toast.error("Réseau indisponible", { description: e?.message });
+    }
+  };
+
+  const submitHwReview = async () => {
+    if (!remoteProjectId) return;
+    if (!hwReviewer.trim() || hwReviewToken.trim().length < 16) {
+      toast.error("Reviewer + jeton (≥ 16 chars) requis");
+      return;
+    }
+    try {
+      const r = await fetch("/api/hardware/gate/sign-review", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: remoteProjectId,
+          reviewer: hwReviewer.trim(),
+          reviewToken: hwReviewToken.trim(),
+          note: hwReviewNote.trim(),
+        }),
+      });
+      if (r.ok) {
+        toast.success("Revue hardware N4 signée");
+        setHwReviewDialogOpen(false);
+        setHwReviewer("");
+        setHwReviewToken("");
+        setHwReviewNote("");
+        void refreshHardwareGate();
+        void remoteAuditQuery.refetch();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast.error("Signature refusée", { description: err?.error?.message ?? `HTTP ${r.status}` });
+      }
+    } catch (e: any) {
+      toast.error("Réseau indisponible", { description: e?.message });
+    }
+  };
+
+  const issueToken = async (droneId: string) => {
+    if (!remoteProjectId) return;
+    try {
+      const r = await fetch("/api/hardware/gate/issue-token", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: remoteProjectId, droneId }),
+      });
+      if (r.ok) {
+        const body = await r.json();
+        setHwIssuedToken(String(body?.token ?? ""));
+        setHwIssuedForDrone(droneId);
+        setHwCommandToken(String(body?.token ?? ""));
+        setHwCommandDroneId(droneId);
+        toast.success("Jeton single-use émis", { description: "Le jeton est prêt pour une seule commande." });
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast.error("Émission refusée", { description: err?.error?.message ?? `HTTP ${r.status}` });
+      }
+    } catch (e: any) {
+      toast.error("Réseau indisponible", { description: e?.message });
+    }
+  };
+
+  const sendCommand = async () => {
+    if (!remoteProjectId) return;
+    if (!hwCommandDroneId.trim()) {
+      toast.error("Drone requis");
+      return;
+    }
+    if (hwCommandToken.trim().length < 16) {
+      toast.error("Jeton invalide", { description: "Émettez un jeton single-use avant d'envoyer." });
+      return;
+    }
+    let params: Record<string, number> = {};
+    try {
+      params = JSON.parse(hwCommandParams);
+    } catch {
+      toast.error("Paramètres invalides", { description: "Format JSON attendu, ex: {\"p7\": 30}" });
+      return;
+    }
+    try {
+      const r = await fetch(`/api/hardware/drones/${encodeURIComponent(hwCommandDroneId)}/command`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: remoteProjectId,
+          command: hwCommand,
+          confirmationToken: hwCommandToken.trim(),
+          parameters: params,
+        }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (r.ok && body?.accepted) {
+        toast.success(`Commande ${hwCommand} envoyée`, {
+          description: `Drone ${hwCommandDroneId} · reçuId ${body?.receiptId}`,
+        });
+        // Consume the token: clear it.
+        setHwCommandToken("");
+        setHwIssuedToken("");
+        void refreshHardware();
+        void remoteAuditQuery.refetch();
+      } else {
+        toast.error("Commande refusée", { description: body?.error?.message ?? `HTTP ${r.status}` });
+      }
+    } catch (e: any) {
+      toast.error("Réseau indisponible", { description: e?.message });
+    }
+  };
+
+  const triggerEmergencyStop = async () => {
+    if (!confirm("E-STOP : broadcaster NAV_LAND à TOUS les drones du pool ?")) return;
+    try {
+      const r = await fetch("/api/hardware/emergency-stop", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (r.ok) {
+        const body = await r.json();
+        const stopped = Array.isArray(body?.results) ? body.results.length : 0;
+        toast.warning(`E-stop déclenché`, { description: `${stopped} drone(s) notifiés · eventId ${body?.estopEventId ?? ""}` });
+        void refreshHardware();
+        void remoteAuditQuery.refetch();
+      } else {
+        toast.error("E-stop indisponible", { description: `HTTP ${r.status}` });
+      }
+    } catch (e: any) {
+      toast.error("Réseau indisponible", { description: e?.message });
+    }
+  };
+
   const finishVirtualCommand = (receipt: any) => {
     const executed =
       receipt?.executed === true && receipt?.physicalCommandsEmitted === false;
@@ -1395,6 +1780,66 @@ export default function LabBench() {
       </section>
     );
   };
+
+  // === v15 — Collaboration panel (multi-operator WebSocket) ===
+  const realtime = useRealtimeSync(remoteProjectId);
+
+  const CollaborationPanel = () => (
+    <div className="lb-collab">
+      <div className="lb-collab-status">
+        <span className={realtime.connected ? "lb-text-good" : "lb-text-warning"}>
+          <Wifi size={14} /> {realtime.connected ? "WebSocket connecté" : "WebSocket déconnecté (reconnexion auto)"}
+        </span>
+        <span>{realtime.operators.length} opérateur(s) en ligne</span>
+      </div>
+
+      <section className="lb-panel">
+        <div className="lb-panel-title">
+          <Users size={17} />
+          <span>Opérateurs en ligne</span>
+        </div>
+        {realtime.operators.length === 0 ? (
+          <p className="lb-empty-state">Aucun autre opérateur connecté.</p>
+        ) : (
+          <div className="lb-collab-operators">
+            {realtime.operators.map((op) => (
+              <div key={op.userId} className="lb-collab-operator">
+                <span className="lb-collab-dot" />
+                <div>
+                  <strong>{op.userEmail}</strong>
+                  <small>Connecté depuis {op.connectedAt?.slice(11, 19)}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="lb-panel">
+        <div className="lb-panel-title">
+          <History size={17} />
+          <span>Flux d'événements live ({realtime.events.length})</span>
+          <button className="lb-secondary" onClick={() => realtime.clearEvents()} style={{ marginLeft: "auto", fontSize: 10, padding: "4px 8px" }}>
+            Effacer
+          </button>
+        </div>
+        {realtime.events.length === 0 ? (
+          <p className="lb-empty-state">Aucun événement reçu. Les actions des autres opérateurs apparaîtront ici en temps réel.</p>
+        ) : (
+          <div className="lb-collab-events">
+            {realtime.events.slice().reverse().map((ev, i) => (
+              <div key={i} className="lb-collab-event">
+                <span className="lb-collab-event-time">{ev.timestamp?.slice(11, 19)}</span>
+                <span className="lb-collab-event-type">{ev.type}</span>
+                <span className="lb-collab-event-actor">{ev.actorEmail ?? "—"}</span>
+                <span className="lb-collab-event-payload">{JSON.stringify(ev.payload).slice(0, 80)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
 
   return (
     <main className="labbench-shell">
@@ -2640,6 +3085,511 @@ export default function LabBench() {
           </div>
         )}
 
+        {view === "radar" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="RADAR TEMPS RÉEL · LABBENCH 01 v6"
+              title="Radar multi-drones — visualisation live"
+              detail="Stream SSE à 2 Hz depuis le pool matériel. Chaque drone apparaît comme un blip avec cap, altitude, batterie et trace. La géofence est dessinée en rouge pointillé. Les drones hors géofence clignotent en rouge."
+            />
+            <FleetRadar projectId={remoteProjectId} geofence={geofenceState} />
+            {!remoteProjectId && (
+              <section className="lb-note">
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>Aucun projet authentifié.</strong>
+                  <span>Le radar fonctionne sans projet (vue des drones du pool), mais la géofence est par projet.</span>
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+
+        {view === "map" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="CARTE GÉOGRAPHIQUE · LABBENCH 01 v7"
+              title="Vue cartographique multi-drones"
+              detail="Positions géographiques réelles des drones du pool sur fonds OpenStreetMap / Esri World Imagery. Mêmes données que le radar, en coordonnées lat/lon au lieu de x_m/y_m centrés home."
+            />
+            <FleetMap projectId={remoteProjectId} geofence={geofenceState} />
+            {!remoteProjectId && (
+              <section className="lb-note">
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>Aucun projet authentifié.</strong>
+                  <span>La carte affiche les drones du pool sur le home par défaut.</span>
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+
+        {view === "materials" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="BIBLIOTHÈQUE MATÉRIAUX · LABBENCH 01 v7"
+              title="Catalogue étendu — moteurs, ESC, hélices, FC, caméras, payloads non-armés"
+              detail="10 catégories, 30+ références fabricant. Toutes les entrées sont NON armées — AeroMind reste une plateforme non-armée par contrat (engineering/FINAL_REPORT_NON_WEAPONIZED_PLATFORM.md)."
+              actions={
+                <button
+                  className="lb-secondary"
+                  onClick={() => materialsRef.current?.refresh()}
+                >
+                  <Activity size={14} /> Rafraîchir
+                </button>
+              }
+            />
+            <MaterialLibraryView ref={materialsRef} />
+          </div>
+        )}
+
+        {view === "dashboard" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="DASHBOARD · LABBENCH 01 v11"
+              title="Vue multi-projets agrégée"
+              detail="Total projets, drones, missions, alertes actives, maintenances dues, cycles batterie. Vue par projet + alertes récentes."
+            />
+            <DashboardView onSelectProject={(id) => { setActiveProjectId(id); setView("overview"); }} />
+          </div>
+        )}
+
+        {view === "mission" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="MISSION PLANNER · LABBENCH 01 v8"
+              title="Planification de mission — waypoints + upload MAVLink"
+              detail="Cliquez sur la carte pour ajouter des waypoints. Sauvegardez, puis uploadez vers un drone via MAVLink (gated par token + geofence par waypoint)."
+            />
+            <MissionPlanner projectId={remoteProjectId} geofence={geofenceState} />
+          </div>
+        )}
+
+        {view === "preflight" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="PRÉ-VOL · LABBENCH 01 v8"
+              title="Checklist pré-vol — 10 items requis"
+              detail="Checklist par défaut (10 items : batterie, hélices, moteurs, GPS, IMU, géofence, e-stop, météo, zone, briefing). Chaque exécution est audit-trailée."
+            />
+            <PreFlightChecklist projectId={remoteProjectId} />
+          </div>
+        )}
+
+        {view === "charts" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="CHARTS · LABBENCH 01 v8"
+              title="Télémétrie au fil du temps — altitude / batterie / cap"
+              detail="Lit les samples persistés (FleetTelemetrySample) et affiche 3 charts recharts. Filtre par période (15min / 60min / 6h / 24h)."
+            />
+            <TelemetryCharts projectId={remoteProjectId} />
+          </div>
+        )}
+
+        {view === "flights" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="VOLS · LABBENCH 01 v9"
+              title="Historique des vols + export CSV"
+              detail="Télémétrie persistée filtrée par période. Export CSV pour analyse offline."
+              actions={
+                <a
+                  className="lb-secondary"
+                  href={`/api/flights/export.csv?projectId=${encodeURIComponent(remoteProjectId ?? "")}&minutes=60`}
+                  download={`aeromind-telemetry-${Date.now()}.csv`}
+                >
+                  <Archive size={14} /> Export CSV (60 min)
+                </a>
+              }
+            />
+            <FlightHistory projectId={remoteProjectId} />
+          </div>
+        )}
+
+        {view === "replay-adv" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="REPLAY 3D · LABBENCH 01 v12"
+              title="Replay avancé — timeline + trace 3D + charts synchronisés"
+              detail="Trace 3D avec altitude encodée comme taille/couleur des points. Timeline scrubber avec play/pause/vitesse. Charts altitude+batterie synchronisés avec la position du curseur."
+            />
+            <AdvancedReplay projectId={remoteProjectId} />
+          </div>
+        )}
+
+        {view === "voice" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="COMMANDES VOCALES · LABBENCH 01 v13"
+              title="Commandes vocales — Web Speech API + MAVLink"
+              detail="Parlez en français ou anglais. Le texte est parsé en commande MAVLink structurée, affiché en preview, puis exécuté après confirmation + token. E-stop vocal sans token."
+            />
+            <VoiceCommandBar projectId={remoteProjectId} />
+          </div>
+        )}
+
+        {view === "collaboration" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="MULTI-OPÉRATEUR · LABBENCH 01 v15"
+              title="Collaboration temps réel — WebSocket"
+              detail="Quand plusieurs opérateurs sont connectés au même projet, ils voient les actions des autres en temps réel (arm, disarm, command, alert, présence)."
+            />
+            <CollaborationPanel />
+          </div>
+        )}
+
+        {view === "maintenance" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="MAINTENANCE · LABBENCH 01 v10"
+              title="Maintenance + cycles batterie"
+              detail="Records de maintenance (inspection, réparation, calibration, MAJ firmware) avec prochaine échéance. Cycles batterie (charge/décharge/stockage) avec agrégation par batterie."
+            />
+            <MaintenanceView projectId={remoteProjectId} />
+          </div>
+        )}
+
+        {view === "hardware-control" && (
+          <div className="lb-content">
+            <SectionHeading
+              eyebrow="PILOTE MATÉRIEL · LABBENCH 01 v5"
+              title="Hardware control — phases A-D exposées"
+              detail="Le code matériel est dormant tant que HARDWARE_CONTROL != 'true'. Toute commande passe par 7 couches de sûreté (flag, allowlist, token single-use, géofence fail-closed, revue N4 reviewer indépendant, audit log, e-stop)."
+              actions={
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="lb-secondary" onClick={() => { void refreshHardware(); void refreshPool(); void refreshHardwareGate(); void refreshGeofence(); }}>
+                    <Activity size={14} /> Rafraîchir
+                  </button>
+                  <button className="lb-estop" onClick={triggerEmergencyStop} title="Broadcast NAV_LAND à tous les drones du pool">
+                    <AlertTriangle size={15} /> E-STOP
+                  </button>
+                </div>
+              }
+            />
+
+            {/* Status banner */}
+            <section className={`lb-panel lb-hw-status ${hardwareStatus?.hardwareControlEnabled ? "is-active" : "is-dormant"}`}>
+              <div className="lb-panel-title">
+                <Zap size={17} />
+                <span>État du subsystem hardware</span>
+                <small>{hardwareStatus?.hardwareControlEnabled ? "ACTIF" : "DORMANT"}</small>
+              </div>
+              <div className="lb-hw-status-grid">
+                <div>
+                  <small>HARDWARE_CONTROL</small>
+                  <strong className={hardwareStatus?.hardwareControlEnabled ? "lb-text-good" : "lb-text-danger"}>
+                    {hardwareStatus?.hardwareControlEnabled ? "true" : "false (par défaut)"}
+                  </strong>
+                  <span>{hardwareStatus?.hardwareControlEnabled ? "Sorties physiques activées côté serveur" : "Aucune sortie physique — bascule requise post-HIL"}</span>
+                </div>
+                <div>
+                  <small>POOL SIZE</small>
+                  <strong>{hardwareStatus?.poolSize ?? 0} / {hardwareStatus?.maxFleetSize ?? 12}</strong>
+                  <span>Drones enregistrés</span>
+                </div>
+                <div>
+                  <small>ALLOWLIST</small>
+                  <strong>{hardwareStatus?.allowedCommands?.length ?? 5} commandes</strong>
+                  <span>{(hardwareStatus?.allowedCommands ?? []).join(" · ")}</span>
+                </div>
+                <div>
+                  <small>SORTIES PHYSIQUES</small>
+                  <strong className="lb-text-danger">INTERDITES PAR DÉFAUT</strong>
+                  <span>Tant que HARDWARE_CONTROL != 'true'</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Gate state — 3 conditions */}
+            <section className="lb-panel">
+              <div className="lb-panel-title">
+                <ShieldCheck size={17} />
+                <span>Gate N4 hardware — 3 conditions</span>
+                {hardwareGate && (
+                  <small>
+                    {Object.values(hardwareGate.conditions).filter(Boolean).length}/3 remplies
+                  </small>
+                )}
+              </div>
+              <div className="lb-hw-conditions">
+                <div className={`lb-hw-condition ${hardwareGate?.conditions.virtual_n3_armed ? "is-met" : "is-missing"}`}>
+                  {hardwareGate?.conditions.virtual_n3_armed ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                  <div>
+                    <strong>N3 virtuel armé</strong>
+                    <small>Au moins un drone armé via la gate virtuelle (vue Flotte).</small>
+                  </div>
+                </div>
+                <div className={`lb-hw-condition ${hardwareGate?.conditions.hardware_review_signed ? "is-met" : "is-missing"}`}>
+                  {hardwareGate?.conditions.hardware_review_signed ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                  <div>
+                    <strong>Revue hardware N4 signée</strong>
+                    <small>Reviewer indépendant ≠ opérateur qui a armé N3.</small>
+                  </div>
+                </div>
+                <div className={`lb-hw-condition ${hardwareGate?.conditions.drone_registered_in_pool ? "is-met" : "is-missing"}`}>
+                  {hardwareGate?.conditions.drone_registered_in_pool ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                  <div>
+                    <strong>Drone dans le pool matériel</strong>
+                    <small>Enregistré via /api/hardware/pool/register.</small>
+                  </div>
+                </div>
+              </div>
+              <div className="lb-hw-gate-actions">
+                <button
+                  className="lb-primary"
+                  onClick={() => setHwReviewDialogOpen(true)}
+                  disabled={!hardwareGate?.conditions.virtual_n3_armed}
+                  title={!hardwareGate?.conditions.virtual_n3_armed ? "Le N3 virtuel doit être armé d'abord" : ""}
+                >
+                  <KeyRound size={14} /> Signer revue hardware N4
+                </button>
+              </div>
+              {hardwareGate?.reviewEvents && hardwareGate.reviewEvents.length > 0 && (
+                <div className="lb-hw-reviews">
+                  {hardwareGate.reviewEvents.map((ev, i) => (
+                    <div key={i} className="lb-hw-review-row">
+                      <FileCheck2 size={14} />
+                      <div>
+                        <strong>{String(ev.reviewer ?? "—")}</strong>
+                        <small>{String(ev.at ?? "").slice(0, 19).replace("T", " ")} · {String(ev.note ?? "")}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <div className="lb-hw-grid">
+              {/* Pool registration + list */}
+              <section className="lb-panel">
+                <div className="lb-panel-title">
+                  <Cpu size={17} />
+                  <span>Pool matériel ({poolEntries.length}/{hardwareStatus?.maxFleetSize ?? 12})</span>
+                </div>
+                <div className="lb-hw-form">
+                  <label>
+                    <span>Drone ID</span>
+                    <input
+                      type="text"
+                      value={hwRegDroneId}
+                      onChange={(e) => setHwRegDroneId(e.target.value)}
+                      placeholder="UUID du drone (depuis la vue Flotte)"
+                    />
+                  </label>
+                  <label>
+                    <span>Nom (optionnel)</span>
+                    <input
+                      type="text"
+                      value={hwRegDroneName}
+                      onChange={(e) => setHwRegDroneName(e.target.value)}
+                      placeholder="Drone 1"
+                    />
+                  </label>
+                  <label className="lb-hw-wide">
+                    <span>Connection URL (MAVLink)</span>
+                    <input
+                      type="text"
+                      value={hwRegConnectionUrl}
+                      onChange={(e) => setHwRegConnectionUrl(e.target.value)}
+                      placeholder="udpout:127.0.0.1:14550 ou serial:/dev/ttyUSB0:57600"
+                    />
+                  </label>
+                  <button className="lb-primary" onClick={submitPoolRegister} disabled={!remoteProjectId}>
+                    <Activity size={14} /> Enregistrer
+                  </button>
+                </div>
+                <div className="lb-hw-pool-list">
+                  {poolEntries.length === 0 ? (
+                    <p className="lb-empty-state">Aucun drone dans le pool.</p>
+                  ) : (
+                    poolEntries.map((drone) => (
+                      <div key={drone.droneId} className="lb-hw-pool-row">
+                        <div>
+                          <strong>{drone.droneName}</strong>
+                          <small>{drone.droneId}</small>
+                          <small>{drone.connectionUrl}</small>
+                        </div>
+                        <div className="lb-hw-pool-actions">
+                          <button className="lb-secondary" onClick={() => issueToken(drone.droneId)}>
+                            <KeyRound size={13} /> Token
+                          </button>
+                          <button className="lb-secondary" onClick={() => submitUnregister(drone.droneId)}>
+                            <XCircle size={13} /> Retirer
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              {/* Geofence configuration */}
+              <section className="lb-panel">
+                <div className="lb-panel-title">
+                  <Gauge size={17} />
+                  <span>Géofence projective</span>
+                  <small>{geofenceState?.configured ? "CONFIGURÉE" : "NON CONFIGURÉE"}</small>
+                </div>
+                <div className="lb-hw-form">
+                  <label className="lb-hw-wide">
+                    <span>Polygone JSON [[lat, lon], ...] (vide = pas de polygone)</span>
+                    <textarea
+                      value={hwGeofencePolygon}
+                      onChange={(e) => setHwGeofencePolygon(e.target.value)}
+                      placeholder='[[48.0, 2.0], [48.1, 2.0], [48.1, 2.1], [48.0, 2.1]]'
+                      rows={3}
+                    />
+                  </label>
+                  <label>
+                    <span>Altitude max (m)</span>
+                    <input
+                      type="number"
+                      min={10}
+                      max={120}
+                      step={5}
+                      value={hwGeofenceMaxAlt}
+                      onChange={(e) => setHwGeofenceMaxAlt(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    <span>Distance max (m, VLOS)</span>
+                    <input
+                      type="number"
+                      min={50}
+                      max={2000}
+                      step={50}
+                      value={hwGeofenceMaxDist}
+                      onChange={(e) => setHwGeofenceMaxDist(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    <span>Home lat (optionnel)</span>
+                    <input
+                      type="number"
+                      step={0.0001}
+                      value={hwGeofenceHomeLat}
+                      onChange={(e) => setHwGeofenceHomeLat(e.target.value)}
+                      placeholder="48.05"
+                    />
+                  </label>
+                  <label>
+                    <span>Home lon (optionnel)</span>
+                    <input
+                      type="number"
+                      step={0.0001}
+                      value={hwGeofenceHomeLon}
+                      onChange={(e) => setHwGeofenceHomeLon(e.target.value)}
+                      placeholder="2.05"
+                    />
+                  </label>
+                  <button className="lb-secondary lb-hw-wide" onClick={submitGeofence} disabled={!remoteProjectId}>
+                    Enregistrer la géofence
+                  </button>
+                </div>
+                {geofenceState?.configured && (
+                  <div className="lb-hw-geofence-summary">
+                    <span><b>Polygone</b>{geofenceState.polygon?.length ?? 0} points</span>
+                    <span><b>Alt max</b>{geofenceState.maxAltitudeM} m</span>
+                    <span><b>Dist max</b>{geofenceState.maxDistanceM} m</span>
+                  </div>
+                )}
+              </section>
+            </div>
+
+            {/* Command panel */}
+            <section className="lb-panel lb-hw-command">
+              <div className="lb-panel-title">
+                <Radio size={17} />
+                <span>Envoi d'une commande matérielle</span>
+                <small>SINGLE-USE TOKEN</small>
+              </div>
+              <div className="lb-hw-form">
+                <label className="lb-hw-wide">
+                  <span>Drone ID (cible)</span>
+                  <input
+                    type="text"
+                    value={hwCommandDroneId}
+                    onChange={(e) => setHwCommandDroneId(e.target.value)}
+                    placeholder="UUID du drone (depuis le pool ci-dessus)"
+                  />
+                </label>
+                <label>
+                  <span>Commande (allowlist)</span>
+                  <select value={hwCommand} onChange={(e) => setHwCommand(e.target.value)}>
+                    {(hardwareStatus?.allowedCommands ?? ["COMPONENT_ARM_DISARM", "NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH", "DO_SET_MODE"]).map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="lb-hw-wide">
+                  <span>Paramètres (JSON, ex: {"{ \"p7\": 30 }"} pour takeoff à 30 m)</span>
+                  <input
+                    type="text"
+                    value={hwCommandParams}
+                    onChange={(e) => setHwCommandParams(e.target.value)}
+                    placeholder='{"p7": 30}'
+                  />
+                </label>
+                <label className="lb-hw-wide">
+                  <span>Token single-use (issu par le bouton Token ci-dessus)</span>
+                  <input
+                    type="text"
+                    value={hwCommandToken}
+                    onChange={(e) => setHwCommandToken(e.target.value)}
+                    placeholder="64-char token (consumé après envoi)"
+                    className="lb-hw-token-input"
+                  />
+                </label>
+                <button
+                  className="lb-primary lb-hw-wide"
+                  onClick={sendCommand}
+                  disabled={
+                    !remoteProjectId ||
+                    !hwCommandDroneId.trim() ||
+                    hwCommandToken.trim().length < 16 ||
+                    !hardwareStatus?.hardwareControlEnabled
+                  }
+                  title={!hardwareStatus?.hardwareControlEnabled ? "HARDWARE_CONTROL != 'true' côté serveur" : ""}
+                >
+                  <Radio size={14} />
+                  Envoyer la commande matérielle
+                </button>
+              </div>
+              {hwIssuedToken && (
+                <div className="lb-hw-token-display">
+                  <span>Dernier jeton émis pour {hwIssuedForDrone} :</span>
+                  <code>{hwIssuedToken}</code>
+                  <small>Copiez-le dans le champ token ci-dessus, puis cliquez Envoyer. Le jeton est consumé après usage.</small>
+                </div>
+              )}
+              {!hardwareStatus?.hardwareControlEnabled && (
+                <div className="lb-note lb-note-info">
+                  <LockKeyhole size={18} />
+                  <div>
+                    <strong>Hardware dormant.</strong>
+                    <span>HARDWARE_CONTROL n'est pas 'true' côté serveur. Les boutons sont désactivés jusqu'à bascule post-HIL.</span>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="lb-note lb-note-estop">
+              <AlertTriangle size={18} />
+              <div>
+                <strong>E-STOP disponible en permanence.</strong>
+                <span>
+                  Le bouton E-STOP (en haut à droite) broadcast NAV_LAND à tous les
+                  drones du pool. Il reste actif même si HARDWARE_CONTROL est dormant
+                  (il n'a alors aucun effet physique, juste un audit log).
+                </span>
+              </div>
+            </section>
+          </div>
+        )}
+
         {view === "reports" && (
           <div className="lb-content">
             <SectionHeading
@@ -3009,6 +3959,69 @@ export default function LabBench() {
               >
                 <Unlock size={15} />
                 {fleetArmMutation.isPending ? "Armement…" : `Armer N3 — ${fleetArmDialogDrone.name}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hwReviewDialogOpen && (
+        <div className="lb-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="hw-review-dialog-title">
+          <div className="lb-modal">
+            <div className="lb-modal-header">
+              <KeyRound size={18} />
+              <h2 id="hw-review-dialog-title">Revue hardware N4 — signature indépendante</h2>
+            </div>
+            <div className="lb-modal-body">
+              <p className="lb-modal-warning">
+                <ShieldCheck size={16} />
+                Le reviewer doit être <strong>différent</strong> de l'opérateur qui a armé le N3 virtuel.
+                Cette signature est distincte de la revue virtuelle N4 et reste audit-trailée
+                (event_type `labbench.hardware.review_signed`).
+              </p>
+              <label className="lb-input-row">
+                <span>Reviewer (nom ou email, ≠ opérateur N3) :</span>
+                <input
+                  type="text"
+                  value={hwReviewer}
+                  onChange={(e) => setHwReviewer(e.target.value)}
+                  placeholder="independent-reviewer@example.com"
+                />
+              </label>
+              <label className="lb-input-row">
+                <span>Jeton de revue (≥ 16 caractères) :</span>
+                <input
+                  type="password"
+                  value={hwReviewToken}
+                  onChange={(e) => setHwReviewToken(e.target.value)}
+                  placeholder="very-long-review-token-12345"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="lb-input-row">
+                <span>Note de revue (optionnel) :</span>
+                <textarea
+                  value={hwReviewNote}
+                  onChange={(e) => setHwReviewNote(e.target.value)}
+                  placeholder="Ex. Tests HIL SITL validés ; geofence configurée ; e-stop vérifié."
+                  rows={3}
+                />
+              </label>
+            </div>
+            <div className="lb-modal-footer">
+              <button
+                className="lb-secondary"
+                onClick={() => setHwReviewDialogOpen(false)}
+              >
+                Annuler
+              </button>
+              <button
+                className="lb-primary"
+                onClick={submitHwReview}
+                disabled={!hwReviewer.trim() || hwReviewToken.trim().length < 16}
+              >
+                <FileCheck2 size={15} />
+                Signer la revue hardware N4
               </button>
             </div>
           </div>
