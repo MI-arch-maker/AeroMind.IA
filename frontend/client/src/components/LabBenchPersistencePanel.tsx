@@ -32,11 +32,14 @@ export function LabBenchPersistencePanel({
 } = {}) {
   const meQuery = trpc.auth.me.useQuery(undefined, {
     staleTime: 60_000,
-    retry: false,
+    retry: 1,
   });
   const projectsQuery = trpc.projects.list.useQuery(undefined, {
-    enabled: Boolean(meQuery.data),
-    retry: false,
+    // Fire even without auth — same fix as LabBench.tsx
+    enabled: true,
+    retry: 2,
+    retryDelay: 2000,
+    staleTime: 30_000,
   });
   const [projectId, setProjectId] = useState<string | null>(null);
   const projects = normalizeLabBenchProjects(projectsQuery.data);
@@ -47,7 +50,7 @@ export function LabBenchPersistencePanel({
   const selectedProjectId = selectedProject?.id ?? null;
   const registryQuery = trpc.labBench.registry.useQuery(
     selectedProjectId ?? "0",
-    { enabled: Boolean(selectedProjectId && meQuery.data), retry: false },
+    { enabled: Boolean(selectedProjectId), retry: false },
   );
 
   useEffect(() => {

@@ -163,6 +163,71 @@ type LocalGateState = {
   updatedAt: string | null;
 };
 
+// === TypeScript port of Python _resolvedGates + _zone_progress ===
+const GATE_DEFS: Array<{ code: string; label: string; description: string; level: string; zone: ZoneId; requiredConditions: string[] }> = [
+  { code: "N1", label: "Conception", description: "Registre exigences + identité appareil/émulateur créés.", level: "N1", zone: "governance", requiredConditions: ["registry_initialized"] },
+  { code: "N2", label: "Simulation", description: "Au moins un run N2 archivé côté serveur (empreinte SHA-256).", level: "N2", zone: "simulation", requiredConditions: ["registry_initialized", "n2_run_archived"] },
+  { code: "N3-READY", label: "Conformité matérielle", description: "Pilote + identité appareil vérifiés ; calibration simulée exécutée.", level: "N3", zone: "hardware", requiredConditions: ["registry_initialized", "n2_run_archived", "hardware_checklist_complete"] },
+  { code: "N3-ARMED", label: "Armement N3 supervisé", description: "Armement explicite après double confirmation humaine.", level: "N3", zone: "bench", requiredConditions: ["n3_ready", "arm_double_confirmed"] },
+  { code: "N4", label: "Mise en service (revue indépendante)", description: "Revue indépendante signée après démonstration N3 supervisée.", level: "N4", zone: "audit", requiredConditions: ["n3_armed", "independent_review_signed"] },
+];
+
+function _resolvedGates(conditions: Record<string, boolean>): GateDefinition[] {
+  const result: GateDefinition[] = [];
+  let passedSoFar = true;
+  for (const def of GATE_DEFS) {
+    const allMet = def.requiredConditions.every((c) => conditions[c] === true);
+    let state: GateState;
+    if (passedSoFar && allMet) {
+      state = "passed";
+    } else if (!passedSoFar) {
+      state = "pending";
+    } else {
+      state = "open";
+      passedSoFar = false;
+    }
+    result.push({
+      code: def.code,
+      label: def.label,
+      description: def.description,
+      level: def.level,
+      zone: def.zone,
+      requiredConditions: def.requiredConditions,
+      conditions: Object.fromEntries(def.requiredConditions.map((c) => [c, conditions[c] === true])),
+      state,
+    });
+  }
+  return result;
+}
+
+function _zoneProgress(gates: GateDefinition[]): ZoneProgress[] {
+  const zonesOrder: ZoneId[] = ["governance", "simulation", "hardware", "bench", "audit"];
+  const zoneLabels: Record<ZoneId, string> = {
+    governance: "Gouvernance & Exigences",
+    simulation: "Simulation & HIL",
+    hardware: "Hardware & Drivers",
+    bench: "Banc de test & Commandes",
+    audit: "Preuves & Audit",
+  };
+  return zonesOrder.map((zone) => {
+    const zoneGates = gates.filter((g) => g.zone === zone);
+    const passed = zoneGates.length > 0 && zoneGates.every((g) => g.state === "passed");
+    const openCount = zoneGates.filter((g) => g.state === "open").length;
+    return {
+      zone,
+      label: zoneLabels[zone],
+      passed,
+      openCount,
+      gates: zoneGates.map((g) => ({ code: g.code, state: g.state })),
+    };
+  });
+}
+
+// Helper: find first matching element in array, return fallback
+function _next<T>(predicate: (item: T) => boolean, items: T[], fallback: T): T {
+  return items.find(predicate) ?? fallback;
+}
+
 const initialLocalGateState: LocalGateState = {
   gates: [
     {
@@ -519,7 +584,10 @@ export default function LabBench() {
   const [localWorkspace, setLocalWorkspace] = useState<LocalWorkspace>(() =>
     readJson(LOCAL_WORKSPACE_KEY, {} as LocalWorkspace),
   );
-  const [gateState, setGateState] = useState<LocalGateState>(initialLocalGateState);
+  const [serverGateState, setServerGateState] = useState<LocalGateState>(initialLocalGateState);
+  const [localGateState, setLocalGateState] = useState<LocalGateState>(initialLocalGateState);
+  // isLocalMode is computed later (after projects/remoteProjectId are resolved)
+  // but we need a preliminary version here for the useEffect
 
   useEffect(() => {
     try {
@@ -649,7 +717,7 @@ export default function LabBench() {
   useEffect(() => {
     if (gateStateQuery.data && typeof gateStateQuery.data === "object") {
       const data = gateStateQuery.data as Partial<GateStateResponse>;
-      setGateState({
+      setServerGateState({
         gates: Array.isArray(data.gates) ? (data.gates as GateDefinition[]) : initialLocalGateState.gates,
         zoneProgress: Array.isArray(data.zoneProgress) ? (data.zoneProgress as ZoneProgress[]) : initialLocalGateState.zoneProgress,
         currentGate: typeof data.currentGate === "string" ? data.currentGate : initialLocalGateState.currentGate,
@@ -670,14 +738,17 @@ export default function LabBench() {
 
   // Sync the active mode from gate state: when N3 is armed, switch to authorized
   useEffect(() => {
-    if (gateState.conditions.n3_armed && mode !== "authorized") {
+    // Use serverGateState if it has data, otherwise localGateState
+    const gs = serverGateState?.conditions?.registry_initialized ? serverGateState : localGateState;
+    if (!gs) return;
+    if (gs.conditions.n3_armed && mode !== "authorized") {
       setMode("authorized");
     }
-    if (!gateState.conditions.n3_armed && mode === "authorized") {
+    if (!gs.conditions.n3_armed && mode === "authorized") {
       setMode("simulation");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gateState.conditions.n3_armed]);
+  }, [remoteProjectId, serverGateState, localGateState, mode]);
 
   const [localResult, setLocalResult] = useState<LabBenchResult | null>(null);
   const [runScenarioSignature, setRunScenarioSignature] = useState<
@@ -696,6 +767,100 @@ export default function LabBench() {
     projectEpoch.current += 1;
     simulationEpoch.current = null;
   }, [selectedProjectId]);
+  // === Local sandbox mode — simulate gates when no server auth available ===
+  // When the user is NOT authenticated (no OIDC), the server can't persist
+  // gate states. We provide a local-only sandbox that lets the operator
+  // experience the full LabBench flow without a server, using in-memory state.
+
+
+  const isLocalMode = !remoteProjectId && projects.length > 0;
+  // Use server gate state if available, local sandbox otherwise
+  const effectiveGateState = remoteProjectId ? serverGateState : (isLocalMode ? localGateState : initialLocalGateState);
+  // Alias for backward compatibility with existing JSX references
+  const gateState = effectiveGateState;
+
+  // Local sandbox actions — these simulate the server-side gate operations
+  // in-memory. They don't persist, but they let the operator test the full
+  // N1→N4 flow without needing an OIDC-authenticated server.
+  const localSeedRegistry = () => {
+    setLocalGateState((prev) => {
+      const conditions = { ...prev.conditions, registry_initialized: true };
+      const gates = _resolvedGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+    });
+    toast.success("Registre initialisé (mode local)");
+  };
+
+  const localRunSimulation = () => {
+    simulationMutation.reset();
+    const result = calculateLocalLabBenchResult(scenario);
+    setLocalResult(result);
+    setRunScenarioSignature(JSON.stringify(scenario));
+    setLocalGateState((prev) => {
+      const conditions = { ...prev.conditions, n2_run_archived: true };
+      const gates = _resolvedGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+    });
+    setAudit((entries) => [
+      { time: new Date().toLocaleTimeString("fr-FR"), type: "simulation.local.completed", message: `${result.runId} calculé localement ; preuve N2 locale.`, status: "info" },
+      ...entries,
+    ]);
+    toast.success(`Simulation locale ${result.runId} terminée`);
+  };
+
+  const localCompleteChecklist = () => {
+    setLocalGateState((prev) => {
+      const conditions = { ...prev.conditions, hardware_checklist_complete: true };
+      const gates = _resolvedGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+    });
+    toast.success("Checklist hardware simulée (mode local)");
+  };
+
+  const localArmN3 = () => {
+    if (!humanConfirmed || !safetyConfirmed) {
+      toast.error("Double confirmation requise");
+      return;
+    }
+    setLocalGateState((prev) => {
+      const conditions = { ...prev.conditions, arm_double_confirmed: true, n3_armed: true };
+      const gates = _resolvedGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+    });
+    setHumanConfirmed(false);
+    setSafetyConfirmed(false);
+    setMode("authorized");
+    toast.success("N3 armé (mode local — virtuel uniquement)");
+  };
+
+  const localDisarmN3 = () => {
+    setLocalGateState((prev) => {
+      const conditions = { ...prev.conditions, arm_double_confirmed: false, n3_armed: false };
+      const gates = _resolvedGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+    });
+    setMode("simulation");
+    toast.info("N3 désarmé (mode local)");
+  };
+
+  const localSignOffN4 = () => {
+    if (!reviewer.trim() || reviewToken.trim().length < 8) {
+      toast.error("Reviewer + jeton requis");
+      return;
+    }
+    setLocalGateState((prev) => {
+      const conditions = { ...prev.conditions, independent_review_signed: true };
+      const gates = _resolvedGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+    });
+    setSignOffDialogOpen(false);
+    setReviewer("");
+    setReviewToken("");
+    setReviewNote("");
+    toast.success("Revue N4 signée (mode local)");
+  };
+  // === End local sandbox ===
+
   const simulationMutation = trpc.labBench.runSimulation.useMutation({
     onSuccess(rawResult, variables) {
       if (simulationEpoch.current !== projectEpoch.current) return;
@@ -1515,8 +1680,8 @@ export default function LabBench() {
       toast.error("Paramètres hors plage", { description: error });
       return;
     }
-    if (!remoteProjectId) {
-      runLocalSimulation();
+    if (isLocalMode || !remoteProjectId) {
+      localRunSimulation();
       return;
     }
     setLocalResult(null);
@@ -1524,6 +1689,10 @@ export default function LabBench() {
     simulationMutation.mutate({ mode: "simulation", ...scenario });
   };
   const persistSimulation = () => {
+    if (isLocalMode) {
+      toast.success("Run N2 archivé (mode local)");
+      return;
+    }
     if (!remoteProjectId) {
       toast.error("Aucun projet authentifié", {
         description: "La persistance officielle exige un projet AeroMind.",
@@ -1589,6 +1758,7 @@ export default function LabBench() {
     });
   };
   const submitHardwareChecklist = () => {
+    if (isLocalMode) { localCompleteChecklist(); return; }
     if (!remoteProjectId) {
       toast.error("Aucun projet authentifié", {
         description: "La checklist nécessite un projet AeroMind.",
@@ -1604,6 +1774,19 @@ export default function LabBench() {
     });
   };
   const openArmDialog = () => {
+    if (isLocalMode) {
+      if (!gateState.conditions.n3_ready) {
+        toast.error("Gate N3-READY non atteinte", {
+          description: "Complétez d'abord la checklist hardware.",
+        });
+        return;
+      }
+      setHumanConfirmed(false);
+      setSafetyConfirmed(false);
+      setSecondOperatorCode("");
+      setArmDialogOpen(true);
+      return;
+    }
     if (!remoteProjectId) {
       toast.error("Aucun projet authentifié", {
         description: "L’armement N3 nécessite un projet AeroMind.",
@@ -1622,6 +1805,7 @@ export default function LabBench() {
     setArmDialogOpen(true);
   };
   const confirmArm = () => {
+    if (isLocalMode) { localArmN3(); return; }
     if (!remoteProjectId) {
       toast.error("Aucun projet authentifié");
       return;
@@ -1647,10 +1831,22 @@ export default function LabBench() {
     });
   };
   const disarm = () => {
+    if (isLocalMode) { localDisarmN3(); return; }
     if (!remoteProjectId) return;
     disarmN3Mutation.mutate({ projectId: remoteProjectId });
   };
   const openSignOffDialog = () => {
+    if (isLocalMode) {
+      if (!gateState.conditions.n3_armed) {
+        toast.error("N3 doit être armé", { description: "Armez N3 avant la revue N4." });
+        return;
+      }
+      setReviewer("");
+      setReviewToken("");
+      setReviewNote("");
+      setSignOffDialogOpen(true);
+      return;
+    }
     if (!remoteProjectId) {
       toast.error("Aucun projet authentifié");
       return;
@@ -1667,6 +1863,7 @@ export default function LabBench() {
     setSignOffDialogOpen(true);
   };
   const confirmSignOff = () => {
+    if (isLocalMode) { localSignOffN4(); return; }
     if (!remoteProjectId) return;
     if (!reviewer.trim() || reviewToken.trim().length < 8) {
       toast.error("Revue invalide", {
