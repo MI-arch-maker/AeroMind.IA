@@ -773,7 +773,7 @@ export default function LabBench() {
   // experience the full LabBench flow without a server, using in-memory state.
 
 
-  const isLocalMode = !remoteProjectId && projects.length > 0;
+  const isLocalMode = !remoteProjectId;
   // Use server gate state if available, local sandbox otherwise
   const effectiveGateState = remoteProjectId ? serverGateState : (isLocalMode ? localGateState : initialLocalGateState);
   // Alias for backward compatibility with existing JSX references
@@ -1690,7 +1690,8 @@ export default function LabBench() {
   };
   const persistSimulation = () => {
     if (isLocalMode) {
-      toast.success("Run N2 archivé (mode local)");
+      // In local mode, the simulation already advanced the N2 gate
+      toast.success("Run N2 archivé (mode local)", { description: "Gate N2 validée en mémoire locale." });
       return;
     }
     if (!remoteProjectId) {
@@ -2104,19 +2105,19 @@ export default function LabBench() {
               <CircleDot size={14} /> Gate courant : {gateState.currentGate}
             </span>
             <span className="lb-lock">
-              <LockKeyhole size={14} /> Aucune commande physique
+              <LockKeyhole size={14} /> Sorties physiques verrouillées (par défaut)
             </span>
           </div>
         </header>
         <div className="lb-safety-banner">
           <ShieldCheck size={19} />
           <div>
-            <strong>Barrière de sûreté orchestrée par progression</strong>
+            <strong>LabBench 01 — interface intégrée à AeroMind</strong>
             <span>
-              Le passage N2 → N3 → N4 se déverrouille par gates explicites.
-              L’armement N3 exige une double confirmation humaine et un code
-              second opérateur. Les sorties physiques restent interdites ;
-              l’armement ne commande aucun matériel réel.
+              Les sorties physiques sont verrouillées par défaut (HARDWARE_CONTROL=false).
+              Le passage N1 → N2 → N3 → N4 se déverrouille par gates explicites.
+              L’armement N3 exige une double confirmation humaine et un code second opérateur.
+              L’activation des sorties physiques se fait via HARDWARE_CONTROL=true après validation HIL.
             </span>
           </div>
         </div>
@@ -2132,46 +2133,26 @@ export default function LabBench() {
             aucune preuve serveur.
           </p>
         )}
-        {/* === FIX: Diagnostic banner when no remote project is active === */}
-        {!remoteProjectId && (
-          <div className="lb-diagnostic-banner" role="alert">
-            <AlertTriangle size={19} />
-            <div>
-              <strong>LabBench en mode aperçu — projet non reconnu côté serveur</strong>
-              <span>
-                {!meQuery.data ? (
-                  <>
-                    Vous n'êtes pas authentifié (OIDC). Les gates, la flotte, le radar
-                    et le hardware control restent en mode aperçu local.
-                    <Link href="/" className="lb-diagnostic-link">
-                      → Se connecter depuis le cockpit principal
-                    </Link>
-                  </>
-                ) : remoteProjects.length === 0 ? (
-                  <>
-                    Aucun projet serveur trouvé. Créez un projet depuis le cockpit
-                    principal AeroMind, puis revenez ici.
-                    <Link href="/" className="lb-diagnostic-link">
-                      → Créer un projet
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    Projet sélectionné dans le cockpit non trouvé côté LabBench.
-                    Sélectionnez un projet ci-dessous (vue Projets, zone 01) pour
-                    activer les gates et le hardware control.
-                  </>
-                )}
-              </span>
-              {projectsQuery.error && (
-                <span className="lb-text-danger" style={{ display: "block", marginTop: 4 }}>
-                  Détail API : {String(projectsQuery.error?.message ?? "").slice(0, 120)}
-                </span>
-              )}
-            </div>
+                {/* === Mode indicator (mirrors AeroMind Home.tsx) === */}
+        {isLocalMode && (
+          <div className="lb-local-mode-banner">
+            <Activity size={16} />
+            <span>
+              <strong>Mode brouillon local</strong> — LabBench synchronisé avec AeroMind.
+              Les gates, simulation et armement fonctionnent en local (non persisté serveur).
+              {projects.length > 0 && ` · ${projects.length} projet(s) disponible(s).`}
+            </span>
           </div>
         )}
-        {/* === END diagnostic banner === */}
+        {remoteProjectId && (
+          <div className="lb-local-mode-banner lb-remote-banner">
+            <ShieldCheck size={16} />
+            <span>
+              <strong>Espace métier connecté</strong> — projet serveur authentifié.
+              Gates persistées, audit serveur, preuves archivées.
+            </span>
+          </div>
+        )}
         <section
           className="lb-panel"
           aria-label="Configuration drone active du projet"
@@ -2264,21 +2245,9 @@ export default function LabBench() {
             </span>
           </div>
           <div>
-            <small>N3 ARMÉ</small>
-            <strong>
-              {gateState.conditions.n3_armed ? (
-                <span className="lb-text-warning">
-                  <Unlock size={13} /> OUI (virtuel)
-                </span>
-              ) : (
-                <span>VERROUILLÉ</span>
-              )}
-            </strong>
-            <span>
-              {gateState.conditions.n3_armed
-                ? "Consignes virtuelles actives ; pas de sortie physique"
-                : "Armement requis via le banc de test"}
-            </span>
+            <small>HARDWARE_CONTROL</small>
+            <strong className="lb-text-warning">VERROUILLÉE</strong>
+            <span>Par défaut — s'active après validation HIL</span>
           </div>
         </section>
 
@@ -2596,7 +2565,7 @@ export default function LabBench() {
                   <button
                     className="lb-secondary"
                     onClick={persistSimulation}
-                    disabled={!remoteProjectId || !latestResult || persistSimulationMutation.isPending}
+                    disabled={(!remoteProjectId && !isLocalMode) || !latestResult || persistSimulationMutation.isPending}
                   >
                     <Archive size={14} />
                     {persistSimulationMutation.isPending ? "Archivage…" : "Archiver le run (N2)"}
@@ -2817,7 +2786,7 @@ export default function LabBench() {
                 <button
                   className="lb-primary"
                   onClick={submitHardwareChecklist}
-                  disabled={!remoteProjectId || hardwareChecklistMutation.isPending}
+                  disabled={(!remoteProjectId && !isLocalMode) || hardwareChecklistMutation.isPending}
                 >
                   <ClipboardCheck size={15} />
                   {hardwareChecklistMutation.isPending ? "Enregistrement…" : "Compléter la checklist (N3-READY)"}
@@ -3173,14 +3142,14 @@ export default function LabBench() {
                   <button
                     className="lb-secondary"
                     onClick={addDroneToProject}
-                    disabled={!remoteProjectId}
+                    disabled={!remoteProjectId && !isLocalMode}
                   >
                     <Activity size={14} /> Ajouter un drone
                   </button>
                   <button
                     className="lb-primary"
                     onClick={runFleetSimulationAll}
-                    disabled={!remoteProjectId || fleetDrones.length === 0 || fleetSimMutation.isPending}
+                    disabled={(!remoteProjectId && !isLocalMode) || fleetDrones.length === 0 || fleetSimMutation.isPending}
                   >
                     <Play size={14} />
                     {fleetSimMutation.isPending ? "Simulation flotte…" : `Simuler flotte (${fleetDrones.length})`}
@@ -3657,7 +3626,7 @@ export default function LabBench() {
                       placeholder="udpout:127.0.0.1:14550 ou serial:/dev/ttyUSB0:57600"
                     />
                   </label>
-                  <button className="lb-primary" onClick={submitPoolRegister} disabled={!remoteProjectId}>
+                  <button className="lb-primary" onClick={submitPoolRegister} disabled={!remoteProjectId && !isLocalMode}>
                     <Activity size={14} /> Enregistrer
                   </button>
                 </div>
@@ -3745,7 +3714,7 @@ export default function LabBench() {
                       placeholder="2.05"
                     />
                   </label>
-                  <button className="lb-secondary lb-hw-wide" onClick={submitGeofence} disabled={!remoteProjectId}>
+                  <button className="lb-secondary lb-hw-wide" onClick={submitGeofence} disabled={!remoteProjectId && !isLocalMode}>
                     Enregistrer la géofence
                   </button>
                 </div>

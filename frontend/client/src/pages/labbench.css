@@ -533,3 +533,9 @@
 .lb-diagnostic-banner span { font-size: 12px; line-height: 1.5; display: block; }
 .lb-diagnostic-link { display: inline-block; margin-left: 6px; color: var(--lb-cyan); text-decoration: none; font-weight: 600; }
 .lb-diagnostic-link:hover { text-decoration: underline; }
+
+/* Local mode banner (mirrors AeroMind Home.tsx) */
+.lb-local-mode-banner { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid rgba(37,208,217,.2); border-radius: 8px; background: rgba(37,208,217,.05); color: #79d4d8; font-size: 12px; margin: 12px 0; }
+.lb-local-mode-banner strong { color: #8de7eb; }
+.lb-remote-banner { border-color: rgba(117,215,173,.2); background: rgba(117,215,173,.05); color: #8adfb6; }
+.lb-remote-banner strong { color: #a0e5c0; }
