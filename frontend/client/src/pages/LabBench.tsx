@@ -774,6 +774,12 @@ export default function LabBench() {
 
 
   const isLocalMode = !remoteProjectId;
+  // Auto-seed N1 registry when entering LabBench in local mode (so the gate shows as passed)
+  useEffect(() => {
+    if (isLocalMode && !localGateState.conditions.registry_initialized) {
+      localSeedRegistry();
+    }
+  }, [isLocalMode]); // Only when isLocalMode changes
   // Use server gate state if available, local sandbox otherwise
   const effectiveGateState = remoteProjectId ? serverGateState : (isLocalMode ? localGateState : initialLocalGateState);
   // Alias for backward compatibility with existing JSX references
@@ -1681,6 +1687,7 @@ export default function LabBench() {
       return;
     }
     if (isLocalMode || !remoteProjectId) {
+      // Use localRunSimulation which both computes AND advances the N2 gate
       localRunSimulation();
       return;
     }
@@ -1690,8 +1697,13 @@ export default function LabBench() {
   };
   const persistSimulation = () => {
     if (isLocalMode) {
-      // In local mode, the simulation already advanced the N2 gate
-      toast.success("Run N2 archivé (mode local)", { description: "Gate N2 validée en mémoire locale." });
+      // Advance the N2 gate in local mode
+      setLocalGateState((prev) => {
+        const conditions = { ...prev.conditions, n2_run_archived: true };
+        const gates = _resolvedGates(conditions);
+        return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      });
+      toast.success("Run N2 archivé (mode local)", { description: "Gate N2 validée. Vous pouvez maintenant compléter la checklist N3-READY." });
       return;
     }
     if (!remoteProjectId) {
@@ -2565,7 +2577,7 @@ export default function LabBench() {
                   <button
                     className="lb-secondary"
                     onClick={persistSimulation}
-                    disabled={(!remoteProjectId && !isLocalMode) || !latestResult || persistSimulationMutation.isPending}
+                    disabled={(!remoteProjectId && !isLocalMode) || !latestResult || persistSimulationMutation.isPending || gateState.conditions.n2_run_archived}
                   >
                     <Archive size={14} />
                     {persistSimulationMutation.isPending ? "Archivage…" : "Archiver le run (N2)"}
