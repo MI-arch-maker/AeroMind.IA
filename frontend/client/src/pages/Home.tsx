@@ -19,6 +19,11 @@ import {
   readWorkspaceStorage,
   writeWorkspaceStorage,
 } from "../lib/projectSyncStore";
+// P0-05 fix — anonymous browser workspace drafts MUST be isolated by a
+// per-client opaque key so two anonymous browsers cannot read or overwrite
+// each other's drafts via the shared 'default' server slot. The helper mints
+// the key on first visit and persists it across reloads for the same browser.
+import { anonymousWorkspaceHeaders } from "../lib/anonymousWorkspaceKey";
 import { normalizeLegacyStudioLayers } from "../lib/studioLayerCommands";
 import { buildManufacturingPackage } from "../lib/manufacturing";
 import { buildEngineeringReview } from "../lib/engineeringReview";
@@ -12594,9 +12599,53 @@ export default function Home() {
   );
   useEffect(() => {
     if (authenticatedUser || localServerHydrated.current) return;
-    // Aucun projet local distant n’est chargé implicitement : l’ouverture reste
-    // vierge. La création et la restauration passent par une action explicite.
+    // P0-05 fix — fetch the previously-saved anonymous draft (if any) using
+    // the per-browser workspace key so this browser sees its own draft and
+    // never silently collides with another anonymous browser. The backend
+    // rejects the request with 400 if the header is missing — the helper
+    // guarantees it is present in browser contexts.
     localServerHydrated.current = true;
+    const headers = anonymousWorkspaceHeaders();
+    if (!headers) return; // SSR or no localStorage: skip the network round-trip
+    void fetch(`/api/local/workspace?t=${Date.now()}`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    })
+      .then(response => {
+        if (!response.ok) return null;
+        return response.json();
+      })
+      .then(data => {
+        if (!data || !data.workspace) return;
+        const parsed = parseWorkspaceMessage(data.workspace);
+        if (!parsed.ok) return;
+        // Hydrate the workspace from the server-side anonymous slot. Cast
+        // the parsed workspace's projects to ProjectRecord[] — the workspace
+        // schema validates the shape (id, project, requirements, config, runId)
+        // so the cast is safe; the inner fields keep their schema-validated
+        // types but the ProjectRecord[] alias aligns with setProjects's
+        // expected argument type.
+        suppressSyncBroadcast.current = true;
+        const ws = parsed.workspace;
+        if (Array.isArray(ws.projects) && typeof ws.activeProjectId === "string") {
+          const hydrated = ws.projects as unknown as ProjectRecord[];
+          setProjects(hydrated);
+          setActiveProjectId(ws.activeProjectId);
+          const selected =
+            hydrated.find(item => item.id === ws.activeProjectId) ?? hydrated[0];
+          if (selected) {
+            setProject(selected.project);
+            setRequirements(selected.requirements as unknown as Requirement[]);
+            setConfig(normalizeConcept(selected.config as unknown as ConceptConfig));
+            setRunId(selected.runId);
+          }
+        }
+      })
+      .catch(() => {
+        // Network failure is non-fatal — the local localStorage draft remains
+        // the source of truth for this anonymous browser.
+      });
   }, [authenticatedUser, initialProjects.length]);
   useEffect(() => {
     if (
@@ -12678,11 +12727,21 @@ export default function Home() {
         });
       }
       if (!authenticatedUser && localServerHydrated.current) {
+        // P0-05 fix — send the per-browser anonymous workspace key in the
+        // header so the backend routes this draft into this browser's own
+        // slot, not a shared 'default'. Without the header the backend now
+        // rejects the request with 400.
+        const wsHeaders = anonymousWorkspaceHeaders();
+        if (!wsHeaders) {
+          setSaveState("saved");
+          return;
+        }
         const timer = window.setTimeout(() => {
           void fetch("/api/local/workspace", {
             method: "PUT",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", ...wsHeaders },
             body: JSON.stringify({ workspace: payload }),
+            credentials: "include",
           })
             .then(response => {
               if (!response.ok) throw new Error("local workspace save failed");

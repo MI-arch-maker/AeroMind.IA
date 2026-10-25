@@ -4,6 +4,9 @@ from uuid import uuid4
 
 os.environ.setdefault("AEROMIND_ENV", "development")
 os.environ.setdefault("AEROMIND_SESSION_SECRET", "local-workflow-e2e-secret-32-bytes-minimum")
+# V6 — use setdefault so we don't override DATABASE_URL that another test
+# module already set. The StaticPool fix in web/database.py makes
+# :memory: SQLite work correctly (shared across connections).
 os.environ.setdefault("DATABASE_URL", f"sqlite:////tmp/aeromind-workflow-unittest-{os.getpid()}.db")
 
 from fastapi.testclient import TestClient

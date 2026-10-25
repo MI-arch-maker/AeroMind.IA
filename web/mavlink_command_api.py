@@ -41,6 +41,15 @@ ALLOWED_COMMANDS: tuple[str, ...] = (
     "NAV_LAND",              # land at current position
     "NAV_RETURN_TO_LAUNCH",  # RTL
     "DO_SET_MODE",           # switch flight mode (limited to MANUAL/STABILIZE/AUTO)
+    # P0-04 fix — EXIGENCE FUNC-05 / R10: mission upload protocol commands.
+    # MISSION_COUNT + MISSION_ITEM_INT form the canonical GCS→autopilot
+    # mission upload sequence (ArduPilot / PX4). The earlier allowlist
+    # omitted them so the upload endpoint always returned
+    # COMMAND_NOT_ALLOWED, then the code below marked the upload as
+    # ``failed`` without distinguishing "command refused" from "transport
+    # error" — the frontend had no way to tell the user *why* it failed.
+    "MISSION_COUNT",         # announce number of waypoints (cmd id 43)
+    "MISSION_ITEM_INT",      # upload one waypoint item (cmd id 52)
 )
 
 # Sub-allowlist for flight modes accepted by DO_SET_MODE.
@@ -62,6 +71,9 @@ MAV_CMD_IDS: dict[str, int] = {
     "NAV_LAND": 21,
     "NAV_RETURN_TO_LAUNCH": 20,
     "DO_SET_MODE": 176,
+    # P0-04 fix — mission upload protocol command ids (ArduPilot/PX4).
+    "MISSION_COUNT": 43,
+    "MISSION_ITEM_INT": 52,
 }
 
 
@@ -81,9 +93,178 @@ def hardware_commands_enabled() -> bool:
     The check is strict on purpose: any value other than the exact string
     ``"true"`` (case-insensitive) returns ``False``. This means a typo like
     ``HARDWARE_CONTROL=yes`` or an empty string keeps the system closed.
+
+    EXIGENCE SEC-01 / V3.1 — this function returns ``True`` ONLY when the env
+    var is set. It is NOT sufficient on its own to authorize a physical
+    transport. Callers MUST also pass through :func:`authorize_physical_command`
+    which combines the env-var gate with:
+      1. A signed single-use confirmation token issued by ``hardware_gate``.
+      2. A valid fail-closed geofence (for navigation commands).
+      3. Project ownership + drone ownership server-side verification.
+      4. The G0–G5 gate state (virtual N3 armed + hardware review signed +
+         drone registered in pool) — verified at token-issue time.
     """
     value = os.getenv("HARDWARE_CONTROL", "").strip().lower()
     return value == "true"
+
+
+def authorize_physical_command(
+    *,
+    command: str,
+    confirmation_token: str,
+    project_id: str,
+    drone_id: str,
+    actor_id: str,
+    geofence_validation: Callable[[dict[str, float]], dict[str, Any]] | None = None,
+    parameters: dict[str, float] | None = None,
+    e_stop_override: bool = False,
+) -> None:
+    """Authorize a physical MAVLink command — the ONLY entry point for transports.
+
+    EXIGENCE V3.1 #1 — ``HARDWARE_CONTROL=true`` alone MUST NEVER authorize a
+    physical transport. This function performs the full multi-gate check
+    before any MAVLink frame is sent:
+
+      Gate 0 — Server-side separation: this code runs only in the backend
+               process. The frontend has no path to this module.
+      Gate 1 — ``HARDWARE_CONTROL=true`` (env var, exact string match).
+      Gate 2 — Command allowlist (no wildcard, no dynamic extension).
+      Gate 3a — Confirmation token shape validation (≥ 16 chars).
+      Gate 4 — Context binding: ``project_id``, ``drone_id``, ``actor_id``
+               all required (audit trail + ownership enforcement).
+      Gate 3b — Signed single-use confirmation token issued by
+               ``hardware_gate.issue_hardware_confirmation_token``. The token
+               is consumed atomically; replay is rejected. The token's
+               ``project_id`` and ``drone_id`` MUST match the request context.
+      Gate 5 — Fail-closed geofence for navigation commands
+               (NAV_TAKEOFF, NAV_LAND, NAV_RETURN_TO_LAUNCH). If no geofence is
+               configured OR the params fall outside the polygon, the command
+               is rejected before any frame is emitted.
+               **Exception**: ``e_stop_override=True`` skips this gate for the
+               emergency-stop path, which lands in place. The bypass is
+               audit-logged with a dedicated ``E_STOP_BYPASS`` marker.
+      Gate 6 — DO_SET_MODE sub-allowlist (MANUAL/STABILIZE/AUTO only).
+
+    Raises :class:`HardwareCommandError` on the first failed gate. The
+    caller MUST NOT catch this exception silently — the failure is
+    audit-logged and surfaced to the operator with the specific gate that
+    refused the command.
+    """
+    # Gate 0 — implicit (this function is only callable from backend code).
+    # Gate 1 — env var
+    if not hardware_commands_enabled():
+        raise HardwareCommandError(
+            403, "HARDWARE_DISABLED",
+            "HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).",
+        )
+    # Gate 2 — allowlist
+    if command not in ALLOWED_COMMANDS:
+        raise HardwareCommandError(
+            403, "COMMAND_NOT_ALLOWED",
+            f"La commande {command!r} n'est pas sur la liste blanche.",
+        )
+    # Gate 3a — token shape validation (cheap pre-check before consuming it).
+    # This catches malformed tokens before touching the single-use store.
+    if not isinstance(confirmation_token, str) or len(confirmation_token) < 16:
+        raise HardwareCommandError(
+            401, "CONFIRMATION_TOKEN_INVALID",
+            "Le jeton de confirmation doit faire ≥ 16 caractères et provenir de la gate N4 hardware.",
+        )
+    # Gate 4 — context binding (audit correlation)
+    if not project_id or not drone_id or not actor_id:
+        raise HardwareCommandError(
+            400, "CONTEXT_REQUIRED",
+            "project_id, drone_id et actor_id sont requis pour toute commande matérielle (SEC-01).",
+        )
+    # Gate 3b — signed single-use confirmation token consumption.
+    # The token must have been issued by hardware_gate.issue_hardware_confirmation_token
+    # (which itself requires the G0–G5 gate state to be complete). The token
+    # is consumed atomically here; replay is rejected.
+    try:
+        from . import hardware_gate
+        confirmation = hardware_gate.consume_hardware_confirmation_token(
+            confirmation_token, command,
+        )
+    except Exception as exc:
+        # Translate labbench errors into HardwareCommandError so the caller
+        # gets a uniform error type.
+        code = getattr(exc, "code", "TOKEN_INVALID")
+        status = getattr(exc, "status_code", 401)
+        raise HardwareCommandError(
+            status, code, f"Jeton hardware invalide: {exc}"
+        ) from exc
+    # Verify the token's project_id and drone_id match the request context
+    # (the token is bound to a specific (project, drone) pair at issue time).
+    if getattr(confirmation, "project_id", None) != project_id:
+        raise HardwareCommandError(
+            403, "TOKEN_PROJECT_MISMATCH",
+            f"Le jeton n'appartient pas au projet {project_id} (SEC-02 isolation).",
+        )
+    if getattr(confirmation, "drone_id", None) != drone_id:
+        raise HardwareCommandError(
+            403, "TOKEN_DRONE_MISMATCH",
+            f"Le jeton n'appartient pas au drone {drone_id} (SEC-02 isolation).",
+        )
+    # Gate 5 — fail-closed geofence for navigation commands
+    if command in {"NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH"} and not e_stop_override:
+        if geofence_validation is None:
+            # No geofence validation provided = no command sent (fail-closed).
+            raise HardwareCommandError(
+                403, "GEOFENCE_REQUIRED",
+                f"La commande {command} exige une validation géofence fail-closed (SEC-04).",
+            )
+        params = dict(parameters or {})
+        validation = geofence_validation(params)
+        if not validation.get("inside_geofence", False):
+            raise HardwareCommandError(
+                409, "GEOFENCE_BREACH",
+                f"Commande {command} refusée: {validation.get('reason', 'hors géofence')}",
+            )
+    elif command in {"NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH"} and e_stop_override:
+        # E-stop bypass — audit-logged. The cahier des charges distinguishes
+        # NAV_LAND from E-stop, but the implementation reuses NAV_LAND as the
+        # physical fallback. The bypass is explicit and ONLY invoked by the
+        # emergency_stop_all path with a real per-drone token.
+        import sys
+        print(
+            f"WARNING: E_STOP_BYPASS — geofence validation skipped for {command} "
+            f"(project={project_id}, drone={drone_id}, actor={actor_id})",
+            file=sys.stderr, flush=True,
+        )
+    # Gate 6 — DO_SET_MODE sub-allowlist
+    if command == "DO_SET_MODE":
+        params = dict(parameters or {})
+        mode_value = int(params.get("mode", -1))
+        if mode_value not in ALLOWED_MODES:
+            raise HardwareCommandError(
+                403, "MODE_NOT_ALLOWED",
+                f"Le mode {mode_value} n'est pas sur la liste blanche des modes autorisés.",
+            )
+
+
+def verify_physical_transport_authorized(
+    *,
+    command: str,
+    confirmation_token: str,
+    project_id: str,
+    drone_id: str,
+    actor_id: str,
+    geofence_validation: Callable[[dict[str, float]], dict[str, Any]] | None = None,
+    parameters: dict[str, float] | None = None,
+) -> None:
+    """Backwards-compatible alias for :func:`authorize_physical_command`.
+
+    Kept so existing call sites that used ``verify_*`` naming continue to work.
+    """
+    authorize_physical_command(
+        command=command,
+        confirmation_token=confirmation_token,
+        project_id=project_id,
+        drone_id=drone_id,
+        actor_id=actor_id,
+        geofence_validation=geofence_validation,
+        parameters=parameters,
+    )
 
 
 @dataclass
@@ -171,50 +352,45 @@ class MavlinkCommandPilot:
         parameters: dict[str, float] | None = None,
         confirmation_token: str,
         geofence_validation: Callable[[dict[str, float]], dict[str, Any]] | None = None,
+        # SEC-01 fix — additional required context to enforce server-side separation
+        project_id: str | None = None,
+        drone_id: str | None = None,
+        actor_id: str | None = None,
+        e_stop_override: bool = False,
     ) -> CommandReceipt:
         """Validate + send one command. Returns a receipt; never raises on
-        MAVLink transport errors — they are captured in the receipt reason."""
-        # === Gate 1: hardware flag ===
-        if not hardware_commands_enabled():
-            raise HardwareCommandError(
-                403,
-                "HARDWARE_DISABLED",
-                "HARDWARE_CONTROL n'est pas 'true'; le pilote reste fermé par contrat.",
-            )
-        # === Gate 2: allowlist ===
-        if command not in ALLOWED_COMMANDS:
-            raise HardwareCommandError(
-                403,
-                "COMMAND_NOT_ALLOWED",
-                f"La commande {command!r} n'est pas sur la liste blanche; aucune extension dynamique n'est possible.",
-            )
-        # === Gate 3: confirmation token must be non-empty ===
-        if not isinstance(confirmation_token, str) or len(confirmation_token) < 16:
-            raise HardwareCommandError(
-                401,
-                "CONFIRMATION_TOKEN_INVALID",
-                "Le jeton de confirmation hardware doit faire au moins 16 caractères et provenir de la gate N4 hardware.",
-            )
-        params = dict(parameters or {})
-        # Mode sub-allowlist for DO_SET_MODE.
-        if command == "DO_SET_MODE":
-            mode_value = int(params.get("mode", -1))
-            if mode_value not in ALLOWED_MODES:
-                raise HardwareCommandError(
-                    403,
-                    "MODE_NOT_ALLOWED",
-                    f"Le mode {mode_value} n'est pas sur la liste blanche des modes autorisés.",
-                )
+        MAVLink transport errors — they are captured in the receipt reason.
 
-        # === Geofence validation for navigation commands ===
-        if command in {"NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH"} and geofence_validation is not None:
-            validation = geofence_validation(params)
-            if not validation.get("inside_geofence", False):
-                raise HardwareCommandError(
-                    409,
-                    "GEOFENCE_BREACH",
-                    f"Commande {command} refusée: {validation.get('reason', 'hors géofence')}",
-                )
+        EXIGENCE V3.1 #1 — ``HARDWARE_CONTROL=true`` alone MUST NEVER authorize
+        a physical transport. The full multi-gate check is delegated to
+        :func:`authorize_physical_command` which verifies:
+          1. HARDWARE_CONTROL env var (exact string match)
+          2. Command allowlist (no wildcard, no dynamic extension)
+          3. Signed single-use confirmation token issued by
+             ``hardware_gate.issue_hardware_confirmation_token`` (which itself
+             requires G0–G5 state: virtual N3 armed + hardware review signed +
+             drone registered in pool). Token is consumed atomically here;
+             replay is rejected. Token's project_id + drone_id MUST match.
+          4. Context binding: project_id + drone_id + actor_id required
+          5. Fail-closed geofence for navigation commands
+          6. DO_SET_MODE sub-allowlist (MANUAL/STABILIZE/AUTO only)
+        If any gate fails, the function raises ``HardwareCommandError`` BEFORE
+        any MAVLink frame is emitted. The MAVLink transport call only happens
+        once all gates pass.
+        """
+        # === Unified multi-gate authorization (V3.1) ===
+        authorize_physical_command(
+            command=command,
+            confirmation_token=confirmation_token,
+            project_id=project_id or "",
+            drone_id=drone_id or "",
+            actor_id=actor_id or "",
+            geofence_validation=geofence_validation,
+            parameters=parameters,
+            e_stop_override=e_stop_override,
+        )
+        params = dict(parameters or {})
+
 
         # === Send (lazy connection) ===
         try:
@@ -242,6 +418,9 @@ class MavlinkCommandPilot:
         p6 = float(params.get("p6", 0.0))
         p7 = float(params.get("p7", 0.0))
         try:
+            # SEC-01 fix — single outbound MAVLink call, well-documented.
+            # This is the ONLY place in the codebase that calls command_long_send.
+            # The README and audit reports must reflect this fact.
             # pymavlink API: mavlink.command_long_send(target_system, target_component,
             # command_id, confirmation, p1..p7)
             if hasattr(conn, "command_long_send"):

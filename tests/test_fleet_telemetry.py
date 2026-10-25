@@ -31,7 +31,10 @@ def reset_pool_singleton():
     pool_mod.reset_pool(pool_mod.MavlinkPool())
     yield
     pool_mod.reset_pool(None)
-    geo._geofences.clear()
+    # P0-01 fix — use the public test helper instead of poking at the
+    # private ``_geofences`` dict, so the storage backend can be swapped
+    # (DB / Redis / shared multi-worker) without breaking these tests.
+    geo.clear_geofence_cache_for_testing()
 
 
 class FakeObserver:
@@ -60,14 +63,22 @@ def _make_observer(connected: bool, lat: float | None, lon: float | None, alt: f
 
 
 def _register_drone_with_observer(pool: pool_mod.MavlinkPool, drone_id: str, drone_name: str, observer: FakeObserver) -> None:
-    """Bypass the real connection_factory by registering a custom pilot + observer."""
+    """Bypass the real connection_factory by registering a custom pilot + observer.
+
+    P0-02 fix — the pool now requires ``owner_id`` + ``project_id`` for tenant
+    isolation (SEC-02). The fleet telemetry tests don't exercise cross-tenant
+    behaviour, so they pass a single fixed identity; the assertion is that the
+    snapshot reads only what the pool exposes for that identity.
+    """
     pool.register(
         drone_id,
         drone_name,
         "udpout:127.0.0.1:14550",
+        owner_id="test-owner",
+        project_id="p1",
     )
     # Manually replace the observer with our fake
-    entry = pool.entry(drone_id)
+    entry = pool.entry(drone_id, owner_id="test-owner", project_id="p1")
     entry.observer = observer
 
 
@@ -108,7 +119,7 @@ def test_snapshot_computes_xy_when_geofence_home_set():
     _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
 
     # Geofence with home at (38.0, -122.0)
-    geo.set_geofence(geo.Geofence(
+    geo.set_geofence_for_testing(geo.Geofence(
         project_id="p1",
         polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
         max_altitude_m=100,
@@ -134,7 +145,7 @@ def test_snapshot_flags_drone_outside_geofence_polygon():
     obs = _make_observer(connected=True, lat=38.5, lon=-122.5, alt=5.0)  # far outside
     _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
 
-    geo.set_geofence(geo.Geofence(
+    geo.set_geofence_for_testing(geo.Geofence(
         project_id="p1",
         polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
         home_lat=38.0,
@@ -151,7 +162,7 @@ def test_snapshot_flags_drone_above_max_altitude():
     obs = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=200.0)
     _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
 
-    geo.set_geofence(geo.Geofence(
+    geo.set_geofence_for_testing(geo.Geofence(
         project_id="p1",
         polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
         max_altitude_m=100,
@@ -184,7 +195,7 @@ def test_snapshot_handles_multiple_drones():
     _register_drone_with_observer(pool, "drone-1", "Alpha", obs1)
     _register_drone_with_observer(pool, "drone-2", "Bravo", obs2)
 
-    geo.set_geofence(geo.Geofence(
+    geo.set_geofence_for_testing(geo.Geofence(
         project_id="p1",
         polygon=[(37.99, -122.01), (38.05, -122.01), (38.05, -121.99), (37.99, -121.99)],
         home_lat=38.0,
@@ -205,7 +216,7 @@ def test_snapshot_includes_geofence_metadata():
     obs = _make_observer(connected=True, lat=38.0, lon=-122.0, alt=10.0)
     _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
 
-    geo.set_geofence(geo.Geofence(
+    geo.set_geofence_for_testing(geo.Geofence(
         project_id="p1",
         polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
         max_altitude_m=120,

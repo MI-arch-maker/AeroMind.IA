@@ -80,13 +80,20 @@ def _haversine_xy_m(lat: float, lon: float, home_lat: float, home_lon: float) ->
 
 
 def _geofence_for_project(project_id: str | None) -> Any:
-    """v7: filter geofence by project_id, fall back to last-set."""
-    if project_id and project_id in geo._geofences:
-        return geo._geofences[project_id]
-    # Fallback: last-set geofence (MVP behavior — backwards compatible)
-    if not geo._geofences:
+    """v7: filter geofence by project_id, fall back to last-set.
+
+    P0-01 fix — uses the stable public read accessor
+    :func:`geofence_validator.list_cached_geofences` instead of poking at the
+    private ``geo._geofences`` dict so the storage backend can be swapped
+    (DB / Redis / shared multi-worker) without breaking fleet telemetry.
+    """
+    cache = geo.list_cached_geofences()
+    if project_id and project_id in cache:
+        return cache[project_id]
+    # Fallback: last-set geofence (MVP behaviour — backwards compatible)
+    if not cache:
         return None
-    return list(geo._geofences.values())[-1]
+    return list(cache.values())[-1]
 
 
 def _drone_snapshot(drone_id: str, drone_name: str, observer: MavlinkObserver, geofence: Any) -> dict[str, Any]:

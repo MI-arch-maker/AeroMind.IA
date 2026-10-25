@@ -61,6 +61,13 @@ class Drone(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     config_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    # EXIGENCE SYNC-02 — pointer to the active DroneRevision (canonical_models).
+    # The DroneRevision table holds the immutable versioned configuration; the
+    # drone row carries a non-FK string pointer so the legacy schema remains
+    # valid even before the canonical migration is applied. The canonical
+    # schema migration (migrations/2026-10-25_canonical_labbench_schema.sql)
+    # adds a real FK constraint for production deployments.
+    active_revision_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
 class Simulation(Base):
@@ -106,7 +113,10 @@ class AuditEvent(Base):
 
 class LabSession(Base):
     __tablename__ = "lab_sessions"
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    # V6 — widened from String(36) to String(128) because the session_id is
+    # the actual token_urlsafe(48) output (~64 chars), not a UUID. PostgreSQL
+    # enforces the VARCHAR length strictly (SQLite doesn't, so this was masked).
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     project_id: Mapped[str] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
@@ -303,6 +313,18 @@ class Mission(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     uploaded_to_drone_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # P0-04 fix — EXIGENCE FUNC-05 / R10: mission upload is a state machine.
+    # ``upload_state`` ∈ {pending, uploading, uploaded, failed}; the previous
+    # implementation set ``uploaded_at`` immediately on partial ACK and
+    # announced success on transport errors. The new fields persist the
+    # upload progress + error so the frontend can disable the upload button
+    # until the protocol reaches ``uploaded`` and surface the failure reason
+    # when it does not.
+    upload_state: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    upload_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    upload_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    upload_protocol: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    upload_idempotency_key: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
 
 
 class Waypoint(Base):
@@ -365,3 +387,37 @@ class BatteryCycle(Base):
     capacity_mah_used: Mapped[float | None] = mapped_column(nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     notes: Mapped[str] = mapped_column(Text, nullable=True)
+
+
+class AnonymousWorkspace(Base):
+    """V5 LOT B / R-04 — persistent anonymous browser workspace drafts.
+
+    Replaces the in-memory ``_local_workspaces`` dict so that:
+      - Workspaces survive a worker restart / multi-worker deployment
+      - Two anonymous browsers cannot collide via the shared 'default' slot
+      - TTL is enforced server-side (expired rows purged on next access)
+      - Quotas are enforced (max N workspaces per IP / per browser key)
+      - The workspace_key is a 43-char base64url opaque identifier
+        (≥ 122 bits of entropy), not a sequential ID
+
+    The ``workspace_key`` is the primary access key — it is sent by the
+    browser via the ``X-AeroMind-Workspace`` header. The ``data_json``
+    column carries the workspace payload (projects, active project ID,
+    config, etc.) — it is NOT interpreted by the server, only stored and
+    retrieved.
+    """
+    __tablename__ = "anonymous_workspaces"
+    id: Mapped[str] = mapped_column(String(43), primary_key=True)  # workspace_key
+    data_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, onupdate=now_utc
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Origin IP for quota / abuse tracking — NOT for authorization (the
+    # workspace_key is the sole access credential, so we don't tie drafts
+    # to IP).
+    origin_ip: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    __table_args__ = (
+        Index("ix_anonymous_workspaces_expires", "expires_at"),
+    )

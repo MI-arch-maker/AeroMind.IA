@@ -41,6 +41,9 @@ class PoolEntry:
     connection_url: str
     pilot: MavlinkCommandPilot
     observer: MavlinkObserver
+    # SEC-02 fix — owner/project binding on every pool entry to prevent inter-tenant leak
+    owner_id: str = ""
+    project_id: str = ""
     registered_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     last_status: str = "registered"
 
@@ -63,7 +66,12 @@ class MavlinkPool:
         with self._lock:
             return len(self._entries)
 
-    def list(self) -> list[dict[str, Any]]:
+    def list(self, *, owner_id: str | None = None, project_id: str | None = None) -> list[dict[str, Any]]:
+        """List pool entries — optionally filtered by owner/project (SEC-02).
+
+        SEC-02 fix — Without owner_id filter, all tenants could see all drones.
+        Callers should ALWAYS pass owner_id and/or project_id for tenant isolation.
+        """
         with self._lock:
             return [
                 {
@@ -73,8 +81,12 @@ class MavlinkPool:
                     "registeredAt": e.registered_at,
                     "lastStatus": e.last_status,
                     "hardwareCommandsEnabled": hardware_commands_enabled(),
+                    "ownerId": e.owner_id,
+                    "projectId": e.project_id,
                 }
                 for e in self._entries.values()
+                if (owner_id is None or e.owner_id == owner_id)
+                and (project_id is None or e.project_id == project_id)
             ]
 
     def register(
@@ -82,13 +94,35 @@ class MavlinkPool:
         drone_id: str,
         drone_name: str,
         connection_url: str,
+        *,
+        owner_id: str = "",
+        project_id: str = "",
     ) -> PoolEntry:
+        """Register a drone — owner_id and project_id are now REQUIRED (SEC-02).
+
+        SEC-02 fix — previously register() accepted any drone without binding,
+        allowing any tenant to inject drones into the global pool. Now every
+        entry is bound to (owner_id, project_id) and enforced on every access.
+        """
         with self._lock:
             if not drone_id or not connection_url:
                 raise HardwareCommandError(400, "BAD_REQUEST", "droneId et connectionUrl sont requis")
+            if not owner_id or not project_id:
+                raise HardwareCommandError(
+                    400, "BAD_REQUEST",
+                    "owner_id et project_id sont requis (SEC-02 isolation inter-tenant)",
+                )
+            # SEC-02 fix — validate connection_url against SSRF / arbitrary injection
+            self._validate_connection_url(connection_url)
             if drone_id in self._entries:
-                # Idempotent re-register: return the existing entry.
-                return self._entries[drone_id]
+                existing = self._entries[drone_id]
+                # SEC-02 — idempotent re-register requires ownership match
+                if existing.owner_id != owner_id or existing.project_id != project_id:
+                    raise HardwareCommandError(
+                        403, "FORBIDDEN",
+                        f"Le drone {drone_id} appartient à un autre tenant (SEC-02)",
+                    )
+                return existing
             if len(self._entries) >= MAX_POOL_SIZE:
                 raise HardwareCommandError(
                     409,
@@ -111,28 +145,78 @@ class MavlinkPool:
                 connection_url=connection_url,
                 pilot=pilot,
                 observer=observer,
+                owner_id=owner_id,
+                project_id=project_id,
             )
             self._entries[drone_id] = entry
             return entry
 
-    def entry(self, drone_id: str) -> PoolEntry:
+    @staticmethod
+    def _validate_connection_url(connection_url: str) -> None:
+        """SEC-02 fix — block SSRF and arbitrary connection schemes.
+
+        Allowed schemes: udpout, udpin, tcpout, serial (with a path constraint).
+        Reject http(s):// to arbitrary hosts, file://, data:, etc.
+        """
+        import re
+        # Allowed: udpout:host:port | udpin:host:port | tcpout:host:port | serial:/dev/ttyXXX:baud
+        allowed = re.compile(
+            r"^(udpout|udpin|tcpout):[a-zA-Z0-9.\-]+:\d+$|"
+            r"^serial:/dev/tty[A-Z0-9]+:\d+$"
+        )
+        if not allowed.match(connection_url):
+            raise HardwareCommandError(
+                400, "BAD_CONNECTION_URL",
+                f"connectionUrl invalide (SEC-02 SSRF protection): {connection_url!r}",
+            )
+
+    def entry(self, drone_id: str, *, owner_id: str | None = None, project_id: str | None = None) -> PoolEntry:
+        """Retrieve an entry — optionally verify ownership (SEC-02)."""
         with self._lock:
             entry = self._entries.get(drone_id)
             if entry is None:
                 raise HardwareCommandError(404, "DRONE_NOT_REGISTERED", f"Le drone {drone_id} n'est pas dans le pool matériel")
+            # SEC-02 fix — verify ownership if requested
+            if owner_id is not None and entry.owner_id != owner_id:
+                raise HardwareCommandError(
+                    403, "FORBIDDEN",
+                    f"Le drone {drone_id} n'appartient pas à l'utilisateur {owner_id} (SEC-02)",
+                )
+            if project_id is not None and entry.project_id != project_id:
+                raise HardwareCommandError(
+                    403, "FORBIDDEN",
+                    f"Le drone {drone_id} n'appartient pas au projet {project_id} (SEC-02)",
+                )
             return entry
 
-    def pilot(self, drone_id: str) -> MavlinkCommandPilot:
-        return self.entry(drone_id).pilot
+    def pilot(self, drone_id: str, *, owner_id: str | None = None, project_id: str | None = None) -> MavlinkCommandPilot:
+        return self.entry(drone_id, owner_id=owner_id, project_id=project_id).pilot
 
-    def observer(self, drone_id: str) -> MavlinkObserver:
-        return self.entry(drone_id).observer
+    def observer(self, drone_id: str, *, owner_id: str | None = None, project_id: str | None = None) -> MavlinkObserver:
+        return self.entry(drone_id, owner_id=owner_id, project_id=project_id).observer
 
-    def unregister(self, drone_id: str) -> bool:
+    def unregister(self, drone_id: str, *, owner_id: str | None = None, project_id: str | None = None) -> bool:
+        """Unregister a drone — verify ownership before removal (SEC-02 fix).
+
+        SEC-02 fix — previously unregister(droneId) removed any drone by id,
+        allowing any tenant to deregister another tenant's drone. Now requires
+        the caller to prove ownership.
+        """
         with self._lock:
-            entry = self._entries.pop(drone_id, None)
+            entry = self._entries.get(drone_id)
             if entry is None:
                 return False
+            if owner_id is not None and entry.owner_id != owner_id:
+                raise HardwareCommandError(
+                    403, "FORBIDDEN",
+                    f"Impossible de désenregistrer le drone {drone_id} — appartient à un autre tenant (SEC-02)",
+                )
+            if project_id is not None and entry.project_id != project_id:
+                raise HardwareCommandError(
+                    403, "FORBIDDEN",
+                    f"Impossible de désenregistrer le drone {drone_id} — appartient à un autre projet (SEC-02)",
+                )
+            self._entries.pop(drone_id, None)
             try:
                 entry.pilot.close()
             except Exception:

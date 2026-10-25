@@ -46,11 +46,25 @@ def _mysql_tls_connect_args() -> dict[str, object]:
 
 if _engine_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+    # V6 — for :memory: SQLite, use StaticPool so all connections share the
+    # same in-memory database. Without this, each SessionLocal() call opens
+    # a new connection to a fresh empty DB, and tables created by
+    # create_all() are invisible to subsequent queries. This was masked
+    # when tests used file-based SQLite, but :memory: (set by some test
+    # modules at import time via os.environ.setdefault) requires the pool.
+    from sqlalchemy.pool import StaticPool
+    engine = create_engine(
+        _engine_url,
+        pool_pre_ping=True,
+        connect_args=connect_args,
+        poolclass=StaticPool if ":memory:" in _engine_url else None,
+    )
 elif _engine_url.startswith("mysql+pymysql://"):
     connect_args = _mysql_tls_connect_args()
+    engine = create_engine(_engine_url, pool_pre_ping=True, connect_args=connect_args)
 else:
     connect_args = {}
-engine = create_engine(_engine_url, pool_pre_ping=True, connect_args=connect_args)
+    engine = create_engine(_engine_url, pool_pre_ping=True, connect_args=connect_args)
 if _engine_url.startswith("sqlite"):
 
     @event.listens_for(engine, "connect")

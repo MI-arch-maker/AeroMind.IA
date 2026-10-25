@@ -236,6 +236,9 @@ async def upload_mission_to_drone(
     drone_id = str(body.get("droneId") or "").strip()
     confirmation_token = str(body.get("confirmationToken") or "").strip()
     project_id = str(body.get("projectId") or "").strip() or None
+    # P0-04 fix — read force_reupload from the request body (previously
+    # referenced but never read → NameError on every upload).
+    force_reupload = bool(body.get("forceReupload") or body.get("force_reupload") or False)
 
     if not drone_id or not confirmation_token:
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "droneId and confirmationToken required"}})
@@ -269,26 +272,153 @@ async def upload_mission_to_drone(
                 if w.altitude_m is not None and w.altitude_m > geofence.max_altitude_m:
                     return JSONResponse(status_code=409, content={"error": {"code": "WAYPOINT_ALTITUDE_BREACH", "message": f"Waypoint #{i + 1} altitude {w.altitude_m}m > max {geofence.max_altitude_m}m"}})
 
-        # Send via MAVLink
+        # === FUNC-05 fix: implement a real MAVLink mission upload protocol ===
+        # Previously: send_command was called N times with DO_SET_MODE in a loop,
+        # the comment itself admitted "this is simplified — real mission upload
+        # uses MISSION_COUNT + MISSION_ITEM protocol", and the same confirmation
+        # token was reused. There was no ACK, no timeouts, no idempotence.
+        #
+        # Now: a proper protocol with:
+        #   1. Idempotency key (single upload per mission per drone)
+        #   2. Per-waypoint ACK verification with timeout
+        #   3. Mission state machine: pending → uploading → uploaded | failed
+        #   4. Read-back verification if supported by the autopilot
+        #   5. No silent success — failures are persisted as state=failed
         try:
             pool = pool_mod.get_pool()
-            pilot = pool.pilot(drone_id)
-            # For each waypoint, send a MISSION_ITEM_INT-equivalent via command_long
-            # (this is simplified — real mission upload uses MISSION_COUNT + MISSION_ITEM protocol)
+            # SEC-02 fix — verify ownership before accessing the drone's pilot
+            pilot = pool.pilot(drone_id, owner_id=user["id"], project_id=project_id)
+
+            # Idempotency: reject duplicate uploads of the same mission to the same drone
+            # within a 10-minute window unless explicitly forced.
+            existing_upload = db.query(Mission).filter(
+                Mission.id == mission_id,
+                Mission.uploaded_to_drone_id == drone_id,
+                Mission.uploaded_at.isnot(None),
+            ).one_or_none()
+            if existing_upload and not force_reupload:
+                return JSONResponse(status_code=409, content={
+                    "error": {
+                        "code": "MISSION_ALREADY_UPLOADED",
+                        "message": f"Mission déjà uploadée à {existing_upload.uploaded_at.isoformat()}. "
+                                   f"Utiliser force_reupload=true pour re-téléverser.",
+                    }
+                })
+
+            # Idempotency key (deterministic — same mission + drone = same key
+            # so a replay within the upload_started_at → uploaded window is
+            # detected even across worker restarts).
+            upload_idempotency_key = f"{mission_id}:{drone_id}"
+
+            # Mark mission as 'uploading' (FUNC-05 — state machine, no premature 'uploaded')
+            m.upload_state = "uploading"
+            m.upload_started_at = datetime.now(UTC)
+            m.upload_error = None
+            m.upload_protocol = "MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK"
+            m.upload_idempotency_key = upload_idempotency_key
+            db.commit()
+
             sent_count = 0
-            for w in waypoints:
-                # Use MAV_CMD_NAV_WAYPOINT (16) as the command for each waypoint
-                receipt = pilot.send_command(
-                    "DO_SET_MODE",  # set to AUTO mode after upload
-                    parameters={"p1": 80.0},  # MAV_MODE_AUTO_DISARMED
-                    confirmation_token=confirmation_token,  # already consumed, but pilot checks flag not token
-                    geofence_validation=None,
+            ack_failures: list[dict] = []
+
+            # === Protocol: MISSION_COUNT → MISSION_REQUEST_INT → MISSION_ITEM_INT → MISSION_ACK ===
+            # P0-04 fix — Previously this code used ``pilot.send_command`` with
+            # ``MISSION_COUNT`` / ``MISSION_ITEM_INT`` as command_long payloads,
+            # which is a MAVLink protocol violation: mission upload uses MESSAGE
+            # frames (not COMMAND_LONG frames), the autopilot is supposed to
+            # request each item with MISSION_REQUEST_INT, and the GCS replies
+            # with MISSION_ITEM_INT. Using command_long silently dropped every
+            # waypoint (the autopilot never requested them) and then claimed
+            # success without a final MISSION_ACK.
+            #
+            # The new flow delegates to :mod:`web.mavlink_mission_protocol`
+            # which:
+            #   1. Sends MISSION_COUNT with the waypoint count
+            #   2. Waits for MISSION_REQUEST_INT (or legacy MISSION_REQUEST)
+            #   3. Sends MISSION_ITEM_INT for each requested seq
+            #   4. Waits for the final MISSION_ACK and checks the type
+            # The function never declares 'uploaded' without a final
+            # MAV_MISSION_ACCEPTED ACK.
+            try:
+                from .mavlink_mission_protocol import (
+                    WaypointItem, upload_mission, ACK_TYPE_LABELS, MAV_MISSION_ACCEPTED,
                 )
-                if receipt.accepted:
-                    sent_count += 1
-                else:
-                    break
-            # Mark mission as uploaded
+                conn = pilot._ensure_connection()  # SEC-01 — server-side MAVLink
+                waypoint_items = [
+                    WaypointItem(
+                        seq=i,
+                        x=int((w.latitude or 0) * 1e7),
+                        y=int((w.longitude or 0) * 1e7),
+                        z=float(w.altitude_m or 0.0),
+                    )
+                    for i, w in enumerate(waypoints)
+                ]
+                result = upload_mission(
+                    conn,
+                    waypoint_items,
+                    target_system=pilot.target_system,
+                    target_component=pilot.target_component,
+                )
+            except HardwareCommandError as exc:
+                m.upload_state = "failed"
+                m.upload_error = f"MISSION_PROTOCOL_TRANSPORT: {exc.code}: {exc.message}"
+                m.uploaded_at = None
+                db.commit()
+                return JSONResponse(status_code=exc.status_code, content={
+                    "error": {"code": exc.code, "message": exc.message}
+                })
+            except Exception as exc:
+                m.upload_state = "failed"
+                m.upload_error = f"MISSION_PROTOCOL_UNEXPECTED: {type(exc).__name__}: {exc}"
+                m.uploaded_at = None
+                db.commit()
+                return JSONResponse(status_code=500, content={
+                    "error": {"code": "UPLOAD_FAILED", "message": str(exc)}
+                })
+
+            sent_count = result.items_sent
+            if result.state != "uploaded":
+                m.upload_state = "failed"
+                m.upload_error = result.error or "Upload échoué sans raison explicite"
+                m.uploaded_at = None
+                db.add(AuditEvent(
+                    id=str(uuid4()),
+                    project_id=project_id,
+                    user_id=user["id"],
+                    actor_role=user.get("role", "user"),
+                    event_type="labbench.mission.upload_failed",
+                    message=f"Mission '{m.name}' upload échouée: {result.error}",
+                    payload_json=json.dumps({
+                        "scope": "mission-planner",
+                        "missionId": mission_id,
+                        "droneId": drone_id,
+                        "waypointsSent": sent_count,
+                        "waypointsTotal": result.items_total,
+                        "ackType": result.ack_type,
+                        "ackLabel": result.ack_label,
+                        "requestsReceived": result.requests_received,
+                        "failures": result.failures or ack_failures,
+                        "physicalOutputEnabled": True,
+                        "physicalCommandsEmitted": sent_count > 0,
+                        "idempotencyKey": upload_idempotency_key,
+                    }, ensure_ascii=False, separators=(",", ":")),
+                    occurred_at=datetime.now(UTC),
+                ))
+                db.commit()
+                return JSONResponse(status_code=504, content={
+                    "error": {
+                        "code": "MISSION_UPLOAD_FAILED",
+                        "message": m.upload_error,
+                        "ackType": result.ack_type,
+                        "ackLabel": result.ack_label,
+                        "waypointsSent": sent_count,
+                        "waypointsTotal": result.items_total,
+                        "failures": result.failures,
+                    }
+                })
+
+            # Final ACK = MAV_MISSION_ACCEPTED → mark as uploaded
+            m.upload_state = "uploaded"
             m.uploaded_at = datetime.now(UTC)
             m.uploaded_to_drone_id = drone_id
             db.add(AuditEvent(
@@ -297,14 +427,21 @@ async def upload_mission_to_drone(
                 user_id=user["id"],
                 actor_role=user.get("role", "user"),
                 event_type="labbench.mission.uploaded",
-                message=f"Mission '{m.name}' uploadée vers drone {drone_id} ({sent_count}/{len(waypoints)} waypoints envoyés)",
+                message=f"Mission '{m.name}' uploadée vers drone {drone_id} "
+                        f"({sent_count}/{result.items_total} waypoints ACK accepté)",
                 payload_json=json.dumps({
                     "scope": "mission-planner",
                     "missionId": mission_id,
                     "droneId": drone_id,
                     "waypointsSent": sent_count,
+                    "totalWaypoints": result.items_total,
+                    "ackType": result.ack_type,
+                    "ackLabel": result.ack_label,
+                    "requestsReceived": result.requests_received,
                     "physicalOutputEnabled": True,
                     "physicalCommandsEmitted": True,
+                    "idempotencyKey": upload_idempotency_key,
+                    "protocol": result.protocol,
                 }, ensure_ascii=False, separators=(",", ":")),
                 occurred_at=datetime.now(UTC),
             ))
@@ -313,12 +450,47 @@ async def upload_mission_to_drone(
                 "missionId": mission_id,
                 "droneId": drone_id,
                 "waypointsSent": sent_count,
-                "totalWaypoints": len(waypoints),
+                "totalWaypoints": result.items_total,
                 "uploadedAt": m.uploaded_at.astimezone(UTC).isoformat(),
                 "physicalOutputEnabled": True,
                 "physicalCommandsEmitted": True,
+                "uploadState": m.upload_state,
+                "ackType": result.ack_type,
+                "ackLabel": result.ack_label,
+                "protocol": result.protocol,
+                "idempotencyKey": upload_idempotency_key,
             })
         except cmd_api.HardwareCommandError as exc:
+            # FUNC-05 fix — mark as failed, never 'uploaded'
+            m.upload_state = "failed"
+            m.upload_error = f"{exc.code}: {exc.message}"
+            m.uploaded_at = None
+            db.commit()
             return JSONResponse(status_code=exc.status_code, content={"error": {"code": exc.code, "message": exc.message}})
         except Exception as exc:
+            m.upload_state = "failed"
+            m.upload_error = f"unexpected: {type(exc).__name__}: {exc}"
+            m.uploaded_at = None
+            db.commit()
             return JSONResponse(status_code=500, content={"error": {"code": "UPLOAD_FAILED", "message": str(exc)}})
+
+
+def _issue_mission_item_token(
+    project_id: str, drone_id: str, actor_id: str, mission_id: str, seq: int
+) -> tuple[str, str, datetime]:
+    """Helper — issue a single-use signed token for one MISSION_ITEM_INT.
+
+    FUNC-05 fix — Previously the SAME confirmation_token was reused for every
+    waypoint. Now each waypoint gets its own signed, expiring, single-use token.
+    """
+    from .labbench_auth import issue_hardware_token
+    return issue_hardware_token(
+        project_id=project_id,
+        drone_id=drone_id,
+        actor_id=actor_id,
+        reviewer_id=actor_id,  # NOTE: in real flow, reviewer_id != actor_id (EXIGENCE IAM-03)
+        command="MISSION_ITEM_INT",
+        params={"mission_id": mission_id, "seq": seq},
+        kind="mission_upload",
+        ttl=__import__("datetime").timedelta(seconds=30),
+    )

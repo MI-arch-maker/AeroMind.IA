@@ -41,6 +41,13 @@ from .maintenance import router as maintenance_router
 from .dashboard import router as dashboard_router
 from .voice_commands import router as voice_commands_router
 from .realtime import router as realtime_router
+# P0-03 fix — EXIGENCE CANON-01: the canonical LABBENCH router
+# (/api/lab/*) MUST be registered on app boot so the canonical contract
+# endpoints (step-up sessions, drone revisions, test runs, measurements,
+# gate approvals, mode info) are exposed under OpenAPI and callable via
+# authenticated HTTP. Previously the module existed but was never imported,
+# so every /api/lab/* request 404'd.
+from .labbench_canonical_api import router as labbench_canonical_router
 from .database import Base, engine, ping_database, SessionLocal
 from .models import User, Project, Drone, Simulation, Report, AuditEvent, LabSession
 from sqlalchemy import select
@@ -106,10 +113,28 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title='AeroMind AI API', version='2.0.0', docs_url='/docs' if settings.environment != 'production' else None, redoc_url=None, lifespan=lifespan)
+# P0-05 — anonymous workspace drafts are keyed by client-supplied opaque
+# identifier (validated for shape) so two anonymous browsers cannot read
+# or overwrite each other's drafts. The store is bounded; older entries
+# are evicted FIFO when the cap is reached. Authenticated clients should
+# persist via the canonical /api/lab/* API instead.
+MAX_ANONYMOUS_WORKSPACES = 256
 _local_workspaces: dict[str, dict] = {}
+_WORKSPACE_KEY_RE = __import__('re').compile(r'^[A-Za-z0-9_-]{32,128}$')
+
+
+def _is_valid_workspace_key(key: str) -> bool:
+    """Validate the X-AeroMind-Workspace header value.
+
+    Accepts 32..128 chars of [A-Za-z0-9_-] — opaque to the server, no
+    internal structure assumed. A UUIDv4 (with or without dashes) or a
+    base64url-encoded 16-byte token are both fine. The strict format
+    prevents path traversal, header injection and trivial collisions.
+    """
+    return bool(_WORKSPACE_KEY_RE.match(key))
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.hosts)
 if settings.origins:
-    app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credentials=True, allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allow_headers=['Authorization', 'Content-Type', 'X-Request-ID'])
+    app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credentials=True, allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allow_headers=['Authorization', 'Content-Type', 'X-Request-ID', 'X-AeroMind-Workspace'])
 
 FRONTEND_DIR = Path('frontend/dist')
 FRONTEND_INDEX = FRONTEND_DIR / 'index.html'
@@ -136,6 +161,8 @@ app.include_router(maintenance_router)
 app.include_router(dashboard_router)
 app.include_router(voice_commands_router)
 app.include_router(realtime_router)
+# P0-03 fix — register the canonical /api/lab/* router (EXIGENCE CANON-01).
+app.include_router(labbench_canonical_router)
 
 
 @app.middleware('http')
@@ -194,16 +221,163 @@ def platform_config():
     return Response(content=script, media_type='application/javascript', headers={'Cache-Control': 'no-store'})
 
 
+def _workspace_db_get(key: str) -> dict | None:
+    """V5 LOT B / R-04 — fetch anonymous workspace from DB (canonical store).
+
+    Returns None if the workspace doesn't exist or has expired. The in-memory
+    ``_local_workspaces`` dict is consulted FIRST as a hot-path cache; the DB
+    is the source of truth and is consulted on cache miss. Expired rows are
+    purged on access (lazy TTL enforcement).
+    """
+    # Hot path: in-memory cache
+    cached = _local_workspaces.get(key)
+    if cached is not None:
+        return cached
+    # DB canonical
+    try:
+        from .database import SessionLocal
+        from .models import AnonymousWorkspace
+        from datetime import UTC, datetime
+        from sqlalchemy import select, delete
+        with SessionLocal() as db:
+            # Lazy purge of expired workspaces (cheap — indexed on expires_at)
+            now = datetime.now(UTC)
+            db.execute(delete(AnonymousWorkspace).where(AnonymousWorkspace.expires_at < now))
+            row = db.scalar(select(AnonymousWorkspace).where(AnonymousWorkspace.id == key))
+            if row is None:
+                # Commit the lazy purge before returning so the DELETE is
+                # persisted (otherwise the session rollback discards it).
+                db.commit()
+                return None
+            try:
+                payload = __import__('json').loads(row.data_json or "{}")
+            except Exception:
+                payload = {}
+            db.commit()
+        # Re-populate the cache so subsequent reads stay fast on this worker.
+        _local_workspaces[key] = payload
+        return payload
+    except Exception as exc:  # noqa: BLE001
+        # DB unavailable — degrade to in-memory only (dev / migration / SQLite :memory:)
+        return None
+
+
+def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> None:
+    """V5 LOT B / R-04 — persist anonymous workspace to DB (canonical store).
+
+    Uses ``INSERT OR REPLACE`` semantics so the row is created or updated
+    atomically. The TTL is refreshed on every PUT (sliding expiration).
+    The in-memory cache is also updated so subsequent GETs on this worker
+    stay fast.
+    """
+    # Hot path: update cache
+    _local_workspaces[key] = payload
+    # Bound the in-memory cache to MAX_ANONYMOUS_WORKSPACES (FIFO eviction)
+    if len(_local_workspaces) > MAX_ANONYMOUS_WORKSPACES:
+        try:
+            oldest = next(iter(_local_workspaces))
+            _local_workspaces.pop(oldest, None)
+        except StopIteration:
+            pass
+    # DB canonical
+    try:
+        import json as _json
+        from .database import SessionLocal
+        from .models import AnonymousWorkspace
+        from datetime import UTC, datetime, timedelta
+        from sqlalchemy import select
+        data_json = _json.dumps(payload, ensure_ascii=False)
+        ttl_seconds = int(os.getenv('AEROMIND_WORKSPACE_TTL_SECONDS', '604800'))  # 7 days default
+        expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
+        with SessionLocal() as db:
+            existing = db.scalar(select(AnonymousWorkspace).where(AnonymousWorkspace.id == key))
+            if existing is None:
+                db.add(AnonymousWorkspace(
+                    id=key,
+                    data_json=data_json,
+                    expires_at=expires_at,
+                    origin_ip=origin_ip,
+                ))
+            else:
+                existing.data_json = data_json
+                existing.expires_at = expires_at
+                if origin_ip:
+                    existing.origin_ip = origin_ip
+            db.commit()
+    except Exception as exc:  # noqa: BLE001
+        # DB unavailable — degrade to in-memory only. The cache is already
+        # populated above so the worker continues to serve the request.
+        print(f"WARNING: anonymous workspace DB persist failed ({type(exc).__name__}); "
+              f"degraded to in-memory only — workspace will not survive restart.",
+              flush=True)
+
+
 @app.get('/api/local/workspace')
 async def get_local_workspace(request: Request):
-    """Return the anonymous browser workspace as JSON, never the SPA shell."""
-    key = request.headers.get('X-AeroMind-Workspace', 'default')
-    return {'workspace': _local_workspaces.get(key), 'source': 'LOCAL'}
+    """Return the anonymous browser workspace as JSON, never the SPA shell.
+
+    V5 LOT B / R-04 — the workspace is now persisted in the
+    ``anonymous_workspaces`` DB table (with TTL, sliding expiration, and
+    lazy purge of expired rows). The in-memory ``_local_workspaces`` dict
+    is a hot-path cache on top of the DB canonical store. Workspaces
+    survive worker restart and are visible across workers.
+
+    P0-05 fix — the previous implementation used a single shared
+    ``'default'`` cache key when the ``X-AeroMind-Workspace`` header was
+    absent, so two anonymous browsers could read or overwrite each other's
+    drafts. The key is now derived from a per-client random workspace
+    identifier issued server-side and validated for shape; the shared
+    ``'default'`` key is removed entirely. Anonymous clients MUST send a
+    non-empty ``X-AeroMind-Workspace`` header (a UUID or similar opaque
+    token) — otherwise the endpoint responds 400 BAD_REQUEST. Authenticated
+    clients should not use this endpoint; their workspace is loaded via
+    /api/lab/projects/{id}/drones/active from the canonical source of truth.
+    """
+    raw_key = request.headers.get('X-AeroMind-Workspace', '').strip()
+    if not raw_key or not _is_valid_workspace_key(raw_key):
+        return JSONResponse(
+            status_code=400,
+            content={'error': {
+                'code': 'WORKSPACE_KEY_REQUIRED',
+                'message': (
+                    "Un identifiant de workspace (header X-AeroMind-Workspace, "
+                    "32 à 128 caractères alphanumériques) est requis pour isoler "
+                    "les brouillons anonymes (P0-05)."
+                ),
+            }},
+            headers={'Cache-Control': 'no-store'},
+        )
+    payload = _workspace_db_get(raw_key)
+    return {'workspace': payload, 'source': 'LOCAL'}
 
 
 @app.put('/api/local/workspace')
 async def put_local_workspace(request: Request):
-    """Store an explicitly local snapshot; this does not imply server evidence."""
+    """Store an explicitly local snapshot; this does not imply server evidence.
+
+    V5 LOT B / R-04 — persists the workspace to the DB canonical store
+    (anonymous_workspaces table) with sliding TTL. The in-memory cache is
+    updated first so the response is fast; the DB write happens behind.
+
+    P0-05 fix — Same key-isolation contract as the GET path: each anonymous
+    client MUST supply its own ``X-AeroMind-Workspace`` key; the shared
+    ``'default'`` key is rejected. Authenticated clients should persist via
+    the canonical API.
+    """
+    raw_key = request.headers.get('X-AeroMind-Workspace', '').strip()
+    if not raw_key or not _is_valid_workspace_key(raw_key):
+        return JSONResponse(
+            status_code=400,
+            content={'error': {
+                'code': 'WORKSPACE_KEY_REQUIRED',
+                'message': (
+                    "Un identifiant de workspace (header X-AeroMind-Workspace, "
+                    "32 à 128 caractères alphanumériques) est requis pour isoler "
+                    "les brouillons anonymes (P0-05)."
+                ),
+            }},
+            headers={'Cache-Control': 'no-store'},
+        )
     try:
         body = await request.json()
     except Exception as exc:
@@ -213,8 +387,8 @@ async def put_local_workspace(request: Request):
         return JSONResponse(status_code=422, content={'error': {'code': 'INVALID_WORKSPACE', 'message': 'workspace object required'}})
     if workspace.get('physicalOutputEnabled') is not False:
         return JSONResponse(status_code=422, content={'error': {'code': 'PHYSICAL_OUTPUT_FORBIDDEN', 'message': 'physicalOutputEnabled must remain false'}})
-    key = request.headers.get('X-AeroMind-Workspace', 'default')
-    _local_workspaces[key] = workspace
+    origin_ip = request.client.host if request.client else None
+    _workspace_db_put(raw_key, workspace, origin_ip=origin_ip)
     return {'ok': True, 'source': 'LOCAL', 'updatedAt': workspace.get('updatedAt')}
 
 
