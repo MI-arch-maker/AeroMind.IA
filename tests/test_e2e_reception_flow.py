@@ -173,7 +173,7 @@ def test_e2e_01_library_drawing_labbench_trial_recording_reconnection(e2e_db):
         db.add(rev1)
         # Mark this revision as the active one on the Drone row.
         drone_row = db.get(Drone, drone_id)
-        drone_row.active_revision_id = revision_v1_id  # type: ignore[attr-defined]
+        
         db.commit()
 
     # Verify the revision is persisted + immutable
@@ -218,7 +218,7 @@ def test_e2e_01_library_drawing_labbench_trial_recording_reconnection(e2e_db):
         # The active revision is now v2 — the v1 row remains immutable so
         # any past TestRun bound to v1 stays reproducible.
         drone_row = db.get(Drone, drone_id)
-        drone_row.active_revision_id = revision_v2_id  # type: ignore[attr-defined]
+        
         # Add an audit event for the revision change.
         db.add(AuditEvent(
             id=str(uuid4()),
@@ -381,9 +381,7 @@ def test_e2e_01_library_drawing_labbench_trial_recording_reconnection(e2e_db):
         # Active revision pointer
         drone_final = db.get(Drone, drone_id)
         assert drone_final is not None
-        # Note: active_revision_id may or may not be set depending on the
-        # legacy Drone model's columns — the canonical contract is that
-        # the latest revision_number is the active one.
+        # V6.2 — the active revision is computed by querying the latest DroneRevision.
 
         # TestRun + Measurements
         run_final = db.scalar(select(TestRun).where(TestRun.id == run_id))

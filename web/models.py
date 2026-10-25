@@ -61,13 +61,12 @@ class Drone(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     config_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
-    # EXIGENCE SYNC-02 — pointer to the active DroneRevision (canonical_models).
-    # The DroneRevision table holds the immutable versioned configuration; the
-    # drone row carries a non-FK string pointer so the legacy schema remains
-    # valid even before the canonical migration is applied. The canonical
-    # schema migration (migrations/2026-10-25_canonical_labbench_schema.sql)
-    # adds a real FK constraint for production deployments.
-    active_revision_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    # NOTE: active_revision_id was removed from the ORM model in V6.2 because
+    # production databases (MySQL/TiDB) don't have this column and the
+    # migration `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` is PostgreSQL-only.
+    # The active revision is now computed on-the-fly by querying the latest
+    # DroneRevision for the drone (ORDER BY revision_number DESC LIMIT 1).
+    # This avoids INSERT failures on databases that lack the column.
 
 
 class Simulation(Base):
