@@ -312,6 +312,55 @@ def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> 
               flush=True)
 
 
+@app.post('/api/auth/dev-login')
+async def dev_login(request: Request):
+    """Development-only login — bypasses OIDC for local development.
+
+    Creates or reuses a dev user in admin_accounts, signs a session token,
+    and returns it. Only available when AEROMIND_ENV=development.
+    """
+    if settings.environment != 'development':
+        return JSONResponse(status_code=403, content={'error': {'code': 'DEV_LOGIN_FORBIDDEN', 'message': 'Connexion développement disponible uniquement en mode développement.'}})
+    import json as _json
+    from .oidc import _signed, _b64
+    from .admin import account_for_identity, account_for_email
+    dev_email = 'dev@aeromind.local'
+    dev_user_id = 'dev-user-001'
+    # Ensure the dev user exists in admin_accounts
+    account = account_for_email(dev_email)
+    if account is None:
+        # Create a dev admin account record
+        from .models import AdminAccountRecord
+        with SessionLocal() as db:
+            db.add(AdminAccountRecord(
+                id=str(uuid4()),
+                email=dev_email,
+                data_json=_json.dumps({
+                    'id': dev_user_id, 'email': dev_email, 'name': 'Développeur',
+                    'role': 'user', 'accountStatus': 'active', 'level': 'L1',
+                }),
+            ))
+            db.commit()
+    # Sign a session token
+    token = _signed(_b64(f'{dev_user_id}|{dev_email}'.encode()))
+    response = JSONResponse({
+        'user': {'id': dev_user_id, 'email': dev_email, 'name': 'Développeur', 'role': 'user', 'level': 'L1', 'accountStatus': 'active'},
+        'token': token,
+    })
+    response.set_cookie('aeromind_session', token, httponly=True, samesite='lax', max_age=86400)
+    return response
+
+
+@app.get('/api/auth/dev-status')
+async def dev_status():
+    """Check if development login is available."""
+    return {
+        'devLoginAvailable': settings.environment == 'development',
+        'oidcConfigured': bool(settings.oidc),
+        'environment': settings.environment,
+    }
+
+
 @app.get('/api/local/workspace')
 async def get_local_workspace(request: Request):
     """Return the anonymous browser workspace as JSON, never the SPA shell.
@@ -531,30 +580,41 @@ async def trpc_compat(
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
         if current_user.get('role') == 'visitor':
             return _trpc_error(403, 'FORBIDDEN', 'Le rôle Visiteur ne peut pas créer de projet persistant')
-        import json
+        import json, traceback
         project_id, drone_id = str(uuid4()), str(uuid4())
         config = payload.get('config', {}) if isinstance(payload.get('config', {}), dict) else {}
         config = {**config, 'airframe': config.get('airframe') or 'quadcopter', 'motorCount': config.get('motorCount') or 4, 'massKg': config.get('massKg') or 1.2, 'batteryWh': config.get('batteryWh') or 100}
         project_data = {'project': payload.get('project', {}), 'config': config, 'requirements': payload.get('requirements', []), 'runId': payload.get('runId', 'SIM-000')}
         try:
+            # V6.2 — use the app-level SessionLocal (patched in tests, the
+            # correct engine in production) instead of a lazily imported one.
             with SessionLocal() as db:
                 if current_user.get('role') == 'demo' and db.scalar(select(Project).where(Project.user_id == current_user['id'])) is not None:
                     return _trpc_error(403, 'DEMO_LIMIT_REACHED', 'Le compte Démo est limité à un projet')
-                if db.get(User, current_user['id']) is None:
+                # V6.2 — ensure the user row exists before creating the project
+                # (FK constraint: Project.user_id → users.id). The user might
+                # not have a row in the users table yet if they authenticated
+                # via OIDC but never had a project created.
+                existing_user = db.get(User, current_user['id'])
+                if existing_user is None:
                     db.add(User(id=current_user['id'], email=current_user['email']))
                     db.flush()
-                db.add(Project(id=project_id, user_id=current_user['id'], name=project_data['project'].get('name', 'Nouveau projet'), data_json=json.dumps(project_data), active_drone_id=drone_id))
-                # Les modèles utilisent des clés étrangères sans relations ORM explicites :
-                # forcer le flush garantit que le projet existe avant son drone associé.
-                db.flush()
-                db.add(Drone(id=drone_id, user_id=current_user['id'], project_id=project_id, name='Drone par défaut', config_json=json.dumps(project_data['config'])))
+                db.add(Project(id=project_id, user_id=current_user['id'],
+                               name=project_data['project'].get('name', 'Nouveau projet'),
+                               data_json=json.dumps(project_data, ensure_ascii=False),
+                               active_drone_id=drone_id))
+                db.flush()  # ensure project exists before creating drone (FK)
+                db.add(Drone(id=drone_id, user_id=current_user['id'], project_id=project_id,
+                             name='Drone par défaut', config_json=json.dumps(project_data['config'], ensure_ascii=False)))
                 db.commit()
         except Exception as exc:
-            # Aucun état local ne doit être présenté comme projet serveur si la
-            # transaction échoue. Le détail est journalisé côté Render, tandis
-            # que le client reçoit un code stable et actionnable.
-            print(f'PROJECT_CREATE_FAILED user={current_user.get("email")} error={type(exc).__name__}: {exc}', flush=True)
-            return _trpc_error(503, 'PROJECT_PERSISTENCE_FAILED', 'La base métier ne confirme pas la création du projet. Consultez les logs serveur et réessayez.')
+            # V6.2 — log the full traceback so the operator can diagnose the
+            # root cause (FK violation, NOT NULL constraint, connection error,
+            # etc.) instead of seeing only the generic 503 message.
+            print(f'PROJECT_CREATE_FAILED user={current_user.get("email")} '
+                  f'error={type(exc).__name__}: {exc}\n{traceback.format_exc()}', flush=True)
+            return _trpc_error(503, 'PROJECT_PERSISTENCE_FAILED',
+                                f'La base métier ne confirme pas la création du projet: {type(exc).__name__}: {exc}')
         data = {'id': project_id, **project_data}
     elif name.endswith('simulationRuns.list'):
         if not current_user:

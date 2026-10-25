@@ -28,7 +28,7 @@ import { normalizeLegacyStudioLayers } from "../lib/studioLayerCommands";
 import { buildManufacturingPackage } from "../lib/manufacturing";
 import { buildEngineeringReview } from "../lib/engineeringReview";
 import { nextLocalSimulationRunId } from "../lib/simulationRunId";
-import { startLogin } from "../const";
+import { startLogin, devLogin, checkDevLoginAvailable } from "../const";
 import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
 import { adaptExternalDroneToCatalog, deleteImportedDroneProfile, getMeshDimensions, initializeImportedDroneProfile, loadImportedDroneProfiles, loadImportedDroneProfilesDurable, normalizeImportedDroneProfile, parseExternalDroneMesh, saveImportedDroneProfile, transitionImportedDroneProfile, type Axis, type AxisMapping, type ImportArchitecture, type ImportedDroneProfile, type ImportedDroneReviewStatus } from "../lib/externalDroneImport";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
@@ -277,6 +277,8 @@ function SessionControls() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [devLoginAvailable, setDevLoginAvailable] = useState(false);
+  const [devLoginBusy, setDevLoginBusy] = useState(false);
 
   const refresh = async () => {
     try {
@@ -291,6 +293,7 @@ function SessionControls() {
 
   useEffect(() => {
     void refresh();
+    void checkDevLoginAvailable().then(setDevLoginAvailable);
     const onSessionChanged = () => void refresh();
     window.addEventListener("aeromind-auth-changed", onSessionChanged);
     return () => window.removeEventListener("aeromind-auth-changed", onSessionChanged);
@@ -315,6 +318,9 @@ function SessionControls() {
       <div className="session-controls">
         <div className="session-copy"><strong>Session fermée</strong><small>{window.__MANUS_CONFIG__?.externalOidcEnabled ? "Un compte Microsoft Entra autorisé est requis." : "Connexion indisponible · SSO Microsoft Entra non configuré."}</small></div>
         <button className="primary-button session-button" onClick={login} disabled={!window.__MANUS_CONFIG__?.externalOidcEnabled} type="button"><LogIn size={14} /> {window.__MANUS_CONFIG__?.externalOidcEnabled ? "Se connecter via Entra" : "Entra non configuré"}</button>
+        {devLoginAvailable && (
+          <button className="secondary-button session-button" onClick={async () => { setDevLoginBusy(true); await devLogin(); }} disabled={devLoginBusy} type="button"><LogIn size={14} /> {devLoginBusy ? "Connexion…" : "Connexion développement"}</button>
+        )}
       </div>
     );
   }
@@ -12494,11 +12500,15 @@ export default function Home() {
     });
     const body = await response.json().catch(() => null);
     if (!response.ok) {
+      // V6.2 — extract the actual backend error message (not the generic
+      // 503 wrapper) so the user can see the root cause.
       const message = body?.error?.json?.message || body?.error?.message || body?.detail?.message || body?.detail || `API projets indisponible (${response.status})`;
       throw new Error(message);
     }
+    // V6.2 — handle multiple response formats: {result:{data:{json:...}}},
+    // {result:{data:...}}, or flat {id:..., project:...}
     const created = body?.result?.data?.json ?? body?.result?.data ?? body?.data ?? body;
-    if (!created || typeof created !== "object" || !("id" in created) || !("project" in created) || !("config" in created) || !("requirements" in created) || !("runId" in created)) {
+    if (!created || typeof created !== "object" || !("id" in created)) {
       throw new Error("Réponse API de création de projet invalide");
     }
     return created as ProjectRecord;

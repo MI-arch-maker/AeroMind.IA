@@ -10,3 +10,37 @@ export const startLogin = () => {
   }
   window.location.assign("/?external_login=failed");
 };
+
+// V6.2 — Connexion développement (bypass OIDC pour développement local).
+// Crée un utilisateur de dev, signe un jeton de session, et rafraîchit la page.
+export const devLogin = async (): Promise<boolean> => {
+  try {
+    const response = await fetch("/api/auth/dev-login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    if (data?.token) {
+      sessionStorage.setItem("aeromind-entra-session", data.token);
+    }
+    // Rafraîchir la page pour que authQuery re-fetch avec le nouveau cookie
+    window.location.reload();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// V6.2 — Vérifier si la connexion développement est disponible.
+export const checkDevLoginAvailable = async (): Promise<boolean> => {
+  try {
+    const response = await fetch("/api/auth/dev-status", { credentials: "include" });
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data?.devLoginAvailable === true;
+  } catch {
+    return false;
+  }
+};
