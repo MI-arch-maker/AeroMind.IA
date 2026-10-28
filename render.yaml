@@ -49,7 +49,7 @@ services:
       - key: AEROMIND_SUPERADMIN_EMAILS
         value: mcgregoralvin14@gmail.com
       - key: AEROMIND_TRIAL_EMAILS
-        value: demo@example.com
+        value: mcgregoralvin14@gmail.com
       - key: DEFAULT_DEMO_EMAIL
         value: mcgregoralvin14@gmail.com
       # Option A — Microsoft Entra ID (laisser vide si OIDC générique utilisé)

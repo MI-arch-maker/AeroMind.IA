@@ -95,6 +95,35 @@ def _event_dict(event: AdminAccountEvent) -> dict[str, Any]:
             "createdAt": event.created_at.isoformat() if event.created_at else None}
 
 
+def reconcile_primary_identity() -> dict[str, Any] | None:
+    """Reconcile legacy demo/dev identities with the configured primary admin.
+
+    This is intentionally limited to known development/demo identities. It does
+    not delete projects or user data; it only removes stale account records and
+    ensures the configured primary identity is active and Super-Admin.
+    """
+    settings = get_settings()
+    primary = _primary_account()
+    if primary is None:
+        return None
+    legacy_emails = {"demo@example.com", "dev@aeromind.local"} - {primary["email"].casefold()}
+    with SessionLocal() as db:
+        for legacy in legacy_emails:
+            row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == legacy))
+            if row is not None:
+                db.delete(row)
+        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == primary["email"].casefold()))
+        if row is None:
+            row = AdminAccountRecord(id=primary["id"], email=primary["email"].casefold(), data_json=json.dumps(primary, ensure_ascii=False, separators=(",", ":")))
+            db.add(row)
+        else:
+            stored = _record_account(row)
+            stored.update({"email": primary["email"].casefold(), "role": "super_admin", "requestedRole": "super_admin", "accountStatus": "active", "approvalStatus": "approved", "level": "L4", "protected": True})
+            row.data_json = json.dumps(stored, ensure_ascii=False, separators=(",", ":"))
+        db.commit()
+    return primary
+
+
 def list_accounts() -> list[dict[str, Any]]:
     with SessionLocal() as db:
         return [_public_account(account) for account in _all_accounts(db)]

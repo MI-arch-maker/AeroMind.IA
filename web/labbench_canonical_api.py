@@ -182,12 +182,16 @@ def step_up(
             status.HTTP_400_BAD_REQUEST,
             detail=f"Rôles invalides: {sorted(invalid)}. Valid: {sorted(ROLES)}",
         )
-    # Verify MFA (simplified — TODO: full TOTP verification in local_auth.py)
-    if payload.assurance_level in ("step-up", "mfa") and not payload.mfa_code:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            detail="Code MFA requis pour assurance_level='step-up' ou 'mfa'",
-        )
+    # LABBENCH step-up uses the six-digit TOTP issued by the user's enrolled
+    # authenticator. Keep the contract explicit at the API boundary so the UI
+    # cannot submit a password, report code or arbitrary short string.
+    if payload.assurance_level in ("step-up", "mfa"):
+        code = (payload.mfa_code or "").strip()
+        if len(code) != 6 or not code.isdigit():
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                detail="Code TOTP LABBENCH requis : saisissez le code à 6 chiffres de votre application d’authentification.",
+            )
     session_token, expires_at, csrf_token = issue_step_up_session(
         user_id=user_id,
         project_id=payload.project_id,

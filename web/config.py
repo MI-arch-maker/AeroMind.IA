@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     local_superadmin_bootstrap_code: str | None = Field(None, alias='AEROMIND_LOCAL_SUPERADMIN_ENROLLMENT_CODE', validation_alias='AEROMIND_LOCAL_SUPERADMIN_ENROLLMENT_CODE')
     # Liste d’identités autorisées pour le parcours d’essai ; elle ne remplace
     # jamais la validation cryptographique du fournisseur OIDC.
-    trial_emails: str = Field('demo@example.com', alias='AEROMIND_TRIAL_EMAILS', validation_alias='AEROMIND_TRIAL_EMAILS')
+    trial_emails: str = Field('mcgregoralvin14@gmail.com', alias='AEROMIND_TRIAL_EMAILS', validation_alias='AEROMIND_TRIAL_EMAILS')
     # Destinataire par défaut des notifications de démonstration (aucun envoi
     # n'est déclenché par cette configuration). Administrable via l'environnement.
     default_demo_email: str | None = Field(None, alias='DEFAULT_DEMO_EMAIL', validation_alias='DEFAULT_DEMO_EMAIL')

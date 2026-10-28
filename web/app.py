@@ -108,6 +108,12 @@ async def lifespan(_: FastAPI):
             print(f"Imported legacy admin registry into the main database: {migrated}", flush=True)
     except SQLAlchemyError as exc:
         print(f"WARNING: legacy account registry import deferred ({type(exc).__name__}); apply the admin account schema before retrying.", flush=True)
+    if settings.environment == 'development':
+        try:
+            from .admin import reconcile_primary_identity
+            reconcile_primary_identity()
+        except SQLAlchemyError as exc:
+            print(f"WARNING: primary identity reconciliation deferred ({type(exc).__name__}).", flush=True)
     yield
 
 
@@ -323,28 +329,16 @@ async def dev_login(request: Request):
         return JSONResponse(status_code=403, content={'error': {'code': 'DEV_LOGIN_FORBIDDEN', 'message': 'Connexion développement disponible uniquement en mode développement.'}})
     import json as _json
     from .oidc import _signed, _b64
-    from .admin import account_for_identity, account_for_email
-    dev_email = 'dev@aeromind.local'
-    dev_user_id = 'dev-user-001'
-    # Ensure the dev user exists in admin_accounts
-    account = account_for_email(dev_email)
-    if account is None:
-        # Create a dev admin account record
-        from .models import AdminAccountRecord
-        with SessionLocal() as db:
-            db.add(AdminAccountRecord(
-                id=str(uuid4()),
-                email=dev_email,
-                data_json=_json.dumps({
-                    'id': dev_user_id, 'email': dev_email, 'name': 'Développeur',
-                    'role': 'user', 'accountStatus': 'active', 'level': 'L1',
-                }),
-            ))
-            db.commit()
-    # Sign a session token
+    from .admin import reconcile_primary_identity
+    primary = reconcile_primary_identity()
+    if primary is None:
+        return JSONResponse(status_code=503, content={'error': {'code': 'PRIMARY_ADMIN_NOT_CONFIGURED', 'message': 'Adresse Super-Admin principale non configurée.'}})
+    dev_email = primary['email'].casefold()
+    dev_user_id = primary['id']
+    # Development login is a local convenience for the configured primary admin.
     token = _signed(_b64(f'{dev_user_id}|{dev_email}'.encode()))
     response = JSONResponse({
-        'user': {'id': dev_user_id, 'email': dev_email, 'name': 'Développeur', 'role': 'user', 'level': 'L1', 'accountStatus': 'active'},
+        'user': {'id': dev_user_id, 'email': dev_email, 'name': primary.get('name', 'Administrateur principal'), 'role': 'super_admin', 'level': 'L4', 'accountStatus': 'active'},
         'token': token,
     })
     response.set_cookie('aeromind_session', token, httponly=True, samesite='lax', max_age=86400)

@@ -10,9 +10,9 @@ import Home from "@/pages/Home";
 import { lazy, Suspense } from "react";
 import { Spinner } from "@/components/ui/spinner";
 
-// Lazy-load LabBench (4273 lines) and SuperAdmin — only loaded when navigated to.
-// This drops ~600 KB from the initial bundle on the Home route.
-const LabBench = lazy(() => import("@/pages/LabBench"));
+// LABBENCH 01 is not a second application: its only entry point is the
+// integrated Home workspace. Keep the legacy URL as an alias to that same
+// shell so bookmarks cannot open a detached LabBench instance.
 const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
 
 function PageLoader() {
@@ -31,11 +31,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/labbench">
-        <Suspense fallback={<PageLoader />}>
-          <LabBench />
-        </Suspense>
-      </Route>
+      <Route path="/labbench" component={Home} />
       <Route path="/admin">
         <Suspense fallback={<PageLoader />}>
           <SuperAdmin />

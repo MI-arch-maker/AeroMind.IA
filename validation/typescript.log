@@ -1,3 +1,0 @@
-> node ../scripts/check_i18n_catalogs.mjs
-
-Locale catalogs synchronized: 2617 leaf keys; initial payloads within 153600 bytes each.

@@ -132,7 +132,7 @@ def me(
         'authenticated': True,
         'subject': subject,
         'email': email,
-        'name': email,
+        'name': account.get('name') or email,
         'role': role,
         'level': account.get('level', 'L1'),
         'account_status': account.get('accountStatus', 'active'),

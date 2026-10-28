@@ -471,18 +471,28 @@ export function MechanicalTwinEditor({
     window.dispatchEvent(new CustomEvent("aeromind-twin-dock", { detail: tab }));
   };
   const runTwinSimulation = () => {
-    const result = runSimulation(config, defaultRequirements, `SIM-TWIN-${Date.now()}`);
-    setSimulationResult(result);
-    setGeometryReview(null);
-    setActiveTwinNav("Simulation");
-    setDraftMessage(`Calcul local ${result.runId} terminé · autonomie indicative ${result.enduranceH.toFixed(2)} h · aucune commande matérielle.`);
+    try {
+      const result = runSimulation(config, defaultRequirements, `SIM-TWIN-${Date.now()}`);
+      setSimulationResult(result);
+      setGeometryReview(null);
+      setActiveTwinNav("Simulation");
+      setDraftMessage(`Calcul local ${result.runId} terminé · autonomie indicative ${result.enduranceH.toFixed(2)} h · aucune commande matérielle.`);
+    } catch (cause) {
+      setSimulationResult(null);
+      setDraftMessage(cause instanceof Error ? `Simulation impossible · ${cause.message}` : "Simulation impossible · configuration invalide.");
+    }
   };
   const runGeometryReview = () => {
-    const result = analyzeMechanicalModel(model);
-    setGeometryReview(result);
-    setSimulationResult(null);
-    setActiveTwinNav("Analyse");
-    setDraftMessage(`Diagnostic géométrique terminé · ${result.findings.length} constat(s) · contrôle local du maillage uniquement.`);
+    try {
+      const result = analyzeMechanicalModel(model);
+      setGeometryReview(result);
+      setSimulationResult(null);
+      setActiveTwinNav("Analyse");
+      setDraftMessage(`Diagnostic géométrique terminé · ${result.findings.length} constat(s) · contrôle local du maillage uniquement.`);
+    } catch (cause) {
+      setGeometryReview(null);
+      setDraftMessage(cause instanceof Error ? `Analyse géométrique impossible · ${cause.message}` : "Analyse géométrique impossible · modèle invalide.");
+    }
   };
   const saveRevision = () => {
     const createdAt = new Date().toISOString();
@@ -727,7 +737,7 @@ export function MechanicalTwinEditor({
           <RotateCcw size={15} />
         </button>
       </div>
-      {mode === "xray" && <div className="mt-xray-note" role="note"><strong>{language === "en" ? "X-RAY VIEW · DIGITAL MODEL" : "VISUALISATION X-RAY · MODÈLE NUMÉRIQUE"}</strong><span>{language === "en" ? "This render is not a real radiograph and does not reveal hidden parts in physical hardware. It only inspects layers of the digital twin. For non-destructive inspection of a real drone, use a qualified operator and approved equipment, following local radiation-safety rules." : "Ce rendu ne produit pas de radiographie réelle et ne révèle aucune pièce cachée du matériel physique. Il sert uniquement à inspecter les couches du jumeau numérique. Pour une inspection non destructive d’un drone réel, faire appel à un opérateur qualifié et à un équipement homologué ; suivre les règles locales de radioprotection."}</span></div>}
+      {mode === "xray" && <div className="mt-xray-note" role="note"><strong>{language === "en" ? "X-RAY VIEW · DIGITAL MODEL" : "VISUALISATION X-RAY · MODÈLE NUMÉRIQUE"}</strong><span>{language === "en" ? "Digital layer inspection only; the interactive model remains active below." : "Inspection des couches du modèle numérique uniquement ; la scène interactive reste active ci-dessous."}</span></div>}
       {mode === "xray" && <section className="mt-xray-controls" aria-label={language === "en" ? "Manual X-ray layer control" : "Contrôle manuel des couches X-ray"}>
         <div className="mt-xray-control-heading"><strong>{language === "en" ? "MODULE 1 · MANUAL LAYER CONTROL" : "MODULE 1 · CONTRÔLE MANUEL PAR COUCHES"}</strong><button type="button" className="mt-tool" onClick={resetXray}><RotateCcw size={12} /> {language === "en" ? "Reset" : "Réinitialiser"}</button></div>
         <label className="mt-xray-cut"><span>{language === "en" ? "Cutting-plane depth" : "Profondeur du plan de coupe"}<b>{Math.round(xrayCut * 100)} %</b></span><input aria-label={language === "en" ? "Cutting-plane depth" : "Profondeur du plan de coupe"} type="range" min="0" max="1" step="0.01" value={xrayCut} onChange={(event) => setXrayCut(Number(event.target.value))} /></label>

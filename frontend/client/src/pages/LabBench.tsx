@@ -31,6 +31,7 @@ import {
   FileCheck2,
   FolderKanban,
   Gauge,
+  Info,
   History,
   KeyRound,
   LockKeyhole,
@@ -55,7 +56,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { readJson } from "@/lib/workspaceSync";
 import {
   calculateLocalLabBenchResult,
-  defaultLabBenchScenario,
   normalizeLabBenchScenario,
   normalizeLabBenchProjects,
   normalizeLabBenchResult,
@@ -65,6 +65,8 @@ import {
   type LabBenchResult,
 } from "@/lib/labBench";
 import { useLanguage } from "../contexts/LanguageContext";
+import { performStepUp, fetchActiveDrone } from "../lib/labStatus";
+import { startLogin } from "../const";
 import "./labbench.css";
 
 // ===========================================================================
@@ -402,42 +404,60 @@ const modeItems: Array<{
   },
 ];
 
-const LABBENCH_SCENARIO_KEY = "aeromind-labbench-scenario-v1";
+// Only the explicit user-entered scenario is persisted. The previous key is
+// intentionally ignored so old demo/default values cannot become evidence.
+const LABBENCH_SCENARIO_KEY = "aeromind-labbench-scenario-user-v2";
 type LocalWorkspace = { projects?: unknown[]; activeProjectId?: string };
 const LOCAL_WORKSPACE_KEY = "aeromind-blank-workspace-v3";
-function readLabBenchScenario() {
-  if (typeof window === "undefined") return defaultLabBenchScenario;
+const EMPTY_LABBENCH_SCENARIO: LabBenchScenario = {
+  ambientC: 0,
+  heaterPowerW: 0,
+  dutyCycle: 0,
+  thermalResistanceCPerW: 0.1,
+  durationSeconds: 1,
+  positionSetpointDeg: 0,
+};
+type StoredLabBenchScenario = {
+  source: "user";
+  values: LabBenchScenario;
+};
+function readStoredLabBenchScenario(): StoredLabBenchScenario | null {
+  if (typeof window === "undefined") return null;
   try {
     const stored = JSON.parse(
       window.localStorage.getItem(LABBENCH_SCENARIO_KEY) ?? "null",
-    );
-    return normalizeLabBenchScenario(stored);
+    ) as Partial<StoredLabBenchScenario> | null;
+    if (stored?.source !== "user") return null;
+    const values = stored.values as Partial<LabBenchScenario> | undefined;
+    const requiredKeys: Array<keyof LabBenchScenario> = [
+      "ambientC",
+      "heaterPowerW",
+      "dutyCycle",
+      "thermalResistanceCPerW",
+      "durationSeconds",
+      "positionSetpointDeg",
+    ];
+    if (!values || !requiredKeys.every((key) => typeof values[key] === "number" && Number.isFinite(values[key]))) return null;
+    return { source: "user", values: normalizeLabBenchScenario(stored.values) };
   } catch {
-    return defaultLabBenchScenario;
+    return null;
   }
 }
+function readLabBenchScenario() {
+  return readStoredLabBenchScenario()?.values ?? { ...EMPTY_LABBENCH_SCENARIO };
+}
+function hasStoredUserScenario() {
+  return Boolean(readStoredLabBenchScenario());
+}
+export type LabBenchIntegratedProps = {
+  integrated?: boolean;
+  integratedProjectId?: string;
+  projectName?: string;
+  activeDroneLabel?: string;
+  workspaceConfig?: unknown;
+};
 
-const initialAudit = [
-  {
-    time: "09:42:11",
-    type: "gateway.status",
-    message: "Adaptateur LabBench simulé démarré en lecture seule.",
-    status: "info",
-  },
-  {
-    time: "09:42:08",
-    type: "requirements.review",
-    message: "REQ-SAF-003 reste en revue humaine ; aucune tolérance inventée.",
-    status: "warning",
-  },
-  {
-    time: "09:41:55",
-    type: "simulation.loaded",
-    message:
-      "Jeu de télémétrie synthétique référencé au moteur labbench-thermal-v1.0.0.",
-    status: "success",
-  },
-];
+const initialAudit: Array<{ time: string; type: string; message: string; status: string }> = [];
 
 const StatusDot = ({ state }: { state: string }) => (
   <span className={`lb-status-dot lb-${state}`} aria-hidden="true" />
@@ -461,7 +481,6 @@ function ServiceState({ state }: { state: string }) {
 function SectionHeading({
   eyebrow,
   title,
-  detail,
   actions,
 }: {
   eyebrow: string;
@@ -474,7 +493,6 @@ function SectionHeading({
       <div>
         <p className="lb-eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
-        <p>{detail}</p>
       </div>
       {actions}
     </div>
@@ -560,11 +578,18 @@ function GateBadge({ state }: { state: GateState }) {
   );
 }
 
-export default function LabBench() {
+export default function LabBench({
+  integrated = false,
+  integratedProjectId,
+  projectName,
+  activeDroneLabel,
+  workspaceConfig,
+}: LabBenchIntegratedProps = {}) {
   const { tKey } = useLanguage();
   const [view, setView] = useState<ViewId>("overview");
   const [mode, setMode] = useState<ModeId>("simulation");
   const [scenario, setScenario] = useState(readLabBenchScenario);
+  const [scenarioUserProvided, setScenarioUserProvided] = useState(hasStoredUserScenario);
   const [humanConfirmed, setHumanConfirmed] = useState(false);
   const [safetyConfirmed, setSafetyConfirmed] = useState(false);
   const [secondOperatorCode, setSecondOperatorCode] = useState("");
@@ -572,6 +597,12 @@ export default function LabBench() {
   const [reviewer, setReviewer] = useState("");
   const [reviewToken, setReviewToken] = useState("");
   const [reviewNote, setReviewNote] = useState("");
+  const [labMfaCode, setLabMfaCode] = useState("");
+  const [labSessionInfo, setLabSessionInfo] = useState<{ project_id: string; roles: string[]; expires_at: string } | null>(null);
+  const [stepUpHelpOpen, setStepUpHelpOpen] = useState(false);
+  const [activeDroneSync, setActiveDroneSync] = useState<{ drone_name?: string; revision?: string; last_sync_at?: string } | null>(null);
+  const [labActivationError, setLabActivationError] = useState<string | null>(null);
+  const [labActivating, setLabActivating] = useState(false);
   const [signOffDialogOpen, setSignOffDialogOpen] = useState(false);
   const [virtualPosition, setVirtualPosition] = useState<number | null>(null);
   const [storageError, setStorageError] = useState(false);
@@ -586,15 +617,39 @@ export default function LabBench() {
   );
   const [serverGateState, setServerGateState] = useState<LocalGateState>(initialLocalGateState);
   const [localGateState, setLocalGateState] = useState<LocalGateState>(initialLocalGateState);
-  // isLocalMode is computed later (after projects/remoteProjectId are resolved)
-  // but we need a preliminary version here for the useEffect
+  const workspaceRecord =
+    workspaceConfig && typeof workspaceConfig === "object"
+      ? (workspaceConfig as Record<string, unknown>)
+      : null;
+  const selectionRecord =
+    workspaceRecord?.engineeringSelection &&
+    typeof workspaceRecord.engineeringSelection === "object"
+      ? (workspaceRecord.engineeringSelection as Record<string, unknown>)
+      : null;
+  const customSketchRecord =
+    workspaceRecord?.customSketch &&
+    typeof workspaceRecord.customSketch === "object"
+      ? (workspaceRecord.customSketch as Record<string, unknown>)
+      : null;
+  const hasUserIntegratedData = Boolean(
+    selectionRecord?.droneId ||
+      workspaceRecord?.platformProfile ||
+      (Array.isArray(customSketchRecord?.strokes) &&
+        customSketchRecord.strokes.length > 0),
+  );
+  const integratedSurface = integrated || Boolean(integratedProjectId);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        LABBENCH_SCENARIO_KEY,
-        JSON.stringify(scenario),
-      );
+      if (scenarioUserProvided) {
+        const stored: StoredLabBenchScenario = {
+          source: "user",
+          values: scenario,
+        };
+        window.localStorage.setItem(LABBENCH_SCENARIO_KEY, JSON.stringify(stored));
+      } else {
+        window.localStorage.removeItem(LABBENCH_SCENARIO_KEY);
+      }
       setStorageError(false);
     } catch {
       setStorageError(true);
@@ -602,15 +657,17 @@ export default function LabBench() {
     setHumanConfirmed(false);
     setSafetyConfirmed(false);
     pendingCommand.current = null;
-  }, [scenario]);
+  }, [scenario, scenarioUserProvided]);
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== LABBENCH_SCENARIO_KEY || !event.newValue) return;
       try {
-        const next = JSON.parse(event.newValue) as Partial<LabBenchScenario>;
+        const stored = JSON.parse(event.newValue) as Partial<StoredLabBenchScenario>;
+        if (stored.source !== "user") return;
         setScenario((current: LabBenchScenario) =>
-          normalizeLabBenchScenario({ ...current, ...next }),
+          normalizeLabBenchScenario({ ...current, ...stored.values }),
         );
+        setScenarioUserProvided(true);
       } catch {
         // Une valeur externe invalide ne doit pas interrompre le banc d’essai.
       }
@@ -626,6 +683,10 @@ export default function LabBench() {
     window.addEventListener("storage", refreshLocalWorkspace);
     return () => window.removeEventListener("storage", refreshLocalWorkspace);
   }, []);
+  const updateScenario = (patch: Partial<LabBenchScenario>) => {
+    setScenario((current) => ({ ...current, ...patch }));
+    setScenarioUserProvided(true);
+  };
 
   const statusQuery = trpc.labBench.status.useQuery(undefined, {
     staleTime: 30_000,
@@ -644,10 +705,15 @@ export default function LabBench() {
     staleTime: 30_000,
   });
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  useEffect(() => {
+    setActiveProjectId(integratedProjectId ?? null);
+  }, [integratedProjectId]);
   const remoteProjects = normalizeLabBenchProjects(projectsQuery.data);
-  const localProjects = normalizeLabBenchProjects(localWorkspace?.projects);
-  const projects = remoteProjects.length ? remoteProjects : localProjects;
+  // LABBENCH 01 is an integrated AeroMind surface: server projects are the only source of truth.
+  // Anonymous/local workspace drafts are intentionally not exposed here.
+  const projects = remoteProjects;
   const selectedProjectId =
+    integratedProjectId ??
     (activeProjectId &&
     projects.some((project) => project.id === activeProjectId)
       ? activeProjectId
@@ -663,6 +729,17 @@ export default function LabBench() {
     remoteProjects.some((project) => project.id === selectedProjectId)
       ? selectedProjectId
       : null;
+  const integratedLocalDataReady = integratedSurface && hasUserIntegratedData;
+  // A local integrated workspace may be inspected and calculated, but only
+  // after the user has selected/imported a real AeroMind cell or drawing.
+  // There is deliberately no synthetic replacement for an empty workspace.
+  const serverDataReady = Boolean(
+    integratedLocalDataReady ||
+      (meQuery.data &&
+        remoteProjectId &&
+        projectsQuery.isSuccess &&
+        !projectsQuery.isError),
+  );
 
   // === FIX: auto-select remote project from localStorage when projects load ===
   // This syncs the project selected in Home.tsx to LabBench when the
@@ -690,12 +767,16 @@ export default function LabBench() {
     unknown
   > | null>(null);
   useEffect(() => {
+    if (integratedLocalDataReady && workspaceRecord) {
+      setActiveDroneConfig(workspaceRecord);
+      return;
+    }
     if (!remoteProjectId) {
       setActiveDroneConfig(selectedProject?.config ?? null);
       return;
     }
     return subscribeToActiveDrone(remoteProjectId, setActiveDroneConfig);
-  }, [remoteProjectId, JSON.stringify(selectedProject?.config)]);
+  }, [remoteProjectId, integratedLocalDataReady, JSON.stringify(workspaceRecord), JSON.stringify(selectedProject?.config)]);
   const registryQuery = trpc.labBench.registry.useQuery(
     remoteProjectId ?? "0",
     { enabled: Boolean(remoteProjectId), retry: false },
@@ -767,13 +848,11 @@ export default function LabBench() {
     projectEpoch.current += 1;
     simulationEpoch.current = null;
   }, [selectedProjectId]);
-  // === Local sandbox mode — simulate gates when no server auth available ===
-  // When the user is NOT authenticated (no OIDC), the server can't persist
-  // gate states. We provide a local-only sandbox that lets the operator
-  // experience the full LabBench flow without a server, using in-memory state.
-
-
-  const isLocalMode = !remoteProjectId;
+  // === Integrated local mode ===
+  // A local calculation is allowed only from the active Home workspace after
+  // the user selected/imported a cell or drawing. It is never a substitute for
+  // an empty workspace and it is never presented as server evidence.
+  const isLocalMode = integratedLocalDataReady && !remoteProjectId;
   // Auto-seed N1 registry when entering LabBench in local mode (so the gate shows as passed)
   useEffect(() => {
     if (isLocalMode && !localGateState.conditions.registry_initialized) {
@@ -798,6 +877,12 @@ export default function LabBench() {
   };
 
   const localRunSimulation = () => {
+    if (!scenarioUserProvided) {
+      toast.error("Donnée utilisateur requise", {
+        description: "Saisissez explicitement les paramètres LABBENCH ou sélectionnez une cellule AeroMind.",
+      });
+      return;
+    }
     simulationMutation.reset();
     const result = calculateLocalLabBenchResult(scenario);
     setLocalResult(result);
@@ -1051,14 +1136,6 @@ export default function LabBench() {
           isActive: Boolean(row.is_active),
         })).filter((d) => d.id);
         setFleetDrones(drones);
-        // Initialize per-drone scenario defaults if missing.
-        setFleetDroneScenarios((prev) => {
-          const next: Record<string, LabBenchScenario> = { ...prev };
-          for (const d of drones) {
-            if (!next[d.id]) next[d.id] = { ...defaultLabBenchScenario };
-          }
-          return next;
-        });
       })
       .catch(() => { if (!cancelled) setFleetDrones([]); });
     return () => { cancelled = true; };
@@ -1169,8 +1246,15 @@ export default function LabBench() {
       toast.error("Flotte vide", { description: "Ajoutez au moins un drone à la flotte." });
       return;
     }
+    const missingScenario = fleetDrones.some((drone) => !fleetDroneScenarios[drone.id]);
+    if (missingScenario) {
+      toast.error("Données utilisateur requises", {
+        description: "Renseignez les paramètres de chaque drone avant de lancer la flotte.",
+      });
+      return;
+    }
     const scenarios = fleetDrones.map((d) => {
-      const sc = fleetDroneScenarios[d.id] ?? defaultLabBenchScenario;
+      const sc = fleetDroneScenarios[d.id] as LabBenchScenario;
       return { droneId: d.id, ...sc };
     });
     fleetSimMutation.mutate({ projectId: remoteProjectId, scenarios });
@@ -1596,7 +1680,11 @@ export default function LabBench() {
     },
   });
 
-  const status = normalizeLabBenchStatus(statusQuery.data);
+  // The API response is authoritative. When it is absent, do not hydrate the
+  // screen from localLabBenchStatus or any historical emulator defaults.
+  const status = remoteProjectId && statusQuery.data
+    ? normalizeLabBenchStatus(statusQuery.data)
+    : null;
   const scenarioSignature = JSON.stringify(scenario);
   const rawLatestResult = localResult;
   const latestResult =
@@ -1611,26 +1699,30 @@ export default function LabBench() {
         scenario.thermalResistanceCPerW
     ).toFixed(2),
   );
-  const previewTelemetry = Array.from({ length: 12 }, (_, index) => ({
-    sequence: index + 1,
-    elapsedSeconds: Math.round((scenario.durationSeconds * (index + 1)) / 12),
-    temperatureC: Number(
-      (
-        scenario.ambientC +
-        (previewTemperatureC - scenario.ambientC) * ((index + 1) / 12)
-      ).toFixed(2),
-    ),
-    positionDeg: scenario.positionSetpointDeg,
-    quality: "synthetic",
-  }));
+  const previewTelemetry = scenarioUserProvided
+    ? Array.from({ length: 12 }, (_, index) => ({
+        sequence: index + 1,
+        elapsedSeconds: Math.round((scenario.durationSeconds * (index + 1)) / 12),
+        temperatureC: Number(
+          (
+            scenario.ambientC +
+            (previewTemperatureC - scenario.ambientC) * ((index + 1) / 12)
+          ).toFixed(2),
+        ),
+        positionDeg: scenario.positionSetpointDeg,
+        quality: "synthetic",
+      }))
+    : [];
   const telemetry =
     Array.isArray(latestResult?.telemetry) && latestResult.telemetry.length > 0
       ? latestResult.telemetry
       : previewTelemetry;
   const averageTemperature = useMemo(
     () =>
-      telemetry.reduce((sum, sample) => sum + sample.temperatureC, 0) /
-      Math.max(telemetry.length, 1),
+      telemetry.length > 0
+        ? telemetry.reduce((sum, sample) => sum + sample.temperatureC, 0) /
+          telemetry.length
+        : null,
     [telemetry],
   );
   const currentMode = modeItems.find((item) => item.id === mode)!;
@@ -1645,7 +1737,6 @@ export default function LabBench() {
     ? registry.drivers
     : [];
   const selectedRegistryDevice =
-    registryDevices.find((device) => device.deviceCode === "LB01-EMU-001") ??
     registryDevices[0];
   const selectedRegistryDriver =
     registryDrivers.find((driver) =>
@@ -1663,6 +1754,12 @@ export default function LabBench() {
   const currentZone = zoneOfView(view);
 
   const runLocalSimulation = () => {
+    if (!scenarioUserProvided) {
+      toast.error("Entrées utilisateur requises", {
+        description: "Modifiez au moins une entrée du scénario avant tout calcul.",
+      });
+      return;
+    }
     simulationMutation.reset();
     const result = calculateLocalLabBenchResult(scenario);
     setLocalResult(result);
@@ -1681,6 +1778,12 @@ export default function LabBench() {
     });
   };
   const runSimulation = () => {
+    if (!scenarioUserProvided) {
+      toast.error("Entrées utilisateur requises", {
+        description: "LABBENCH n’exécute aucun scénario par défaut ou préchargé.",
+      });
+      return;
+    }
     const error = validateLabBenchScenario(scenario);
     if (error) {
       toast.error("Paramètres hors plage", { description: error });
@@ -1761,7 +1864,7 @@ export default function LabBench() {
         time: new Date().toLocaleTimeString("fr-FR"),
         type: "gateway.identity.checked",
         message:
-          "Émulateur LB01-EMU-001 identifié ; mesure physique non revendiquée.",
+          `Source AeroMind vérifiée pour ${activeDroneLabel ?? "la configuration active"} ; aucune mesure physique revendiquée.`,
         status: "info",
       },
       ...entries,
@@ -1955,7 +2058,6 @@ export default function LabBench() {
           <div key={group.id} className="lb-zone-group">
             <div className="lb-zone-header">
               <span className="lb-zone-label">{group.label}</span>
-              <span className="lb-zone-meta">{group.description}</span>
               {progress && (
                 <span
                   className={`lb-zone-pill ${allPassed ? "is-passed" : progress.openCount > 0 ? "is-open" : "is-pending"}`}
@@ -1987,7 +2089,6 @@ export default function LabBench() {
                   <item.icon size={17} />
                   <span>
                     <strong>{item.label}</strong>
-                    <small>{item.caption}</small>
                   </span>
                   <ChevronRight size={14} />
                 </button>
@@ -2075,10 +2176,10 @@ export default function LabBench() {
   );
 
   return (
-    <main className="labbench-shell">
+    <main className={`labbench-shell lb-engineering-shell lb-presentation-shell ${integrated ? "lb-integrated-shell" : ""}`}>
       <aside className="lb-rail">
-        <Link href="/" className="lb-back">
-          <ArrowLeft size={15} /> Cockpit aéronautique
+        <Link href="/?view=overview" className="lb-back">
+          <ArrowLeft size={15} /> Vue d’ensemble AeroMind
         </Link>
         <div className="lb-brand">
           <span className="lb-mark">
@@ -2110,9 +2211,15 @@ export default function LabBench() {
             <p className="lb-eyebrow">
               PROJET ACTIF · {status?.project?.code ?? "LABBENCH-01"} · ZONE {currentZone?.toUpperCase()}
             </p>
-            <h1>{status?.project?.name ?? tKey("labbench.screen.title")}</h1>
+            <h1>{status?.project?.name ?? projectName ?? tKey("labbench.screen.title")}</h1>
+            <small className="lb-integrated-context">
+              Source unique : {projectName ?? "workspace AeroMind"} · cellule : {activeDroneLabel ?? "aucune sélection"}
+            </small>
           </div>
           <div className="lb-top-status">
+            <span className="lb-engineering-badge">
+              <Activity size={12} /> MASTER ENGINEERING
+            </span>
             <span className="lb-chip">
               <CircleDot size={14} /> Gate courant : {gateState.currentGate}
             </span>
@@ -2135,36 +2242,87 @@ export default function LabBench() {
         </div>
         {storageError && (
           <p className="lb-note" role="status">
-            Stockage navigateur indisponible : scénario conservé en mémoire
-            seulement ; export JSON disponible.
+            Stockage navigateur indisponible : seules les données serveur AeroMind sont utilisées.
           </p>
         )}
         {statusQuery.isError && (
           <p className="lb-note" role="status">
-            API LABBENCH indisponible : laboratoire local synthétique actif,
-            aucune preuve serveur.
+            API LABBENCH indisponible : aucune donnée locale de remplacement n’est utilisée.
+            Reconnectez le projet AeroMind pour rétablir la synchronisation.
           </p>
         )}
                 {/* === Mode indicator (mirrors AeroMind Home.tsx) === */}
-        {isLocalMode && (
-          <div className="lb-local-mode-banner">
-            <Activity size={16} />
-            <span>
-              <strong>Mode brouillon local</strong> — LabBench synchronisé avec AeroMind.
-              Les gates, simulation et armement fonctionnent en local (non persisté serveur).
-              {projects.length > 0 && ` · ${projects.length} projet(s) disponible(s).`}
-            </span>
+        <section className="lb-identity-panel" aria-label="Double identification AeroMind et LABBENCH 01">
+          <div className="lb-identity-cell">
+            <span className="lb-identity-kicker">IDENTITÉ 01 · AEROMIND</span>
+            <strong>{meQuery.data?.email ?? meQuery.data?.name ?? "Session AeroMind requise"}</strong>
+            <small>{remoteProjectId ? `Projet maître synchronisé · ${remoteProjectId}` : "Aucun projet serveur sélectionné"}</small>
           </div>
-        )}
-        {remoteProjectId && (
-          <div className="lb-local-mode-banner lb-remote-banner">
-            <ShieldCheck size={16} />
-            <span>
-              <strong>Espace métier connecté</strong> — projet serveur authentifié.
-              Gates persistées, audit serveur, preuves archivées.
-            </span>
+          <div className="lb-identity-divider" />
+          <div className="lb-identity-cell">
+            <span className="lb-identity-kicker">IDENTITÉ 02 · LABBENCH 01</span>
+            <strong>{labSessionInfo ? "Session LABBENCH active" : "Step-up LABBENCH requis"}</strong>
+            <small>{labSessionInfo ? `Rôles : ${labSessionInfo.roles.join(", ")} · expire ${new Date(labSessionInfo.expires_at).toLocaleTimeString("fr-FR")}` : "La seconde identification protège les vues et opérations sensibles."}</small>
           </div>
+          <div className="lb-identity-actions">
+            {!meQuery.data && (
+              <button type="button" className="lb-secondary lb-entra-login" onClick={startLogin}>
+                <KeyRound size={15} /> Se connecter via Microsoft Entra ID
+              </button>
+            )}
+            {!labSessionInfo && remoteProjectId && (
+              <div className="lb-stepup-form">
+                <label htmlFor="labbench-stepup-code">Code TOTP à 6 chiffres</label>
+                <div className="lb-stepup-controls">
+                  <input id="labbench-stepup-code" aria-label="Code TOTP à 6 chiffres pour la seconde identification LABBENCH" value={labMfaCode} onChange={(event) => setLabMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000 000" inputMode="numeric" autoComplete="one-time-code" maxLength={6} />
+                  <button className="lb-primary" disabled={labActivating || labMfaCode.length < 6} onClick={async () => {
+                    setLabActivating(true); setLabActivationError(null);
+                    try {
+                      const session = await performStepUp(remoteProjectId, labMfaCode.trim(), ["reader", "analyst", "designer"], "step-up");
+                      const info = { project_id: remoteProjectId, roles: ["reader", "analyst", "designer"], expires_at: session.expires_at };
+                      setLabSessionInfo(info);
+                      const active = await fetchActiveDrone(remoteProjectId, session.token);
+                      setActiveDroneSync(active.active_drone ? { drone_name: active.active_drone.drone_name, revision: active.active_revision?.checksum ?? undefined, last_sync_at: active.last_sync_at } : { last_sync_at: active.last_sync_at });
+                    } catch (error) { setLabActivationError(error instanceof Error ? error.message : "Activation LABBENCH impossible"); } finally { setLabActivating(false); }
+                  }}>{labActivating ? "Activation…" : "Activer LABBENCH"}</button>
+                </div>
+              </div>
+            )}
+            {!labSessionInfo && <button type="button" className="lb-stepup-help-button" onClick={() => setStepUpHelpOpen((open) => !open)} aria-expanded={stepUpHelpOpen}><Info size={15} /> Comment obtenir ce code ?</button>}
+          </div>
+        </section>
+        {stepUpHelpOpen && !labSessionInfo && (
+          <section className="lb-stepup-help" aria-label="Aide de seconde identification LABBENCH">
+            <Info size={18} />
+            <div>
+              <strong>Le Step-up est la seconde identification de LABBENCH 01.</strong>
+              <p>Connectez-vous d’abord à AeroMind, puis saisissez ici le code TOTP à 6 chiffres affiché par votre application d’authentification (Aegis, Google Authenticator, Microsoft Authenticator ou équivalent). Ce n’est ni le mot de passe AeroMind, ni le code de rapport.</p>
+              <p>Si aucun code n’est encore configuré pour {meQuery.data?.email ?? "votre compte"}, ouvrez la console Super-Admin et utilisez <b>Préparer mon accès local MFA</b> ou l’activation de compte. Scannez ou copiez la clé TOTP dans votre application, validez l’enrôlement, puis revenez ici. La session LABBENCH est temporaire et expire après 15 minutes.</p>
+            </div>
+          </section>
         )}
+        {labActivationError && <p className="lb-note lb-text-danger" role="alert">{labActivationError}</p>}
+        {!serverDataReady ? (
+          <section className="lb-server-lock lb-panel" role="status">
+            {integratedSurface ? <Database size={20} /> : <LockKeyhole size={20} />}
+            <div>
+              <strong>
+                {integratedSurface
+                  ? "LABBENCH prêt — aucune donnée utilisateur intégrée"
+                  : "LABBENCH verrouillé — données serveur requises"}
+              </strong>
+              <span>
+                {integratedSurface
+                  ? "Sélectionnez une cellule dans la Bibliothèque ou importez un dessin utilisateur dans AeroMind. Aucun chiffre, résultat, scénario ou émulateur n’est pris en compte avant cette action."
+                  : "Aucune vue, simulation, télémétrie ou commande locale de remplacement n’est affichée. Ouvrez AeroMind et sélectionnez un projet serveur réel pour continuer."}
+              </span>
+              <Link href="/" className="lb-secondary">Ouvrir AeroMind</Link>
+            </div>
+          </section>
+        ) : (
+          <>
+        <div className="lb-local-mode-banner lb-remote-banner"><ShieldCheck size={16} /><span><strong>Source AeroMind synchronisée</strong></span></div>
+        {remoteProjectId && activeDroneSync && <div className="lb-sync-strip"><Database size={15} /><span>Dernière synchronisation : {activeDroneSync.last_sync_at ? new Date(activeDroneSync.last_sync_at).toLocaleString("fr-FR") : "—"}</span><span>Drone actif : {activeDroneSync.drone_name ?? "aucun"}</span><span>Révision : {activeDroneSync.revision ? activeDroneSync.revision.slice(0, 12) : "—"}</span></div>}
         <section
           className="lb-panel"
           aria-label="Configuration drone active du projet"
@@ -2180,7 +2338,7 @@ export default function LabBench() {
           </div>
           {activeDroneConfig ? (
             <p>
-              {String(activeDroneConfig.airframe ?? "Multirotor")} ·{" "}
+              {String(activeDroneConfig.airframe ?? "Non renseigné")} ·{" "}
               {String(activeDroneConfig.motorCount ?? "—")} moteurs ·{" "}
               {String(
                 activeDroneConfig.massKg ?? activeDroneConfig.mass_kg ?? "—",
@@ -2275,9 +2433,7 @@ export default function LabBench() {
                 <FolderKanban size={17} />
                 <span>Projets accessibles</span>
                 <small>
-                  {meQuery.data && remoteProjects.length
-                    ? "AUTHENTIFIÉ"
-                    : "BROUILLON LOCAL"}
+                    {meQuery.data && remoteProjects.length ? "AUTHENTIFIÉ" : "SERVEUR INDISPONIBLE"}
                 </small>
               </div>
               {meQuery.isLoading ? (
@@ -2288,8 +2444,8 @@ export default function LabBench() {
                 <div className="lb-empty-state">
                   <strong>Aucun projet authentifié sélectionné</strong>
                   <span>
-                    Le cockpit reste utilisable en simulation, mais les
-                    écritures officielles exigent un projet AeroMind.
+                    LABBENCH reste verrouillé tant qu’un projet AeroMind
+                    serveur réel n’est pas disponible.
                   </span>
                   <Link href="/" className="lb-secondary">
                     Créer ou ouvrir un projet
@@ -2388,7 +2544,12 @@ export default function LabBench() {
                   <Database size={17} />
                   <span>État réel des services</span>
                 </div>
-                {statusServices.map((service) => (
+                {statusServices.length === 0 ? (
+                  <div className="lb-empty-state">
+                    <strong>Aucun service issu d’une donnée utilisateur.</strong>
+                    <span>Les données de démonstration et les identités d’émulateur sont exclues.</span>
+                  </div>
+                ) : statusServices.map((service) => (
                   <div className="lb-service-row" key={service.id}>
                     <div>
                       <strong>{service.label}</strong>
@@ -2403,33 +2564,39 @@ export default function LabBench() {
                   <Thermometer size={17} />
                   <span>Télémétrie du scénario</span>
                   <small>
-                    {latestResult ? "RUN SYNTHÉTIQUE" : "APERÇU DES ENTRÉES"}
+                    {latestResult
+                      ? "RUN UTILISATEUR"
+                      : scenarioUserProvided
+                        ? "ENTRÉES UTILISATEUR · NON EXÉCUTÉ"
+                        : "AUCUNE DONNÉE"}
                   </small>
                 </div>
                 <div className="lb-measures">
                   <div>
                     <span>Température moyenne</span>
                     <strong>
-                      {averageTemperature.toFixed(1)}
-                      <em> °C</em>
+                      {averageTemperature == null ? "—" : averageTemperature.toFixed(1)}
+                      {averageTemperature == null ? null : <em> °C</em>}
                     </strong>
-                    <small>capteur TMP-01 simulé</small>
+                    <small>{latestResult ? "trames du run utilisateur" : "aucune mesure calculée"}</small>
                   </div>
                   <div>
                     <span>Position consigne</span>
                     <strong>
-                      {scenario.positionSetpointDeg}
-                      <em> °</em>
+                      {scenarioUserProvided ? scenario.positionSetpointDeg : "—"}
+                      {scenarioUserProvided ? <em> °</em> : null}
                     </strong>
-                    <small>encodeur POS-02 simulé</small>
+                    <small>{scenarioUserProvided ? "consigne saisie par l’utilisateur" : "aucune consigne intégrée"}</small>
                   </div>
                   <div>
                     <span>Échantillons</span>
                     <strong>{telemetry.length}</strong>
                     <small>
                       {latestResult
-                        ? "trames du dernier run"
-                        : "aperçu calculé du scénario"}
+                        ? "trames du dernier run utilisateur"
+                        : scenarioUserProvided
+                          ? "aucun run exécuté"
+                          : "aucune donnée utilisateur"}
                     </small>
                   </div>
                 </div>
@@ -2586,6 +2753,7 @@ export default function LabBench() {
                     className="lb-primary"
                     disabled={
                       simulationMutation.isPending ||
+                      !scenarioUserProvided ||
                       Boolean(validateLabBenchScenario(scenario))
                     }
                     onClick={runSimulation}
@@ -2593,7 +2761,9 @@ export default function LabBench() {
                     <Play size={15} />
                     {simulationMutation.isPending
                       ? "Calcul en cours…"
-                      : "Exécuter la simulation"}
+                      : scenarioUserProvided
+                        ? "Exécuter la simulation"
+                        : "Saisir des données pour calculer"}
                   </button>
                 </div>
               }
@@ -2614,10 +2784,7 @@ export default function LabBench() {
                       step={0.5}
                       value={scenario.ambientC}
                       onChange={(event) =>
-                        setScenario({
-                          ...scenario,
-                          ambientC: Number(event.target.value),
-                        })
+                        updateScenario({ ambientC: Number(event.target.value) })
                       }
                     />
                   </label>
@@ -2630,10 +2797,7 @@ export default function LabBench() {
                       step={0.5}
                       value={scenario.heaterPowerW}
                       onChange={(event) =>
-                        setScenario({
-                          ...scenario,
-                          heaterPowerW: Number(event.target.value),
-                        })
+                        updateScenario({ heaterPowerW: Number(event.target.value) })
                       }
                     />
                   </label>
@@ -2646,10 +2810,7 @@ export default function LabBench() {
                       step={0.05}
                       value={scenario.dutyCycle}
                       onChange={(event) =>
-                        setScenario({
-                          ...scenario,
-                          dutyCycle: Number(event.target.value),
-                        })
+                        updateScenario({ dutyCycle: Number(event.target.value) })
                       }
                     />
                   </label>
@@ -2662,8 +2823,7 @@ export default function LabBench() {
                       step={0.1}
                       value={scenario.thermalResistanceCPerW}
                       onChange={(event) =>
-                        setScenario({
-                          ...scenario,
+                        updateScenario({
                           thermalResistanceCPerW: Number(event.target.value),
                         })
                       }
@@ -2678,10 +2838,7 @@ export default function LabBench() {
                       step={1}
                       value={scenario.positionSetpointDeg}
                       onChange={(event) =>
-                        setScenario({
-                          ...scenario,
-                          positionSetpointDeg: Number(event.target.value),
-                        })
+                        updateScenario({ positionSetpointDeg: Number(event.target.value) })
                       }
                     />
                   </label>
@@ -2694,10 +2851,7 @@ export default function LabBench() {
                       step={1}
                       value={scenario.durationSeconds}
                       onChange={(event) =>
-                        setScenario({
-                          ...scenario,
-                          durationSeconds: Number(event.target.value),
-                        })
+                        updateScenario({ durationSeconds: Number(event.target.value) })
                       }
                     />
                   </label>
@@ -2712,23 +2866,25 @@ export default function LabBench() {
                       ? latestResult.engineVersion?.includes("local")
                         ? "RUN LOCAL"
                         : "RUN API"
-                      : "APERÇU"}
+                      : scenarioUserProvided
+                        ? "ENTRÉES UTILISATEUR"
+                        : "AUCUNE DONNÉE"}
                   </small>
                 </div>
                 <div className="lb-result-number">
                   <span>
                     {latestResult
-                      ? "Température du dernier run"
-                      : "Température estimée · non exécutée"}
+                      ? "Température du dernier run utilisateur"
+                      : "Aucun résultat calculé"}
                   </span>
                   <strong>
-                    {latestResult?.predictedTemperatureC ??
-                      previewTemperatureC.toFixed(2)}
-                    <em> °C</em>
+                    {latestResult ? latestResult.predictedTemperatureC : "—"}
+                    {latestResult ? <em> °C</em> : null}
                   </strong>
                   <small>
-                    Incertitude estimée ± {latestResult?.uncertaintyC ?? "0.58"}{" "}
-                    °C
+                    {latestResult
+                      ? `Incertitude estimée ± ${latestResult.uncertaintyC} °C`
+                      : "Aucune incertitude avant exécution"}
                   </small>
                 </div>
                 <div className="lb-formula">
@@ -2737,27 +2893,18 @@ export default function LabBench() {
                 <div className="lb-result-meta">
                   <span>
                     Version moteur{" "}
-                    <b>
-                      {latestResult?.engineVersion ??
-                        "labbench-thermal-v1.0.0-local"}
-                    </b>
+                    <b>{latestResult?.engineVersion ?? "Aucun moteur exécuté"}</b>
                   </span>
                   <span>
                     Verdict{" "}
                     <b
-                      className={
-                        (latestResult?.verdict ??
-                          (previewTemperatureC > 55 ? "review" : "pass")) ===
-                        "review"
-                          ? "lb-text-warning"
-                          : "lb-text-good"
-                      }
+                      className={latestResult?.verdict === "review" ? "lb-text-warning" : "lb-text-good"}
                     >
-                      {(latestResult?.verdict ??
-                        (previewTemperatureC > 55 ? "review" : "pass")) ===
-                      "review"
-                        ? "À revoir"
-                        : "Scénario conforme · aperçu"}
+                      {latestResult
+                        ? latestResult.verdict === "review"
+                          ? "À revoir"
+                          : "Scénario conforme"
+                        : "Aucun verdict"}
                     </b>
                   </span>
                 </div>
@@ -2816,7 +2963,7 @@ export default function LabBench() {
                     {gateState.hardwareChecklist.deviceIdentified ? <CheckCircle2 size={17} /> : <XCircle size={17} />}
                     <div>
                       <strong>Identité appareil vérifiée</strong>
-                      <small>Émulateur LB01-EMU-001 référencé dans le registre.</small>
+                      <small>{activeDroneLabel ? `Configuration ${activeDroneLabel} issue du workspace.` : "Aucune identité utilisateur renseignée."}</small>
                     </div>
                     <span>{gateState.hardwareChecklist.deviceIdentified ? "Validé" : "Requis"}</span>
                   </div>
@@ -2850,21 +2997,21 @@ export default function LabBench() {
                 <div className="lb-panel-title">
                   <Cpu size={17} />
                   <span>Registre appareil</span>
-                  <ServiceState state="simulated" />
+                  <ServiceState state={selectedRegistryDevice ? "simulated" : "limited"} />
                 </div>
                 <div className="lb-asset-name">
                   <span>
-                    {selectedRegistryDevice?.deviceCode ?? "LB01-EMU-001"}
+                    {selectedRegistryDevice?.deviceCode ?? "Aucune donnée importée"}
                   </span>
                   <strong>
                     {selectedRegistryDevice?.model ??
                       status?.device?.model ??
-                      "LabBench 01 / émulateur"}
+                      "Non renseigné"}
                   </strong>
                   <small>
                     {selectedRegistryDevice?.manufacturer ??
                       status?.device?.manufacturer ??
-                      "AeroMind reference rig"}
+                      "Non renseigné"}
                   </small>
                 </div>
                 <dl className="lb-definition-list">
@@ -2873,7 +3020,7 @@ export default function LabBench() {
                     <dd>
                       {selectedRegistryDevice?.hardwareRevision ??
                         status?.device?.hardwareRevision ??
-                        "REV-A"}
+                        "—"}
                     </dd>
                   </div>
                   <div>
@@ -2881,7 +3028,7 @@ export default function LabBench() {
                     <dd>
                       {selectedRegistryDevice?.firmwareVersion ??
                         status?.device?.firmwareVersion ??
-                        "0.4.2-sim"}
+                        "—"}
                     </dd>
                   </div>
                   <div>
@@ -2893,7 +3040,7 @@ export default function LabBench() {
                           )
                         : (Array.isArray(status?.device?.interfaces)
                             ? status.device.interfaces.join(" · ")
-                            : "") || "USB-C"}
+                            : "") || "—"}
                     </dd>
                   </div>
                   <div>
@@ -2903,7 +3050,7 @@ export default function LabBench() {
                         ? registryFieldLabels(selectedRegistryDevice.limitsJson)
                         : (Array.isArray(status?.device?.limits)
                             ? status.device.limits.join(" · ")
-                            : "") || "12 V"}
+                            : "") || "—"}
                     </dd>
                   </div>
                 </dl>
@@ -2999,7 +3146,7 @@ export default function LabBench() {
                     </strong>
                     <small>
                       {connectionChecked
-                        ? "LB01-EMU-001 · transport virtuel seulement"
+                        ? `${activeDroneLabel ?? "Configuration AeroMind active"} · transport virtuel seulement`
                         : "Diagnostic virtuel disponible sans matériel"}
                     </small>
                   </div>
@@ -3161,7 +3308,7 @@ export default function LabBench() {
                   <button
                     className="lb-primary"
                     onClick={runFleetSimulationAll}
-                    disabled={(!remoteProjectId && !isLocalMode) || fleetDrones.length === 0 || fleetSimMutation.isPending}
+                    disabled={(!remoteProjectId && !isLocalMode) || fleetDrones.length === 0 || fleetDrones.some((drone) => !fleetDroneScenarios[drone.id]) || fleetSimMutation.isPending}
                   >
                     <Play size={14} />
                     {fleetSimMutation.isPending ? "Simulation flotte…" : `Simuler flotte (${fleetDrones.length})`}
@@ -3193,7 +3340,7 @@ export default function LabBench() {
                   const gateByCode: Record<string, string> = {};
                   gates.forEach((g: any) => { gateByCode[g.code] = g.state; });
                   const n3Armed = perDroneState?.conditions?.n3_armed === true;
-                  const scenario = fleetDroneScenarios[drone.id] ?? defaultLabBenchScenario;
+                  const scenario = fleetDroneScenarios[drone.id] ?? EMPTY_LABBENCH_SCENARIO;
                   const result = fleetResults?.find((r: any) => r.droneId === drone.id);
                   return (
                     <section key={drone.id} className={`lb-panel lb-fleet-card ${n3Armed ? "is-armed" : ""}`}>
@@ -3987,6 +4134,8 @@ export default function LabBench() {
               )}
             </section>
           </div>
+        )}
+          </>
         )}
       </section>
 

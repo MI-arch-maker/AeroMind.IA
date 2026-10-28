@@ -128,6 +128,26 @@
 .lb-zone-header { padding: 12px 8px 6px; border-bottom: 1px dashed rgba(160,215,222,.1); margin-bottom: 4px; }
 .lb-zone-label { display: block; color: #d9f1f3; font: 600 11px "IBM Plex Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
 .lb-zone-meta { display: block; color: #6a8d96; font-size: 10px; margin-top: 3px; }
+
+/* LABBENCH is a first-class Home tab, not a nested modal or sub-application. */
+.lb-integrated-shell {
+  display: block;
+  min-height: auto;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.lb-integrated-shell .lb-rail { display: none; }
+.lb-integrated-shell .lb-main {
+  width: 100%;
+  min-height: auto;
+  padding: 0 0 42px;
+  overflow: visible;
+}
+.lb-integrated-shell .lb-topbar { min-height: 86px; }
+.lb-integrated-shell .lb-safety-banner { margin-top: 16px; }
+.lb-integrated-context { display: block; color: #7fa1aa; font-size: 11px; margin-top: 7px; }
 .lb-zone-pill { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; font: 600 9px "IBM Plex Mono", monospace; padding: 4px 7px; border-radius: 100px; }
 .lb-zone-pill.is-passed { background: rgba(117,215,173,.13); color: #8adfb6; border: 1px solid rgba(117,215,173,.3); }
 .lb-zone-pill.is-open { background: rgba(241,185,84,.12); color: #f1c772; border: 1px solid rgba(241,185,84,.3); }
@@ -390,7 +410,7 @@
 .lb-source-concept { background: rgba(241,185,84,.12); color: #f1c772; }
 .lb-source-user { background: rgba(37,208,217,.12); color: var(--lb-cyan); }
 .lb-materials-weaponized { font: 600 9px "IBM Plex Mono", monospace; color: #88a4ad; }
-.lb-materials-weaponized:has(+ *) { /* always non-weaponized in static catalog */ }
+.lb-materials-weaponized:has(+ *) { display: inline-block; }
 
 @media (max-width: 780px) {
   .lb-materials-grid { grid-template-columns: 1fr; }
@@ -539,3 +559,1180 @@
 .lb-local-mode-banner strong { color: #8de7eb; }
 .lb-remote-banner { border-color: rgba(117,215,173,.2); background: rgba(117,215,173,.05); color: #8adfb6; }
 .lb-remote-banner strong { color: #a0e5c0; }
+
+/* Intégration définitive AeroMind ↔ LABBENCH 01 : identité double et synchronisation serveur. */
+.lb-identity-panel{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr) auto;gap:16px;align-items:center;margin:16px 0;padding:15px 17px;background:linear-gradient(100deg,rgba(17,39,53,.92),rgba(11,25,36,.96));border:1px solid rgba(117,215,173,.28);border-radius:7px;box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.lb-identity-cell{display:flex;flex-direction:column;gap:4px;min-width:0}.lb-identity-cell strong{color:#e8fdff;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lb-identity-cell small{color:#8faab2;font-size:10px;line-height:1.35}.lb-identity-kicker{font:600 9px "IBM Plex Mono",monospace;letter-spacing:.12em;color:#75dfe5}.lb-identity-divider{height:44px;background:rgba(143,170,178,.24)}.lb-identity-actions{display:flex;gap:8px;align-items:center}.lb-identity-actions input{width:120px;background:#07131e;border:1px solid rgba(117,215,173,.3);border-radius:4px;padding:8px;color:#e8fdff;font:11px "IBM Plex Mono",monospace}.lb-sync-strip{display:flex;flex-wrap:wrap;gap:15px;align-items:center;margin:-6px 0 16px;padding:8px 12px;border:1px solid rgba(117,215,173,.16);border-radius:4px;color:#9cc0c7;font:10px "IBM Plex Mono",monospace}.lb-sync-strip svg{color:#75dfe5}@media(max-width:820px){.lb-identity-panel{grid-template-columns:1fr}.lb-identity-divider{display:none}.lb-identity-actions{justify-content:flex-start}}
+
+
+/* ===========================================================================
+   LABBENCH 01 — MASTER ENGINEERING VISUAL SYSTEM
+   Couche visuelle uniquement : contraste opérateur, densité instrumentée,
+   grille blueprint et états lisibles sans modifier les gates ni les flux.
+   =========================================================================== */
+.labbench-shell.lb-engineering-shell {
+  --lb-cyan: #4de7ef;
+  --lb-cyan-soft: rgba(77, 231, 239, .12);
+  --lb-ink: #effcff;
+  --lb-muted: #9ab8bf;
+  --lb-line: rgba(145, 207, 216, .16);
+  background:
+    radial-gradient(circle at 78% -8%, rgba(43, 142, 173, .18), transparent 36rem),
+    linear-gradient(rgba(77, 231, 239, .026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(77, 231, 239, .026) 1px, transparent 1px),
+    #07111c;
+  background-size: auto, 32px 32px, 32px 32px, auto;
+}
+.lb-engineering-shell .lb-rail {
+  background: linear-gradient(180deg, rgba(9, 27, 42, .98), rgba(5, 17, 29, .98));
+  box-shadow: 18px 0 42px rgba(0, 0, 0, .16);
+}
+.lb-engineering-shell .lb-brand {
+  position: relative;
+  padding-bottom: 20px;
+}
+.lb-engineering-shell .lb-brand::after {
+  content: "MASTER ENGINEERING CONSOLE";
+  position: absolute;
+  left: 48px;
+  bottom: 5px;
+  color: #608894;
+  font: 600 8px "IBM Plex Mono", monospace;
+  letter-spacing: .14em;
+}
+.lb-engineering-shell .lb-mark {
+  filter: drop-shadow(0 0 9px rgba(77, 231, 239, .34));
+}
+.lb-engineering-shell .lb-main {
+  position: relative;
+}
+.lb-engineering-shell .lb-main::before {
+  content: "LABBENCH / ENGINEERING CHANNEL 01";
+  position: absolute;
+  top: 14px;
+  right: clamp(22px, 3.2vw, 48px);
+  color: rgba(119, 181, 191, .5);
+  font: 600 8px "IBM Plex Mono", monospace;
+  letter-spacing: .14em;
+  pointer-events: none;
+}
+.lb-engineering-shell .lb-topbar {
+  border-bottom-color: rgba(77, 231, 239, .22);
+  min-height: 118px;
+}
+.lb-engineering-shell .lb-topbar h1 {
+  font-weight: 700;
+  text-shadow: 0 0 28px rgba(77, 231, 239, .12);
+}
+.lb-engineering-shell .lb-top-status {
+  padding-top: 12px;
+}
+.lb-engineering-shell .lb-engineering-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  color: #9deff2;
+  border: 1px solid rgba(77, 231, 239, .28);
+  background: rgba(77, 231, 239, .07);
+  border-radius: 5px;
+  font: 600 9px "IBM Plex Mono", monospace;
+  letter-spacing: .08em;
+}
+.lb-engineering-shell .lb-safety-banner {
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(241, 185, 84, .04), 0 14px 34px rgba(0, 0, 0, .13);
+}
+.lb-engineering-shell .lb-identity-panel,
+.lb-engineering-shell .lb-sync-strip,
+.lb-engineering-shell .lb-local-mode-banner,
+.lb-engineering-shell .lb-instrument-strip,
+.lb-engineering-shell .lb-gate-strip,
+.lb-engineering-shell .lb-panel {
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .12);
+}
+.lb-engineering-shell .lb-identity-panel {
+  border-color: rgba(77, 231, 239, .2);
+  background: linear-gradient(110deg, rgba(11, 37, 51, .92), rgba(9, 23, 36, .86));
+}
+.lb-engineering-shell .lb-panel {
+  border-radius: 7px;
+  background: linear-gradient(145deg, rgba(17, 41, 57, .94), rgba(8, 22, 34, .94));
+}
+.lb-engineering-shell .lb-panel-title {
+  background: rgba(2, 12, 21, .14);
+  letter-spacing: .025em;
+}
+.lb-engineering-shell .lb-nav-item {
+  border-radius: 5px;
+  border: 1px solid transparent;
+}
+.lb-engineering-shell .lb-nav-item:hover {
+  border-color: rgba(77, 231, 239, .12);
+}
+.lb-engineering-shell .lb-nav-item.is-active {
+  background: linear-gradient(90deg, rgba(77, 231, 239, .17), rgba(77, 231, 239, .045));
+  border-color: rgba(77, 231, 239, .19);
+}
+.lb-engineering-shell .lb-mode,
+.lb-engineering-shell .lb-gate-card,
+.lb-engineering-shell .lb-service-row,
+.lb-engineering-shell .lb-project-row {
+  transition: border-color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.lb-engineering-shell .lb-mode:hover,
+.lb-engineering-shell .lb-gate-card:hover,
+.lb-engineering-shell .lb-project-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .14);
+}
+.lb-engineering-shell .lb-instrument-strip {
+  border-color: rgba(77, 231, 239, .22);
+  background: rgba(77, 231, 239, .16);
+}
+.lb-engineering-shell .lb-instrument-strip > div {
+  background: linear-gradient(145deg, rgba(14, 38, 53, .98), rgba(5, 19, 30, .98));
+}
+.lb-engineering-shell .lb-primary {
+  border-radius: 5px;
+  box-shadow: 0 5px 16px rgba(77, 231, 239, .14);
+}
+.lb-engineering-shell .lb-primary:active,
+.lb-engineering-shell .lb-secondary:active {
+  transform: translateY(1px);
+}
+.lb-engineering-shell .lb-eyebrow,
+.lb-engineering-shell .lb-rail-label,
+.lb-engineering-shell .lb-identity-kicker {
+  letter-spacing: .16em;
+}
+@media (max-width: 720px) {
+  .lb-engineering-shell .lb-main::before { display: none; }
+  .lb-engineering-shell .lb-topbar { min-height: 104px; }
+  .lb-engineering-shell .lb-top-status { padding-top: 0; }
+  .lb-engineering-shell .lb-engineering-badge { display: none; }
+}
+
+
+/* ===========================================================================
+   LABBENCH 01 — AEROMIND NATIVE INFORMATION DESIGN
+   Rééquilibrage lisibilité / densité : Inter pour l’interface, monospace
+   réservé aux identifiants techniques et grilles qui se reflowent réellement.
+   =========================================================================== */
+.labbench-shell.lb-engineering-shell {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: -0.01em;
+  --lb-radius: 12px;
+  --lb-surface: rgba(11, 26, 32, .94);
+  --lb-surface-raised: rgba(15, 35, 42, .94);
+  --lb-line: rgba(143, 197, 201, .16);
+  --lb-muted: #829a9b;
+  --lb-soft: #a9c1c0;
+  --lb-cyan: #75e2dc;
+  --lb-cyan-soft: rgba(117, 226, 220, .10);
+  --lb-green: #86d5a5;
+  --lb-amber: #edbd73;
+}
+.lb-engineering-shell .lb-main {
+  padding: 0 clamp(28px, 4vw, 72px) 64px;
+}
+.lb-engineering-shell .lb-topbar {
+  min-height: 126px;
+  padding: 28px 0 24px;
+  align-items: flex-end;
+}
+.lb-engineering-shell .lb-topbar h1 {
+  max-width: min(680px, 58vw);
+  margin-top: 10px;
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.14;
+  letter-spacing: -0.045em;
+}
+.lb-engineering-shell .lb-topbar .lb-eyebrow {
+  font-size: 10px;
+  line-height: 1.4;
+}
+.lb-engineering-shell .lb-top-status {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 430px;
+  padding-top: 0;
+}
+.lb-engineering-shell .lb-chip,
+.lb-engineering-shell .lb-lock,
+.lb-engineering-shell .lb-engineering-badge {
+  border-radius: 999px;
+  line-height: 1.2;
+}
+.lb-engineering-shell .lb-safety-banner {
+  margin: 24px 0 18px;
+  padding: 15px 18px;
+  border-radius: var(--lb-radius);
+  line-height: 1.55;
+}
+.lb-engineering-shell .lb-safety-banner strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-safety-banner span {
+  max-width: 1040px;
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.lb-engineering-shell .lb-identity-panel {
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr) auto;
+  gap: 22px;
+  margin: 20px 0;
+  padding: 20px 22px;
+  border-radius: var(--lb-radius);
+}
+.lb-engineering-shell .lb-identity-cell {
+  gap: 7px;
+}
+.lb-engineering-shell .lb-identity-cell strong {
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.lb-engineering-shell .lb-identity-cell small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lb-engineering-shell .lb-identity-kicker {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.lb-engineering-shell .lb-sync-strip {
+  gap: 10px 22px;
+  margin: -6px 0 20px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.lb-engineering-shell .lb-panel,
+.lb-engineering-shell .lb-note,
+.lb-engineering-shell .lb-mode-row,
+.lb-engineering-shell .lb-instrument-strip,
+.lb-engineering-shell .lb-gate-strip,
+.lb-engineering-shell .lb-content {
+  margin-bottom: 22px;
+}
+.lb-engineering-shell .lb-panel {
+  border-radius: var(--lb-radius);
+}
+.lb-engineering-shell .lb-panel-title {
+  min-height: 58px;
+  padding: 17px 21px;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-panel-title > small {
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: right;
+}
+.lb-engineering-shell .lb-section-heading {
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-top: 4px;
+}
+.lb-engineering-shell .lb-section-heading h2 {
+  margin: 8px 0 8px;
+  font-size: clamp(24px, 2.2vw, 30px);
+  line-height: 1.18;
+  letter-spacing: -0.04em;
+}
+.lb-engineering-shell .lb-section-heading p:not(.lb-eyebrow) {
+  max-width: 760px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.lb-engineering-shell .lb-eyebrow,
+.lb-engineering-shell .lb-rail-label {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+.lb-engineering-shell .lb-rail-label {
+  padding-top: 28px;
+  line-height: 1.4;
+}
+.lb-engineering-shell .lb-nav-item {
+  min-height: 58px;
+  padding: 12px 12px;
+  gap: 12px;
+}
+.lb-engineering-shell .lb-nav-item strong {
+  font-size: 13px;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-nav-item small {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-mode-row {
+  gap: 12px;
+}
+.lb-engineering-shell .lb-mode {
+  min-height: 112px;
+  padding: 16px 17px;
+  border-radius: var(--lb-radius);
+}
+.lb-engineering-shell .lb-mode span {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+.lb-engineering-shell .lb-mode strong {
+  margin: 7px 0 6px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-mode small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lb-engineering-shell .lb-instrument-strip {
+  gap: 1px;
+  border-radius: var(--lb-radius);
+}
+.lb-engineering-shell .lb-instrument-strip > div {
+  min-height: 106px;
+  padding: 17px 18px;
+  gap: 6px;
+}
+.lb-engineering-shell .lb-instrument-strip small {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.lb-engineering-shell .lb-instrument-strip strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-instrument-strip span {
+  font-size: 11px;
+  line-height: 1.45;
+}
+.lb-engineering-shell .lb-gate-track {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--lb-line);
+  border-radius: var(--lb-radius);
+}
+.lb-engineering-shell .lb-gate-card {
+  min-width: 0;
+  min-height: 204px;
+  padding: 19px 18px;
+  background: var(--lb-surface);
+  border-right: 0;
+}
+.lb-engineering-shell .lb-gate-card-body strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-gate-card-body small {
+  font-size: 11px;
+  line-height: 1.55;
+}
+.lb-engineering-shell .lb-gate-card-state {
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-gate-card-conditions {
+  margin-top: auto;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-table-head,
+.lb-engineering-shell .lb-table-row {
+  padding-left: 21px;
+  padding-right: 21px;
+  line-height: 1.45;
+}
+.lb-engineering-shell .lb-table-head {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.lb-engineering-shell .lb-table-row {
+  min-height: 74px;
+  font-size: 12px;
+}
+.lb-engineering-shell .lb-table-row b {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.lb-engineering-shell .lb-table-row small,
+.lb-engineering-shell .lb-table-row > span:not(:nth-child(2)) {
+  font-size: 11px;
+  line-height: 1.5;
+}
+.lb-engineering-shell .lb-definition-list {
+  padding: 8px 21px 16px;
+}
+.lb-engineering-shell .lb-definition-list div {
+  gap: 18px;
+  padding: 13px 0;
+  line-height: 1.45;
+}
+.lb-engineering-shell .lb-definition-list dt,
+.lb-engineering-shell .lb-definition-list dd {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.lb-engineering-shell .lb-definition-list dd {
+  overflow-wrap: anywhere;
+}
+.lb-engineering-shell .lb-note {
+  gap: 12px;
+  padding: 15px 18px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.lb-engineering-shell .lb-note strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.lb-engineering-shell .lb-note span {
+  line-height: 1.6;
+}
+.lb-engineering-shell .lb-boundary,
+.lb-engineering-shell .lb-protocol {
+  padding: 24px 22px;
+  border-radius: var(--lb-radius);
+}
+.lb-engineering-shell .lb-boundary h3,
+.lb-engineering-shell .lb-protocol h3 {
+  font-size: 18px;
+  line-height: 1.3;
+}
+.lb-engineering-shell .lb-boundary p,
+.lb-engineering-shell .lb-protocol p {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.lb-engineering-shell .lb-primary,
+.lb-engineering-shell .lb-secondary {
+  min-height: 40px;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.3;
+}
+@media (max-width: 1180px) and (min-width: 721px) {
+  .lb-engineering-shell .lb-gate-track { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lb-engineering-shell .lb-gate-card { min-height: 184px; }
+  .lb-engineering-shell .lb-gate-card:nth-child(-n+3) { border-bottom: 1px solid var(--lb-line); }
+  .lb-engineering-shell .lb-topbar h1 { max-width: 52vw; }
+}
+@media (max-width: 820px) {
+  .lb-engineering-shell .lb-identity-panel { grid-template-columns: 1fr; }
+  .lb-engineering-shell .lb-identity-divider { display: none; }
+  .lb-engineering-shell .lb-identity-actions { justify-content: flex-start; }
+}
+@media (max-width: 720px) {
+  .lb-engineering-shell .lb-main { padding: 0 16px 36px; }
+  .lb-engineering-shell .lb-topbar { min-height: 108px; padding: 22px 0 18px; }
+  .lb-engineering-shell .lb-topbar h1 { max-width: 100%; font-size: 27px; }
+  .lb-engineering-shell .lb-top-status { align-items: flex-start; justify-content: flex-start; }
+  .lb-engineering-shell .lb-top-status .lb-chip { white-space: normal; }
+  .lb-engineering-shell .lb-safety-banner { padding: 14px; }
+  .lb-engineering-shell .lb-gate-track { grid-template-columns: 1fr; }
+  .lb-engineering-shell .lb-gate-card { min-height: 0; border-bottom: 1px solid var(--lb-line); }
+  .lb-engineering-shell .lb-gate-card:last-child { border-bottom: 0; }
+  .lb-engineering-shell .lb-instrument-strip > div { min-height: 96px; padding: 14px; }
+  .lb-engineering-shell .lb-table-head,
+  .lb-engineering-shell .lb-table-row { padding-left: 16px; padding-right: 16px; }
+}
+
+
+/* ===========================================================================
+   LABBENCH 01 — LAYOUT SAFETY / SUB-VIEW READABILITY
+   Protection commune contre les débordements, empilements et grilles trop
+   étroites dans les vues Simulation, Contrôle virtuel, Flotte, Rapports,
+   Télémetrie, Hardware et Audit.
+   =========================================================================== */
+.lb-engineering-shell .lb-content,
+.lb-engineering-shell .lb-content > *,
+.lb-engineering-shell .lb-content section,
+.lb-engineering-shell .lb-content article,
+.lb-engineering-shell .lb-panel,
+.lb-engineering-shell .lb-panel > * {
+  min-width: 0;
+}
+.lb-engineering-shell .lb-content {
+  display: grid;
+  gap: 22px;
+  align-content: start;
+}
+.lb-engineering-shell .lb-content > .lb-section-heading,
+.lb-engineering-shell .lb-content > .lb-note,
+.lb-engineering-shell .lb-content > .lb-gate-track,
+.lb-engineering-shell .lb-content > .lb-gate-strip {
+  width: 100%;
+}
+.lb-engineering-shell .lb-content p,
+.lb-engineering-shell .lb-content small,
+.lb-engineering-shell .lb-content span,
+.lb-engineering-shell .lb-content strong,
+.lb-engineering-shell .lb-content label,
+.lb-engineering-shell .lb-panel-title {
+  overflow-wrap: anywhere;
+}
+.lb-engineering-shell .lb-content p,
+.lb-engineering-shell .lb-panel p {
+  line-height: 1.62;
+}
+.lb-engineering-shell .lb-overview-grid,
+.lb-engineering-shell .lb-simulation-grid,
+.lb-engineering-shell .lb-bench-grid,
+.lb-engineering-shell .lb-hardware-grid,
+.lb-engineering-shell .lb-hw-grid,
+.lb-engineering-shell .lb-mission-grid,
+.lb-engineering-shell .lb-charts-grid,
+.lb-engineering-shell .lb-reports-grid {
+  min-width: 0;
+  align-items: start;
+  gap: 22px;
+}
+.lb-engineering-shell .lb-bench-grid,
+.lb-engineering-shell .lb-hardware-grid,
+.lb-engineering-shell .lb-hw-grid,
+.lb-engineering-shell .lb-mission-grid,
+.lb-engineering-shell .lb-charts-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.lb-engineering-shell .lb-overview-grid {
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr);
+}
+.lb-engineering-shell .lb-simulation-grid,
+.lb-engineering-shell .lb-reports-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.lb-engineering-shell .lb-fleet-grid,
+.lb-engineering-shell .lb-materials-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
+  gap: 22px;
+}
+.lb-engineering-shell .lb-table,
+.lb-engineering-shell .lb-dashboard-table,
+.lb-engineering-shell .lb-flights-table,
+.lb-engineering-shell .lb-audit-panel {
+  min-width: 0;
+  overflow-x: auto;
+}
+.lb-engineering-shell .lb-table-row,
+.lb-engineering-shell .lb-dashboard-row,
+.lb-engineering-shell .lb-flights-row,
+.lb-engineering-shell .lb-audit-row {
+  min-width: 620px;
+  overflow-wrap: anywhere;
+}
+.lb-engineering-shell .lb-telemetry-list > div,
+.lb-engineering-shell .lb-checklist-item,
+.lb-engineering-shell .lb-review-event,
+.lb-engineering-shell .lb-review-row,
+.lb-engineering-shell .lb-hw-condition,
+.lb-engineering-shell .lb-hw-pool-row,
+.lb-engineering-shell .lb-service-row {
+  min-width: 0;
+}
+.lb-engineering-shell .lb-telemetry-list > div > *,
+.lb-engineering-shell .lb-checklist-item > *,
+.lb-engineering-shell .lb-review-event > *,
+.lb-engineering-shell .lb-hw-condition > *,
+.lb-engineering-shell .lb-hw-pool-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lb-engineering-shell .lb-hw-form,
+.lb-engineering-shell .lb-maintenance-form,
+.lb-engineering-shell .lb-config-grid {
+  gap: 14px;
+  padding: 20px 22px;
+}
+.lb-engineering-shell .lb-hw-form input,
+.lb-engineering-shell .lb-hw-form textarea,
+.lb-engineering-shell .lb-hw-form select,
+.lb-engineering-shell .lb-config-grid input,
+.lb-engineering-shell .lb-config-grid select,
+.lb-engineering-shell .lb-config-grid textarea,
+.lb-engineering-shell .lb-input-row input,
+.lb-engineering-shell .lb-input-row textarea {
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.lb-engineering-shell .lb-hw-form textarea,
+.lb-engineering-shell .lb-config-grid textarea,
+.lb-engineering-shell .lb-input-row textarea {
+  min-height: 96px;
+}
+.lb-engineering-shell .lb-hw-form label,
+.lb-engineering-shell .lb-config-grid label,
+.lb-engineering-shell .lb-input-row {
+  gap: 7px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.lb-engineering-shell .lb-stepup-form {
+  display: grid;
+  gap: 7px;
+  min-width: 214px;
+}
+.lb-engineering-shell .lb-stepup-form label {
+  color: var(--lb-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.lb-engineering-shell .lb-stepup-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lb-engineering-shell .lb-stepup-controls input {
+  width: 116px;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid rgba(117, 226, 220, .3);
+  border-radius: 8px;
+  background: #07131e;
+  color: #e8fdff;
+  font: 700 13px/1.2 "IBM Plex Mono", monospace;
+  letter-spacing: .12em;
+  text-align: center;
+}
+.lb-engineering-shell .lb-stepup-controls input:focus {
+  outline: 2px solid var(--lb-cyan);
+  outline-offset: 2px;
+}
+.lb-engineering-shell .lb-stepup-help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: end;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--lb-line);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+  color: var(--lb-soft);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.lb-engineering-shell .lb-stepup-help-button:hover {
+  border-color: var(--lb-cyan);
+  color: var(--lb-cyan);
+  background: var(--lb-cyan-soft);
+}
+.lb-engineering-shell .lb-stepup-help {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 13px;
+  align-items: start;
+  margin: -4px 0 20px;
+  padding: 17px 20px;
+  border: 1px solid rgba(117, 226, 220, .24);
+  border-radius: var(--lb-radius);
+  background: linear-gradient(110deg, rgba(117, 226, 220, .08), rgba(11, 26, 32, .88));
+  color: var(--lb-soft);
+  line-height: 1.6;
+}
+.lb-engineering-shell .lb-stepup-help > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--lb-cyan);
+}
+.lb-engineering-shell .lb-stepup-help strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--lb-ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.lb-engineering-shell .lb-stepup-help p {
+  margin: 6px 0 0;
+  color: var(--lb-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.lb-engineering-shell .lb-stepup-help b { color: var(--lb-cyan); }
+.lb-engineering-shell .lb-console-status {
+  min-width: 0;
+  padding: 19px 21px;
+  gap: 14px;
+  line-height: 1.5;
+}
+.lb-engineering-shell .lb-console-status strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.lb-engineering-shell .lb-console-status small {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.lb-engineering-shell .lb-command-panel > p {
+  padding-left: 21px;
+  padding-right: 21px;
+  font-size: 12px;
+}
+@media (max-width: 1080px) {
+  .lb-engineering-shell .lb-overview-grid,
+  .lb-engineering-shell .lb-simulation-grid,
+  .lb-engineering-shell .lb-bench-grid,
+  .lb-engineering-shell .lb-hardware-grid,
+  .lb-engineering-shell .lb-hw-grid,
+  .lb-engineering-shell .lb-mission-grid,
+  .lb-engineering-shell .lb-charts-grid,
+  .lb-engineering-shell .lb-reports-grid {
+    grid-template-columns: 1fr;
+  }
+  .lb-engineering-shell .lb-hw-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .lb-engineering-shell .lb-content { gap: 17px; }
+  .lb-engineering-shell .lb-hw-status-grid { grid-template-columns: 1fr; }
+  .lb-engineering-shell .lb-hw-form,
+  .lb-engineering-shell .lb-maintenance-form,
+  .lb-engineering-shell .lb-config-grid { padding: 16px; }
+  .lb-engineering-shell .lb-stepup-form { width: 100%; }
+  .lb-engineering-shell .lb-stepup-controls { align-items: stretch; flex-direction: column; }
+  .lb-engineering-shell .lb-stepup-controls input,
+  .lb-engineering-shell .lb-stepup-controls button { width: 100%; }
+  .lb-engineering-shell .lb-stepup-help { grid-template-columns: 1fr; padding: 15px; }
+  .lb-engineering-shell .lb-stepup-help > svg { display: none; }
+}
+
+
+/* ===========================================================================
+   LABBENCH 01 — PROFESSIONAL PRESENTATION / CLEAN CONSOLE
+   Les commentaires narratifs sont retirés de l’affichage principal. Les
+   boutons, titres, statuts, valeurs et états de sécurité restent visibles.
+   =========================================================================== */
+.lb-presentation-shell {
+  --lb-cyan: #75e2dc;
+  --lb-surface: #0b1a20;
+  --lb-surface-raised: #0f232a;
+  --lb-line: rgba(143, 197, 201, .14);
+  --lb-line-strong: rgba(143, 197, 201, .25);
+  --lb-text: #e4f0ed;
+  --lb-muted: #829a9b;
+  --lb-soft: #a9c1c0;
+  --lb-radius: 12px;
+  background:
+    radial-gradient(circle at 78% -10%, rgba(37, 106, 116, .16), transparent 31rem),
+    #071216;
+}
+.lb-presentation-shell .lb-main {
+  max-width: none;
+  padding-left: clamp(32px, 5vw, 88px);
+  padding-right: clamp(32px, 5vw, 88px);
+}
+.lb-presentation-shell .lb-main::before { opacity: .45; }
+.lb-presentation-shell .lb-rail {
+  width: 248px;
+  background: linear-gradient(180deg, #0a1920 0%, #071419 100%);
+  border-right-color: var(--lb-line);
+  box-shadow: none;
+}
+.lb-presentation-shell .lb-brand::after {
+  content: "AEROMIND ENGINEERING";
+  color: #708f91;
+  letter-spacing: .12em;
+}
+.lb-presentation-shell .lb-zone-group {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.lb-presentation-shell .lb-zone-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 7px 5px;
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--lb-line);
+}
+.lb-presentation-shell .lb-zone-label {
+  color: var(--lb-muted);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+.lb-presentation-shell .lb-zone-pill {
+  margin: 0 0 0 auto;
+  padding: 3px 6px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 9px;
+}
+.lb-presentation-shell .lb-nav-item {
+  min-height: 44px;
+  padding: 9px 10px;
+  border-radius: 8px;
+}
+.lb-presentation-shell .lb-nav-item strong {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.lb-presentation-shell .lb-nav-item > span {
+  display: block;
+}
+.lb-presentation-shell .lb-nav-item > svg:last-child { opacity: .45; }
+.lb-presentation-shell .lb-nav-item.is-active {
+  border-color: transparent;
+  background: rgba(117, 226, 220, .095);
+  box-shadow: inset 2px 0 var(--lb-cyan);
+}
+.lb-presentation-shell .lb-topbar {
+  min-height: 108px;
+  border-bottom: 1px solid var(--lb-line);
+}
+.lb-presentation-shell .lb-topbar h1 {
+  color: var(--lb-text);
+  font-size: clamp(28px, 3vw, 38px);
+  letter-spacing: -.045em;
+}
+.lb-presentation-shell .lb-eyebrow {
+  color: var(--lb-cyan);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+.lb-presentation-shell .lb-safety-banner {
+  margin-top: 22px;
+  border: 1px solid rgba(237, 189, 115, .25);
+  background: rgba(237, 189, 115, .055);
+}
+.lb-presentation-shell .lb-safety-banner span { display: none; }
+.lb-presentation-shell .lb-identity-panel,
+.lb-presentation-shell .lb-panel,
+.lb-presentation-shell .lb-mode,
+.lb-presentation-shell .lb-gate-track,
+.lb-presentation-shell .lb-instrument-strip,
+.lb-presentation-shell .lb-gate-strip {
+  border-radius: var(--lb-radius);
+  border-color: var(--lb-line);
+  box-shadow: none;
+}
+.lb-presentation-shell .lb-identity-panel {
+  background: var(--lb-surface);
+}
+.lb-presentation-shell .lb-identity-cell small,
+.lb-presentation-shell .lb-rail-foot small,
+.lb-presentation-shell .lb-mode small,
+.lb-presentation-shell .lb-instrument-strip span {
+  display: none;
+}
+.lb-presentation-shell .lb-identity-cell strong {
+  color: var(--lb-text);
+  font-size: 13px;
+}
+.lb-presentation-shell .lb-identity-kicker {
+  color: var(--lb-muted);
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+.lb-presentation-shell .lb-mode {
+  min-height: 86px;
+  background: rgba(15, 35, 42, .66);
+}
+.lb-presentation-shell .lb-mode strong {
+  margin: 5px 0 0;
+  font-size: 14px;
+}
+.lb-presentation-shell .lb-instrument-strip > div {
+  min-height: 76px;
+  padding: 14px 16px;
+}
+.lb-presentation-shell .lb-instrument-strip strong {
+  font-size: 13px;
+}
+.lb-presentation-shell .lb-section-heading {
+  margin-bottom: 16px;
+  padding-top: 0;
+}
+.lb-presentation-shell .lb-section-heading h2 {
+  margin: 5px 0 0;
+  color: var(--lb-text);
+  font-size: clamp(23px, 2.2vw, 30px);
+  line-height: 1.16;
+}
+.lb-presentation-shell .lb-section-heading > div > p:not(.lb-eyebrow) { display: none; }
+.lb-presentation-shell .lb-primary,
+.lb-presentation-shell .lb-secondary {
+  min-height: 38px;
+  border-radius: 8px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 650;
+}
+.lb-presentation-shell .lb-panel-title {
+  min-height: 54px;
+  padding: 15px 18px;
+  font-size: 13px;
+}
+.lb-presentation-shell .lb-panel-title > small { display: none; }
+.lb-presentation-shell .lb-catalog-intro,
+.lb-presentation-shell .lb-config-intro,
+.lb-presentation-shell .lb-protocol > p,
+.lb-presentation-shell .lb-boundary > p,
+.lb-presentation-shell .lb-command-panel > p:not([role="status"]) {
+  display: none;
+}
+.lb-presentation-shell .lb-empty-state {
+  padding: 18px;
+  line-height: 1.45;
+}
+@media (max-width: 1050px) and (min-width: 721px) {
+  .lb-presentation-shell .lb-rail { width: 218px; }
+  .lb-presentation-shell .lb-main { padding-left: 28px; padding-right: 28px; }
+}
+@media (max-width: 720px) {
+  .lb-presentation-shell .lb-main { padding-left: 16px; padding-right: 16px; }
+  .lb-presentation-shell .lb-zone-header { margin-top: 10px; }
+  .lb-presentation-shell .lb-safety-banner { margin-top: 16px; }
+}
+
+
+/* ===========================================================================
+   VIRTUAL CONTROL — OPERATIONS CONSOLE
+   Grille dédiée : chaque confirmation, champ et action possède sa propre
+   cellule. Aucun label ne peut se superposer à un autre élément.
+   =========================================================================== */
+.lb-vctrl-panel {
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(13, 34, 44, .98), rgba(7, 22, 31, .98));
+}
+.lb-vctrl-panel > p {
+  margin: 0;
+  padding: 13px 22px;
+  border-bottom: 1px solid var(--lb-line);
+  line-height: 1.55;
+}
+.lb-vctrl-panel > p[role="status"] {
+  color: var(--lb-cyan);
+  font-size: 12px;
+  font-weight: 600;
+}
+.lb-vctrl-panel > p:not([role="status"]) {
+  color: var(--lb-muted);
+  font-size: 11px;
+}
+.lb-vctrl-panel > p:not([role="status"]) strong { color: var(--lb-amber); }
+.lb-vctrl-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--lb-line);
+}
+.lb-vctrl-section {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border-top: 1px solid var(--lb-line);
+}
+.lb-vctrl-section h3 {
+  margin: 0;
+  color: var(--lb-text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.lb-vctrl-confirmations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.lb-vctrl-confirmations label,
+.lb-vctrl-command-confirm {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 11px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px 15px;
+  border: 1px solid rgba(143, 197, 201, .16);
+  border-radius: 9px;
+  background: rgba(255,255,255,.025);
+  color: var(--lb-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.lb-vctrl-confirmations label:hover,
+.lb-vctrl-command-confirm:hover {
+  border-color: rgba(117, 226, 220, .42);
+  background: rgba(117, 226, 220, .055);
+}
+.lb-vctrl-confirmations label span,
+.lb-vctrl-command-confirm span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lb-vctrl-confirmations input,
+.lb-vctrl-command-confirm input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--lb-cyan);
+}
+.lb-vctrl-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0;
+}
+.lb-vctrl-actions button {
+  flex: 0 1 auto;
+  min-height: 42px;
+  white-space: normal;
+  text-align: center;
+}
+.lb-vctrl-setpoints .lb-config-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0;
+}
+.lb-vctrl-setpoints .lb-config-grid label {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  color: var(--lb-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.lb-vctrl-setpoints .lb-config-grid input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.lb-vctrl-range {
+  color: var(--lb-muted);
+  font: 10px/1.4 "IBM Plex Mono", monospace;
+  letter-spacing: .02em;
+}
+.lb-vctrl-command-confirm {
+  justify-self: start;
+  min-width: min(100%, 380px);
+}
+.lb-vctrl-receipts {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.lb-vctrl-receipts > p,
+.lb-vctrl-receipts > small,
+.lb-vctrl-receipts > ul {
+  margin: 0;
+  line-height: 1.55;
+}
+.lb-vctrl-receipts > ul {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+  color: var(--lb-muted);
+  font: 10px/1.45 "IBM Plex Mono", monospace;
+}
+.lb-vctrl-panel > small {
+  display: block;
+  padding: 14px 22px 18px;
+  border-top: 1px solid var(--lb-line);
+  color: var(--lb-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+@media (max-width: 900px) {
+  .lb-vctrl-setpoints .lb-config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .lb-vctrl-panel > p,
+  .lb-vctrl-source-actions,
+  .lb-vctrl-section { padding-left: 16px; padding-right: 16px; }
+  .lb-vctrl-confirmations { grid-template-columns: 1fr; }
+  .lb-vctrl-setpoints .lb-config-grid { grid-template-columns: 1fr; }
+  .lb-vctrl-actions { display: grid; grid-template-columns: 1fr; }
+  .lb-vctrl-actions button { width: 100%; }
+}
+
+
+/* Microsoft Entra ID — point d’entrée partagé AeroMind / LABBENCH. */
+.lb-presentation-shell .lb-identity-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.lb-presentation-shell .lb-entra-login {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  border-color: rgba(117, 226, 220, .35);
+  background: rgba(117, 226, 220, .08);
+  color: var(--lb-cyan);
+  white-space: nowrap;
+}
+.lb-presentation-shell .lb-entra-login:hover {
+  border-color: var(--lb-cyan);
+  background: rgba(117, 226, 220, .15);
+}
+@media (max-width: 720px) {
+  .lb-presentation-shell .lb-identity-actions,
+  .lb-presentation-shell .lb-entra-login { width: 100%; }
+  .lb-presentation-shell .lb-entra-login { justify-content: center; }
+}
+
+
+/* Strict server-data contract: no local/synthetic fallback is rendered. */
+.lb-server-lock {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 18px 0;
+  border: 1px solid rgba(255, 184, 92, .28);
+  background: rgba(255, 184, 92, .06);
+  color: var(--lb-text, #dce8ef);
+}
+.lb-server-lock > div {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+.lb-server-lock strong { color: #ffd08a; }
+.lb-server-lock span { line-height: 1.55; color: rgba(220, 232, 239, .78); }
+.lb-server-lock .lb-secondary { width: fit-content; margin-top: 3px; }

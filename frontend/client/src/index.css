@@ -15602,3 +15602,26 @@ button:disabled {
   .trajectory-model-banner small { display: none; }
   .trajectory-control-strip .trajectory-camera-label { width: 100%; }
 }
+
+/* Workspace mobile hardening — aucune sous-vue ne doit rester plus large que le viewport. */
+@media (max-width: 760px) {
+  .workspace-window,
+  .workspace-window.is-maximized {
+    left: 6px !important;
+    right: 6px !important;
+    width: auto !important;
+    max-width: calc(100vw - 12px) !important;
+    min-width: 0 !important;
+  }
+  .workspace-window-content,
+  .workspace-window-inner,
+  .workspace-window-inner > .view-stack,
+  .design-studio-view,
+  .studio-subsystem-anchor,
+  .drone-sketch-workbench {
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+  .workspace-window-inner { padding: 10px !important; }
+}

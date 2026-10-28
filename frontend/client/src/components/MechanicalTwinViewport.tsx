@@ -137,7 +137,9 @@ function MechanicalMesh({
   if (part.hidden) return null;
   const layerOpacity = Math.max(0, Math.min(1, (xrayOpacity[part.category] ?? 100) / 100));
   const layerVisible = !xrayIsolatedLayer || xrayIsolatedLayer === part.category;
-  const cutVisible = mode !== "xray" || part.position[2] <= (xrayCut * 2 - 1) * Math.max(0.5, part.size[2]);
+  // À 100 %, le plan de coupe est ouvert : aucune pièce ne doit disparaître.
+  // Sous 100 %, on conserve une coupe progressive et déterministe par couche.
+  const cutVisible = mode !== "xray" || xrayCut >= 0.999 || part.position[2] <= (xrayCut * 2 - 1) * Math.max(0.5, part.size[2]);
   if (!layerVisible || !cutVisible) return null;
   return (
     <group ref={pivotRef} position={pivotCenter ?? [0, 0, 0]}>
@@ -235,7 +237,7 @@ export function MechanicalVectorView({
     const projected = model.parts
       .filter((p) => !p.hidden)
       .filter((p) => !xrayIsolatedLayer || xrayIsolatedLayer === p.category)
-      .filter((p) => mode !== "xray" || p.position[2] <= (xrayCut * 2 - 1) * Math.max(0.5, p.size[2]))
+      .filter((p) => mode !== "xray" || xrayCut >= 0.999 || p.position[2] <= (xrayCut * 2 - 1) * Math.max(0.5, p.size[2]))
       .flatMap((part) => {
         const vertices = transformedPartVertices(part, explosion);
         const points: THREE.Vector3[] = [];

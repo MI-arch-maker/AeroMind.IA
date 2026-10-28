@@ -261,14 +261,14 @@ export const localLabBenchStatus = {
     {
       id: "thermal",
       label: "Moteur thermique",
-      detail: "Calcul synthétique local disponible.",
-      state: "simulated",
+      detail: "En attente d’une mesure ou d’un run persisté AeroMind.",
+      state: "limited",
     },
     {
       id: "gateway",
       label: "Passerelle virtuelle",
-      detail: "Consignes synthétiques après deux confirmations humaines.",
-      state: "simulated",
+      detail: "Disponible après activation LABBENCH et données AeroMind synchronisées.",
+      state: "limited",
     },
     {
       id: "physical",

@@ -37,6 +37,7 @@ export default defineConfig({
     allowedHosts: [
       "localhost",
       "127.0.0.1",
+      "4173-iiu0bwsf8nrsan73hz6bs-1c1fd84a.us3.manus.computer",
       "*.onrender.com",
     ],
   },

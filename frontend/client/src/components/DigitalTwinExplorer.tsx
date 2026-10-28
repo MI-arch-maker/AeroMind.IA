@@ -16,9 +16,12 @@ import {
   Download,
   Gauge,
   Layers3,
+  Maximize2,
   Move3d,
+  MoreHorizontal,
   PenLine,
   Play,
+  RotateCcw,
   Search,
   Settings2,
   Shield,
@@ -339,6 +342,9 @@ export function DigitalTwinExplorer({
     useState<(typeof tabs)[number]>("SYNTHÈSE");
   const [selected, setSelected] = useState("");
   const [activeTool, setActiveTool] = useState<"select" | "draw" | "move" | "correct" | "create">("select");
+  const [projectionMode, setProjectionMode] = useState<"Perspective" | "Orthographique">("Perspective");
+  const [xrayEnabled, setXrayEnabled] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [layerDraft, setLayerDraft] = useState("");
   const [toolMessage, setToolMessage] = useState("");
   const [search, setSearch] = useState("");
@@ -537,6 +543,23 @@ export function DigitalTwinExplorer({
       ...current,
       [key]: Math.max(0, Number(value) || 0),
     }));
+  const resetTwinView = () => {
+    setSection("CONCEPTION");
+    setWorkspaceTab("LOCAL");
+    setInspectorTab("SYNTHÈSE");
+    setActiveTool("select");
+    setSelected("");
+    setSearch("");
+    setPresentation("horizon");
+    setXrayEnabled(false);
+    setToolMessage("Vue Forge réinitialisée");
+    stampEvent("Vue du jumeau réinitialisée");
+  };
+  const toggleTwinFullscreen = () => {
+    const root = document.querySelector(".digital-twin-explorer");
+    if (!document.fullscreenElement) void root?.requestFullscreen?.();
+    else void document.exitFullscreen?.();
+  };
   const choosePresentation = (mode: TwinPresentationMode) => {
     if (mode === presentation) return;
     setPresentation(mode);
@@ -701,6 +724,27 @@ export function DigitalTwinExplorer({
           </button>
         </div>
       </div>
+      <section className="dte-forge-header" aria-label="Atelier Forge du jumeau numérique">
+        <div className="dte-forge-title">
+          <span className="dte-forge-mark"><Box size={19} /></span>
+          <div>
+            <span>AEROMIND / JUMEAU NUMÉRIQUE EXPLORER</span>
+            <strong>FORGE <small>ATELIER MÉCANIQUE PARAMÉTRIQUE</small></strong>
+          </div>
+          <span className={`dte-forge-state ${hasSource ? "is-ready" : ""}`}><i /> {hasSource ? "ÉDITABLE · SOURCE ACTIVE" : "SOURCE REQUISE"}</span>
+        </div>
+        <div className="dte-forge-actions">
+          <button type="button" onClick={resetTwinView} title="Réinitialiser la vue"><RotateCcw size={14} /></button>
+          <button type="button" onClick={toggleTwinFullscreen} title="Plein écran"><Maximize2 size={14} /></button>
+          <button type="button" className={moreMenuOpen ? "is-active" : ""} onClick={() => setMoreMenuOpen((open) => !open)} aria-expanded={moreMenuOpen} title="Plus d’outils"><MoreHorizontal size={15} /></button>
+          {moreMenuOpen && <div className="dte-more-menu" role="menu">
+            <button type="button" onClick={() => { setMoreMenuOpen(false); onRunSimulation(); }} disabled={!hasSource}>Simulation</button>
+            <button type="button" onClick={() => { setMoreMenuOpen(false); setInspectorTab("PERFORMANCE"); setSection("ANALYSE"); }}>Analyse déclarative</button>
+            <button type="button" onClick={() => { setMoreMenuOpen(false); downloadConfig(); }}>Exporter JSON</button>
+            <button type="button" onClick={() => { setMoreMenuOpen(false); stampEvent("Partage JSON préparé"); }}>Partager l’état</button>
+          </div>}
+        </div>
+      </section>
       <section className={`dte-advanced-tools ${twinDesign ? "is-forge-replaced" : ""}`} aria-label="Outils avancés du Digital Twin">
         <div className="dte-tool-palette" role="toolbar" aria-label="Outils de travail">
           {([
@@ -729,8 +773,22 @@ export function DigitalTwinExplorer({
         {activeTool === "draw" && <button className="dte-tool-action" type="button" disabled={!selectedMechanicalId} onClick={attachSelectedAnnotation}><PenLine size={13} /> Ajouter une annotation à l’élément sélectionné</button>}
         {activeTool === "create" && <div className="dte-create-layer"><input aria-label="Nom du nouveau calque" placeholder={selectedItem ? `${selectedItem.label} · calque` : "Sélectionnez d’abord un composant"} value={layerDraft} onChange={(event) => setLayerDraft(event.target.value)} /><button type="button" disabled={!selectedMechanicalId} onClick={createLayerFromSelection}><Layers3 size={13} /> Créer et affecter</button></div>}
         <div className="dte-tool-selection-state"><span>{selectedItem ? `Sélection : ${selectedItem.label}` : "Aucune pièce sélectionnée"}</span>{assignedLayer && <b>Calque lié · {assignedLayer}</b>}{toolMessage && <small role="status">{toolMessage}</small>}</div>
+        <div className="dte-forge-view-controls" role="group" aria-label="Contrôle de vue du modèle">
+          <label>Projection <select value={projectionMode} onChange={(event) => setProjectionMode(event.target.value as typeof projectionMode)}><option>Perspective</option><option>Orthographique</option></select></label>
+          <label className="dte-toggle-control"><input type="checkbox" checked={xrayEnabled} onChange={(event) => setXrayEnabled(event.target.checked)} /> X-ray du jumeau</label>
+        </div>
       </section>
-      <div className={`dte-dashboard ${twinDesign ? "has-mechanical-source" : ""}`}>
+      <section className="dte-mesh-analysis dte-panel" aria-label="Analyse de cohérence du jumeau numérique">
+        <div className="dte-panel-title"><div><span>ANALYSE DU MAILLAGE · CONTRÔLE DE COHÉRENCE</span><strong>{hasSource ? "Source chargée et inspectable" : "Aucune source inspectable"}</strong></div><Shield size={15} /></div>
+        <div className="dte-mesh-metrics">
+          <div><small>PIÈCES VISIBLES</small><strong>{hasSource ? mechanicalParts.length : "—"}</strong></div>
+          <div><small>ENTITÉS DE SOURCE</small><strong>{hasSource ? treeItems.length : "—"}</strong></div>
+          <div><small>CALQUES UTILISATEUR</small><strong>{config.studioLayers?.length ?? 0}</strong></div>
+          <div><small>COHÉRENCE</small><strong className={hasSource ? "is-good" : "is-wait"}>{hasSource ? "CONFORME" : "EN ATTENTE"}</strong></div>
+        </div>
+        <p>{hasSource ? "Source paramétrique ou croquis utilisateur chargé ; les éléments affichés restent liés à la configuration active." : "Chargez une cellule AeroMind ou un croquis utilisateur pour activer l’inspection."}</p>
+      </section>
+      <div className={`dte-dashboard ${twinDesign ? "has-mechanical-source" : ""} ${xrayEnabled ? "is-xray" : ""}`} data-projection={projectionMode}>
         <aside className="dte-component-panel dte-panel">
           <div className="dte-panel-title">
             <div>

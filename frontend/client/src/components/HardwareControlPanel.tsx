@@ -103,12 +103,14 @@ export function HardwareControlPanel() {
         if (!active || sourceRef.current === "local") return;
         const available = result.ok && hasVirtualControlCapability(result.body);
         setServerAvailable(available);
-        setMessage(available
-          ? "Service VIRTUAL disponible après authentification. Aucun matériel ne sera contrôlé."
-          : "Service VIRTUAL indisponible : vous pouvez lancer une simulation locale non enregistrée.");
+        if (available) {
+          setMessage("Service VIRTUAL disponible après authentification. Aucun matériel ne sera contrôlé.");
+        } else {
+          useLocalSimulation();
+        }
       })
       .catch(() => {
-        if (active && sourceRef.current !== "local") setMessage("Service indisponible : vous pouvez lancer une simulation locale non enregistrée.");
+        if (active && sourceRef.current !== "local") useLocalSimulation();
       });
     return () => { active = false; };
   }, []);
@@ -167,9 +169,11 @@ export function HardwareControlPanel() {
       try { body = await response.json(); } catch { /* message générique ci-dessous */ }
       if (requestEpoch.current !== epoch || sourceRef.current !== "server") return;
       if (!response.ok || !isVirtualControlResponse(body)) {
-        setMessage(response.status === 401 || response.status === 403
-          ? "Session indisponible pour le service VIRTUAL. Utilisez la simulation locale, non enregistrée."
-          : failureMessage(body, "État VIRTUAL indisponible."));
+        if (response.status === 401 || response.status === 403) {
+          useLocalSimulation();
+        } else {
+          setMessage(failureMessage(body, "État VIRTUAL indisponible."));
+        }
         return;
       }
       applyServerResponse(body);
@@ -346,7 +350,7 @@ export function HardwareControlPanel() {
   );
 
   return (
-    <section className="lb-panel" aria-label="Contrôle VIRTUAL encadré">
+    <section className="lb-panel lb-vctrl-panel" aria-label="Contrôle VIRTUAL encadré">
       <div className="lb-panel-title">
         <strong>Contrôle VIRTUAL — supervision humaine</strong>
         <small>{source === "server" ? (serverAvailable ? `SERVICE AUTHENTIFIÉ · ${mode}` : "SERVICE NON DISPONIBLE") : `LOCAL NON ENREGISTRÉ · ${mode}`}</small>
@@ -354,16 +358,18 @@ export function HardwareControlPanel() {
       <p role="status">{message}</p>
       <p><strong>Frontière de sûreté :</strong> HARDWARE est définitivement refusé. Ce panneau ne pilote qu’un jumeau logiciel, sans liaison, port ni position géographique réels.</p>
 
-      <div className="lb-config-actions">
+      <div className="lb-config-actions lb-vctrl-source-actions">
         <button className="lb-secondary" onClick={useLocalSimulation}>Utiliser la simulation locale (non enregistrée)</button>
         {source === "local" && <button className="lb-secondary" onClick={() => { setSource("server"); setMessage("Retour au service VIRTUAL : une authentification est requise pour journaliser les actions."); }}>Utiliser le service authentifié</button>}
       </div>
 
-      <div className="lb-config-section">
+      <div className="lb-config-section lb-vctrl-section lb-vctrl-activation">
         <h3>Activation puis armement séparés</h3>
-        <label><input type="checkbox" checked={first} onChange={event => setFirst(event.target.checked)} disabled={activeState.armed} /> Je confirme mon intention d’activer ou armer ce scénario VIRTUAL.</label>
-        <label><input type="checkbox" checked={second} onChange={event => setSecond(event.target.checked)} disabled={activeState.armed} /> J’ai vérifié le setpoint et confirme qu’il concerne uniquement le modèle virtuel.</label>
-        <div className="lb-config-actions">
+        <div className="lb-vctrl-confirmations">
+          <label><input type="checkbox" checked={first} onChange={event => setFirst(event.target.checked)} disabled={activeState.armed} /><span>Intention d’activer ou d’armer VIRTUAL</span></label>
+          <label><input type="checkbox" checked={second} onChange={event => setSecond(event.target.checked)} disabled={activeState.armed} /><span>Setpoint vérifié · modèle virtuel uniquement</span></label>
+        </div>
+        <div className="lb-config-actions lb-vctrl-actions">
           <button className="lb-primary" disabled={!confirmationsReady || isVirtualActive} onClick={() => void activate()}>Activer VIRTUAL (2 confirmations)</button>
           <button className="lb-secondary" disabled={!confirmationsReady || !isVirtualActive || activeState.armed} onClick={() => void arm()}>Armer VIRTUAL (nouvelles confirmations)</button>
           <button className="lb-secondary" disabled={!isVirtualActive && mode === "SIMULATION"} onClick={() => void selectSimulation()}>Revenir en SIMULATION</button>
@@ -371,23 +377,23 @@ export function HardwareControlPanel() {
         </div>
       </div>
 
-      <div className="lb-config-section">
+      <div className="lb-config-section lb-vctrl-section lb-vctrl-setpoints">
         <h3>Setpoints VIRTUAL locaux</h3>
-        <p>Geofence synthétique : x/y de −500 à 500 m, altitude de 0 à 120 m. Le repère 0,0 est l’origine du scénario, pas une coordonnée terrestre.</p>
-        <div className="lb-config-grid">
+        <div className="lb-vctrl-range">X/Y −500…500 m · altitude 0…120 m · origine locale 0,0</div>
+        <div className="lb-config-grid lb-vctrl-setpoint-grid">
           <label>X local (m)<input type="number" min={-500} max={500} value={setpoint.x_m} onChange={event => updateSetpoint("x_m", event.target.value)} /></label>
           <label>Y local (m)<input type="number" min={-500} max={500} value={setpoint.y_m} onChange={event => updateSetpoint("y_m", event.target.value)} /></label>
           <label>Altitude VIRTUAL (m)<input type="number" min={0} max={120} value={setpoint.altitude_m} onChange={event => updateSetpoint("altitude_m", event.target.value)} /></label>
           <label>Cap VIRTUAL (°)<input type="number" min={0} max={360} value={setpoint.heading_deg} onChange={event => updateSetpoint("heading_deg", event.target.value)} /></label>
         </div>
-        <label><input type="checkbox" checked={commandConfirmed} onChange={event => setCommandConfirmed(event.target.checked)} disabled={!activeState.armed} /> Je confirme le setpoint actuellement affiché; cette confirmation sera consommée après une commande ou une modification.</label>
-        <div className="lb-config-actions">
+        <label className="lb-vctrl-command-confirm"><input type="checkbox" checked={commandConfirmed} onChange={event => setCommandConfirmed(event.target.checked)} disabled={!activeState.armed} /><span>Setpoint courant confirmé</span></label>
+        <div className="lb-config-actions lb-vctrl-actions">
           <button className="lb-primary" disabled={!activeState.armed || !commandConfirmed} onClick={() => void sendCommand("position")}>Appliquer position VIRTUAL</button>
           <button className="lb-secondary" disabled={!activeState.armed || !commandConfirmed} onClick={() => void sendCommand("heading")}>Appliquer cap VIRTUAL</button>
         </div>
       </div>
 
-      <div className="lb-config-section">
+      <div className="lb-config-section lb-vctrl-section lb-vctrl-receipts">
         <h3>État et reçus {source === "local" ? "locaux non enregistrés" : "de votre session authentifiée"}</h3>
         <p>Mode : <strong>{mode}</strong> · activation : <strong>{isVirtualActive ? "oui" : "non"}</strong> · armement : <strong>{activeState.armed ? "oui" : "non"}</strong> · sorties physiques : <strong>non</strong>.</p>
         {visibleReceipts.length === 0

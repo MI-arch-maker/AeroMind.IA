@@ -101,3 +101,12 @@ Conserver les styles sombres/cyan et l’architecture React/FastAPI. `web/labben
 - L’état global ne peut être `READY` que si toutes les liaisons attendues sont `linked` et qu’aucun avertissement ne subsiste; toute branche partielle ou en attente donne `PARTIAL`, une erreur bloquante donne `BLOCKED`.
 - Conserver la distinction entre workspace local inter-onglets, snapshot API projet-scopé et preuve versionnée `PrototypeVersion → WorkflowRun → Report`, sans transformer une sauvegarde cockpit automatique en version immuable.
 - Le stockage snapshot actuel ne fournit pas de révision serveur compare-and-swap pour arbitrer deux clients concurrents; afficher cette limite et traiter `SERVER-ACK` comme une confirmation d’écriture, non une garantie de fusion multi-utilisateur.
+
+## Extension — intégration native définitive de LABBENCH 01
+
+- **Navigation unique** : `Home` reste la coque et la source de vérité ; LABBENCH est rendu au même niveau que les autres onglets principaux. L’ancienne URL `/labbench` ne monte plus une application autonome et ouvre le même écran Home intégré.
+- **Pont de données** : Home transmet au composant intégré l’identifiant de projet, le nom du projet, la cellule active et le `ConceptConfig` courant. LABBENCH ne reconstruit plus une configuration concurrente et expose la provenance de la donnée affichée.
+- **Provenance stricte** : aucune valeur historique de localStorage, donnée d’émulateur, scénario par défaut, service de repli ou résultat d’aperçu ne peut devenir une donnée de travail. Une cellule sélectionnée/importée ou une saisie utilisateur explicite est nécessaire avant calcul.
+- **État vide honnête** : sans donnée utilisateur, LABBENCH affiche un état vide actionnable et aucun chiffre, verdict, télémétrie, identité device ou scénario n’est affiché comme réel. Les calculs locaux restent explicitement virtuels et non persistants.
+- **Traçabilité** : les runs, audits et commandes affichent distinctement les entrées utilisateur, les calculs dérivés et les contrôles virtuels ; les sorties physiques restent verrouillées.
+- **Structure concernée** : `frontend/client/src/pages/Home.tsx`, `frontend/client/src/pages/LabBench.tsx`, `frontend/client/src/App.tsx`, `frontend/client/public/manus-routes.json`, `TODO.md`.

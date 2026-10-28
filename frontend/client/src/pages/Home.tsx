@@ -317,7 +317,7 @@ function SessionControls() {
     return (
       <div className="session-controls">
         <div className="session-copy"><strong>Session fermée</strong><small>{window.__MANUS_CONFIG__?.externalOidcEnabled ? "Un compte Microsoft Entra autorisé est requis." : "Connexion indisponible · SSO Microsoft Entra non configuré."}</small></div>
-        <button className="primary-button session-button" onClick={login} disabled={!window.__MANUS_CONFIG__?.externalOidcEnabled} type="button"><LogIn size={14} /> {window.__MANUS_CONFIG__?.externalOidcEnabled ? "Se connecter via Entra" : "Entra non configuré"}</button>
+        <button className="primary-button session-button" onClick={login} type="button"><LogIn size={14} />Se connecter via Microsoft Entra</button>
         {devLoginAvailable && (
           <button className="secondary-button session-button" onClick={async () => { setDevLoginBusy(true); await devLogin(); }} disabled={devLoginBusy} type="button"><LogIn size={14} /> {devLoginBusy ? "Connexion…" : "Connexion développement"}</button>
         )}
@@ -11162,13 +11162,13 @@ function IdentityConnections() {
   const providersQuery = trpc.identity.providers.useQuery();
   const providers = providersQuery.data ?? [];
   const [connectionState, setConnectionState] = useState("Prêt pour la connexion OIDC");
-  const trialEmail = "demo@example.com";
+  const trialEmail = "mcgregoralvin14@gmail.com";
   const copyTrialEmail = async () => {
     try {
       await navigator.clipboard.writeText(trialEmail);
-      setConnectionState("Adresse d’essai copiée");
+      setConnectionState("Adresse principale copiée");
     } catch {
-      setConnectionState(`Adresse d’essai : ${trialEmail}`);
+      setConnectionState(`Adresse principale : ${trialEmail}`);
     }
   };
   return (
@@ -11183,7 +11183,7 @@ function IdentityConnections() {
       <p className="section-description">
         Passerelle d’identité et d’observation : les boutons ci-dessous vérifient la disponibilité du fournisseur et préparent une session d’essai. Aucun secret n’est enregistré dans le navigateur.
       </p>
-      <div className="observator-trial-card"><div><span className="eyebrow">ADRESSE D’ESSAI AUTORISÉE</span><strong>{trialEmail}</strong><small>Connexion réelle soumise au fournisseur OIDC configuré côté serveur.</small></div><div className="observator-trial-actions"><button type="button" className="secondary-button" onClick={copyTrialEmail}><Copy size={14} /> Copier</button><button type="button" className="primary-button" onClick={() => { setConnectionState("Vérification du fournisseur…"); void providersQuery.refetch().then(() => setConnectionState("Fournisseur vérifié · prêt")); }}><RefreshCw size={14} /> Tester la connexion</button></div></div>
+      <div className="observator-trial-card"><div><span className="eyebrow">ADRESSE AEROMIND / SUPER-ADMIN PAR DÉFAUT</span><strong>{trialEmail}</strong><small>Connexion réelle soumise au fournisseur OIDC configuré côté serveur.</small></div><div className="observator-trial-actions"><button type="button" className="secondary-button" onClick={copyTrialEmail}><Copy size={14} /> Copier</button><button type="button" className="primary-button" onClick={() => { setConnectionState("Vérification du fournisseur…"); void providersQuery.refetch().then(() => setConnectionState("Fournisseur vérifié · prêt")); }}><RefreshCw size={14} /> Tester la connexion</button></div></div>
       <div className="materials-grid">
         {providers.map(provider => (
           <div className="material-card" key={provider.id}>
@@ -12578,6 +12578,7 @@ export default function Home() {
     if (requestedView === "live") return "live";
     if (requestedView === "simulation") return "simulation";
     if (requestedView === "mission-center") return "mission-center";
+    if (requestedView === "labbench" || window.location.pathname === "/labbench") return "labbench";
     return "overview";
   });
   const [selectedComponent, setSelectedComponent] = useState("fuselage");
@@ -13904,6 +13905,14 @@ export default function Home() {
                 workflowRun={workflowRun}
                 onRunCommitted={run => { setWorkflowRun(run); setRunId(`WORKFLOW-${run.id.slice(0, 8)}`); }}
               />
+            ) : activeView === "labbench" ? (
+              <LabBench
+                integrated
+                integratedProjectId={activeProjectId || undefined}
+                projectName={project.name}
+                activeDroneLabel={activeDroneLabel}
+                workspaceConfig={config}
+              />
             ) : (
               <WorkspaceWindow
                 viewId={activeView}
@@ -13989,7 +13998,6 @@ export default function Home() {
                         />
                       </>
                     )}
-                    {activeView === "labbench" && <LabBench />}
                     {activeView === "command-center" && <HumanCommandCenter />}
                     {activeView === "live" && (
                       <LiveSimulationView
