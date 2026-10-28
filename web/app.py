@@ -231,15 +231,10 @@ def _workspace_db_get(key: str) -> dict | None:
     """V5 LOT B / R-04 — fetch anonymous workspace from DB (canonical store).
 
     Returns None if the workspace doesn't exist or has expired. The in-memory
-    ``_local_workspaces`` dict is consulted FIRST as a hot-path cache; the DB
-    is the source of truth and is consulted on cache miss. Expired rows are
-    purged on access (lazy TTL enforcement).
+    ``_local_workspaces`` dict is a fallback only when the DB is unavailable;
+    reading it first can serve stale data on a different application worker.
+    Expired rows are purged on access (lazy TTL enforcement).
     """
-    # Hot path: in-memory cache
-    cached = _local_workspaces.get(key)
-    if cached is not None:
-        return cached
-    # DB canonical
     try:
         from .database import SessionLocal
         from .models import AnonymousWorkspace
@@ -251,6 +246,7 @@ def _workspace_db_get(key: str) -> dict | None:
             db.execute(delete(AnonymousWorkspace).where(AnonymousWorkspace.expires_at < now))
             row = db.scalar(select(AnonymousWorkspace).where(AnonymousWorkspace.id == key))
             if row is None:
+                _local_workspaces.pop(key, None)
                 # Commit the lazy purge before returning so the DELETE is
                 # persisted (otherwise the session rollback discards it).
                 db.commit()
@@ -265,7 +261,7 @@ def _workspace_db_get(key: str) -> dict | None:
         return payload
     except Exception as exc:  # noqa: BLE001
         # DB unavailable — degrade to in-memory only (dev / migration / SQLite :memory:)
-        return None
+        return _local_workspaces.get(key)
 
 
 def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> None:

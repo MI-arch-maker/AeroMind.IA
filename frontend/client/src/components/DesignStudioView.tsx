@@ -546,12 +546,14 @@ export function DesignStudioView({
   activeProfile,
   onSelectProfile,
   onOpenLibrary,
+  onUserIntegration,
 }: {
   config: ConceptConfig;
   setConfig: Dispatch<SetStateAction<ConceptConfig>>;
   activeProfile?: DroneCatalogDesign;
   onSelectProfile?: (design: DroneCatalogDesign) => void;
   onOpenLibrary?: () => void;
+  onUserIntegration?: () => void;
 }) {
   const { language } = useLanguage();
   const initialParts = useMemo(() => partsForConfig(config, activeProfile), [config, activeProfile]);
@@ -1434,7 +1436,7 @@ export function DesignStudioView({
           onOpenCatalog={openCatalog}
         />
       </div>
-      <div id="studio-sketch-workbench" className="studio-subsystem-anchor"><DroneSketchProWorkbench config={config} setConfig={setConfig} activeProfile={integratedProfile} parts={config.installedMaterials ?? []} context="studio" /></div>
+      <div id="studio-sketch-workbench" className="studio-subsystem-anchor"><DroneSketchProWorkbench config={config} setConfig={setConfig} activeProfile={integratedProfile} parts={config.installedMaterials ?? []} context="studio" onUserIntegration={onUserIntegration} /></div>
       <div id="studio-cad-workbench" className="studio-subsystem-anchor"><EngineeringCadWorkbench config={config} setConfig={setConfig} activeProfile={integratedProfile} onOpenLibrary={onOpenLibrary} /></div>
       <div id="studio-electronics-workbench" className="studio-subsystem-anchor"><DroneBehaviorPanel configuration={config} context="studio" state="IDDS · CONCEPTION INTÉGRÉE" /></div>
     </div>;
@@ -1456,7 +1458,7 @@ export function DesignStudioView({
         onExportEngineeringJson={exportEngineeringJson}
       />
       <div id="studio-sketch-workbench" className="studio-subsystem-anchor">
-        <DroneSketchProWorkbench config={config} setConfig={setConfig} activeProfile={iddsProfile} parts={config.installedMaterials ?? []} context="studio" />
+        <DroneSketchProWorkbench config={config} setConfig={setConfig} activeProfile={iddsProfile} parts={config.installedMaterials ?? []} context="studio" onUserIntegration={onUserIntegration} />
       </div>
       <div id="studio-assembly-workbench" className="studio-subsystem-anchor">
         <VirtualAssemblyWorkshop config={config} setConfig={setConfig} activeProfile={iddsProfile} parts={config.installedMaterials ?? []} context="studio" />

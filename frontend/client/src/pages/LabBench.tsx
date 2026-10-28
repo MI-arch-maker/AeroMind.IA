@@ -14,7 +14,7 @@ import { FlightHistory } from "@/components/FlightHistory";
 import { AdvancedReplay } from "@/components/AdvancedReplay";
 import { VoiceCommandBar } from "@/components/VoiceCommandBar";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { subscribeToActiveDrone } from "@/lib/hardwareControl";
+import { hasSessionIntegratedDrone, hasUserIntegratedDrone, labBenchDataProjectId } from "@/lib/labBenchDataGate";
 import { toast } from "sonner";
 import {
   Activity,
@@ -53,7 +53,6 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { readJson } from "@/lib/workspaceSync";
 import {
   calculateLocalLabBenchResult,
   normalizeLabBenchScenario,
@@ -407,8 +406,6 @@ const modeItems: Array<{
 // Only the explicit user-entered scenario is persisted. The previous key is
 // intentionally ignored so old demo/default values cannot become evidence.
 const LABBENCH_SCENARIO_KEY = "aeromind-labbench-scenario-user-v2";
-type LocalWorkspace = { projects?: unknown[]; activeProjectId?: string };
-const LOCAL_WORKSPACE_KEY = "aeromind-blank-workspace-v3";
 const EMPTY_LABBENCH_SCENARIO: LabBenchScenario = {
   ambientC: 0,
   heaterPowerW: 0,
@@ -455,6 +452,7 @@ export type LabBenchIntegratedProps = {
   projectName?: string;
   activeDroneLabel?: string;
   workspaceConfig?: unknown;
+  userIntegratedThisSession?: boolean;
 };
 
 const initialAudit: Array<{ time: string; type: string; message: string; status: string }> = [];
@@ -584,6 +582,7 @@ export default function LabBench({
   projectName,
   activeDroneLabel,
   workspaceConfig,
+  userIntegratedThisSession = false,
 }: LabBenchIntegratedProps = {}) {
   const { tKey } = useLanguage();
   const [view, setView] = useState<ViewId>("overview");
@@ -612,31 +611,12 @@ export default function LabBench({
   const materialsRef = useRef<{ refresh: () => void } | null>(null);
   const [connectionChecked, setConnectionChecked] = useState(false);
   const [audit, setAudit] = useState(initialAudit);
-  const [localWorkspace, setLocalWorkspace] = useState<LocalWorkspace>(() =>
-    readJson(LOCAL_WORKSPACE_KEY, {} as LocalWorkspace),
-  );
   const [serverGateState, setServerGateState] = useState<LocalGateState>(initialLocalGateState);
   const [localGateState, setLocalGateState] = useState<LocalGateState>(initialLocalGateState);
   const workspaceRecord =
     workspaceConfig && typeof workspaceConfig === "object"
       ? (workspaceConfig as Record<string, unknown>)
       : null;
-  const selectionRecord =
-    workspaceRecord?.engineeringSelection &&
-    typeof workspaceRecord.engineeringSelection === "object"
-      ? (workspaceRecord.engineeringSelection as Record<string, unknown>)
-      : null;
-  const customSketchRecord =
-    workspaceRecord?.customSketch &&
-    typeof workspaceRecord.customSketch === "object"
-      ? (workspaceRecord.customSketch as Record<string, unknown>)
-      : null;
-  const hasUserIntegratedData = Boolean(
-    selectionRecord?.droneId ||
-      workspaceRecord?.platformProfile ||
-      (Array.isArray(customSketchRecord?.strokes) &&
-        customSketchRecord.strokes.length > 0),
-  );
   const integratedSurface = integrated || Boolean(integratedProjectId);
 
   useEffect(() => {
@@ -675,14 +655,6 @@ export default function LabBench({
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
-  useEffect(() => {
-    const refreshLocalWorkspace = (event: StorageEvent) => {
-      if (event.key !== LOCAL_WORKSPACE_KEY) return;
-      setLocalWorkspace(readJson(LOCAL_WORKSPACE_KEY, {} as LocalWorkspace));
-    };
-    window.addEventListener("storage", refreshLocalWorkspace);
-    return () => window.removeEventListener("storage", refreshLocalWorkspace);
-  }, []);
   const updateScenario = (patch: Partial<LabBenchScenario>) => {
     setScenario((current) => ({ ...current, ...patch }));
     setScenarioUserProvided(true);
@@ -717,66 +689,33 @@ export default function LabBench({
     (activeProjectId &&
     projects.some((project) => project.id === activeProjectId)
       ? activeProjectId
-      : null) ??
-    (localWorkspace?.activeProjectId &&
-    projects.some((project) => project.id === localWorkspace.activeProjectId)
-      ? localWorkspace.activeProjectId
-      : null) ??
-    projects[0]?.id ??
-    null;
-  const remoteProjectId =
+      : null);
+  const selectedRemoteProjectId =
     selectedProjectId &&
     remoteProjects.some((project) => project.id === selectedProjectId)
       ? selectedProjectId
       : null;
-  const integratedLocalDataReady = integratedSurface && hasUserIntegratedData;
-  // A local integrated workspace may be inspected and calculated, but only
-  // after the user has selected/imported a real AeroMind cell or drawing.
-  // There is deliberately no synthetic replacement for an empty workspace.
-  const serverDataReady = Boolean(
-    integratedLocalDataReady ||
-      (meQuery.data &&
-        remoteProjectId &&
-        projectsQuery.isSuccess &&
-        !projectsQuery.isError),
-  );
-
-  // === FIX: auto-select remote project from localStorage when projects load ===
-  // This syncs the project selected in Home.tsx to LabBench when the
-  // projects query finally returns data (e.g. after auth).
-  useEffect(() => {
-    if (remoteProjects.length === 0) return;
-    // If we already have a valid remoteProjectId, don't override.
-    if (remoteProjectId) return;
-    // Check if localStorage has an activeProjectId that matches a remote project.
-    const localActiveId = localWorkspace?.activeProjectId;
-    if (localActiveId && remoteProjects.some((p) => p.id === localActiveId)) {
-      setActiveProjectId(localActiveId);
-      return;
-    }
-    // Otherwise auto-select the first remote project.
-    if (!activeProjectId && remoteProjects[0]) {
-      setActiveProjectId(remoteProjects[0].id);
-    }
-  }, [remoteProjects, remoteProjectId, localWorkspace?.activeProjectId, activeProjectId]);
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId,
   );
-  const [activeDroneConfig, setActiveDroneConfig] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
-  useEffect(() => {
-    if (integratedLocalDataReady && workspaceRecord) {
-      setActiveDroneConfig(workspaceRecord);
-      return;
-    }
-    if (!remoteProjectId) {
-      setActiveDroneConfig(selectedProject?.config ?? null);
-      return;
-    }
-    return subscribeToActiveDrone(remoteProjectId, setActiveDroneConfig);
-  }, [remoteProjectId, integratedLocalDataReady, JSON.stringify(workspaceRecord), JSON.stringify(selectedProject?.config)]);
+  const explicitWorkspaceConfig = workspaceRecord ?? (!integratedSurface ? selectedProject?.config ?? null : null);
+  const hasUserIntegratedData = integratedSurface
+    ? hasSessionIntegratedDrone(explicitWorkspaceConfig, userIntegratedThisSession)
+    : hasUserIntegratedDrone(explicitWorkspaceConfig);
+  const remoteProjectId = labBenchDataProjectId(
+    selectedRemoteProjectId,
+    integratedSurface,
+    integratedSurface ? hasUserIntegratedData : true,
+  );
+  const activeDroneConfig = hasUserIntegratedData
+    ? explicitWorkspaceConfig as Record<string, unknown>
+    : null;
+  const integratedLocalDataReady = integratedSurface && hasUserIntegratedData;
+  // Integrated LabBench reads the exact Home workspace, and remains empty until
+  // a catalogue selection or genuine user-authored drawing is present.
+  const serverDataReady = integratedSurface
+    ? integratedLocalDataReady
+    : Boolean(meQuery.data && remoteProjectId && projectsQuery.isSuccess && !projectsQuery.isError);
   const registryQuery = trpc.labBench.registry.useQuery(
     remoteProjectId ?? "0",
     { enabled: Boolean(remoteProjectId), retry: false },
@@ -845,6 +784,9 @@ export default function LabBench({
     setVirtualPosition(null);
     setConnectionChecked(false);
     setAudit([]);
+    setServerGateState(initialLocalGateState);
+    setLabSessionInfo(null);
+    setActiveDroneSync(null);
     projectEpoch.current += 1;
     simulationEpoch.current = null;
   }, [selectedProjectId]);

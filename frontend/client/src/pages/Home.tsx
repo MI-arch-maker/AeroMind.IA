@@ -11,6 +11,7 @@ import { trpc } from "../lib/trpc";
 import { bearerHeaders, clearSessionToken } from "../lib/sessionToken";
 import {
   createWorkspaceChannel,
+  createSerialWriteQueue,
   parseWorkspaceMessage,
   publishWorkspaceMessage,
 } from "../lib/workspaceSync";
@@ -676,8 +677,10 @@ const readPersistedState = (): PersistedState => {
       item => item.id !== "project-local-1" && item.id !== demoProjectId
     );
     if (!userProjects.length) return emptyWorkspace;
-    const activeProjectId = userProjects.some(item => item.id === parsed.activeProjectId)
-      ? parsed.activeProjectId : userProjects[0].id;
+    if (!parsed.activeProjectId || !userProjects.some(item => item.id === parsed.activeProjectId)) {
+      return { ...emptyWorkspace, projects: userProjects };
+    }
+    const activeProjectId = parsed.activeProjectId;
     const active = userProjects.find(item => item.id === activeProjectId) ?? userProjects[0];
     return { ...active, projects: userProjects, activeProjectId: active.id, config: normalizeConcept(active.config) };
   }
@@ -12470,6 +12473,7 @@ export default function Home() {
     return () => window.removeEventListener("aeromind-workbench-capture", receiveCapture);
   }, []);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [cellIntegratedThisSession, setCellIntegratedThisSession] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const verifySession = async () => {
@@ -12487,6 +12491,8 @@ export default function Home() {
   }, []);
   const authQuery = trpc.auth.me.useQuery(undefined, { retry: false });
   const authenticatedUser = authQuery.data ?? sessionUser;
+  const currentIntegrationIdentity = authenticatedUser?.id ?? authenticatedUser?.email ?? "";
+  const integrationIdentityRef = useRef(currentIntegrationIdentity);
   const serverProjectsQuery = trpc.projects.list.useQuery(undefined, {
     enabled: Boolean(authenticatedUser),
     retry: false,
@@ -12520,17 +12526,28 @@ export default function Home() {
   const createReportMutation = trpc.reports.create.useMutation();
   const submitReportMutation = trpc.reports.submit.useMutation();
   const serverHydrated = useRef(false);
+  const serverHydratedForUser = useRef<string | null>(null);
+  const pendingIdentityRefresh = useRef(false);
   const localServerHydrated = useRef(false);
   const skipServerSave = useRef(false);
   const syncChannelRef = useRef<BroadcastChannel | null>(null);
   const suppressSyncBroadcast = useRef(false);
   const lastWorkspaceUpdatedAt = useRef<string>("");
+  const workspaceSaveQueue = useRef(createSerialWriteQueue()).current;
+  const workspaceSaveGeneration = useRef(0);
   const initialProjectId = initialState.activeProjectId ?? "";
   const initialProjects = initialState.projects?.length
     ? initialState.projects
     : [];
   const [projects, setProjects] = useState<ProjectRecord[]>(initialProjects);
   const [activeProjectId, setActiveProjectId] = useState(initialProjectId);
+  const integrationProjectRef = useRef(initialProjectId);
+  useEffect(() => {
+    if (integrationProjectRef.current !== activeProjectId) {
+      setCellIntegratedThisSession(false);
+      integrationProjectRef.current = activeProjectId;
+    }
+  }, [activeProjectId]);
   const serverRunsQuery = trpc.simulationRuns.list.useQuery(activeProjectId, {
     enabled: Boolean(
       authenticatedUser &&
@@ -12609,6 +12626,40 @@ export default function Home() {
     [activeProjectId, config, requirements, runId, workflowRun]
   );
   useEffect(() => {
+    const previousIdentity = integrationIdentityRef.current;
+    if (previousIdentity === currentIntegrationIdentity) return;
+    integrationIdentityRef.current = currentIntegrationIdentity;
+    setCellIntegratedThisSession(false);
+    if (!previousIdentity) return;
+
+    // A live account switch must not retain or publish the previous account's
+    // project/configuration state. Hydrate the new identity only after its list
+    // request has completed successfully.
+    serverHydrated.current = false;
+    serverHydratedForUser.current = null;
+    skipServerSave.current = true;
+    lastWorkspaceUpdatedAt.current = "";
+    setProjects([]);
+    setActiveProjectId("");
+    setProject(emptyProject);
+    setRequirements([]);
+    setConfig(normalizeConcept(blankConcept));
+    setRunId("SIM-000");
+    setWorkflowRun(null);
+    setWorkspaceRevision((revision) => revision + 1);
+    if (currentIntegrationIdentity) {
+      pendingIdentityRefresh.current = true;
+      void serverProjectsQuery.refetch().finally(() => {
+        if (integrationIdentityRef.current === currentIntegrationIdentity) {
+          pendingIdentityRefresh.current = false;
+        }
+      });
+    } else {
+      pendingIdentityRefresh.current = false;
+      localServerHydrated.current = false;
+    }
+  }, [currentIntegrationIdentity, serverProjectsQuery.refetch]);
+  useEffect(() => {
     if (authenticatedUser || localServerHydrated.current) return;
     // P0-05 fix — fetch the previously-saved anonymous draft (if any) using
     // the per-browser workspace key so this browser sees its own draft and
@@ -12618,10 +12669,12 @@ export default function Home() {
     localServerHydrated.current = true;
     const headers = anonymousWorkspaceHeaders();
     if (!headers) return; // SSR or no localStorage: skip the network round-trip
+    const controller = new AbortController();
     void fetch(`/api/local/workspace?t=${Date.now()}`, {
       method: "GET",
       headers,
       credentials: "include",
+      signal: controller.signal,
     })
       .then(response => {
         if (!response.ok) return null;
@@ -12657,15 +12710,21 @@ export default function Home() {
         // Network failure is non-fatal — the local localStorage draft remains
         // the source of truth for this anonymous browser.
       });
+    return () => controller.abort();
   }, [authenticatedUser, initialProjects.length]);
   useEffect(() => {
     if (
       !authenticatedUser ||
+      !currentIntegrationIdentity ||
       !serverProjectsQuery.isSuccess ||
-      serverHydrated.current
+      serverProjectsQuery.isFetching ||
+      serverProjectsQuery.isError ||
+      pendingIdentityRefresh.current ||
+      (serverHydrated.current && serverHydratedForUser.current === currentIntegrationIdentity)
     )
       return;
     serverHydrated.current = true;
+    serverHydratedForUser.current = currentIntegrationIdentity;
     skipServerSave.current = true;
     const remoteProjects =
       (serverProjectsQuery.data as unknown as ProjectRecord[]) ?? [];
@@ -12677,9 +12736,7 @@ export default function Home() {
       ...remoteProjects,
     ];
     setProjects(mergedProjects);
-    const selected =
-      mergedProjects.find(item => item.id === activeProjectId) ??
-      mergedProjects[0];
+    const selected = mergedProjects.find(item => item.id === activeProjectId);
     if (!selected) {
       setActiveProjectId("");
       setProject(emptyProject);
@@ -12697,14 +12754,19 @@ export default function Home() {
     authenticatedUser,
     serverProjectsQuery.data,
     serverProjectsQuery.isSuccess,
+    serverProjectsQuery.isFetching,
+    serverProjectsQuery.isError,
+    currentIntegrationIdentity,
     activeProjectId,
     projects,
   ]);
   useEffect(() => {
     if (!activeProjectId) {
+      workspaceSaveGeneration.current += 1;
       setSaveState("saved");
       return;
     }
+    const saveGeneration = ++workspaceSaveGeneration.current;
     setSaveState("saving");
     try {
       const currentRecord: ProjectRecord = {
@@ -12748,17 +12810,22 @@ export default function Home() {
           return;
         }
         const timer = window.setTimeout(() => {
-          void fetch("/api/local/workspace", {
-            method: "PUT",
-            headers: { "content-type": "application/json", ...wsHeaders },
-            body: JSON.stringify({ workspace: payload }),
-            credentials: "include",
+          void workspaceSaveQueue(async () => {
+            if (saveGeneration !== workspaceSaveGeneration.current) return;
+            const response = await fetch("/api/local/workspace", {
+              method: "PUT",
+              headers: { "content-type": "application/json", ...wsHeaders },
+              body: JSON.stringify({ workspace: payload }),
+              credentials: "include",
+            });
+            if (!response.ok) throw new Error("local workspace save failed");
           })
-            .then(response => {
-              if (!response.ok) throw new Error("local workspace save failed");
-              setSaveState("saved");
+            .then(() => {
+              if (saveGeneration === workspaceSaveGeneration.current) setSaveState("saved");
             })
-            .catch(() => setSaveState("error"));
+            .catch(() => {
+              if (saveGeneration === workspaceSaveGeneration.current) setSaveState("error");
+            });
         }, 450);
         return () => window.clearTimeout(timer);
       }
@@ -12774,16 +12841,18 @@ export default function Home() {
         }
         setSaveState("saving");
         const timer = window.setTimeout(() => {
-          saveSnapshotMutation.mutate(
-            { id: activeProjectId, project, requirements, config, runId },
-            {
-              onSuccess: () => {
-                setSaveState("saved");
-                void serverVersionsQuery.refetch();
-              },
-              onError: () => setSaveState("error"),
-            }
-          );
+          void workspaceSaveQueue(async () => {
+            if (saveGeneration !== workspaceSaveGeneration.current) return;
+            await saveSnapshotMutation.mutateAsync({ id: activeProjectId, project, requirements, config, runId });
+          })
+            .then(() => {
+              if (saveGeneration !== workspaceSaveGeneration.current) return;
+              setSaveState("saved");
+              void serverVersionsQuery.refetch();
+            })
+            .catch(() => {
+              if (saveGeneration === workspaceSaveGeneration.current) setSaveState("error");
+            });
         }, 900);
         return () => window.clearTimeout(timer);
       }
@@ -12803,7 +12872,8 @@ export default function Home() {
     projects,
     authenticatedUser,
     serverProjectsQuery.isSuccess,
-    saveSnapshotMutation.mutate,
+    saveSnapshotMutation.mutateAsync,
+    serverVersionsQuery.refetch,
   ]);
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
@@ -13185,6 +13255,7 @@ export default function Home() {
     }, 650);
   };
   const applyIndustrialReference = (reference: IndustrialDroneReference) => {
+    setCellIntegratedThisSession(true);
     const canonical = industrialReferenceToDesign(reference);
     const selectedAt = new Date().toISOString();
     setConfig(current => normalizeConcept({
@@ -13523,6 +13594,7 @@ export default function Home() {
     keepStudioOpen = false,
     navigateAfterLoad = true
   ) => {
+    setCellIntegratedThisSession(true);
     const airframe = design.key;
     const preset = architecturePresets[airframe];
     const profileMaterials = buildProfileMaterials(design);
@@ -13584,7 +13656,7 @@ export default function Home() {
       message: `${design.label} chargé après action humaine. Données synchronisées; ${estimatedTakeoffMass ? "la MTOW de banc a été estimée à partir de la masse calculée (+10 %, hypothèse locale non certifiée) car aucune valeur source n’est fournie. " : ""}${requirementsForDroneProfile(design).length} exigences proposées, non approuvées et personnalisables dans Exigences.`,
     });
   };
-  const activeLibraryProfile = config.engineeringSelection?.source !== "custom" && !hasDroneGeometry(config.customSketch?.strokes) && config.platformProfile
+  const activeLibraryProfile = cellIntegratedThisSession && config.engineeringSelection?.source !== "custom" && !hasDroneGeometry(config.customSketch?.strokes) && config.platformProfile
     ? findDroneProfile(config.platformProfile)
     : undefined;
   const activeLibraryDesign: DroneCatalogDesign | undefined = activeLibraryProfile
@@ -13593,7 +13665,9 @@ export default function Home() {
         configuration: { ...activeLibraryProfile.configuration, ...config },
       }
     : undefined;
-  const activeDroneLabel = hasDroneGeometry(config.customSketch?.strokes)
+  const activeDroneLabel = !cellIntegratedThisSession
+    ? "Aucun drone sélectionné"
+    : hasDroneGeometry(config.customSketch?.strokes)
     ? config.engineeringSelection?.droneLabel ?? config.designName ?? "Drone personnalisé"
     : config.engineeringSelection?.source === "custom"
       ? "Aucun drone sélectionné"
@@ -13910,8 +13984,9 @@ export default function Home() {
                 integrated
                 integratedProjectId={activeProjectId || undefined}
                 projectName={project.name}
-                activeDroneLabel={activeDroneLabel}
-                workspaceConfig={config}
+                activeDroneLabel={cellIntegratedThisSession ? activeDroneLabel : "Aucun drone sélectionné"}
+                workspaceConfig={cellIntegratedThisSession ? config : undefined}
+                userIntegratedThisSession={cellIntegratedThisSession}
               />
             ) : (
               <WorkspaceWindow
@@ -13942,7 +14017,7 @@ export default function Home() {
                           loadDroneExample(design, false, false);
                           setActiveView("simulation");
                         }}
-                        activeDroneId={config.engineeringSelection?.droneId ?? config.platformProfile}
+                        activeDroneId={cellIntegratedThisSession ? config.engineeringSelection?.droneId ?? config.platformProfile : undefined}
                         onOpenTools={() => setActiveView("digital-twin")}
                         onApplyIndustrial={applyIndustrialReference}
                       />
@@ -14095,6 +14170,7 @@ export default function Home() {
                       <DesignStudioView
                         config={config}
                         setConfig={setConfig}
+                        onUserIntegration={() => setCellIntegratedThisSession(true)}
                         onSelectProfile={design =>
                           loadDroneExample(design, true)
                         }

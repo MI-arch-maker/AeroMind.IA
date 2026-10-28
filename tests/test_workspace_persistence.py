@@ -5,7 +5,7 @@ Verifies that:
   - Two anonymous browsers have isolated workspaces
   - TTL is enforced (expired workspaces are lazily purged)
   - The shared 'default' key is rejected
-  - The in-memory cache is a hot-path on top of the DB canonical store
+  - The in-memory cache is only a fallback when the DB is unavailable
 """
 from __future__ import annotations
 
@@ -73,13 +73,13 @@ def test_workspace_persists_across_worker_restart(workspace_db):
     key = _key("A")
     # PUT
     app_mod._workspace_db_put(key, _payload("alpha"))
-    # GET (cache hit)
+    # GET (canonical DB read; cache is refreshed)
     fetched1 = app_mod._workspace_db_get(key)
     assert fetched1 is not None
     assert fetched1["draft"] == "alpha"
     # Simulate worker restart — clear in-memory cache
     app_mod._local_workspaces.clear()
-    # GET (cache miss → DB fallback)
+    # GET after simulated worker restart
     fetched2 = app_mod._workspace_db_get(key)
     assert fetched2 is not None, "Workspace MUST survive cache reset via DB persistence"
     assert fetched2["draft"] == "alpha"
@@ -88,6 +88,25 @@ def test_workspace_persists_across_worker_restart(workspace_db):
         row = db.scalar(select(AnonymousWorkspace).where(AnonymousWorkspace.id == key))
         assert row is not None
         assert row.expires_at is not None
+
+def test_workspace_get_prefers_canonical_db_over_stale_worker_cache(workspace_db):
+    """A warm worker cache must not mask a newer write from another worker."""
+    Session, _ = workspace_db
+    key = _key("C")
+    app_mod._workspace_db_put(key, _payload("canonical-v1"))
+    # Simulate another worker committing a newer row while this worker keeps
+    # an older process-local cache entry.
+    with Session() as db:
+        row = db.scalar(select(AnonymousWorkspace).where(AnonymousWorkspace.id == key))
+        assert row is not None
+        row.data_json = __import__("json").dumps(_payload("canonical-v2"))
+        db.commit()
+    app_mod._local_workspaces[key] = _payload("stale-worker-v1")
+
+    fetched = app_mod._workspace_db_get(key)
+    assert fetched is not None
+    assert fetched["draft"] == "canonical-v2"
+    assert app_mod._local_workspaces[key]["draft"] == "canonical-v2"
 
 
 def test_workspace_isolation_two_browsers(workspace_db):

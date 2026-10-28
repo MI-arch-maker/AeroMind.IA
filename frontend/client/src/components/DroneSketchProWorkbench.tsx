@@ -94,6 +94,7 @@ type Props = {
   activeProfile?: DroneCatalogDesign;
   parts?: InstalledMaterial[];
   context: "studio" | "construction";
+  onUserIntegration?: () => void;
 };
 type Point = { x: number; y: number };
 const W = 1000;
@@ -240,6 +241,7 @@ export function DroneSketchProWorkbench({
   activeProfile,
   parts = [],
   context,
+  onUserIntegration,
 }: Props) {
   const customSelected = config.engineeringSelection?.source === "custom";
   const profile = customSelected ? undefined : activeProfile;
@@ -431,6 +433,7 @@ export function DroneSketchProWorkbench({
         };
       return base;
     });
+    if (next.some(isGeometry)) onUserIntegration?.();
   };
   const applyExternalStrokes = (next: DroneSketchStroke[]) => {
     strokesRef.current = next;
@@ -463,6 +466,7 @@ export function DroneSketchProWorkbench({
             }
           : { ...current, customSketch: undefined },
     );
+    if (next.some(isGeometry)) onUserIntegration?.();
   };
   const undo = () => {
     const previous = pastRef.current.pop();
