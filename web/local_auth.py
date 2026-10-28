@@ -112,6 +112,22 @@ def _verify_totp(secret: str, supplied: str) -> bool:
     return _matching_totp_counter(secret, supplied) is not None
 
 
+def verify_account_totp(email: str, supplied: str) -> bool:
+    """Verify an enrolled authenticator TOTP for a LABBENCH step-up."""
+    if not supplied or len(supplied) != 6 or not supplied.isdigit():
+        return False
+    with SessionLocal() as db:
+        row = _row_for_email(db, _normalize_email(email))
+        if row is None:
+            return False
+        stored = _load_record(row)
+        try:
+            secret = _decrypt_secret(stored.get("localTotpSecretEnc", ""))
+        except Exception:
+            return False
+        return _verify_totp(secret, supplied)
+
+
 def _encryption_key() -> bytes:
     return hashlib.sha256((get_settings().session_secret + ":aeromind-local-totp:v1").encode()).digest()
 

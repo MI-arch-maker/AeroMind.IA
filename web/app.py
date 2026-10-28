@@ -21,7 +21,7 @@ from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
-from .admin import activity as admin_activity, create_account, delete_account, list_accounts, migrate_legacy_registry, reset_local_auth, rotate_authorization_code, update_account, verify_authorization_code
+from .admin import activity as admin_activity, create_account, delete_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, rotate_authorization_code, update_account, verify_authorization_code
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
 from .local_auth import router as local_auth_router
@@ -461,7 +461,7 @@ async def trpc_compat(
     if any(name.endswith(suffix) for suffix in (
         'superAdmin.accounts', 'superAdmin.activity',
         'superAdmin.createAccount', 'superAdmin.updateAccount',
-        'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode', 'superAdmin.resetLocalAuth',
+        'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode', 'superAdmin.resetLocalAuth', 'superAdmin.issueDailyTotpCode',
     )):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
@@ -555,6 +555,11 @@ async def trpc_compat(
     elif name.endswith('superAdmin.resetLocalAuth'):
         try:
             data = reset_local_auth(current_user, str(payload.get('id', '')))
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.issueDailyTotpCode'):
+        try:
+            data = issue_daily_totp_code(current_user, str(payload.get('id', '')))
         except (KeyError, ValueError) as exc:
             return _trpc_error(400, 'BAD_REQUEST', str(exc))
     elif name.endswith('projects.list'):

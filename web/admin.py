@@ -53,7 +53,7 @@ def _code_hash(code: str) -> str:
 
 
 def _public_account(account: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in account.items() if key not in {"authorizationCodeHash", "localEnrollmentCodeHash", "localPasswordHash", "localTotpSecretEnc", "localLoginFailures", "localAuthPendingAt", "localTotpLastCounter", "localAuthGeneration", "localEnrollmentCodeIssuedAtEpoch"}}
+    return {key: value for key, value in account.items() if key not in {"authorizationCodeHash", "localEnrollmentCodeHash", "localPasswordHash", "localTotpSecretEnc", "localLoginFailures", "localAuthPendingAt", "localTotpLastCounter", "localAuthGeneration", "localEnrollmentCodeIssuedAtEpoch", "dailyTotpCodeHash"}}
 
 
 def _record_account(row: AdminAccountRecord) -> dict[str, Any]:
@@ -156,6 +156,53 @@ def verify_authorization_code(email: str, code: str) -> bool:
         return False
     expected = account.get("authorizationCodeHash") if account else None
     return bool(expected and code and secrets.compare_digest(expected, _code_hash(code)))
+
+
+def _utc_day() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def issue_daily_totp_code(actor: dict[str, Any], account_id: str) -> dict[str, Any]:
+    """Issue a six-digit, server-verified LABBENCH code for the current UTC day.
+
+    This is intentionally separate from the enrolled authenticator secret: the
+    Super-Admin may transfer this short-lived daily access code, but the code
+    itself is never persisted in clear text and is returned only on issuance.
+    """
+    day = _utc_day()
+    with SessionLocal() as db:
+        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.id == account_id))
+        if row is None:
+            raise KeyError("Compte introuvable")
+        account = _record_account(row)
+        if account.get("role") == "super_admin":
+            raise ValueError("Le code quotidien doit être attribué à un utilisateur")
+        if account.get("accountStatus") not in {"active", "evaluation"}:
+            raise ValueError("Le compte doit être actif ou en évaluation")
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        account.update({
+            "dailyTotpCodeHash": _code_hash(code),
+            "dailyTotpCodeDate": day,
+            "dailyTotpCodeLast4": code[-4:],
+            "dailyTotpCodeIssuedAt": _now(),
+        })
+        row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
+        db.add(_event(db, "account.daily_totp_issued", actor, account_id,
+                      {"date": day, "codeLast4": code[-4:], "validUntilUtc": f"{day}T23:59:59Z"}))
+        db.commit()
+        return {**_public_account(account), "dailyTotpCode": code, "dailyTotpCodeDate": day,
+                "dailyTotpValidUntilUtc": f"{day}T23:59:59Z"}
+
+
+def verify_daily_totp_code(email: str, code: str) -> bool:
+    """Verify the currently issued daily code without exposing its plaintext."""
+    if not code or len(code) != 6 or not code.isdigit():
+        return False
+    account = account_for_email(email)
+    return bool(account and account.get("accountStatus") in {"active", "evaluation"}
+                and account.get("dailyTotpCodeDate") == _utc_day()
+                and account.get("dailyTotpCodeHash")
+                and secrets.compare_digest(account["dailyTotpCodeHash"], _code_hash(code)))
 
 
 def create_account(actor: dict[str, Any], email: str, name: str, requested_role: str = "user", level: str = "L1") -> dict[str, Any]:
