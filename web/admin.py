@@ -175,8 +175,6 @@ def issue_daily_totp_code(actor: dict[str, Any], account_id: str) -> dict[str, A
         if row is None:
             raise KeyError("Compte introuvable")
         account = _record_account(row)
-        if account.get("role") == "super_admin":
-            raise ValueError("Le code quotidien doit être attribué à un utilisateur")
         if account.get("accountStatus") not in {"active", "evaluation"}:
             raise ValueError("Le compte doit être actif ou en évaluation")
         code = f"{secrets.randbelow(1_000_000):06d}"

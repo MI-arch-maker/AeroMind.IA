@@ -40,7 +40,6 @@ from .labbench_auth import (
 from .operation_mode import OperationMode, determine_mode
 from .database import SessionLocal
 from .admin import verify_daily_totp_code
-from .local_auth import verify_account_totp
 
 router = APIRouter(prefix="/api/lab", tags=["labbench-canonical"])
 
@@ -184,16 +183,15 @@ def step_up(
             status.HTTP_400_BAD_REQUEST,
             detail=f"Rôles invalides: {sorted(invalid)}. Valid: {sorted(ROLES)}",
         )
-    # LABBENCH step-up uses the daily six-digit code issued by the Super-Admin.
-    # The server checks its hash and the current UTC date; format-only
-    # acceptance is deliberately forbidden.
+    # LABBENCH 01 access exclusively uses the six-digit code issued by the
+    # Super-Admin for this account and UTC day. The enrolled personal TOTP is
+    # intentionally not an alternative for this protected entry point.
     if payload.assurance_level in ("step-up", "mfa"):
         code = (payload.mfa_code or "").strip()
-        if (len(code) != 6 or not code.isdigit()
-                or not (verify_daily_totp_code(user["email"], code) or verify_account_totp(user["email"], code))):
+        if len(code) != 6 or not code.isdigit() or not verify_daily_totp_code(user["email"], code):
             raise HTTPException(
                 status.HTTP_401_UNAUTHORIZED,
-                detail="Code TOTP LABBENCH invalide ou expiré : utilisez votre application d’authentification ou demandez le code quotidien au Super-Admin.",
+                detail="Code TOTP LABBENCH 01 invalide ou expiré : demandez le code à 6 chiffres du jour au Super-Admin.",
             )
     session_token, expires_at, csrf_token = issue_step_up_session(
         user_id=user_id,
