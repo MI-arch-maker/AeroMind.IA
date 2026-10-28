@@ -12630,7 +12630,6 @@ export default function Home() {
     if (previousIdentity === currentIntegrationIdentity) return;
     integrationIdentityRef.current = currentIntegrationIdentity;
     setCellIntegratedThisSession(false);
-    if (!previousIdentity) return;
 
     // A live account switch must not retain or publish the previous account's
     // project/configuration state. Hydrate the new identity only after its list
@@ -12647,6 +12646,7 @@ export default function Home() {
     setRunId("SIM-000");
     setWorkflowRun(null);
     setWorkspaceRevision((revision) => revision + 1);
+    if (!previousIdentity && !currentIntegrationIdentity) return;
     if (currentIntegrationIdentity) {
       pendingIdentityRefresh.current = true;
       void serverProjectsQuery.refetch().finally(() => {

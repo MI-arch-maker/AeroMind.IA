@@ -147,7 +147,10 @@ def account_for_identity(email: str, subject: str) -> dict[str, Any] | None:
     account = account_for_email(email)
     if account is None or account.get("accountStatus") not in {"active", "evaluation"}:
         return None
-    return {**account, "id": subject, "email": email.strip().casefold()}
+    # ``id`` remains the authenticated subject for compatibility with the
+    # identity layer; ``accountId`` is the stable owner key used by business
+    # data so Entra and local MFA sessions share one isolated workspace.
+    return {**account, "id": subject, "accountId": account.get("id"), "email": email.strip().casefold()}
 
 
 def verify_authorization_code(email: str, code: str) -> bool:
@@ -371,7 +374,9 @@ def activity() -> dict[str, Any]:
                        "actifs": sum(a.get("accountStatus") == "active" for a in accounts),
                        "suspendus": sum(a.get("accountStatus") == "suspended" for a in accounts),
                        "administrateurs": sum(a.get("role") in {"admin", "super_admin"} for a in accounts),
-                       "decisions": len(events), "comptes_supprimes_definitivement": len(deleted_accounts)}}
+                       "decisions": len(events), "comptes_supprimes_definitivement": len(deleted_accounts),
+                       "proprietaires_projets": len({project["userId"] for project in projects}),
+                       "projets_isoles": len(projects)}}
 
 
 def migrate_legacy_registry() -> dict[str, int]:
