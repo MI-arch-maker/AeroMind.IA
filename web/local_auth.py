@@ -210,7 +210,7 @@ def _audit(db, event: str, account: dict, detail: dict | None = None) -> None:
 
 @router.post("/enroll")
 @_limiter.limit("5/minute")
-def enroll(body: Enrollment):
+def enroll(body: Enrollment, request: Request):
     email = _normalize_email(str(body.email))
     account = account_for_email(email)
     code_hash = hashlib.sha256(body.enrollment_code.strip().encode()).hexdigest()
@@ -261,7 +261,7 @@ def enroll(body: Enrollment):
 
 @router.post("/enroll/confirm")
 @_limiter.limit("10/minute")
-def confirm_enrollment(body: Confirmation):
+def confirm_enrollment(body: Confirmation, request: Request):
     email = _normalize_email(str(body.email))
     with SessionLocal() as db:
         row = _row_for_email(db, email, lock=True)
