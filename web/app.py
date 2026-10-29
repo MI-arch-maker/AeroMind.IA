@@ -314,6 +314,20 @@ def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> 
               flush=True)
 
 
+def _workspace_db_delete(key: str) -> None:
+    """Delete one anonymous workspace from cache and canonical storage."""
+    _local_workspaces.pop(key, None)
+    try:
+        from .database import SessionLocal
+        from .models import AnonymousWorkspace
+        from sqlalchemy import delete
+        with SessionLocal() as db:
+            db.execute(delete(AnonymousWorkspace).where(AnonymousWorkspace.id == key))
+            db.commit()
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: anonymous workspace delete failed ({type(exc).__name__})", flush=True)
+
+
 @app.post('/api/auth/dev-login')
 async def dev_login(request: Request):
     """Development-only login — bypasses OIDC for local development.
@@ -429,6 +443,19 @@ async def put_local_workspace(request: Request):
     origin_ip = request.client.host if request.client else None
     _workspace_db_put(raw_key, workspace, origin_ip=origin_ip)
     return {'ok': True, 'source': 'LOCAL', 'updatedAt': workspace.get('updatedAt')}
+
+
+@app.delete('/api/local/workspace')
+async def delete_local_workspace(request: Request):
+    """Clear the current anonymous browser workspace on logout."""
+    raw_key = request.headers.get('X-AeroMind-Workspace', '').strip()
+    if not raw_key or not _is_valid_workspace_key(raw_key):
+        return JSONResponse(status_code=400, content={'error': {
+            'code': 'WORKSPACE_KEY_REQUIRED',
+            'message': 'Un identifiant de workspace valide est requis.',
+        }}, headers={'Cache-Control': 'no-store'})
+    _workspace_db_delete(raw_key)
+    return {'deleted': True, 'source': 'LOCAL'}
 
 
 def _current_user(aeromind_session: str | None, authorization: str | None = None):

@@ -1,5 +1,6 @@
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
+import { anonymousWorkspaceHeaders, WORKSPACE_KEY_STORAGE_KEY } from "@/lib/anonymousWorkspaceKey";
 import { useCallback, useEffect, useMemo } from "react";
 
 type UseAuthOptions = {
@@ -22,6 +23,16 @@ export function useAuth(options?: UseAuthOptions) {
 
   const logout = useCallback(async () => {
     try {
+      // A browser draft must never survive a completed session. Delete the
+      // anonymous server slot before removing its browser snapshot.
+      const workspaceHeaders = anonymousWorkspaceHeaders();
+      if (workspaceHeaders) {
+        await fetch("/api/local/workspace", {
+          method: "DELETE",
+          credentials: "include",
+          headers: workspaceHeaders,
+        }).catch(() => undefined);
+      }
       await fetch("/api/auth/oidc/logout", {
         method: "POST",
         credentials: "include",
@@ -32,9 +43,14 @@ export function useAuth(options?: UseAuthOptions) {
       // The backend clears both the session and pending OIDC state cookies.
       try {
         sessionStorage.removeItem("manus-cookie");
+        sessionStorage.removeItem("aeromind-entra-session");
+        localStorage.removeItem("aeromind-blank-workspace-v3");
+        localStorage.removeItem("aeromind-workbench-capture");
+        localStorage.removeItem(WORKSPACE_KEY_STORAGE_KEY);
       } catch {}
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
+      window.dispatchEvent(new Event("aeromind-auth-changed"));
     }
   }, [utils]);
 
