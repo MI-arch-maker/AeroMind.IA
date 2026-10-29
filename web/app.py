@@ -650,7 +650,13 @@ async def trpc_compat(
         with SessionLocal() as db:
             project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')})))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+            previous = json.loads(project.data_json or '{}')
             state = {'project': payload.get('project', {}), 'config': payload.get('config', {}), 'requirements': payload.get('requirements', []), 'runId': payload.get('runId', 'SIM-000')}
+            # A user snapshot must not erase a Super-Admin control decision.
+            admin_control = previous.get('adminControl')
+            if isinstance(admin_control, dict) and admin_control.get('status') in {'saved', 'observed'}:
+                state['adminControl'] = admin_control
+                state['project']['status'] = admin_control['status']
             project.name = state['project'].get('name', project.name); project.data_json = json.dumps(state)
             if project.active_drone_id:
                 drone = db.get(Drone, project.active_drone_id)

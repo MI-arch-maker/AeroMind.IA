@@ -387,6 +387,11 @@ def activity() -> dict[str, Any]:
 
 def update_project_control(actor: dict[str, Any], project_id: str, action: str) -> dict[str, Any]:
     """Apply an explicit, audited Super-Admin control to one project."""
+    from sqlalchemy import inspect
+
+    from .canonical_models import (AuditEventExt, DroneRevision, EventOutbox,
+                                   GateValidation, GeofenceRecord, HardwareToken,
+                                   Measurement, TestRun)
     from .models import (AlertEvent, AuditEvent, BatteryCycle, Drone, EngineeringDocumentRecord,
                          FleetTelemetrySample, LabSession, MaintenanceRecord, Mission,
                          PreflightChecklist, PrototypeVersion, Report, Simulation,
@@ -399,16 +404,24 @@ def update_project_control(actor: dict[str, Any], project_id: str, action: str) 
         metadata = body.setdefault("adminControl", {})
         if action == "save":
             metadata.update({"status": "saved", "savedAt": _now(), "savedBy": actor["id"]})
+            body.setdefault("project", {})["status"] = "saved"
             event_type = "project.saved"
         elif action == "observe":
             metadata.update({"status": "observed", "observedAt": _now(), "observedBy": actor["id"]})
+            body.setdefault("project", {})["status"] = "observed"
             event_type = "project.observed"
         elif action == "delete":
             # Explicit cleanup keeps deletion reliable on deployments where
             # database-level ON DELETE CASCADE is not enabled.
-            for model in (EngineeringDocumentRecord, WorkflowRun, PrototypeVersion, Report, Simulation,
-                          LabSession, AuditEvent, AlertEvent, FleetTelemetrySample, PreflightChecklist,
-                          MaintenanceRecord, BatteryCycle, Mission, Drone):
+            database_inspector = inspect(db.bind)
+            for model in (Measurement, TestRun, DroneRevision, GateValidation,
+                          HardwareToken, GeofenceRecord, EventOutbox, AuditEventExt,
+                          EngineeringDocumentRecord, WorkflowRun, PrototypeVersion,
+                          Report, Simulation, LabSession, AuditEvent, AlertEvent,
+                          FleetTelemetrySample, PreflightChecklist, MaintenanceRecord,
+                          BatteryCycle, Mission, Drone):
+                if not database_inspector.has_table(model.__table__.name):
+                    continue
                 for row in db.scalars(select(model).where(model.project_id == project_id)).all():
                     db.delete(row)
             db.delete(project)
