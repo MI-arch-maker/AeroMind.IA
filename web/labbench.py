@@ -253,7 +253,9 @@ def _require_project_owner(db: Session, user: dict[str, Any] | None, project_id:
     project_id = str(project_id or "").strip()
     if not project_id:
         raise LabBenchError(400, "BAD_REQUEST", "A project id is required")
-    project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id == user["id"]))
+    owner_ids = {user["id"], user.get("subject")}
+    owner_ids.discard(None)
+    project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_(owner_ids)))
     if project is None:
         # Do not permit a caller to read or append evidence to another owner's project.
         existing = db.get(Project, project_id)
@@ -1676,4 +1678,3 @@ def run_fleet_simulation(
         "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
-

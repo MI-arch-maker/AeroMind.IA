@@ -21,7 +21,7 @@ from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
-from .admin import activity as admin_activity, create_account, delete_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, rotate_authorization_code, update_account, verify_authorization_code
+from .admin import activity as admin_activity, create_account, delete_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, rotate_authorization_code, update_account, update_project_control, verify_authorization_code
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
 from .local_auth import router as local_auth_router
@@ -461,7 +461,7 @@ async def trpc_compat(
     if any(name.endswith(suffix) for suffix in (
         'superAdmin.accounts', 'superAdmin.activity',
         'superAdmin.createAccount', 'superAdmin.updateAccount',
-        'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode', 'superAdmin.resetLocalAuth', 'superAdmin.issueDailyTotpCode',
+        'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode', 'superAdmin.resetLocalAuth', 'superAdmin.issueDailyTotpCode', 'superAdmin.saveProject', 'superAdmin.observeProject', 'superAdmin.deleteProject',
     )):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
@@ -562,12 +562,18 @@ async def trpc_compat(
             data = issue_daily_totp_code(current_user, str(payload.get('id', '')))
         except (KeyError, ValueError) as exc:
             return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.saveProject') or name.endswith('superAdmin.observeProject') or name.endswith('superAdmin.deleteProject'):
+        try:
+            action = 'save' if name.endswith('superAdmin.saveProject') else 'observe' if name.endswith('superAdmin.observeProject') else 'delete'
+            data = update_project_control(current_user, str(payload.get('id', '')), action)
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
     elif name.endswith('projects.list'):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
         with SessionLocal() as db:
             data = []
-            for record in db.scalars(select(Project).where(Project.user_id == current_user['id']).order_by(Project.created_at.desc())):
+            for record in db.scalars(select(Project).where(Project.user_id.in_({current_user['id'], current_user.get('subject')})).order_by(Project.created_at.desc())):
                 body = __import__('json').loads(record.data_json or '{}')
                 data.append({'id': record.id, 'project': body.get('project', {'name': record.name, 'status': 'active', 'version': '1.0'}), 'config': body.get('config', {}), 'requirements': body.get('requirements', []), 'runId': body.get('runId', 'SIM-000')})
     elif name.endswith('projects.create'):
@@ -623,7 +629,7 @@ async def trpc_compat(
         import json
         project_id = str(payload.get('id', ''))
         with SessionLocal() as db:
-            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id == current_user['id']))
+            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')})))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
             result = payload.get('result', {})
             record = Simulation(id=str(uuid4()), user_id=current_user['id'], project_id=project_id, data_json=json.dumps({'runId': result.get('runId', 'SIM-001'), 'version': '1.0', 'result': result, 'config': payload.get('config', {})}))
@@ -633,7 +639,7 @@ async def trpc_compat(
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
         project_id = str(payload.get('id', payload) if isinstance(payload, dict) else payload)
         with SessionLocal() as db:
-            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id == current_user['id']))
+            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')})))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
             db.delete(project); db.commit(); data = {'deleted': True}
     elif name.endswith('projects.saveSnapshot'):
@@ -642,7 +648,7 @@ async def trpc_compat(
         import json
         project_id = str(payload.get('id', ''))
         with SessionLocal() as db:
-            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id == current_user['id']))
+            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')})))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
             state = {'project': payload.get('project', {}), 'config': payload.get('config', {}), 'requirements': payload.get('requirements', []), 'runId': payload.get('runId', 'SIM-000')}
             project.name = state['project'].get('name', project.name); project.data_json = json.dumps(state)
@@ -658,7 +664,7 @@ async def trpc_compat(
         import json
         project_id = str(payload.get('id', ''))
         with SessionLocal() as db:
-            if db.scalar(select(Project).where(Project.id == project_id, Project.user_id == current_user['id'])) is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+            if db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')}))) is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
             report_payload = {**payload, 'status': 'draft', 'workflow': {'submittedAt': None, 'reviewerId': None, 'approverId': None, 'reviewerComment': None, 'approverComment': None}}
             record = Report(id=str(uuid4()), user_id=current_user['id'], project_id=project_id, data_json=json.dumps(report_payload)); db.add(record); db.commit(); data = {'id': record.id, **report_payload}
     elif name.endswith('reports.submit'):

@@ -2238,8 +2238,8 @@ export default function LabBench({
             <Info size={18} />
             <div>
               <strong>Le Step-up est la seconde identification de LABBENCH 01.</strong>
-              <p>Connectez-vous d’abord à AeroMind, puis saisissez ici le code TOTP à 6 chiffres affiché par votre application d’authentification (Aegis, Google Authenticator, Microsoft Authenticator ou équivalent). Ce n’est ni le mot de passe AeroMind, ni le code de rapport.</p>
-              <p>Si aucun code n’est encore configuré pour {meQuery.data?.email ?? "votre compte"}, ouvrez la console Super-Admin et utilisez <b>Préparer mon accès local MFA</b> ou l’activation de compte. Scannez ou copiez la clé TOTP dans votre application, validez l’enrôlement, puis revenez ici. La session LABBENCH est temporaire et expire après 15 minutes.</p>
+              <p>Connectez-vous d’abord à AeroMind, puis saisissez ici le code TOTP à 6 chiffres attribué pour la journée par le Super-Admin depuis la Console Admin. Ce n’est ni le mot de passe AeroMind, ni le code de rapport.</p>
+              <p>Si aucun code n’a encore été attribué pour {meQuery.data?.email ?? "votre compte"}, demandez au Super-Admin d’ouvrir la Console Admin, de sélectionner votre compte et de cliquer sur <b>TOTP du jour</b>. La session LABBENCH est temporaire et expire après 15 minutes.</p>
             </div>
           </section>
         )}

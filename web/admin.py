@@ -379,6 +379,44 @@ def activity() -> dict[str, Any]:
                        "projets_isoles": len(projects)}}
 
 
+def update_project_control(actor: dict[str, Any], project_id: str, action: str) -> dict[str, Any]:
+    """Apply an explicit, audited Super-Admin control to one project."""
+    from .models import (AlertEvent, AuditEvent, BatteryCycle, Drone, EngineeringDocumentRecord,
+                         FleetTelemetrySample, LabSession, MaintenanceRecord, Mission,
+                         PreflightChecklist, PrototypeVersion, Report, Simulation,
+                         WorkflowRun)
+    with SessionLocal() as db:
+        project = db.get(Project, project_id)
+        if project is None:
+            raise KeyError("Projet introuvable")
+        body = json.loads(project.data_json or "{}")
+        metadata = body.setdefault("adminControl", {})
+        if action == "save":
+            metadata.update({"status": "saved", "savedAt": _now(), "savedBy": actor["id"]})
+            event_type = "project.saved"
+        elif action == "observe":
+            metadata.update({"status": "observed", "observedAt": _now(), "observedBy": actor["id"]})
+            event_type = "project.observed"
+        elif action == "delete":
+            # Explicit cleanup keeps deletion reliable on deployments where
+            # database-level ON DELETE CASCADE is not enabled.
+            for model in (EngineeringDocumentRecord, WorkflowRun, PrototypeVersion, Report, Simulation,
+                          LabSession, AuditEvent, AlertEvent, FleetTelemetrySample, PreflightChecklist,
+                          MaintenanceRecord, BatteryCycle, Mission, Drone):
+                for row in db.scalars(select(model).where(model.project_id == project_id)).all():
+                    db.delete(row)
+            db.delete(project)
+            db.add(_event(db, "project.deleted", actor, project_id, {"projectId": project_id}))
+            db.commit()
+            return {"id": project_id, "deleted": True}
+        else:
+            raise ValueError("Action projet inconnue")
+        project.data_json = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
+        db.add(_event(db, event_type, actor, project_id, {"projectId": project_id, "status": metadata.get("status")}))
+        db.commit()
+        return {"id": project_id, "projectStatus": metadata.get("status"), "updatedAt": _now()}
+
+
 def migrate_legacy_registry() -> dict[str, int]:
     """Idempotently import the former JSON registry, then archive it after commit."""
     account_count = event_count = 0

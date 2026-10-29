@@ -149,7 +149,7 @@ def logout():
 
 
 @router.get('/login')
-async def login():
+async def login(return_to: str = '/'):
     cfg = _settings()
     async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
         metadata = (await client.get(f"{cfg['issuer']}/.well-known/openid-configuration")).raise_for_status()
@@ -158,7 +158,9 @@ async def login():
     nonce = _b64(secrets.token_bytes(32))
     verifier = _b64(secrets.token_bytes(48))
     challenge = _b64(hashlib.sha256(verifier.encode()).digest())
-    payload = f'{state}.{nonce}.{verifier}.{int(time.time())}'
+    safe_return_to = return_to if return_to.startswith('/') and not return_to.startswith('//') else '/'
+    return_token = _b64(safe_return_to.encode())
+    payload = f'{state}.{nonce}.{verifier}.{int(time.time())}.{return_token}'
     token = _signed(_b64(payload.encode()))
     query = urlencode({'client_id': cfg['client_id'], 'redirect_uri': cfg['redirect_uri'], 'response_type': 'code', 'scope': 'openid profile email', 'state': state, 'nonce': nonce, 'code_challenge': challenge, 'code_challenge_method': 'S256'})
     response = RedirectResponse(f"{discovery['authorization_endpoint']}?{query}")
@@ -174,7 +176,7 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
     try:
         signed_value = _verified(aeromind_oidc_state)
         raw = base64.urlsafe_b64decode(signed_value + '=' * (-len(signed_value) % 4)).decode()
-        expected_state, nonce, verifier, issued = raw.split('.')
+        expected_state, nonce, verifier, issued, return_token = raw.split('.', 4)
         if not secrets.compare_digest(expected_state, state) or time.time() - int(issued) > 600:
             raise ValueError
     except (ValueError, TypeError):
@@ -194,7 +196,14 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
     if identity_email is None:
         raise HTTPException(403, 'Compte Microsoft Entra préexistant requis et adresse non autorisée dans le registre AeroMind')
     session = _signed(_b64(f"{claims.get('sub')}|{identity_email}".encode()))
-    response = RedirectResponse(f"/#aeromind_session={quote(session, safe='')}")
+    try:
+        return_to = base64.urlsafe_b64decode(return_token + '=' * (-len(return_token) % 4)).decode()
+    except (ValueError, UnicodeDecodeError):
+        return_to = '/'
+    if not return_to.startswith('/') or return_to.startswith('//'):
+        return_to = '/'
+    separator = '&' if '?' in return_to else '?'
+    response = RedirectResponse(f"{return_to}{separator}aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')
     response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security())
     return response
