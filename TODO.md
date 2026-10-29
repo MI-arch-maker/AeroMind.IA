@@ -32,3 +32,9 @@
 - [x] **Synchronisation des commandes et calculs :** les entrées de scénario et l’état de run restent liés à la vue intégrée ; les actions de calcul refusent les valeurs par défaut et les résultats distinguent les runs utilisateur des données non exécutées.
 - [x] **Traçabilité institutionnelle :** les libellés de source, d’état de run, de calcul local et de transport virtuel restent visibles ; les sorties physiques demeurent verrouillées.
 - [x] **Validation finale de livraison :** dépendances installées depuis le lockfile ; typecheck/i18n réussis (`2617` clés synchronisées), Vitest réussi (`54` fichiers, `273` tests), build Vite réussi, manifeste `/manus-routes.json` servi en `200`, Preview démarrée sur le port `3000` et accès `/labbench` capturé avec le rendu intégré.
+
+## Modernisation Aeromind — navigation satellite, accès MFA et LABBENCH 01 (29 octobre 2026)
+- [x] **Navigateur par satellite :** corriger l’interface « NAVIGATEUR PAR SATELLITE » qui ne fonctionnait pas, refusait de s’ouvrir sur HTTPS et envoyait un message d’erreur d’affichage; prévenir le blocage de contenu mixte et stabiliser le repli entre fournisseurs de tuiles.
+- [x] **Connexion MFA AeroMind :** au-delà de l’onglet « CONNEXION SUR MICROSOFT ENTRA » retrouvé sur l’application AeroMind, créer juste en dessous l’onglet « CONNEXION MFA », également disponible sur l’interface admin; réutiliser le flux local MFA existant avec mot de passe et TOTP.
+- [x] **LABBENCH 01 :** moderniser les onglets et contrôles de connexion visibles dans LABBENCH 01 sans changer les règles d’autorisation Step-up.
+- [x] **Validation & livraison :** typecheck/i18n, tests frontend et build exécutés; archiver les sources corrigées et documenter l’état de déploiement.

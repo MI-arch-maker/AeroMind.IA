@@ -113,6 +113,7 @@ import { WorkspaceWindow } from "../components/WorkspaceWindow";
 import { DesignStudioView } from "../components/DesignStudioView";
 import { DigitalTwinExplorer } from "../components/DigitalTwinExplorer";
 import { SatelliteNavigationView } from "../components/SatelliteNavigationView";
+import { LocalMfaLogin } from "../components/LocalMfaLogin";
 import { HumanCommandCenter } from "../components/HumanCommandCenter";
 import { ValidationAuditJournal, type AuditSyncState, type PersistedValidationAuditEvent } from "../components/ValidationAuditJournal";
 import { createValidationAuditEntry, readValidationAuditOutbox, writeValidationAuditOutbox, type ValidationAuditEntry, type ValidationAuditEventType } from "../lib/validationAuditOutbox";
@@ -280,6 +281,7 @@ function SessionControls() {
   const [busy, setBusy] = useState(false);
   const [devLoginAvailable, setDevLoginAvailable] = useState(false);
   const [devLoginBusy, setDevLoginBusy] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<"entra" | "mfa">("entra");
 
   const refresh = async () => {
     try {
@@ -318,8 +320,12 @@ function SessionControls() {
     return (
       <div className="session-controls">
         <div className="session-copy"><strong>Session fermée</strong><small>{window.__MANUS_CONFIG__?.externalOidcEnabled ? "Un compte Microsoft Entra autorisé est requis." : "Connexion indisponible · SSO Microsoft Entra non configuré."}</small></div>
-        <button className="primary-button session-button" onClick={login} type="button"><LogIn size={14} />Se connecter via Microsoft Entra</button>
-        {devLoginAvailable && (
+        <div className="session-login-tabs" role="tablist" aria-label="Méthode de connexion AeroMind">
+          <button type="button" role="tab" aria-selected={loginMethod === "entra"} className={loginMethod === "entra" ? "is-active" : ""} onClick={() => setLoginMethod("entra")}><LogIn size={13}/> Microsoft Entra</button>
+          <button type="button" role="tab" aria-selected={loginMethod === "mfa"} className={loginMethod === "mfa" ? "is-active" : ""} onClick={() => setLoginMethod("mfa")}><ShieldCheck size={13}/> Connexion MFA</button>
+        </div>
+        {loginMethod === "entra" ? <button className="primary-button session-button" onClick={login} type="button"><LogIn size={14} />Connexion sur Microsoft Entra</button> : <LocalMfaLogin onAuthenticated={() => { void refresh(); window.dispatchEvent(new Event("aeromind-auth-changed")); }} />}
+        {devLoginAvailable && loginMethod === "entra" && (
           <button className="secondary-button session-button" onClick={async () => { setDevLoginBusy(true); await devLogin(); }} disabled={devLoginBusy} type="button"><LogIn size={14} /> {devLoginBusy ? "Connexion…" : "Connexion développement"}</button>
         )}
       </div>

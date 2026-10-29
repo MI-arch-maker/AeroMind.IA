@@ -1736,3 +1736,18 @@
 .lb-server-lock strong { color: #ffd08a; }
 .lb-server-lock span { line-height: 1.55; color: rgba(220, 232, 239, .78); }
 .lb-server-lock .lb-secondary { width: fit-content; margin-top: 3px; }
+
+/* Modernisation des accès LABBENCH 01 : choix Entra, puis validation MFA Step-up. */
+.lb-engineering-shell .lb-identity-panel { grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr); align-items:stretch; gap:18px; padding:18px; border-color:rgba(77,231,239,.3); background:linear-gradient(110deg,rgba(10,31,46,.97),rgba(7,19,31,.98)); }
+.lb-engineering-shell .lb-identity-cell { padding:4px 0; }
+.lb-engineering-shell .lb-identity-kicker { color:#65e6ee; }
+.lb-engineering-shell .lb-identity-actions { grid-column:1/-1; display:flex; flex-wrap:wrap; align-items:stretch; gap:10px; padding-top:12px; border-top:1px solid rgba(145,207,216,.14); }
+.lb-engineering-shell .lb-entra-login { min-height:40px; padding:0 16px; border:1px solid rgba(77,231,239,.38); border-radius:5px; background:linear-gradient(110deg,rgba(22,100,125,.44),rgba(12,47,67,.8)); color:#e9fdff; font-weight:700; letter-spacing:.02em; box-shadow:0 6px 20px rgba(0,0,0,.16); transition:transform .16s ease,border-color .16s ease,background .16s ease; }
+.lb-engineering-shell .lb-entra-login:hover { transform:translateY(-1px); border-color:#4de7ef; background:linear-gradient(110deg,rgba(22,120,145,.58),rgba(12,58,77,.9)); }
+.lb-engineering-shell .lb-stepup-form { min-width:min(100%,330px); flex:1; padding:10px 12px; border:1px solid rgba(117,215,173,.24); border-radius:5px; background:rgba(117,215,173,.045); }
+.lb-engineering-shell .lb-stepup-form label { display:block; margin-bottom:7px; color:#9cc0c7; font:600 9px "IBM Plex Mono",monospace; letter-spacing:.08em; text-transform:uppercase; }
+.lb-engineering-shell .lb-stepup-controls { display:flex; flex-wrap:wrap; gap:8px; }
+.lb-engineering-shell .lb-stepup-controls input { min-height:38px; flex:1; }
+.lb-engineering-shell .lb-stepup-controls .lb-primary { min-height:38px; padding-inline:15px; font-weight:700; }
+.lb-engineering-shell .lb-stepup-help-button { align-self:center; min-height:36px; border-color:rgba(145,207,216,.22); color:#aacbd1; }
+@media(max-width:820px){.lb-engineering-shell .lb-identity-panel{grid-template-columns:1fr}.lb-engineering-shell .lb-identity-divider{display:none}.lb-engineering-shell .lb-identity-actions{grid-column:1}}

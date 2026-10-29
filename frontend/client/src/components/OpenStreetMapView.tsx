@@ -44,7 +44,14 @@ const SATELLITE_PROVIDERS = [TACTICAL_PROVIDERS[1], TACTICAL_PROVIDERS[0], TACTI
 // Optional local XYZ endpoint backed by MBTiles (e.g. http://localhost:8080/tiles/{z}/{x}/{y}.png).
 // Browsers cannot read an MBTiles SQLite file directly; expose it through a local tile server.
 const OFFLINE_TILE_TEMPLATE = import.meta.env.VITE_OFFLINE_TILE_URL?.trim();
-const OFFLINE_PROVIDER: TileProvider | null = OFFLINE_TILE_TEMPLATE
+const isSecureTileTemplate = (template: string) => {
+  if (typeof window === "undefined" || window.location.protocol !== "https:") return true;
+  if (template.startsWith("//")) return true;
+  if (template.startsWith("/")) return true;
+  try { return new URL(template.replace(/\{[szyx]\}/g, "0").replace("{r}", ""), window.location.origin).protocol === "https:"; }
+  catch { return false; }
+};
+const OFFLINE_PROVIDER: TileProvider | null = OFFLINE_TILE_TEMPLATE && isSecureTileTemplate(OFFLINE_TILE_TEMPLATE)
   ? { id: "offline-tiles", label: "Tuiles locales (MBTiles via XYZ)", attribution: "Tuiles locales — source/attribution à renseigner selon le jeu de données", template: OFFLINE_TILE_TEMPLATE, subdomains: [""] }
   : null;
 
@@ -120,6 +127,7 @@ export function OpenStreetMapView({
   const [mapCenter, setMapCenter] = useState(center);
   const [providerIndex, setProviderIndex] = useState(0);
   const [failedTiles, setFailedTiles] = useState(0);
+  const failedTileKeys = useRef<Set<string>>(new Set());
   const provider = providers[Math.min(providerIndex, providers.length - 1)];
 
   useEffect(() => {
@@ -133,6 +141,7 @@ export function OpenStreetMapView({
   useEffect(() => {
     setProviderIndex(0);
     setFailedTiles(0);
+    failedTileKeys.current.clear();
   }, [layerMode]);
 
   useEffect(() => {
@@ -147,6 +156,7 @@ export function OpenStreetMapView({
 
   useEffect(() => {
     setFailedTiles(0);
+    failedTileKeys.current.clear();
   }, [providerIndex, mapZoom, mapCenter.lat, mapCenter.lng]);
 
   const centerPixel = useMemo(() => project(mapCenter, mapZoom), [mapCenter, mapZoom]);
@@ -254,6 +264,9 @@ export function OpenStreetMapView({
           const left = tile.x * TILE_SIZE - centerPixel.x + viewport.width / 2;
           const top = tile.y * TILE_SIZE - centerPixel.y + viewport.height / 2;
           return <img key={`${provider.id}-${mapZoom}-${tile.x}-${tile.y}`} src={tileUrl(tile)} alt="" draggable={false} className="aeromind-map-tile" style={{ left, top }} onError={() => {
+            const tileKey = `${provider.id}-${mapZoom}-${tile.x}-${tile.y}`;
+            if (failedTileKeys.current.has(tileKey)) return;
+            failedTileKeys.current.add(tileKey);
             setFailedTiles(current => current + 1);
           }} />;
         })}
