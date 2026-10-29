@@ -25,11 +25,19 @@ from .admin import activity as admin_activity, create_account, delete_account, i
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
 from .local_auth import router as local_auth_router
+from .registration_api import router as registration_router
+from .ops_control_api import router as ops_control_router
 from .business_api import router as business_router
 from .hardware_api import router as hardware_router
 from .operational_state import router as operational_state_router
 from . import labbench as labbench_service
 from . import hardware_gate as hardware_gate_service
+from .labbench_auth import (
+    verify_lab_session as _verify_lab_session,
+    StepUpSession as _StepUpSession,
+    SESSION_COOKIE_NAME as _LAB_SESSION_COOKIE,
+    SESSION_HEADER_NAME as _LAB_SESSION_HEADER,
+)
 from . import mavlink_command_api as mavlink_command_service
 from . import mavlink_pool as mavlink_pool_service
 from . import geofence_validator as geofence_service
@@ -190,6 +198,10 @@ app.include_router(hardware_router)
 app.include_router(operational_state_router)
 app.include_router(oidc_router)
 app.include_router(local_auth_router)
+# Phase 1 modernization: self-registration with super-admin approval
+app.include_router(registration_router)
+# Phase 3 activation: operational control endpoints
+app.include_router(ops_control_router)
 app.include_router(copilot_router)
 app.include_router(engineering_extensions_router)
 app.include_router(workflow_router)
@@ -1348,14 +1360,31 @@ def hardware_gate_get(request: Request, aeromind_session: str | None = Cookie(de
 
 @app.post('/api/hardware/gate/sign-review', include_in_schema=False)
 async def hardware_gate_sign_review(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+    """Sign the independent hardware N4 review (R-01).
+
+    P0-03 fix: extract the reviewer's step-up session from the X-Lab-Session
+    header or aeromind_lab_session cookie and pass it to sign_hardware_review.
+    The service enforces IAM-03 (reviewer != operator) and role 'approver'.
+    """
     user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    # Extract the reviewer's step-up session (distinct from the operator's primary session)
+    try:
+        reviewer_session = _verify_lab_session(request)
+    except Exception as exc:
+        detail = getattr(exc, 'detail', str(exc))
+        return _trpc_error(401, 'REVIEWER_SESSION_REQUIRED', f'Session step-up approbateur requise: {detail}')
     try:
         payload = await request.json()
     except Exception:
         payload = {}
     try:
         with SessionLocal() as db:
-            data = hardware_gate_service.sign_hardware_review(db, user, str(payload.get('projectId') or ''), payload)
+            data = hardware_gate_service.sign_hardware_review(
+                db, user, str(payload.get('projectId') or ''), payload,
+                reviewer_session=reviewer_session,
+            )
     except labbench_service.LabBenchError as exc:
         return _trpc_error(exc.status_code, exc.code, exc.message)
     return JSONResponse(data, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
@@ -1371,8 +1400,13 @@ async def hardware_gate_issue_token(request: Request, aeromind_session: str | No
         payload = {}
     try:
         with SessionLocal() as db:
+            # P0-03 fix: pass command and params so the token is bound to the
+            # intended command (was defaulting to NAV_TAKEOFF, causing
+            # TOKEN_COMMAND_MISMATCH on mission upload consume).
             data = hardware_gate_service.issue_hardware_confirmation_token(
-                db, user, str(payload.get('projectId') or ''), str(payload.get('droneId') or '')
+                db, user, str(payload.get('projectId') or ''), str(payload.get('droneId') or ''),
+                command=str(payload.get('command') or 'NAV_TAKEOFF'),
+                params=payload.get('params') if isinstance(payload.get('params'), dict) else None,
             )
     except labbench_service.LabBenchError as exc:
         return _trpc_error(exc.status_code, exc.code, exc.message)
@@ -1417,6 +1451,12 @@ async def hardware_drone_command(drone_id: str, request: Request, aeromind_sessi
             parameters=parameters,
             confirmation_token=confirmation_token,
             geofence_validation=lambda p: geofence_service.validate_command_geofence(p, geofence),
+            # P0-03 fix (SEC-01): pass Gate 0/4 context so authorize_physical_command
+            # can verify project_id/drone_id/actor_id binding (was omitting them,
+            # causing CONTEXT_REQUIRED on every HTTP command).
+            project_id=project_id,
+            drone_id=drone_id,
+            actor_id=user['id'],
         )
         # Audit the command (success or failure)
         with SessionLocal() as db:
@@ -1459,7 +1499,8 @@ async def hardware_drone_command(drone_id: str, request: Request, aeromind_sessi
 
 
 @app.post('/api/hardware/emergency-stop', include_in_schema=False)
-def hardware_emergency_stop(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+@_limiter.limit("2/minute")  # P2-12 fix: rate-limit e-stop to prevent coordinated multi-drone abuse
+def hardware_emergency_stop(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
     """Broadcast NAV_LAND to every drone in the pool. Single-click e-stop."""
     user = _current_user(aeromind_session, authorization)
     if not user:
@@ -1478,7 +1519,10 @@ def hardware_emergency_stop(aeromind_session: str | None = Cookie(default=None, 
                 occurred_at=datetime.now(UTC),
             ))
             db.commit()
-    result = geofence_service.emergency_stop_all(pool, audit_logger=audit_logger)
+    # P0-03 fix (SEC-02): scope e-stop to the caller's drones only.
+    # Was calling emergency_stop_all without owner_id, which made
+    # pool.list() return ALL drones across all tenants.
+    result = geofence_service.emergency_stop_all(pool, owner_id=user['id'], audit_logger=audit_logger)
     return JSONResponse(result, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
 
 

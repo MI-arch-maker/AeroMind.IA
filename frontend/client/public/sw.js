@@ -91,27 +91,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // API requests: network-first, fallback to cache
+  // P3-05 fix: API requests are NOT cached anymore. The previous network-first
+  // with cache fallback could serve stale mission/telemetry/gate data without
+  // any client-side warning (the X-AeroMind-Cache:stale header was never read
+  // by the React layer). For an aviation operator UI, stale authorization or
+  // telemetry data could drive unsafe actions. Now: network-only with 503
+  // offline fallback (no stale cache serving).
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
-      fetch(event.request).then((resp) => {
-        if (resp && resp.ok) {
-          const clone = resp.clone();
-          caches.open(API_CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return resp;
-      }).catch(() => {
-        return caches.match(event.request).then((cached) => {
-          if (cached) {
-            // Add a header to indicate stale data
-            const headers = new Headers(cached.headers);
-            headers.set("X-AeroMind-Cache", "stale");
-            return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers });
-          }
-          return new Response(JSON.stringify({ error: { code: "OFFLINE", message: "Hors ligne — données non disponibles" } }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          });
+      fetch(event.request).catch(() => {
+        return new Response(JSON.stringify({ error: { code: "OFFLINE", message: "Hors ligne — données non disponibles" } }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
         });
       })
     );

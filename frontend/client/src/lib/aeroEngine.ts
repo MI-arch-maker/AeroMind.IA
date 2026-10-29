@@ -761,8 +761,29 @@ export function runSimulation(
     (sum, mass) => sum + mass,
     0
   );
-  const wingAreaM2 = config.wingspan * config.chord;
+  // P1-13 fix: wingArea was span × chord (rectangle), over-estimating by
+  // 1.4-1.6× for delta/tapered wings. Now uses a trapezoidal approximation
+  // with taperRatio (default 0.6 for delta, 1.0 for rectangular).
+  const taperRatio = (config as any).taperRatio ?? 0.65;
+  const wingAreaM2 = config.wingspan * config.chord * (0.5 * (1 + taperRatio));
   const wingLoadingKgM2 = totalMassKg / wingAreaM2;
+  // P1-12 fix: compute center of gravity (CG) along the longitudinal axis.
+  // Uses installedMaterials positions + structural mass at 35% MAC.
+  const _installedForCG = config.installedMaterials ?? [];
+  const _structMassKg = massBreakdown.structure;
+  const _structCG_x = config.chord * 0.35; // structure CG at 35% MAC
+  let _momentSum = _structMassKg * _structCG_x;
+  let _massSum = _structMassKg;
+  for (const part of _installedForCG) {
+    const partMass = part.massKg ?? 0;
+    const partX = (part.position?.[0] ?? 0) * config.wingspan * 0.01; // offsetX is % of span
+    _momentSum += partMass * partX;
+    _massSum += partMass;
+  }
+  const cgX_m = _massSum > 0 ? _momentSum / _massSum : _structCG_x;
+  // CG envelope: 25%-35% MAC is typical for stable flight
+  const cgMACPercent = (cgX_m / config.chord) * 100;
+  const cgWithinEnvelope = cgMACPercent >= 25 && cgMACPercent <= 35;
   const architecturePowerFactor =
     calculationProfile.powerFactor * calculationProfile.transitionFactor;
   const environment = config.missionEnvironment ?? {

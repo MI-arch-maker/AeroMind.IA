@@ -179,6 +179,8 @@ CREATE INDEX IF NOT EXISTS ix_event_outbox_corr ON event_outbox (correlation_id)
 CREATE INDEX IF NOT EXISTS ix_event_outbox_unpublished ON event_outbox (published_at, occurred_at);
 
 -- AuditEventExt — append-only audit log with correlation_id (EXIGENCE IAM-05)
+-- P0-07 fix: prev_hash column for tamper-evident chain + trigger enforcing
+-- append-only at DB level + index on project_id for hot-path queries.
 CREATE TABLE IF NOT EXISTS audit_events_ext (
     id              VARCHAR(36)  NOT NULL PRIMARY KEY,
     actor_id        VARCHAR(255) NOT NULL,
@@ -192,12 +194,35 @@ CREATE TABLE IF NOT EXISTS audit_events_ext (
     message         TEXT         NOT NULL,
     payload_json    TEXT         NOT NULL DEFAULT '{}',
     occurred_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    prev_hash       VARCHAR(64)  NULL,
+    chain_hash      VARCHAR(64)  NULL,
     CONSTRAINT ck_audit_events_ext_decision CHECK (decision IN ('allow', 'deny', 'error'))
 );
 CREATE INDEX IF NOT EXISTS ix_audit_events_ext_action ON audit_events_ext (action);
 CREATE INDEX IF NOT EXISTS ix_audit_events_ext_actor ON audit_events_ext (actor_id);
 CREATE INDEX IF NOT EXISTS ix_audit_events_ext_corr ON audit_events_ext (correlation_id);
 CREATE INDEX IF NOT EXISTS ix_audit_events_ext_occurred ON audit_events_ext (occurred_at);
+-- P0-07 fix: composite index on (project_id, occurred_at DESC) for per-project audit queries
+CREATE INDEX IF NOT EXISTS ix_audit_events_ext_project_time ON audit_events_ext (project_id, occurred_at DESC);
+
+-- P0-07 fix: trigger enforcing append-only (no UPDATE / DELETE on audit rows)
+CREATE OR REPLACE FUNCTION audit_ext_no_modify() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'audit_events_ext is append-only (EXIGENCE IAM-05): UPDATE and DELETE are forbidden';
+END;
+$$ LANGUAGE plpgsql;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.triggers
+        WHERE event_object_table = 'audit_events_ext' AND trigger_name = 'audit_ext_no_update_delete'
+    ) THEN
+        CREATE TRIGGER audit_ext_no_update_delete
+            BEFORE UPDATE OR DELETE ON audit_events_ext
+            FOR EACH ROW EXECUTE FUNCTION audit_ext_no_modify();
+    END IF;
+END;
+$$;
 
 -- GateValidation — G0..G5 progress tracking (cahier des charges §22)
 CREATE TABLE IF NOT EXISTS gate_validations (

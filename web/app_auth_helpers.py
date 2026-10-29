@@ -9,6 +9,9 @@ def current_user(cookie: str | None, authorization: str | None = None):
     if not token: return None
     try:
         verified = _verified(token)
+        # P1-04 fix: verify localAuthGeneration for local sessions
+        from .oidc import _check_local_generation
+        _check_local_generation(verified)
         raw = base64.urlsafe_b64decode(verified + '=' * (-len(verified) % 4)).decode()
         subject, email = raw.split('|', 1)
         email = email.casefold()

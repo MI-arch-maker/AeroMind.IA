@@ -18,6 +18,26 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Cookie, Header, HTTPException, Query, Request
+
+# P1-17 fix — allowlist for waypoint commands (was accepting any 60-char string,
+# allowing DO_SET_SERVO to be persisted in a waypoint even though the backend
+# MAVLink allowlist excludes it).
+ALLOWED_WAYPOINT_COMMANDS = frozenset({
+    "NAV_WAYPOINT", "NAV_LOITER_UNLIM", "NAV_LOITER_TURNS", "NAV_LOITER_TIME",
+    "NAV_RETURN_TO_LAUNCH", "NAV_LAND", "NAV_TAKEOFF", "NAV_CONTINUE_AND_CHANGE_ALT",
+    "NAV_LOITER_TO_ALT", "NAV_SPLINE_WAYPOINT", "NAV_SPLINE_ROI",
+    "DO_CHANGE_SPEED", "DO_SET_HOME", "DO_JUMP",
+})
+
+
+def _validate_waypoint_command(cmd: str) -> str:
+    """Validate a waypoint command against the navigation allowlist."""
+    if cmd not in ALLOWED_WAYPOINT_COMMANDS:
+        raise HTTPException(
+            400,
+            f"Commande waypoint {cmd!r} non autorisée. Allowlist navigation uniquement (P1-17).",
+        )
+    return cmd
 from fastapi.responses import JSONResponse
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -120,7 +140,7 @@ async def create_mission(
                 id=str(uuid4()),
                 mission_id=mission_id,
                 sequence=int(wp.get("sequence", i + 1)),
-                command=str(wp.get("command") or "NAV_WAYPOINT"),
+                command=_validate_waypoint_command(str(wp.get("command") or "NAV_WAYPOINT")),
                 latitude=float(wp["latitude"]) if wp.get("latitude") is not None else None,
                 longitude=float(wp["longitude"]) if wp.get("longitude") is not None else None,
                 altitude_m=float(wp.get("altitude_m")) if wp.get("altitude_m") is not None else None,
@@ -174,7 +194,7 @@ async def update_mission(
                     id=str(uuid4()),
                     mission_id=mission_id,
                     sequence=int(wp.get("sequence", i + 1)),
-                    command=str(wp.get("command") or "NAV_WAYPOINT"),
+                    command=_validate_waypoint_command(str(wp.get("command") or "NAV_WAYPOINT")),
                     latitude=float(wp["latitude"]) if wp.get("latitude") is not None else None,
                     longitude=float(wp["longitude"]) if wp.get("longitude") is not None else None,
                     altitude_m=float(wp.get("altitude_m")) if wp.get("altitude_m") is not None else None,
@@ -263,10 +283,17 @@ async def upload_mission_to_drone(
 
         # Geofence check on each waypoint that has lat/lon
         geofence = geo.get_geofence(project_id) if project_id else None
+
+        # CAHIER DES CHARGES — "pas de fausses écritures":
+        # Reject waypoints with null latitude/longitude BEFORE upload.
+        # Previously these were silently written as (0, 0) — a real coordinate
+        # in the Gulf of Guinea — causing a false write to the autopilot.
+        for i, w in enumerate(waypoints):
+            if w.latitude is None or w.longitude is None:
+                return JSONResponse(status_code=400, content={"error": {"code": "WAYPOINT_MISSING_COORDINATES", "message": f"Waypoint #{i + 1} has null latitude/longitude — cannot upload a mission with missing coordinates (CAHIER DES CHARGES: pas de fausses écritures)"}})
+
         if geofence and geofence.polygon:
             for i, w in enumerate(waypoints):
-                if w.latitude is None or w.longitude is None:
-                    continue
                 if not geo._point_in_polygon((w.latitude, w.longitude), geofence.polygon):
                     return JSONResponse(status_code=409, content={"error": {"code": "WAYPOINT_OUTSIDE_GEOFENCE", "message": f"Waypoint #{i + 1} ({w.latitude:.5f}, {w.longitude:.5f}) outside geofence"}})
                 if w.altitude_m is not None and w.altitude_m > geofence.max_altitude_m:
@@ -291,11 +318,21 @@ async def upload_mission_to_drone(
 
             # Idempotency: reject duplicate uploads of the same mission to the same drone
             # within a 10-minute window unless explicitly forced.
-            existing_upload = db.query(Mission).filter(
-                Mission.id == mission_id,
-                Mission.uploaded_to_drone_id == drone_id,
-                Mission.uploaded_at.isnot(None),
-            ).one_or_none()
+            # P1-08 fix: use SELECT ... FOR UPDATE to prevent race condition
+            # where two concurrent uploads both pass the idempotency check.
+            try:
+                existing_upload = db.query(Mission).filter(
+                    Mission.id == mission_id,
+                    Mission.uploaded_to_drone_id == drone_id,
+                    Mission.uploaded_at.isnot(None),
+                ).with_for_update().one_or_none()
+            except Exception:
+                # SQLite doesn't support FOR UPDATE — fallback to regular query
+                existing_upload = db.query(Mission).filter(
+                    Mission.id == mission_id,
+                    Mission.uploaded_to_drone_id == drone_id,
+                    Mission.uploaded_at.isnot(None),
+                ).one_or_none()
             if existing_upload and not force_reupload:
                 return JSONResponse(status_code=409, content={
                     "error": {

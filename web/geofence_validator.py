@@ -205,10 +205,13 @@ def get_geofence(project_id: str, *, owner_id: str | None = None) -> Geofence | 
 
     SEC-04 fix — fail-closed when no geofence is configured (caller must reject).
     SEC-04 fix — owner_id check prevents cross-tenant geofence reads.
+    P1-07 fix — cache key is now (project_id, owner_id) to prevent cross-tenant
+    cache poisoning (was keyed by project_id only, leaking geofence polygons).
     """
-    # Try cache first (hot path)
+    # Try cache first (hot path) — P1-07: key includes owner_id
+    cache_key = (project_id, owner_id) if owner_id else (project_id, None)
     with _geofence_lock:
-        cached = _geofences.get(project_id)
+        cached = _geofences.get(cache_key)
         if cached is not None:
             return cached
 
@@ -227,7 +230,7 @@ def get_geofence(project_id: str, *, owner_id: str | None = None) -> Geofence | 
                 return None
             geofence = _to_dataclass(rec)
             with _geofence_lock:
-                _geofences[project_id] = geofence
+                _geofences[cache_key] = geofence  # P1-07: composite key
             return geofence
     except Exception:
         # DB not available — return None (fail-closed)
@@ -389,15 +392,15 @@ def emergency_stop_all(
                 drone_id=drone_id,
                 estop_event_id=estop_event_id,
             )
-            receipt = pilot.send_command(
-                "NAV_LAND",
-                parameters=build_land_params(),
+            # P0-05 fix: use send_emergency_land() instead of send_command
+            # with e_stop_override=True. This is the ONLY public path that
+            # bypasses the geofence, and it only supports NAV_LAND.
+            receipt = pilot.send_emergency_land(
                 confirmation_token=estop_token,
-                geofence_validation=None,  # e-stop bypasses geofence on purpose
                 project_id=entry.get("projectId") or project_id,
                 drone_id=drone_id,
                 actor_id=owner_id or "estop-actor",
-                e_stop_override=True,  # V3.1 — explicit, audit-logged bypass
+                parameters=build_land_params(),
             )
             results.append({
                 "droneId": drone_id,

@@ -1,6 +1,20 @@
-from pathlib import Path
-import html, json
-OUT=Path(__file__).parent
+"""P1-20 fix — DEPRECATED. Use generate_cad.py instead.
+
+This script is kept for historical reference but MUST NOT be executed:
+  - It overwrites manifest.json with a 5-field schema (vs generate_cad.py's
+    11-field schema), breaking frontend consumers.
+  - It uses a hardcoded polygon for all 8 cells, ignoring the per-cell `wing`
+    data, which would replace the published SCAD files with generic geometry.
+
+To regenerate the cell library, run:
+    python3 engineering/aeromind-pdf-cad-source/generate_cad.py
+"""
+import sys
+print("ERROR: generate_drones.py is deprecated (P1-20). Use generate_cad.py instead.", file=sys.stderr)
+sys.exit(1)
+
+# --- Everything below is the original (now-unreachable) code, kept for audit ---
+if False:  # dead-code guard
 # Normalized top-view airframe silhouettes, with geometry detail sets and palette.
 models=[
  dict(id='01-aile-delta-noire',name='Aile delta furtive',type='Aile volante',color='#303943',accent='#e7edf2',wing='M22 112 Q26 99 54 89 L164 28 Q176 22 181 29 L170 97 L258 104 Q285 108 298 112 Q285 117 258 120 L170 127 L181 194 Q176 201 164 195 L54 135 Q26 125 22 112 Z',body='M32 112 Q39 104 62 105 L259 108 Q286 109 296 112 Q286 115 259 116 L62 119 Q39 120 32 112 Z',fins=['M42 98 L24 91 L20 80 L50 91 Z','M42 126 L20 143 L24 132 L50 124 Z'],panels=[(90,75,22,12),(112,83,18,10),(93,142,23,12),(116,132,20,10),(154,65,24,12),(151,151,25,12)]),
@@ -10,7 +24,7 @@ models=[
  dict(id='05-delta-prop-arriere',name='Aile volante argent à propulseur',type='Aile volante propulsive',color='#c3c8cb',accent='#58636a',wing='M18 112 Q43 99 81 75 L166 31 Q174 28 177 36 L170 99 L248 105 Q273 107 299 112 Q273 117 248 120 L170 125 L177 187 Q174 195 166 191 L81 149 Q43 125 18 112 Z',body='M22 112 Q34 104 70 106 L255 108 Q285 109 298 112 Q285 115 255 116 L70 118 Q34 120 22 112 Z',fins=['M48 92 L28 77 L38 74 L61 88 Z','M48 132 L38 150 L28 147 L61 126 Z'],panels=[(104,80,26,14),(104,132,26,14),(151,59,27,14),(151,151,27,14)],prop='rear'),
  dict(id='06-vtol-rouge',name='VTOL hybride rouge',type='Voilure fixe VTOL',color='#b52831',accent='#252d36',wing='M22 112 Q52 106 99 105 L250 68 L257 76 L181 108 L257 146 L250 154 L99 119 Q52 118 22 112 Z',body='M21 112 Q32 101 72 104 L261 108 Q283 109 296 112 Q283 115 261 116 L72 120 Q32 123 21 112 Z',fins=['M40 105 L23 87 L29 82 L53 101 Z','M40 119 L29 142 L23 137 L53 117 Z'],panels=[(102,103,30,8),(169,91,28,8),(169,125,28,8)],rotors=[(81,72),(81,152),(219,60),(219,164)]),
  dict(id='07-quad-duct',name='Quadrirotor à conduits annulaires',type='VTOL multirotor caréné',color='#68786e',accent='#c1c8bd',body='M76 112 Q79 92 105 88 L201 88 Q226 91 229 112 Q226 133 201 136 L105 136 Q79 132 76 112 Z',wing='M104 90 L112 76 L190 76 L201 90 L201 134 L190 148 L112 148 L104 134 Z',fins=[],panels=[(119,97,60,12),(119,117,60,12)],rotors=[(57,63),(248,63),(57,161),(248,161)],duct=True),
- dict(id='08-attaque-blanc',name='Drone d’attaque à ailes droites',type='Voilure fixe, double dérive',color='#d6d8d6',accent='#66717a',wing='M72 112 L95 91 L231 88 L238 96 L183 108 L267 99 L279 105 L279 119 L267 125 L183 116 L238 128 L231 136 L95 133 Z',body='M25 112 Q34 103 79 105 L263 108 Q283 109 298 112 Q283 115 263 116 L79 119 Q34 121 25 112 Z',fins=['M238 104 L273 83 L280 87 L272 110 Z','M238 120 L272 141 L280 137 L272 114 Z'],panels=[(119,94,22,10),(119,120,22,10),(158,93,24,10),(158,121,24,10)],gear=True),
+ dict(id='08-aile-droite-blanc',name='Drone d’attaque à ailes droites',type='Voilure fixe, double dérive',color='#d6d8d6',accent='#66717a',wing='M72 112 L95 91 L231 88 L238 96 L183 108 L267 99 L279 105 L279 119 L267 125 L183 116 L238 128 L231 136 L95 133 Z',body='M25 112 Q34 103 79 105 L263 108 Q283 109 298 112 Q283 115 263 116 L79 119 Q34 121 25 112 Z',fins=['M238 104 L273 83 L280 87 L272 110 Z','M238 120 L272 141 L280 137 L272 114 Z'],panels=[(119,94,22,10),(119,120,22,10),(158,93,24,10),(158,121,24,10)],gear=True),
 ]
 
 def svg(m):

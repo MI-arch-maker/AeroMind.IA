@@ -35,11 +35,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     window.dispatchEvent(new CustomEvent("aeromind-language-changed", { detail: language }));
   }, [language]);
   useEffect(() => {
-    const root = document.body;
-    translateDom(root, language);
-    const observer = new MutationObserver(() => translateDom(root, language));
-    observer.observe(root, { childList: true, subtree: true, characterData: true });
-    return () => observer.disconnect();
+    // P3-06 fix: retired MutationObserver — was racing with React DOM mutations
+    // (flicker, reverted text, screen reader re-announcements). The translateDom
+    // call on language change is kept for initial translation, but the observer
+    // that re-translated on every DOM mutation is removed. Components should use
+    // t()/tKey() explicitly in JSX instead of relying on DOM translation.
+    translateDom(document.body, language);
+    // Listen for the custom language-changed event (dispatched above) so
+    // sibling components that re-render independently still get translated.
+    const handler = () => translateDom(document.body, language);
+    window.addEventListener("aeromind-language-changed", handler);
+    return () => window.removeEventListener("aeromind-language-changed", handler);
   }, [language]);
   const value = useMemo(() => ({
     language,

@@ -348,27 +348,45 @@ def audit_decision(
     try:
         import json
         import uuid
+        import hashlib
         from .database import SessionLocal
         from .canonical_models import AuditEventExt
 
-        record = AuditEventExt(
-            id=str(uuid.uuid4()),
-            actor_id=actor_id,
-            actor_role=actor_role,
-            action=action,
-            decision=decision,
-            resource_id=resource_id,
-            project_id=project_id,
-            drone_id=drone_id,
-            correlation_id=correlation_id or str(uuid.uuid4()),
-            message=message or f"{action} {decision} by {actor_id} ({actor_role})",
-            payload_json=json.dumps(payload or {}, default=str),
-        )
+        # P0-07 fix: compute tamper-evident hash chain.
+        # prev_hash = chain_hash of the most recent audit row (or "GENESIS" if none).
+        # chain_hash = sha256(prev_hash || canonical_record_json).
+        canonical = json.dumps({
+            "actor_id": actor_id, "actor_role": actor_role, "action": action,
+            "decision": decision, "project_id": project_id, "drone_id": drone_id,
+            "resource_id": resource_id, "message": message or "",
+            "payload": payload or {},
+        }, sort_keys=True, default=str)
         with SessionLocal() as db:
+            prev_row = db.query(AuditEventExt).order_by(
+                AuditEventExt.occurred_at.desc()
+            ).first()
+            prev_hash = (prev_row.chain_hash if prev_row and prev_row.chain_hash else "GENESIS")
+            chain_hash = hashlib.sha256(f"{prev_hash}|{canonical}".encode()).hexdigest()
+
+            record = AuditEventExt(
+                id=str(uuid.uuid4()),
+                actor_id=actor_id,
+                actor_role=actor_role,
+                action=action,
+                decision=decision,
+                resource_id=resource_id,
+                project_id=project_id,
+                drone_id=drone_id,
+                correlation_id=correlation_id or str(uuid.uuid4()),
+                message=message or f"{action} {decision} by {actor_id} ({actor_role})",
+                payload_json=json.dumps(payload or {}, default=str),
+                prev_hash=prev_hash,
+                chain_hash=chain_hash,
+            )
             db.add(record)
             db.commit()
-        log.info("audit_decision actor=%s action=%s decision=%s project=%s drone=%s",
-                 actor_id, action, decision, project_id, drone_id)
+        log.info("audit_decision actor=%s action=%s decision=%s project=%s drone=%s chain=%s…",
+                 actor_id, action, decision, project_id, drone_id, chain_hash[:12])
     except Exception as e:
         # Never raise on audit failure — log it
         log.exception("AUDIT_LOG_FAILURE action=%s decision=%s actor=%s err=%s",

@@ -88,3 +88,16 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </trpc.Provider>
 );
+
+// P3-05 fix — register the service worker now that sw.js excludes /api/ routes
+// from the cache (network-only with 503 offline fallback, see sw.js:100).
+// Previously the SW was shipped but never registered, making the PWA offline
+// shell and caching strategy dead code. Registration is production-only to
+// avoid interfering with HMR in development.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((err) => {
+      console.warn("[PWA] Service worker registration failed:", err);
+    });
+  });
+}

@@ -9,14 +9,14 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 OUT=Path(__file__).parent
 # Dimensions are illustrative millimetres, scaled to the user's PDF proportions; nose is +X.
 D=[
- dict(id='01-aile-delta-noire', name='Aile delta furtive', type='Aile volante furtive', span=720, chord=330, color='#303943', accent='#d5dce0', wing=[(160,0),(-10,38),(-150,350),(-172,350),(-145,20),(-156,-350),(-135,-350),(-4,-42)], fus=[(145,2,8), (110,10,15),(45,15,18),(-40,13,16),(-135,5,9)], fins=[(-132,334,-20),(-132,-334,-20)], tail='wingtip', hatch=True),
- dict(id='02-delta-jaune', name='Delta tactique à bande jaune', type='Aile delta tactique', span=680, chord=360, color='#50565b', accent='#f4c62e', wing=[(175,0),(-18,55),(-62,340),(-105,340),(-95,22),(-125,-340),(-82,-340),(-5,-48)], fus=[(170,2,9),(110,12,18),(15,18,22),(-90,14,18),(-155,7,12)], fins=[(-112,300,-24),(-112,-300,-24)], tail='wingtip', hatch=True, band=True),
- dict(id='03-delta-prop-gris', name='Delta gris à hélice arrière', type='Aile volante propulsive', span=700, chord=350, color='#aeb9c0', accent='#596771', wing=[(165,0),(-8,42),(-135,345),(-160,345),(-138,20),(-146,-345),(-120,-345),(-3,-42)], fus=[(158,2,10),(112,13,20),(40,17,23),(-60,14,18),(-140,8,13)], fins=[(-128,328,-22),(-128,-328,-22)], tail='wingtip', pusher=True, hatch=True),
+ dict(id='01-aile-delta-noire', name='Aile delta furtive', type='Aile volante furtive', span=720, chord=330, color='#303943', accent='#d5dce0', wing=[(160,0),(-10,38),(-150,350),(-172,350),(-145,20),(-156,-350),(-135,-350),(-4,-42)], fus=[(145,2,8), (110,10,15),(45,15,18),(-40,13,16),(-135,5,9)], tail='wingtip', hatch=True),
+ dict(id='02-delta-jaune', name='Delta tactique à bande jaune', type='Aile delta tactique', span=680, chord=360, color='#50565b', accent='#f4c62e', wing=[(175,0),(-18,55),(-62,340),(-105,340),(-95,22),(-125,-340),(-82,-340),(-5,-48)], fus=[(170,2,9),(110,12,18),(15,18,22),(-90,14,18),(-155,7,12)], tail='wingtip', hatch=True, band=True),
+ dict(id='03-delta-prop-gris', name='Delta gris à hélice arrière', type='Aile volante propulsive', span=700, chord=350, color='#aeb9c0', accent='#596771', wing=[(165,0),(-8,42),(-135,345),(-160,345),(-138,20),(-146,-345),(-120,-345),(-3,-42)], fus=[(158,2,10),(112,13,20),(40,17,23),(-60,14,18),(-140,8,13)], tail='wingtip', pusher=True, hatch=True),
  dict(id='04-maq9', name='Drone MALE à empennage en V', type='Voilure fixe MALE', span=860, chord=270, color='#a8b9c2', accent='#596b75', wing=[(125,0),(15,55),(-45,430),(-78,430),(-95,30),(-130,-430),(-96,-430),(-12,-55)], fus=[(165,1,8),(125,13,18),(50,18,23),(-60,15,20),(-155,9,13)], tail='v', pusher=True, gear=True, hatch=True),
- dict(id='05-delta-prop-arriere', name='Aile volante argent à propulseur', type='Aile volante à pointe épaisse', span=740, chord=375, color='#c0c8cc', accent='#64727a', wing=[(185,0),(-8,40),(-130,360),(-156,360),(-148,28),(-175,-360),(-145,-360),(-5,-40)], fus=[(175,2,9),(118,12,18),(30,17,22),(-70,15,20),(-155,8,13)], fins=[(-140,340,-22),(-140,-340,-22)], tail='wingtip', pusher=True, hatch=True),
+ dict(id='05-delta-prop-arriere', name='Aile volante argent à propulseur', type='Aile volante à pointe épaisse', span=740, chord=375, color='#c0c8cc', accent='#64727a', wing=[(185,0),(-8,40),(-130,360),(-156,360),(-148,28),(-175,-360),(-145,-360),(-5,-40)], fus=[(175,2,9),(118,12,18),(30,17,22),(-70,15,20),(-155,8,13)], tail='wingtip', pusher=True, hatch=True),
  dict(id='06-vtol-rouge', name='VTOL hybride rouge', type='Aile fixe à quatre rotors de sustentation', span=820, chord=300, color='#a82933', accent='#2c343b', wing=[(170,0),(15,48),(-45,400),(-76,400),(-95,26),(-126,-400),(-94,-400),(-12,-48)], fus=[(175,2,9),(125,12,18),(40,18,22),(-65,15,19),(-155,8,13)], tail='v', lift_rotors=[(-5,-285),(-5,285),(-15,-360),(-15,360)], pusher=True, gear=True),
  dict(id='07-quad-duct', name='Quadrirotor à conduits annulaires', type='VTOL quadrirotor à hélices carénées', span=560, chord=340, color='#69786f', accent='#aebbb2', wing=[(100,-120),(110,-150),(-110,-150),(-100,-120),(-100,120),(-110,150),(110,150),(100,120)], fus=[(100,2,12),(65,42,38),(0,55,46),(-65,42,38),(-100,3,14)], duct_rotors=[(135,-190),(135,190),(-135,-190),(-135,190)], hatch=True),
- dict(id='08-attaque-blanc', name='Cellule à ailes droites · variante non armée', type='Voilure fixe à double dérive · maquette sans charge offensive', span=760, chord=290, color='#d2d5d4', accent='#63717a', wing=[(178,0),(45,52),(-20,380),(-55,380),(-100,30),(-132,-380),(-94,-380),(-12,-50)], fus=[(185,2,9),(135,14,20),(50,19,24),(-60,17,20),(-150,9,14)], tail='twinfin', pusher=False, gear=True, hatch=True)
+ dict(id='08-aile-droite-blanc', name='Cellule à ailes droites · variante non armée', type='Voilure fixe à double dérive · maquette sans charge offensive', span=760, chord=290, color='#d2d5d4', accent='#63717a', wing=[(178,0),(45,52),(-20,380),(-55,380),(-100,30),(-132,-380),(-94,-380),(-12,-50)], fus=[(185,2,9),(135,14,20),(50,19,24),(-60,17,20),(-150,9,14)], tail='twinfin', pusher=False, gear=True, hatch=True)
 ]
 
 def mesh_poly_extrude(points, z0, z1, name, color):
@@ -119,11 +119,10 @@ def make_model(d):
             for x in [10,-55]: add_hatch(parts,x,y,48,25,dark)
     if d.get('band'):
         band=mesh_poly_extrude([(105,-16),(96,-16),(96,16),(105,16)],-6,7,'high-visibility stripe',bright); parts.append(band)
-    if d.get('stores'):
-        # Twin underwing pylons and cylindrical external stores.
-        for y in [-170,170]:
-            parts.append(cylinder_between([5,y,0],[-5,y,-18],5,dark,'hardpoint pylon'))
-            parts.append(cylinder_between([-8,y,-20],[-100,y,-20],8,'#515d64','external payload pod'))
+    # P0-10 fix: stores/hardpoint pylons and external payload pods REMOVED.
+    # The non-weaponized platform contract (FINAL_REPORT_NON_WEAPONIZED_PLATFORM.md)
+    # prohibits offensive external stores. The dormant `if d.get('stores')` block
+    # has been physically deleted to prevent reintroduction.
     # Independent coherent scene, with named components retained in OBJ.
     scene=trimesh.Scene()
     for i,p in enumerate(parts):
@@ -159,7 +158,7 @@ def write_scad(d):
     tail=''
     if d.get('tail')=='wingtip': tail='for (s=[-1,1]) translate([-140,s*'+str(d['span']//2-8)+',18]) rotate([0,90,0]) linear_extrude(height=16,center=true) polygon([[-20,0],[0,46],[20,40],[12,0]]);'
     if d.get('tail')=='v': tail='for(s=[-1,1]) translate([-156,0,0]) rotate([s*28,0,0]) linear_extrude(height=8,center=true) polygon([[-38,0],[-4,0],[24,57],[4,62]]);'
-    if d.get('tail')=='twinfin': tail='for(s=[-1,1]) translate([-165,s*105,0]) rotate([s*25,0,0]) linear_extrude(height=8,center=true) polygon([[-35,0],[-3,0],[23,60],[5,67]]);'
+    if d.get('tail')=='twinfin': tail='for(s=[-1,1]) translate([-165,s*105,0]) rotate([s*25,0,0]) linear_extrude(height=8,center=true) polygon([[-35,0],[-3,0],[23,60],[5,67]]); translate([-170,0,0]) linear_extrude(height=5,center=true) polygon([[-185,-115],[-155,-120],[-128,0],[-155,120],[-185,115]]);'
     rotors=''
     if d.get('lift_rotors'):
         rotors='\n'.join(f'translate([{x},{y},28]) {{ cylinder(h=5,r=4,center=true,$fn=24); for(a=[0:120:240]) rotate([0,0,a]) translate([31,0,0]) cube([54,7,2],center=true); }}' for x,y in d['lift_rotors'])
@@ -171,15 +170,19 @@ def write_scad(d):
     if d.get('lift_rotors'):
         extra.extend(f'translate([{x},{y},18]) cylinder(h=22,r=12,center=true);' for x,y in d['lift_rotors'])
     if d.get('duct_rotors'):
-        extra.extend(f'translate([{x},{y},0]) for(a=[0:90:270]) rotate([0,0,a]) translate([20,0,1]) cube([38,5,2],center=true);' for x,y in d['duct_rotors'])
+        # P2-15 fix: add support arms between fuselage center and duct centers
+        # (was missing in SCAD — ducts were floating without mechanical liaison)
+        extra.extend(f'translate([{x*.36},{y*.36},0]) cylinder(h=8,r=7,center=true,$fn=24); translate([{x},{y},0]) cylinder(h=8,r=7,center=true,$fn=24); hull() {{ translate([{x*.36},{y*.36},0]) cylinder(h=8,r=7,center=true,$fn=24); translate([{x},{y},0]) cylinder(h=8,r=7,center=true,$fn=24); }}' for x,y in d['duct_rotors'])
+    # P0-11 fix: the duplicate duct_rotors blade block below was REMOVED — it
+    # generated a second set of 4 blades per duct (total 8 in SCAD vs 4 in STL).
+    # Only the block at line 167 (in `rotors`) is kept.
     if d.get('gear'):
         extra.append('for(s=[-1,1]) { hull() { translate([16,s*54,-5]) sphere(r=3); translate([0,s*82,-27]) sphere(r=3); } translate([0,s*82,-31]) rotate([90,0,0]) difference() { cylinder(h=8,r=12,center=true,$fn=32); cylinder(h=10,r=4,center=true,$fn=24); } }')
     if d.get('hatch'):
         extra.append('for(s=[-1,1]) for(x=[12,-55]) translate([x,s*'+str(round(d['span']*.24))+',6]) linear_extrude(height=1) offset(r=2) square([42,18],center=true);')
     if d.get('band'):
         extra.append('translate([100,0,6]) cube([10,34,1]);')
-    if d.get('stores'):
-        extra.append('for(s=[-1,1]) { translate([0,s*170,-10]) hull() { translate([35,0,0]) sphere(r=7); translate([-75,0,0]) sphere(r=7); } }')
+    # P0-10 fix: stores SCAD block REMOVED (matches make_model removal above).
     extra=' '.join(extra)
     code=f'''// {d['name']} — modèle conceptuel paramétrique reconstitué depuis une vue 2D.\n// Unités : millimètres. span_mm approxime l'envergure; épaisseur et détail restent modifiables.\n// Toutes les cotes sont indicatives, non relevées sur plan industriel.\n$fn=48; span_mm={d['span']}; thickness_mm=11; scale_factor=span_mm/{d['span']};\nmodule wing() {{ linear_extrude(height=thickness_mm,center=true,convexity=8) polygon(points=[{pts}]); }}\nmodule fuselage() {{ hull() {{ {fus} }} }}\nmodule airframe() {{ scale([scale_factor,scale_factor,scale_factor]) union() {{ wing(); fuselage(); {tail} {rotors} {extra} }} }}\nairframe();\n'''
     (OUT/(d['id']+'.scad')).write_text(code)

@@ -254,6 +254,17 @@ def upload_mission(
                     503, "TRANSPORT_INCOMPATIBLE",
                     "Le transport MAVLink n'expose pas mission_item_int_send.",
                 )
+            # CAHIER DES CHARGES — "pas de fausses écritures":
+            # Defense-in-depth: reject waypoints with x=0 AND y=0 (indicates null
+            # coordinates defaulted to 0). Writing (0°N, 0°E) to the autopilot
+            # is a false write — a real coordinate in the Gulf of Guinea.
+            # The upstream mission_planner.py rejects null lat/lon before upload,
+            # but this check catches any malformed waypoint that slips through.
+            if wp.x == 0 and wp.y == 0:
+                raise HardwareCommandError(
+                    400, "WAYPOINT_NULL_COORDINATES",
+                    f"Waypoint seq={seq} has x=0, y=0 — null coordinates cannot be written to the autopilot (CAHIER DES CHARGES: pas de fausses écritures).",
+                )
             connection.mission_item_int_send(
                 target_system, target_component,
                 wp.seq, wp.frame, wp.command, wp.current, wp.autocontinue,

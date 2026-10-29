@@ -348,8 +348,12 @@ class AuditEventExt(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
+    # P0-07 fix: tamper-evident hash chain (prev_hash + chain_hash)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    chain_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     __table_args__ = (
         CheckConstraint("decision IN ('allow', 'deny', 'error')", name="ck_audit_events_ext_decision"),
+        Index("ix_audit_events_ext_project_time", "project_id", "occurred_at"),
     )
 
 
@@ -372,6 +376,9 @@ class GateValidation(Base):
     reviewer_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # P1-05 fix: store the operator who REQUESTED the gate (for IAM-03 enforcement).
+    # approve_gate now checks operator_id != session.user_id (was missing entirely).
+    operator_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     evidence_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)

@@ -250,7 +250,7 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- upload_protocol (P0-04 fix — protocol trace for duplicate upload detection;
 -- was present in the PostgreSQL variant but missing from the TiDB variant)
 SET @col_exists = (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='missions' AND column_name='upload_protocol');
-SET @sql = IF(@col_exists=0, 'ALTER TABLE missions ADD COLUMN upload_protocol VARCHAR(20) NULL', 'SELECT 1');
+SET @sql = IF(@col_exists=0, 'ALTER TABLE missions ADD COLUMN upload_protocol VARCHAR(60) NULL', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- upload_idempotency_key (P0-04 fix — server-side idempotency for uploads;
@@ -276,29 +276,23 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- so this migration remains safe to apply on top of a partially-bootstrapped
 -- TiDB schema (TIDB_SCHEMA.sql created an earlier `gate_validations` row).
 -- ============================================================================
+-- P0-08 fix: anonymous_workspaces aligned with ORM (web/models.py:391-422).
+-- Was declaring extra columns workspace_key/user_id not in the ORM, causing
+-- INSERT failures on TiDB. Now matches PG variant: single id PK, data_json
+-- NOT NULL DEFAULT '{}'.
 CREATE TABLE IF NOT EXISTS anonymous_workspaces (
-  id VARCHAR(128) NOT NULL PRIMARY KEY,
-  workspace_key VARCHAR(128) NOT NULL,
-  user_id VARCHAR(64) NULL,
+  id VARCHAR(43) NOT NULL PRIMARY KEY,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at DATETIME NOT NULL,
-  data_json LONGTEXT NULL,
-  INDEX ix_anon_workspaces_key (workspace_key),
+  origin_ip VARCHAR(64) NULL,
+  data_json LONGTEXT NOT NULL,
   INDEX ix_anon_workspaces_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS gate_validations (
-  id VARCHAR(36) NOT NULL PRIMARY KEY,
-  project_id VARCHAR(36) NOT NULL,
-  gate VARCHAR(20) NOT NULL,
-  state VARCHAR(20) NOT NULL DEFAULT 'pending',
-  reviewer_id VARCHAR(64) NOT NULL,
-  evidence_json LONGTEXT NOT NULL,
-  approved_at DATETIME NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX ix_gate_validations_project (project_id),
-  UNIQUE KEY uq_gate_per_project (project_id, gate)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- P0-08 fix: duplicate gate_validations declaration REMOVED.
+-- Was declared twice (lines 184 and 290), the second without CHECK constraints.
+-- If applied out-of-order, the weaker definition won, bypassing G0-G5 enum check.
+-- The first declaration (line 184) with CHECK constraints is now the only one.
 
 COMMIT;
 

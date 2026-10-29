@@ -1,4 +1,10 @@
 // VTOL hybride rouge — modèle conceptuel paramétrique reconstitué depuis une vue 2D.
+// P3-02 fix — materials reference (indicative, not certified):
+//   shell: carbon-fiber composite (density ~1600 kg/m3, modulus ~70 GPa)
+//   spars: carbon-fiber tube (density ~1600 kg/m3, modulus ~230 GPa)
+//   rotors: glass-filled nylon (density ~1300 kg/m3)
+//   electronics housing: ABS (density ~1050 kg/m3)
+// Values are indicative for mass estimation only — NOT for FEA or flight certification.
 // Unités : millimètres. span_mm approxime l'envergure; épaisseur et détail restent modifiables.
 // Toutes les cotes sont indicatives, non relevées sur plan industriel.
 $fn=48; span_mm=820; thickness_mm=11; scale_factor=span_mm/820;

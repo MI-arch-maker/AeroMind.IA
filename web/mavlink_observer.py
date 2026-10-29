@@ -100,7 +100,7 @@ class MavlinkObserver:
         return mavutil.mavlink_connection(
             url,
             autoreconnect=True,
-            source_system=255,
+            source_system=252,  # P1-18 fix: distinct from pilot (255) to avoid ArduPilot sysid confusion
             source_component=190,
         )
 

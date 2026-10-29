@@ -38,17 +38,75 @@ router = APIRouter(prefix="/api/preflight", tags=["preflight-checklist"])
 
 
 DEFAULT_CHECKLIST_ITEMS = [
-    {"id": "battery", "label": "Batterie chargée ≥ 90%", "required": True, "category": "energy"},
+    {"id": "battery", "label": "Batterie chargée ≥ 90%", "required": True, "category": "energy", "auto_check": "mavlink_battery"},
     {"id": "props", "label": "Hélices inspectées (pas de fissure)", "required": True, "category": "propulsion"},
     {"id": "motors", "label": "Moteurs libres (rotation à la main)", "required": True, "category": "propulsion"},
-    {"id": "gps", "label": "GPS lock acquis (≥ 7 satellites)", "required": True, "category": "avionics"},
-    {"id": "imu", "label": "IMU calibration récente (< 30 jours)", "required": True, "category": "avionics"},
-    {"id": "geofence", "label": "Géofence configurée", "required": True, "category": "safety"},
+    {"id": "gps", "label": "GPS lock acquis (≥ 7 satellites)", "required": True, "category": "avionics", "auto_check": "mavlink_gps"},
+    {"id": "imu", "label": "IMU calibration récente (< 30 jours)", "required": True, "category": "avionics", "auto_check": "mavlink_imu"},
+    {"id": "magnetometer", "label": "Magnétomètre calibré (compass)", "required": True, "category": "avionics"},
+    {"id": "geofence", "label": "Géofence configurée et valide", "required": True, "category": "safety", "auto_check": "geofence_db"},
     {"id": "estop", "label": "E-stop testé", "required": True, "category": "safety"},
+    {"id": "rc_link", "label": "Liaison RC / datalink vérifiée (range test)", "required": True, "category": "avionics"},
     {"id": "weather", "label": "Météo OK (vent < 8 m/s, pas de pluie)", "required": True, "category": "environment"},
-    {"id": "zone", "label": "Zone de vol dégagée", "required": True, "category": "environment"},
+    {"id": "airspace", "label": "Espace aérien autorisé (NOTAMs vérifiés)", "required": True, "category": "environment"},
+    {"id": "zone", "label": "Zone de vol dégagée (obstacles, public)", "required": True, "category": "environment"},
+    {"id": "payload_secured", "label": "Charge utile arrimée", "required": True, "category": "payload"},
+    {"id": "non_weaponized", "label": "Aucun système d'arme installé (conformité non-armée)", "required": True, "category": "compliance"},
     {"id": "briefing", "label": "Opérateur briefed", "required": True, "category": "operator"},
 ]
+
+
+def _run_auto_check(check_id: str, drone_id: str | None, project_id: str | None) -> dict:
+    """P1-09 fix — run automated MAVLink/DB checks for verifiable items.
+
+    Returns {"auto_checked": True, "passed": bool, "value": str, "source": str}.
+    If the check cannot be performed (no observer, no telemetry), returns
+    {"auto_checked": False} so the operator falls back to manual declaration.
+    """
+    result = {"auto_checked": False}
+    if not drone_id:
+        return result
+    try:
+        if check_id == "geofence_db":
+            from . import geofence_validator as geo
+            gf = geo.get_geofence(project_id or "", owner_id=None) if project_id else None
+            if gf is not None:
+                return {"auto_checked": True, "passed": True,
+                        "value": f"polygone {len(gf.polygon)} pts, alt max {gf.max_altitude_m}m",
+                        "source": "geofence_validator.get_geofence"}
+            return {"auto_checked": True, "passed": False,
+                    "value": "aucune géofence en DB", "source": "geofence_validator.get_geofence"}
+        # MAVLink-based checks require an observer connected to the drone
+        from . import mavlink_pool as pool_mod
+        pool = pool_mod.get_pool()
+        try:
+            observer = pool.observer(drone_id)
+        except Exception:
+            return result  # no observer available
+        snapshot = observer.poll() if hasattr(observer, "poll") else None
+        if snapshot is None:
+            return result
+        if check_id == "mavlink_gps":
+            sats = getattr(snapshot, "satellites_visible", None) or getattr(snapshot, "gps_satellites", None)
+            if sats is not None:
+                return {"auto_checked": True, "passed": sats >= 7,
+                        "value": f"{sats} satellites", "source": "MAVLink GPS_RAW_INT"}
+            return result
+        if check_id == "mavlink_battery":
+            batt = getattr(snapshot, "battery_remaining_pct", None) or getattr(snapshot, "battery_remaining", None)
+            if batt is not None:
+                return {"auto_checked": True, "passed": batt >= 90,
+                        "value": f"{batt}%", "source": "MAVLink SYS_STATUS"}
+            return result
+        if check_id == "mavlink_imu":
+            ekf_ok = getattr(snapshot, "ekf_ok", None)
+            if ekf_ok is not None:
+                return {"auto_checked": True, "passed": bool(ekf_ok),
+                        "value": "EKF OK" if ekf_ok else "EKF alert", "source": "MAVLink EKF_STATUS"}
+            return result
+    except Exception:
+        pass
+    return result
 
 
 @router.get("/default-template")

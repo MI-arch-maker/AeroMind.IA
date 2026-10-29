@@ -35,9 +35,11 @@ from .labbench_auth import (
     issue_step_up_session,
     revoke_step_up_session,
     verify_lab_session,
+    verify_csrf_double_submit,
     SESSION_COOKIE_NAME,
     CSRF_COOKIE_NAME,
 )
+from .rate_limit import limiter as _limiter  # P1-01 fix
 from .operation_mode import OperationMode, determine_mode
 from .database import SessionLocal
 from .admin import verify_daily_totp_code
@@ -117,8 +119,15 @@ def _append_event(
     actor_id: str | None = None,
     correlation_id: str | None = None,
     payload: dict | None = None,
+    db: Any = None,  # P1-11 fix: accept caller's session for transactional atomicity
 ) -> str:
-    """Append a versioned event to the transactional outbox (EXIGENCE SYNC-04)."""
+    """Append a versioned event to the transactional outbox (EXIGENCE SYNC-04).
+
+    P1-11 fix: if the caller provides a ``db`` session, the event is added to
+    THAT session (not committed here) so it participates in the caller's
+    transaction. This makes the outbox truly transactional — if the caller
+    rolls back, the event is rolled back too.
+    """
     from .canonical_models import EventOutbox
     event_id = str(uuid.uuid4())
     correlation_id = correlation_id or str(uuid.uuid4())
@@ -134,9 +143,14 @@ def _append_event(
         payload_json=json.dumps(payload or {}, default=str),
         occurred_at=datetime.now(UTC),
     )
-    with SessionLocal() as db:
+    if db is not None:
+        # P1-11: add to caller's transaction — do NOT commit here
         db.add(record)
-        db.commit()
+        return event_id
+    # Fallback: open our own session (backwards-compat for callers without db)
+    with SessionLocal() as own_db:
+        own_db.add(record)
+        own_db.commit()
     return event_id
 
 
@@ -158,9 +172,10 @@ def _verify_project_owner(sess: StepUpSession, project_id: str) -> None:
 # Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 @router.post("/sessions/step-up")
+@_limiter.limit("5/minute")
 def step_up(
-    payload: StepUpRequest,
     request: Request,
+    payload: StepUpRequest,
     # The primary AeroMind session is verified by the existing auth middleware
     # (not duplicated here). For now we accept the request as authenticated.
 ):
@@ -223,15 +238,31 @@ def step_up(
     else:
         final_roles = _server_roles
 
-    # LABBENCH 01 access exclusively uses the six-digit code issued by the
-    # Super-Admin for this account and UTC day. The enrolled personal TOTP is
-    # intentionally not an alternative for this protected entry point.
+    # Phase 1 modernization: LABBENCH step-up now accepts EITHER:
+    #   (a) the user's enrolled per-user RFC-6238 TOTP (preferred, modern)
+    #   (b) the super-admin-issued daily code (fallback for users without
+    #       an enrolled TOTP device)
+    # This removes the friction of needing a daily code while maintaining
+    # the same security level (MFA required).
     if payload.assurance_level in ("step-up", "mfa"):
         code = (payload.mfa_code or "").strip()
-        if len(code) != 6 or not code.isdigit() or not verify_daily_totp_code(user["email"], code):
+        if len(code) != 6 or not code.isdigit():
             raise HTTPException(
                 status.HTTP_401_UNAUTHORIZED,
-                detail="Code TOTP LABBENCH 01 invalide ou expiré : demandez le code à 6 chiffres du jour au Super-Admin.",
+                detail="Code MFA invalide : 6 chiffres requis.",
+            )
+        # Try per-user TOTP first (modern path)
+        try:
+            from .local_auth import verify_account_totp
+            totp_ok = verify_account_totp(user["email"], code)
+        except Exception:
+            totp_ok = False
+        # Fallback: super-admin daily code (legacy path)
+        if not totp_ok and not verify_daily_totp_code(user["email"], code):
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                detail="Code MFA invalide ou expiré. Utilisez le code de votre application "
+                       "d'authentification (TOTP) ou demandez le code du jour au Super-Admin.",
             )
     session_token, expires_at, csrf_token = issue_step_up_session(
         user_id=user_id,
@@ -266,24 +297,28 @@ def step_up(
         response_data.model_dump(mode="json"),
         headers={"Cache-Control": "no-store", "Vary": "Cookie"},
     )
+    # P0-02 fix: use the canonical cookie name constants so verify_csrf_double_submit
+    # and _extract_session_token can read them back (was mismatched before — SEC fix).
+    import os as _os
+    _is_prod = _os.environ.get("AEROMIND_ENV", "development") == "production"
+    _max_age = int((datetime.fromisoformat(expires_at.isoformat())
+                    - datetime.now(UTC)).total_seconds())
     response.set_cookie(
-        key="lab_session_token",
+        key=SESSION_COOKIE_NAME,
         value=session_token,
         httponly=True,
-        secure=__import__("os").environ.get("AEROMIND_ENV", "development") == "production",
+        secure=_is_prod,
         samesite="lax",
-        max_age=int((__import__("datetime").datetime.fromisoformat(expires_at.isoformat())
-                     - __import__("datetime").datetime.now(UTC)).total_seconds()),
+        max_age=_max_age,
         path="/",
     )
     response.set_cookie(
-        key="lab_csrf_token",
+        key=CSRF_COOKIE_NAME,
         value=csrf_token,
         httponly=False,  # CSRF token must be readable by JS to set X-CSRF-Token header
-        secure=__import__("os").environ.get("AEROMIND_ENV", "development") == "production",
+        secure=_is_prod,
         samesite="lax",
-        max_age=int((__import__("datetime").datetime.fromisoformat(expires_at.isoformat())
-                     - __import__("datetime").datetime.now(UTC)).total_seconds()),
+        max_age=_max_age,
         path="/",
     )
     return response
@@ -302,7 +337,7 @@ def _verify_project_owner_str(user_id: str, project_id: str) -> None:
             )
 
 
-@router.post("/sessions/revoke")
+@router.post("/sessions/revoke", dependencies=[Depends(verify_csrf_double_submit)])
 def revoke_session_endpoint(session: StepUpSession = Depends(verify_lab_session)):
     """Revoke the current LABBENCH session immediately (logout, role change)."""
     revoke_step_up_session(session.session_id)
@@ -366,7 +401,7 @@ def get_active_drone(
         }
 
 
-@router.post("/projects/{project_id}/drones/select")
+@router.post("/projects/{project_id}/drones/select", dependencies=[Depends(verify_csrf_double_submit)])
 def select_drone(
     project_id: str,
     payload: DroneSelectRequest,
@@ -453,7 +488,7 @@ def select_drone(
         }
 
 
-@router.post("/drones/{drone_id}/revisions")
+@router.post("/drones/{drone_id}/revisions", dependencies=[Depends(verify_csrf_double_submit)])
 def create_revision(
     drone_id: str,
     payload: DroneRevisionRequest,
@@ -524,7 +559,7 @@ def create_revision(
         }
 
 
-@router.post("/drones/{drone_id}/revisions/{revision_id}/activate")
+@router.post("/drones/{drone_id}/revisions/{revision_id}/activate", dependencies=[Depends(verify_csrf_double_submit)])
 def activate_revision(
     drone_id: str,
     revision_id: str,
@@ -558,7 +593,7 @@ def activate_revision(
         return {"status": "activated", "revision_id": revision_id, "activated_at": revision.activated_at.isoformat()}
 
 
-@router.post("/runs")
+@router.post("/runs", dependencies=[Depends(verify_csrf_double_submit)])
 def start_run(
     payload: RunStartRequest,
     session: StepUpSession = Depends(verify_lab_session),
@@ -747,7 +782,7 @@ def get_mode(
     return mode.to_dict()
 
 
-@router.post("/gates/{project_id}/{gate}/approve")
+@router.post("/gates/{project_id}/{gate}/approve", dependencies=[Depends(verify_csrf_double_submit)])
 def approve_gate(
     project_id: str,
     gate: str,
@@ -771,6 +806,15 @@ def approve_gate(
             GateValidation.project_id == project_id,
             GateValidation.gate == gate,
         ).one_or_none()
+        # P1-05 fix: enforce IAM-03 — approver must differ from operator.
+        # Check against the stored operator_id (if present) and the session user.
+        if existing is not None and existing.operator_id:
+            if existing.operator_id == session.user_id:
+                raise HTTPException(
+                    403, "VIOLATION_IAM_03",
+                    "L'approbateur ne peut pas approuver sa propre demande de gate "
+                    "(opérateur ≠ approbateur, EXIGENCE IAM-03).",
+                )
         if existing is None:
             record = GateValidation(
                 id=str(uuid.uuid4()),
@@ -778,6 +822,7 @@ def approve_gate(
                 gate=gate,
                 state="approved",
                 reviewer_id=session.user_id,
+                operator_id=payload.evidence.get("operator_id") if isinstance(payload.evidence, dict) else None,
                 evidence_json=json.dumps(payload.evidence),
                 approved_at=datetime.now(UTC),
             )

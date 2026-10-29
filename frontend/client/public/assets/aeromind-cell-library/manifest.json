@@ -91,15 +91,15 @@
     "watertight_parts": 35
   },
   {
-    "id": "08-attaque-blanc",
+    "id": "08-aile-droite-blanc",
     "name": "Cellule à ailes droites · variante non armée",
     "type": "Voilure fixe à double dérive · maquette sans charge offensive",
     "span_mm": 760,
-    "render": "08-attaque-blanc-3d.svg",
-    "png": "08-attaque-blanc-3d.png",
-    "stl": "08-attaque-blanc.stl",
-    "obj": "08-attaque-blanc.obj",
-    "scad": "08-attaque-blanc.scad",
+    "render": "08-aile-droite-blanc-3d.svg",
+    "png": "08-aile-droite-blanc-3d.png",
+    "stl": "08-aile-droite-blanc.stl",
+    "obj": "08-aile-droite-blanc.obj",
+    "scad": "08-aile-droite-blanc.scad",
     "parts": 14,
     "watertight_parts": 14
   }

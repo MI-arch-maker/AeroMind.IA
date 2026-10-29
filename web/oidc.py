@@ -12,6 +12,11 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from .config import get_settings
 from .admin import account_for_email, account_for_identity
+from .primary_session_store import (
+    register_primary_session,
+    is_primary_session_active,
+    revoke_primary_session,
+)
 
 router = APIRouter(prefix='/api/auth/oidc', tags=['authentication'])
 
@@ -34,6 +39,36 @@ def _verified(token: str) -> str:
     return value
 
 
+def _check_local_generation(verified_value: str) -> None:
+    """P1-04 fix — verify localAuthGeneration for local sessions.
+
+    The generation is incremented on reset_local_auth / issue_superadmin_invite.
+    Without this check in require_session and current_user, a revoked super-admin
+    retains access to all endpoints except /me. This helper extracts the check
+    from /api/auth/oidc/me and makes it reusable.
+    """
+    import base64
+    try:
+        raw = base64.urlsafe_b64decode(verified_value + '=' * (-len(verified_value) % 4)).decode()
+        subject, email = raw.split('|', 1)
+    except (ValueError, IndexError, UnicodeDecodeError):
+        return  # malformed tokens are rejected by _verified upstream
+    if not subject.startswith('local:'):
+        return  # OIDC sessions don't have a generation
+    try:
+        from .admin import account_for_email
+        _, local_account_id, generation = subject.split(':', 2)
+        persistent = account_for_email(email)
+        if persistent is None:
+            raise HTTPException(401, 'Compte local introuvable')
+        if not (local_account_id == str(persistent.get('id'))
+                and persistent.get('localAuthEnabled') is True
+                and int(generation) == int(persistent.get('localAuthGeneration', 0))):
+            raise HTTPException(401, 'Session locale révoquée ou invalide (P1-04)')
+    except (ValueError, TypeError):
+        raise HTTPException(401, 'Session locale malformée')
+
+
 def _session_token(aeromind_session: str | None, authorization: str | None) -> str | None:
     if aeromind_session:
         return aeromind_session
@@ -51,7 +86,13 @@ def require_session(
     if not token:
         raise HTTPException(401, 'OIDC authentication required')
     try:
-        return _verified(token)
+        verified = _verified(token)
+        _check_local_generation(verified)  # P1-04 fix
+        # P2-02/P2-03 fix: check server-side allowlist for revocation/expiry.
+        # If the session was revoked via logout, reject even if the HMAC is valid.
+        if not is_primary_session_active(token):
+            raise HTTPException(401, 'Session révoquée ou expirée (P2-02/P2-03)')
+        return verified
     except (ValueError, IndexError):
         raise HTTPException(401, 'Invalid session')
 
@@ -141,7 +182,20 @@ def me(
 
 
 @router.api_route('/logout', methods=['GET', 'POST'])
-def logout():
+def logout(
+    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    authorization: str | None = Header(default=None),
+):
+    """P2-03 fix — server-side session revocation.
+
+    Previously logout only deleted the cookie, leaving the HMAC-signed token
+    valid indefinitely. Now we also revoke the session in the server-side
+    allowlist so a stolen token cannot be replayed after the legitimate user
+    logs out.
+    """
+    token = _session_token(aeromind_session, authorization)
+    if token:
+        revoke_primary_session(token)
     response = JSONResponse({'logged_out': True})
     response.delete_cookie('aeromind_session', path='/')
     response.delete_cookie('aeromind_oidc_state', path='/')
@@ -158,7 +212,7 @@ async def login(return_to: str = '/'):
     nonce = _b64(secrets.token_bytes(32))
     verifier = _b64(secrets.token_bytes(48))
     challenge = _b64(hashlib.sha256(verifier.encode()).digest())
-    safe_return_to = return_to if return_to.startswith('/') and not return_to.startswith('//') else '/'
+    safe_return_to = return_to if return_to.startswith('/') and not return_to.startswith('//') and '\\' not in return_to else '/'
     return_token = _b64(safe_return_to.encode())
     payload = f'{state}.{nonce}.{verifier}.{int(time.time())}.{return_token}'
     token = _signed(_b64(payload.encode()))
@@ -196,11 +250,14 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
     if identity_email is None:
         raise HTTPException(403, 'Compte Microsoft Entra préexistant requis et adresse non autorisée dans le registre AeroMind')
     session = _signed(_b64(f"{claims.get('sub')}|{identity_email}".encode()))
+    # P2-02/P2-03 fix: register the session in the server-side allowlist so
+    # logout can revoke it and server-side expiry is enforced.
+    register_primary_session(session, str(claims.get('sub')), identity_email)
     try:
         return_to = base64.urlsafe_b64decode(return_token + '=' * (-len(return_token) % 4)).decode()
     except (ValueError, UnicodeDecodeError):
         return_to = '/'
-    if not return_to.startswith('/') or return_to.startswith('//'):
+    if not return_to.startswith('/') or return_to.startswith('//') or '\\' in return_to:
         return_to = '/'
     separator = '&' if '?' in return_to else '?'
     response = RedirectResponse(f"{return_to}#aeromind_session={quote(session, safe='')}")

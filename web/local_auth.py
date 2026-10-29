@@ -18,6 +18,7 @@ from urllib.parse import quote
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import APIRouter, Depends, HTTPException, Request
+from .rate_limit import limiter as _limiter  # P1-01 fix
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -27,6 +28,7 @@ from .config import get_settings
 from .database import SessionLocal
 from .models import AdminAccountRecord
 from .oidc import _b64, _cookie_security, _signed, require_session
+from .primary_session_store import register_primary_session
 
 router = APIRouter(prefix="/api/auth/local", tags=["local authentication"])
 ITERATIONS = 600_000
@@ -58,6 +60,14 @@ def _normalize_email(email: str) -> str:
 
 
 def _password_hash(password: str) -> str:
+    # P2-01 fix: use Argon2id (memory-hard) instead of PBKDF2-SHA256.
+    # Falls back to PBKDF2 if argon2-cffi is not installed.
+    try:
+        from argon2 import PasswordHasher
+        ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
+        return ph.hash(password)
+    except ImportError:
+        pass
     salt = secrets.token_bytes(16)
     value = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, ITERATIONS, dklen=32)
     return "pbkdf2_sha256${}${}${}".format(
@@ -68,6 +78,21 @@ def _password_hash(password: str) -> str:
 
 
 def _verify_password(password: str, encoded: str | None) -> bool:
+    if not encoded:
+        return False
+    # P2-01 fix: verify Argon2id hashes (starts with $argon2id$)
+    if encoded.startswith("$argon2"):
+        try:
+            from argon2 import PasswordHasher
+            from argon2.exceptions import VerifyMismatchError
+            ph = PasswordHasher()
+            try:
+                ph.verify(encoded, password)
+                return True
+            except VerifyMismatchError:
+                return False
+        except ImportError:
+            return False
     try:
         scheme, rounds, salt_text, hash_text = (encoded or "").split("$")
         if scheme != "pbkdf2_sha256" or int(rounds) < 300_000:
@@ -155,7 +180,10 @@ def _load_record(row: AdminAccountRecord) -> dict:
 
 
 def _check_account(account: dict | None) -> bool:
-    return bool(account and account.get("accountStatus") in {"active", "evaluation"})
+    # P1-02 fix: accept 'approved_pending_enrollment' so the self-registration
+    # flow (complete-enrollment → confirm_enrollment) can complete. Was only
+    # accepting {active, evaluation}, blocking the entire Phase-1 modernization.
+    return bool(account and account.get("accountStatus") in {"active", "evaluation", "approved_pending_enrollment"})
 
 
 def _otp_uri(secret: str, email: str) -> str:
@@ -168,6 +196,8 @@ def _session_response(account: dict) -> JSONResponse:
     subject = f"local:{account['id']}:{int(account.get('localAuthGeneration', 0))}"
     email = _normalize_email(account["email"])
     token = _signed(_b64(f"{subject}|{email}".encode()))
+    # P2-02/P2-03 fix: register the session in the server-side allowlist.
+    register_primary_session(token, subject, email)
     response = JSONResponse({"authenticated": True, "email": email, "auth_method": "local-password-totp"})
     response.set_cookie("aeromind_session", token, max_age=28_800, **_cookie_security())
     response.headers["Cache-Control"] = "no-store"
@@ -179,6 +209,7 @@ def _audit(db, event: str, account: dict, detail: dict | None = None) -> None:
 
 
 @router.post("/enroll")
+@_limiter.limit("5/minute")
 def enroll(body: Enrollment):
     email = _normalize_email(str(body.email))
     account = account_for_email(email)
@@ -214,8 +245,14 @@ def enroll(body: Enrollment):
         issued = int(stored.get("localEnrollmentCodeIssuedAtEpoch", 0))
         if not invite_hash or not issued or time.time() - issued > INVITATION_TTL or not hmac.compare_digest(invite_hash, code_hash) or stored.get("localAuthEnabled"):
             raise HTTPException(400, "Invitation ou compte invalide.")
+        # P1-03 fix: TOCTOU prevention — mark the enrollment code as "totp_issued"
+        # so a second /enroll call with the same code is rejected. Previously the
+        # code remained valid between /enroll and /enroll/confirm, allowing an
+        # attacker to replace the TOTP secret.
+        if stored.get("localEnrollmentTotpIssued"):
+            raise HTTPException(400, "Code d'invitation déjà utilisé pour émettre un secret TOTP. Demander une réémission.")
         secret = _new_totp_secret()
-        stored.update({"localPasswordHash": _password_hash(expected_password), "localTotpSecretEnc": _encrypt_secret(secret), "localAuthPendingAt": int(time.time())})
+        stored.update({"localPasswordHash": _password_hash(expected_password), "localTotpSecretEnc": _encrypt_secret(secret), "localAuthPendingAt": int(time.time()), "localEnrollmentTotpIssued": True})
         row.data_json = json.dumps(stored, ensure_ascii=False, separators=(",", ":"))
         _audit(db, "account.local_auth_enrollment_started", stored, {"auth_method": "password+totp"})
         db.commit()
@@ -223,6 +260,7 @@ def enroll(body: Enrollment):
 
 
 @router.post("/enroll/confirm")
+@_limiter.limit("10/minute")
 def confirm_enrollment(body: Confirmation):
     email = _normalize_email(str(body.email))
     with SessionLocal() as db:
@@ -253,6 +291,7 @@ def confirm_enrollment(body: Confirmation):
 
 
 @router.post("/login")
+@_limiter.limit("5/minute")
 def login(body: Login, request: Request):
     email = _normalize_email(str(body.email))
     with SessionLocal() as db:

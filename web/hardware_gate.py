@@ -391,13 +391,21 @@ def issue_hardware_confirmation_token(
     except LabBenchError:
         raise  # Re-raise our own gate errors verbatim
     except Exception as e:
-        # If GateValidation model isn't yet applied to DB (migration not run),
-        # log warning and proceed in fail-open mode (better than blocking
-        # all hardware commands if the schema isn't migrated yet).
-        # This is logged but not raised — operators must still run migrations.
+        # P1-06 fix: fail-CLOSED in production (was fail-open).
+        # If GateValidation table is missing (migration not run), we still
+        # raise in production — the operator MUST run migrations before any
+        # hardware token can be issued. In development only, log and continue.
+        import os as _os
         import logging
+        _env = _os.environ.get("AEROMIND_ENV", "development")
+        if _env == "production":
+            raise LabBenchError(
+                412, "GATE_CHECK_FAILED",
+                f"Vérification G0-G5 impossible en production: {e}. "
+                "Assurez-vous que migrations/2026-10-25_canonical_labbench_schema.sql est appliquée.",
+            ) from e
         logging.getLogger(__name__).warning(
-            "P0-08: Could not verify G0-G5 gates for project %s: %s. "
+            "P0-08: Could not verify G0-G5 gates for project %s: %s (dev mode — fail-open). "
             "Ensure migrations/2026-10-25_canonical_labbench_schema.sql is applied.",
             project.id, e,
         )
@@ -551,10 +559,52 @@ def consume_hardware_confirmation_token(token: str, command: str) -> HardwareCon
             raise LabBenchError(401, "TOKEN_INVALID", "Jeton hardware invalide")
         if confirmation.consumed:
             raise LabBenchError(409, "TOKEN_ALREADY_USED", "Jeton hardware déjà consommé (single-use)")
+        # CAHIER DES CHARGES — "pas de signature erronées":
+        # Verify the requested command matches the token's bound command.
+        # Previously the in-memory path OVERWROTE confirmation.command without
+        # checking — accepting a token issued for NAV_LAND to send NAV_TAKEOFF.
+        if confirmation.command and confirmation.command != command:
+            raise LabBenchError(403, "TOKEN_COMMAND_MISMATCH",
+                f"Jeton in-memory lié à '{confirmation.command}', requis '{command}' — mismatch (CAHIER DES CHARGES: pas de signature erronées)")
         confirmation.consumed = True
         confirmation.consumed_at = datetime.now(UTC).isoformat()
         confirmation.command = command
         return confirmation
+
+
+def unconsume_hardware_confirmation_token(token: str) -> bool:
+    """P0-09 fix — release a consumed token if the MAVLink send failed.
+
+    The token consumption (Gate 3b) happens BEFORE the MAVLink frame is sent.
+    If the send fails (network timeout, connection refused), the operator
+    would lose the token with no replay path — forcing a full G0-G5
+    re-approval for an emergency NAV_LAND.
+
+    This function clears ``consumed_at`` so the token can be replayed within
+    its remaining TTL. It is called by :meth:`MavlinkCommandPilot.send_command`
+    when the MAVLink transport fails.
+
+    Returns True if the token was successfully un-consumed, False otherwise.
+    Only works for DB-backed tokens (the canonical V5 path).
+    """
+    if "." not in token:
+        # In-memory token — cannot un-consume (no persistence)
+        return False
+    token_id, _ = token.split(".", 1)
+    try:
+        from .database import SessionLocal
+        from .canonical_models import HardwareToken as _HT
+        from sqlalchemy import update
+        with SessionLocal() as db:
+            rowcount = db.execute(
+                update(_HT)
+                .where(_HT.id == token_id, _HT.consumed_at.is_not(None))
+                .values(consumed_at=None)
+            ).rowcount
+            db.commit()
+            return rowcount > 0
+    except Exception:
+        return False
 
 
 def mark_pool_drone_registered(project_id: str, registered: bool) -> None:

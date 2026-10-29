@@ -81,6 +81,19 @@ export function LabBenchHardwareConfig() {
     key: K,
     value: HardwareConfig[K],
   ) => setConfig((current) => ({ ...current, [key]: value }));
+  // P2-13 fix: validate allowedCommands against backend MAVLink allowlist.
+  // DO_SET_SERVO/DO_SET_RELAY are intentionally excluded (non-weaponized compliance).
+  const BACKEND_ALLOWLIST = [
+    "COMPONENT_ARM_DISARM", "NAV_TAKEOFF", "NAV_LAND",
+    "NAV_RETURN_TO_LAUNCH", "DO_SET_MODE",
+    "MISSION_COUNT", "MISSION_ITEM_INT",
+  ];
+  const _invalidCommands = config.allowedCommands
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .filter(l => !BACKEND_ALLOWLIST.includes(l) && !l.startsWith("simulate.") && !l.startsWith("read."));
+  const allowedCommandsValid = _invalidCommands.length === 0;
   const valid =
     config.manufacturer.trim() &&
     config.model.trim() &&
@@ -97,8 +110,15 @@ export function LabBenchHardwareConfig() {
     Number.isFinite(config.baudRate) &&
     config.baudRate > 0 &&
     Number.isInteger(config.canNodeId) &&
-    config.canNodeId >= 0;
+    config.canNodeId >= 0 &&
+    allowedCommandsValid;  // P2-13: block save if invalid commands present
   const save = () => {
+    if (!allowedCommandsValid) {
+      toast.error("Commandes non autorisées dans la liste blanche", {
+        description: `Retirer: ${_invalidCommands.join(", ")}. Autorisé: COMPONENT_ARM_DISARM, NAV_*, DO_SET_MODE, MISSION_*, simulate.*, read.* (P2-13: DO_SET_SERVO/RELAY exclus — conformité non-armée).`,
+      });
+      return;
+    }
     if (!valid) {
       toast.error("Paramètres incomplets ou incohérents", {
         description:
@@ -306,11 +326,32 @@ export function LabBenchHardwareConfig() {
           </label>
           <label className="lb-config-wide">
             Liste blanche — une commande par ligne
+            {/* P2-13 fix: validate allowedCommands against backend allowlist */}
             <textarea
               rows={3}
               value={config.allowedCommands}
-              onChange={(e) => set("allowedCommands", e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Validate each line against the backend MAVLink allowlist + simulate/read prefixes
+                const BACKEND_ALLOWLIST = [
+                  "COMPONENT_ARM_DISARM", "NAV_TAKEOFF", "NAV_LAND",
+                  "NAV_RETURN_TO_LAUNCH", "DO_SET_MODE",
+                  "MISSION_COUNT", "MISSION_ITEM_INT",
+                ];
+                const lines = value.split("\n").map(l => l.trim()).filter(Boolean);
+                const invalid = lines.filter(
+                  l => !BACKEND_ALLOWLIST.includes(l) && !l.startsWith("simulate.") && !l.startsWith("read.")
+                );
+                if (invalid.length > 0) {
+                  console.warn("[LabBenchHardwareConfig] Commandes non autorisées:", invalid);
+                }
+                set("allowedCommands", value);
+              }}
             />
+            <small className="text-muted-foreground">
+              Autorisé: COMPONENT_ARM_DISARM, NAV_*, DO_SET_MODE, MISSION_*, simulate.*, read.*
+              (P2-13: DO_SET_SERVO/DO_SET_RELAY exclus — conformité non-armée)
+            </small>
           </label>
           <label>
             Type de circuit d’arrêt déclaré

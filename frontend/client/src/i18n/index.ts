@@ -44,6 +44,25 @@ export function formatNumber(language: AppLanguage, value: number, options?: Int
   return new Intl.NumberFormat(language === "fr" ? "fr-FR" : "en-GB", options).format(value);
 }
 
+// P3-10 fix — pluralization support using Intl.PluralRules.
+// Usage: tKeyCount("common.errors", count) resolves key.one or key.other.
+export function tKeyCount(
+  language: AppLanguage,
+  key: string,
+  count: number,
+  values?: Record<string, string | number>,
+): string {
+  const rules = new Intl.PluralRules(language === "fr" ? "fr-FR" : "en-GB");
+  const pluralForm = rules.select(count);
+  const pluralKey = `${key}.${pluralForm}`;
+  const resolved = resolveMessage(language, pluralKey, { ...values, count });
+  // If the plural form is missing, fall back to the base key
+  if (resolved === pluralKey) {
+    return resolveMessage(language, key, { ...values, count });
+  }
+  return resolved;
+}
+
 export function formatDate(language: AppLanguage, value: Date | number | string, options?: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat(language === "fr" ? "fr-FR" : "en-GB", options).format(value instanceof Date ? value : new Date(value));
 }

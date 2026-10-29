@@ -117,7 +117,8 @@ def authorize_physical_command(
     actor_id: str,
     geofence_validation: Callable[[dict[str, float]], dict[str, Any]] | None = None,
     parameters: dict[str, float] | None = None,
-    e_stop_override: bool = False,
+    _e_stop_override: bool = False,
+    drone_position_provider: Callable[[], tuple[float, float] | None] | None = None,
 ) -> None:
     """Authorize a physical MAVLink command — the ONLY entry point for transports.
 
@@ -206,7 +207,7 @@ def authorize_physical_command(
             f"Le jeton n'appartient pas au drone {drone_id} (SEC-02 isolation).",
         )
     # Gate 5 — fail-closed geofence for navigation commands
-    if command in {"NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH"} and not e_stop_override:
+    if command in {"NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH"} and not _e_stop_override:
         if geofence_validation is None:
             # No geofence validation provided = no command sent (fail-closed).
             raise HardwareCommandError(
@@ -214,17 +215,42 @@ def authorize_physical_command(
                 f"La commande {command} exige une validation géofence fail-closed (SEC-04).",
             )
         params = dict(parameters or {})
+        # P0-06 fix: if lat/lon (p5/p6) are missing for TAKEOFF/LAND, query
+        # the drone's current position via the observer and inject it so the
+        # geofence polygon check actually runs (was silently skipped before).
+        if command in {"NAV_TAKEOFF", "NAV_LAND"} and (params.get("p5") is None or params.get("p6") is None):
+            if drone_position_provider is None:
+                raise HardwareCommandError(
+                    400, "POSITION_REQUIRED",
+                    f"{command} exige la position courante du drone (p5/p6) ou un drone_position_provider (SEC-04).",
+                )
+            pos = drone_position_provider()
+            if pos is None or not (isinstance(pos, tuple) and len(pos) == 2):
+                raise HardwareCommandError(
+                    503, "POSITION_UNAVAILABLE",
+                    f"Position drone indisponible — télémétrie requise pour valider le géofence de {command}.",
+                )
+            params["p5"] = float(pos[0])  # latitude
+            params["p6"] = float(pos[1])  # longitude
         validation = geofence_validation(params)
         if not validation.get("inside_geofence", False):
             raise HardwareCommandError(
                 409, "GEOFENCE_BREACH",
                 f"Commande {command} refusée: {validation.get('reason', 'hors géofence')}",
             )
-    elif command in {"NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH"} and e_stop_override:
-        # E-stop bypass — audit-logged. The cahier des charges distinguishes
-        # NAV_LAND from E-stop, but the implementation reuses NAV_LAND as the
-        # physical fallback. The bypass is explicit and ONLY invoked by the
-        # emergency_stop_all path with a real per-drone token.
+    elif command in {"NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH"} and _e_stop_override:
+        # P0-05 fix: e-stop bypass is now a PRIVATE parameter (_e_stop_override).
+        # Only send_emergency_land() can set it. Audit the bypass explicitly.
+        try:
+            from .labbench_auth import audit_decision
+            audit_decision(
+                actor_id=actor_id, actor_role="system",
+                action="labbench.hardware.estop_bypass", decision="allow",
+                project_id=project_id, drone_id=drone_id,
+                message=f"E_STOP_BYPASS — geofence skipped for {command} (drone={drone_id})",
+            )
+        except Exception:
+            pass  # audit failure must not block the e-stop
         import sys
         print(
             f"WARNING: E_STOP_BYPASS — geofence validation skipped for {command} "
@@ -356,27 +382,20 @@ class MavlinkCommandPilot:
         project_id: str | None = None,
         drone_id: str | None = None,
         actor_id: str | None = None,
-        e_stop_override: bool = False,
+        # P0-06 fix — position provider for geofence polygon check on TAKEOFF/LAND
+        drone_position_provider: Callable[[], tuple[float, float] | None] | None = None,
     ) -> CommandReceipt:
         """Validate + send one command. Returns a receipt; never raises on
         MAVLink transport errors — they are captured in the receipt reason.
 
         EXIGENCE V3.1 #1 — ``HARDWARE_CONTROL=true`` alone MUST NEVER authorize
         a physical transport. The full multi-gate check is delegated to
-        :func:`authorize_physical_command` which verifies:
-          1. HARDWARE_CONTROL env var (exact string match)
-          2. Command allowlist (no wildcard, no dynamic extension)
-          3. Signed single-use confirmation token issued by
-             ``hardware_gate.issue_hardware_confirmation_token`` (which itself
-             requires G0–G5 state: virtual N3 armed + hardware review signed +
-             drone registered in pool). Token is consumed atomically here;
-             replay is rejected. Token's project_id + drone_id MUST match.
-          4. Context binding: project_id + drone_id + actor_id required
-          5. Fail-closed geofence for navigation commands
-          6. DO_SET_MODE sub-allowlist (MANUAL/STABILIZE/AUTO only)
-        If any gate fails, the function raises ``HardwareCommandError`` BEFORE
-        any MAVLink frame is emitted. The MAVLink transport call only happens
-        once all gates pass.
+        :func:`authorize_physical_command`.
+
+        P0-05 fix: the ``e_stop_override`` parameter has been REMOVED from the
+        public signature. Emergency landing must go through
+        :meth:`send_emergency_land` which is the only path that bypasses the
+        geofence (for NAV_LAND only, audit-logged).
         """
         # === Unified multi-gate authorization (V3.1) ===
         authorize_physical_command(
@@ -387,7 +406,7 @@ class MavlinkCommandPilot:
             actor_id=actor_id or "",
             geofence_validation=geofence_validation,
             parameters=parameters,
-            e_stop_override=e_stop_override,
+            drone_position_provider=drone_position_provider,
         )
         params = dict(parameters or {})
 
@@ -436,9 +455,82 @@ class MavlinkCommandPilot:
         except Exception as exc:
             sent = False
             reason = f"Échec d'envoi MAVLink: {exc}"
+            # P0-09 fix: if the MAVLink send failed, un-consume the token so
+            # the operator can replay within the token's remaining TTL.
+            # Without this, a network timeout would force a full G0-G5
+            # re-approval just to retry the same command.
+            try:
+                from .hardware_gate import unconsume_hardware_confirmation_token
+                unconsume_hardware_confirmation_token(confirmation_token)
+            except Exception:
+                pass  # best-effort — do not mask the original MAVLink error
 
         return CommandReceipt(
             command=command,
+            target_system=self.target_system,
+            target_component=self.target_component,
+            accepted=sent,
+            sent_to_hardware=sent,
+            reason=reason,
+            parameters=params,
+        )
+
+    def send_emergency_land(
+        self,
+        *,
+        confirmation_token: str,
+        project_id: str,
+        drone_id: str,
+        actor_id: str,
+        parameters: dict[str, float] | None = None,
+    ) -> CommandReceipt:
+        """P0-05 fix — the ONLY public path that bypasses the geofence gate.
+
+        Emergency landing (NAV_LAND) lands in place. The geofence is bypassed
+        via the internal ``_e_stop_override`` flag. An audit event
+        ``labbench.hardware.estop_bypass`` is emitted. This method ONLY
+        supports NAV_LAND — not NAV_TAKEOFF, not NAV_RETURN_TO_LAUNCH — so a
+        compromised caller cannot use it to take off outside the geofence.
+        """
+        authorize_physical_command(
+            command="NAV_LAND",
+            confirmation_token=confirmation_token,
+            project_id=project_id,
+            drone_id=drone_id,
+            actor_id=actor_id,
+            geofence_validation=None,
+            parameters=parameters,
+            _e_stop_override=True,
+        )
+        params = dict(parameters or {})
+        try:
+            conn = self._ensure_connection()
+        except HardwareCommandError:
+            raise
+        except Exception as exc:
+            return CommandReceipt(
+                command="NAV_LAND",
+                target_system=self.target_system,
+                target_component=self.target_component,
+                accepted=False,
+                sent_to_hardware=False,
+                reason=f"Connexion MAVLink échouée: {exc}",
+                parameters=params,
+            )
+        cmd_id = MAV_CMD_IDS["NAV_LAND"]
+        try:
+            if hasattr(conn, "command_long_send"):
+                conn.command_long_send(
+                    self.target_system, self.target_component, cmd_id, 0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                )
+            sent = True
+            reason = "E-stop NAV_LAND envoyé (geofence bypass audit-loggé)."
+        except Exception as exc:
+            sent = False
+            reason = f"Échec d'envoi MAVLink (e-stop): {exc}"
+        return CommandReceipt(
+            command="NAV_LAND",
             target_system=self.target_system,
             target_component=self.target_component,
             accepted=sent,

@@ -41,7 +41,7 @@ MATERIAL_CATEGORIES: list[dict[str, str]] = [
     {"id": "payload-non-weaponized", "label": "Payloads (non-armés)", "icon": "package", "description": "Drop mechanisms, sprayers, éclairage, relais comms — NON armés"},
     {"id": "safety", "label": "Sécurité", "icon": "shield", "description": "Parachutes, strobes, balises, flares de détresse civile"},
     {"id": "maintenance", "label": "Maintenance", "icon": "tool", "description": "Outils, pièces de rechange, chargeurs de terrain"},
-    {"id": "armament-hardware", "label": "Hardware d'armement", "icon": "key", "description": "Bretelles d'armement, connecteurs d'alimentation, switches d'armement —hardware électrique NON armement"},
+    {"id": "electrical-arming-hardware", "label": "Hardware d'interconnexion électrique", "icon": "key", "description": "Bretelles d'armement électrique, connecteurs d'alimentation, switches d'armement — hardware électrique NON armement (P2-05 fix: renamed from armament-hardware)"},
 ]
 
 
@@ -577,7 +577,7 @@ MATERIAL_CATALOG: list[dict[str, Any]] = [
     # === Armament hardware (NON weapon — electrical arming hardware) ===
     {
         "id": "arm-hardware-switch-key",
-        "category": "armament-hardware",
+        "category": "electrical-arming-hardware",
         "label": "Interrupteur d'armement à clé",
         "manufacturer": "Apem",
         "partNumber": "KEY-SWITCH-2POS",
@@ -592,7 +592,7 @@ MATERIAL_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "arm-hardware-power-bus",
-        "category": "armament-hardware",
+        "category": "electrical-arming-hardware",
         "label": "Bus de distribution d'armement",
         "manufacturer": "Holybro",
         "partNumber": "PDB-ARMBUS-6S",
@@ -607,7 +607,7 @@ MATERIAL_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "arm-hardware-connector-magnetic",
-        "category": "armament-hardware",
+        "category": "electrical-arming-hardware",
         "label": "Connecteur magnétique d'armement (anti-arrachement)",
         "manufacturer": "Molex",
         "partNumber": "MAG-CONN-2PIN",

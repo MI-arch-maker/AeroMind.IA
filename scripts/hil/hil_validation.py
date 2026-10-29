@@ -155,12 +155,31 @@ def setup_db_and_bootstrap(mavlink_url: str, home_lat: float, home_lon: float) -
         "secondOperatorCode": "hil-secret-code",
     })
 
+    # P0-04 fix: create a reviewer step-up session (required by sign_hardware_review)
+    from web.labbench_auth import issue_step_up_session
+    from web.session_store import get_session as _get_step_up_session
+    _rev_token, _rev_exp, _rev_csrf = issue_step_up_session(
+        user_id="independent-hil-reviewer",
+        project_id=project_id,
+        roles={"approver"},
+        assurance_level="step-up",
+    )
+    reviewer_session = _get_step_up_session(_rev_token)
+
     # Signer la revue hardware N4 (reviewer != operator)
+    # P0-04 fix: pass reviewer_session keyword arg (was missing → REVIEWER_SESSION_REQUIRED)
+    # CAHIER DES CHARGES — "pas de signature erronées dans le HIL":
+    # The reviewToken field is for audit logging only (hashed by sign_hardware_review).
+    # Do NOT use a static fake token — use a unique audit hash derived from the
+    # HIL context so the audit trail references a verifiable, non-replayable value.
+    import hashlib as _hl
+    import time as _time
+    _audit_ref = _hl.sha256(f"hil-{project_id}-{drone_id}-{int(_time.time())}".encode()).hexdigest()[:16]
     hw_gate.sign_hardware_review(db, user, project_id, {
         "reviewer": "independent-hil-reviewer@aeromind.local",
-        "reviewToken": "hil-validation-token-12345678",
+        "reviewToken": _audit_ref,  # CAHIER DES CHARGES: unique audit hash, not a static fake string
         "note": "Revue HIL automatisée",
-    })
+    }, reviewer_session=reviewer_session)
 
     # Enregistrer le drone dans le pool matériel
     pool = pool_mod.MavlinkPool(
@@ -168,7 +187,8 @@ def setup_db_and_bootstrap(mavlink_url: str, home_lat: float, home_lon: float) -
         observer_factory=lambda url: __import__("web.mavlink_observer", fromlist=["MavlinkObserver"]).MavlinkObserver(connection_url=url),
     )
     pool_mod.reset_pool(pool)
-    pool.register(drone_id, "Drone HIL", mavlink_url)
+    # P0-04 fix: pass owner_id and project_id (required by SEC-02)
+    pool.register(drone_id, "Drone HIL", mavlink_url, owner_id=user_id, project_id=project_id)
 
     # Flip drone_registered_in_pool dans la gate state
     row, data, _ = hw_gate._ensure_hardware_gate_state(db, db.get(Project, project_id), user)
@@ -189,7 +209,8 @@ def setup_db_and_bootstrap(mavlink_url: str, home_lat: float, home_lon: float) -
         home_lat=home_lat,
         home_lon=home_lon,
     )
-    geo.set_geofence(geofence)
+    # P0-04 fix: pass owner_id (required by set_geofence — SEC-02)
+    geo.set_geofence(geofence, owner_id=user_id)
 
     return HilContext(
         db=db,
@@ -289,24 +310,35 @@ class TelemetryReader:
 
 # === Tests ===
 
-def _issue_token(ctx: HilContext) -> str:
-    """Issue a fresh single-use hardware confirmation token for the drone."""
-    issued = hw_gate.issue_hardware_confirmation_token(ctx.db, ctx.user, ctx.project.id, ctx.drone.id)
+def _issue_token(ctx: HilContext, command: str = "NAV_TAKEOFF", params: dict | None = None) -> str:
+    """Issue a fresh single-use hardware confirmation token for the drone.
+
+    P0-04 fix: pass command and params so the token is bound to the intended
+    command (was defaulting to NAV_TAKEOFF, causing TOKEN_COMMAND_MISMATCH).
+    """
+    issued = hw_gate.issue_hardware_confirmation_token(
+        ctx.db, ctx.user, ctx.project.id, ctx.drone.id,
+        command=command, params=params,
+    )
     return str(issued["token"])
 
 
 def _send(ctx: HilContext, command: str, params: dict | None = None, token: str | None = None) -> Any:
     """Send a command via the pilot directly (no HTTP). Token auto-issued if not given."""
     if token is None:
-        token = _issue_token(ctx)
+        token = _issue_token(ctx, command=command, params=params)
     pool = pool_mod.get_pool()
-    pilot = pool.pilot(ctx.drone.id)
+    pilot = pool.pilot(ctx.drone.id, owner_id=ctx.user["id"])
     geofence = geo.get_geofence(ctx.project.id)
+    # P0-04 fix: pass project_id, drone_id, actor_id (Gate 0/4 context — SEC-01)
     return pilot.send_command(
         command,
         parameters=params or {},
         confirmation_token=token,
         geofence_validation=lambda p: geo.validate_command_geofence(p, geofence),
+        project_id=ctx.project.id,
+        drone_id=ctx.drone.id,
+        actor_id=ctx.user["id"],
     )
 
 
@@ -485,7 +517,8 @@ def test_token_single_use(ctx: HilContext) -> None:
 def test_geofence_breach(ctx: HilContext, reader: TelemetryReader) -> None:
     t0 = time.monotonic()
     # Clear geofence — should fail-closed
-    geo.clear_geofence(ctx.project.id)
+    # P0-04 fix: pass owner_id (required by clear_geofence — SEC-02)
+    geo.clear_geofence(ctx.project.id, owner_id=ctx.user["id"])
     token = _issue_token(ctx)
     try:
         _send(ctx, "NAV_TAKEOFF", cmd_api.build_takeoff_params(5.0), token=token)

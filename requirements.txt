@@ -8,6 +8,7 @@ PyMySQL==1.1.2
 httpx==0.28.1
 PyJWT==2.10.1
 cryptography==46.0.3
+argon2-cffi==23.1.0  # P2-01 fix — memory-hard password hashing (replaces PBKDF2-SHA256)
 numpy==2.5.3
 python-multipart==0.0.20
 pymavlink==2.4.49
