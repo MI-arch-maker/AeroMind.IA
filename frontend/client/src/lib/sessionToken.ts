@@ -5,16 +5,19 @@ export function consumeSessionTokenFromFragment(): void {
     const hash = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
       : window.location.hash;
-    const params = new URLSearchParams(hash);
-    const token = params.get("aeromind_session");
+    const hashParams = new URLSearchParams(hash);
+    const queryParams = new URLSearchParams(window.location.search);
+    const token = hashParams.get("aeromind_session") ?? queryParams.get("aeromind_session");
     if (!token) return;
     sessionStorage.setItem(SESSION_TOKEN_KEY, token);
-    params.delete("aeromind_session");
-    const remaining = params.toString();
+    hashParams.delete("aeromind_session");
+    queryParams.delete("aeromind_session");
+    const remainingHash = hashParams.toString();
+    const remainingQuery = queryParams.toString();
     window.history.replaceState(
       null,
       document.title,
-      `${window.location.pathname}${window.location.search}${remaining ? `#${remaining}` : ""}`,
+      `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ""}${remainingHash ? `#${remainingHash}` : ""}`,
     );
   } catch {
     // Un navigateur sans sessionStorage utilisera le cookie HttpOnly normal.

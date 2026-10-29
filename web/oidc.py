@@ -203,7 +203,7 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
     if not return_to.startswith('/') or return_to.startswith('//'):
         return_to = '/'
     separator = '&' if '?' in return_to else '?'
-    response = RedirectResponse(f"{return_to}{separator}aeromind_session={quote(session, safe='')}")
+    response = RedirectResponse(f"{return_to}#aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')
     response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security())
     return response

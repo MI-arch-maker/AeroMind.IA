@@ -1763,6 +1763,8 @@ function Overview({
   requirements,
   runId,
   projectId,
+  dataSourceReady,
+  onConfigChange,
   onRunCommitted,
 }: {
   project: ProjectState;
@@ -1777,12 +1779,14 @@ function Overview({
   runId: string;
   projectId: string;
   workflowRun: WorkflowRun | null;
+  dataSourceReady: boolean;
+  onConfigChange: (patch: Partial<ConceptConfig>) => void;
   onRunCommitted: (run: WorkflowRun) => void;
 }) {
   const [checklistState, setChecklistState] = useState<Record<string, boolean>>(
     {}
   );
-  const configured = Boolean(config.airframe);
+  const configured = dataSourceReady && Boolean(config.airframe);
   const selectedLibraryBase = config.platformProfile
     ? findDroneProfile(config.platformProfile)
     : undefined;
@@ -1899,7 +1903,15 @@ function Overview({
       <section className="eng-baseline-bar"><div><small>ÉLÉMENT DE CONFIGURATION</small><strong>{selectedLibraryProfile?.label ?? "CELLULE NON AFFECTÉE"}</strong></div><div><small>BASELINE</small><b>{baseline}</b></div><div><small>ÉTAT DU MODÈLE</small><b className={configured ? "eng-good" : "eng-warn"}>{configured ? "CALCULABLE" : "VERROUILLÉ"}</b></div><div><small>PROVENANCE DES DONNÉES</small><b className={evidenceState === "TRACEABLE" ? "eng-good" : "eng-warn"}>{evidenceState === "TRACEABLE" ? "TRAÇABLE" : "INCOMPLÈTE"}</b></div><div><small>DERNIÈRE ANALYSE</small><b>{configured ? "LOCAL / LIVE" : "—"}</b></div></section>
       <div className="eng-main-grid">
         <aside className="eng-rail"><section className="eng-panel"><div className="eng-panel-title"><span>CONTRÔLE PROGRAMME</span><b>01</b></div><dl className="eng-data-list"><div><dt>Projet</dt><dd>{hasProject ? project.name : "Non défini"}</dd></div><div><dt>Intention de mission</dt><dd>{selectedLibraryProfile?.mission ?? "Saisie opérateur attendue"}</dd></div><div><dt>Responsable configuration</dt><dd>Autorité d’ingénierie humaine</dd></div><div><dt>État de revue</dt><dd className={configured ? "eng-good" : "eng-warn"}>{configured ? "Prêt pour revue préliminaire" : "Sélection requise"}</dd></div></dl><button className="eng-text-action" onClick={() => onView(hasProject ? "requirements" : "catalog")}>{hasProject ? "Ouvrir les exigences" : "Sélectionner une configuration"} <ArrowRight size={13} /></button></section><section className="eng-panel"><div className="eng-panel-title"><span>GATES DE REVUE TECHNIQUE</span><b>02</b></div><div className="eng-review-list"><div className={hasProject ? "is-pass" : "is-open"}><span>BRF</span><b>Brief mission</b><em>{hasProject ? "PASS" : "OPEN"}</em></div><div className={selectedLibraryProfile ? "is-pass" : "is-open"}><span>CFG</span><b>Baseline cellule</b><em>{selectedLibraryProfile ? "PASS" : "OPEN"}</em></div><div className={visibleRequirements.length ? "is-review" : "is-open"}><span>REQ</span><b>Exigences</b><em>{visibleRequirements.length ? `${requirementProgress}%` : "OPEN"}</em></div><div className={configured ? "is-review" : "is-open"}><span>SIM</span><b>Analyse</b><em>{configured ? "REVIEW" : "VERROUILLÉ"}</em></div><div className="is-open"><span>HUM</span><b>Disposition humaine</b><em>REQUIRED</em></div></div></section></aside>
-        <main className="eng-center"><section className="eng-panel eng-airframe-panel"><div className="eng-panel-title"><span>ACTIVE ÉLÉMENT DE CONFIGURATION / AIRFRAME</span><b>{selectedLibraryProfile?.id?.toUpperCase() ?? "—"}</b></div>{selectedLibraryProfile ? <div className="eng-airframe-body"><div className="eng-airframe-visual"><ParametricDronePreview design={selectedLibraryProfile} /><span>VISUEL CANONIQUE BIBLIOTHÈQUE · LECTURE SEULE</span></div><div className="eng-airframe-specs"><div><small>FAMILLE</small><strong>{selectedLibraryProfile.family}</strong></div><div><small>TYPE DE MODÈLE</small><strong>{selectedLibraryProfile.modelType ?? "—"}</strong></div><div><small>ENVERGURE</small><strong>{formatNumber(config.wingspan ?? 0, 2)} m</strong></div><div><small>MASSE / CHARGE UTILE</small><strong>{formatNumber(simulation.totalMassKg)} kg / {formatNumber(config.payloadKg ?? 0, 2)} kg</strong></div><div><small>PROPULSION</small><strong>{config.motorCount ?? 0} motor(s)</strong></div><div><small>ÉNERGIE</small><strong>{formatNumber(config.batteryWh ?? 0, 0)} Wh</strong></div></div></div> : <div className="eng-empty-state"><Box size={22} /><b>Aucune configuration contrôlée chargée</b><span>Sélectionnez une cellule dans la bibliothèque pour établir la baseline de configuration.</span></div>}<button className="eng-text-action" onClick={() => onView("catalog")}>Ouvrir la bibliothèque de configurations <ArrowRight size={13} /></button></section><section className="eng-panel eng-stream-panel"><div className="eng-panel-title"><span>FLUX DE DONNÉES D’INGÉNIERIE / SORTIE MODÈLE</span><b>{configured ? "4 Hz · LECTURE SEULE" : "VERROUILLÉ"}</b></div><EngineeringStreamArchitecture configured={configured} flight={overviewFlight} altitude={overviewAltitude} energy={overviewEnergy} power={overviewPower} phase={configured ? describeLivePhase(overviewFlight) : "AUCUNE CONFIGURATION ACTIVE"} mass={`${formatNumber(simulation.totalMassKg)} kg`} endurance={`${formatNumber(simulation.enduranceH)} h`} wind={`${formatNumber(simulation.windMarginPercent, 0)}%`} /></section></main>
+        <main className="eng-center"><section className="eng-panel eng-airframe-panel"><div className="eng-panel-title"><span>ACTIVE ÉLÉMENT DE CONFIGURATION / AIRFRAME</span><b>{selectedLibraryProfile?.id?.toUpperCase() ?? "—"}</b></div>{selectedLibraryProfile ? <div className="eng-airframe-body"><div className="eng-airframe-visual"><ParametricDronePreview design={selectedLibraryProfile} /><span>VISUEL CANONIQUE BIBLIOTHÈQUE · LECTURE SEULE</span></div><div className="eng-airframe-specs"><div><small>FAMILLE</small><strong>{selectedLibraryProfile.family}</strong></div><div><small>TYPE DE MODÈLE</small><strong>{selectedLibraryProfile.modelType ?? "—"}</strong></div><div><small>ENVERGURE</small><strong>{formatNumber(config.wingspan ?? 0, 2)} m</strong></div><div><small>MASSE / CHARGE UTILE</small><strong>{formatNumber(simulation.totalMassKg)} kg / {formatNumber(config.payloadKg ?? 0, 2)} kg</strong></div><div><small>PROPULSION</small><strong>{config.motorCount ?? 0} motor(s)</strong></div><div><small>ÉNERGIE</small><strong>{formatNumber(config.batteryWh ?? 0, 0)} Wh</strong></div></div></div> : <div className="eng-empty-state"><Box size={22} /><b>Aucune configuration contrôlée chargée</b><span>Sélectionnez une cellule dans la bibliothèque pour établir la baseline de configuration.</span></div>}<button className="eng-text-action" onClick={() => onView("catalog")}>Ouvrir la bibliothèque de configurations <ArrowRight size={13} /></button></section><section className="eng-panel eng-stream-panel"><div className="eng-panel-title"><span>FLUX DE DONNÉES D’INGÉNIERIE / SORTIE MODÈLE</span><b>{configured ? "4 Hz · LECTURE SEULE" : "VERROUILLÉ"}</b></div>{configured ? <>
+                    <EngineeringStreamArchitecture configured flight={overviewFlight} altitude={overviewAltitude} energy={overviewEnergy} power={overviewPower} phase={describeLivePhase(overviewFlight)} mass={`${formatNumber(simulation.totalMassKg)} kg`} endurance={`${formatNumber(simulation.enduranceH)} h`} wind={`${formatNumber(simulation.windMarginPercent, 0)}%`} />
+                    <div className="overview-stream-editor" aria-label="Modifier les données du flux de données">
+                      <label>ALTITUDE DE CONCEPTION <input type="number" min="0" max="6000" value={config.altitudeM} onChange={event => onConfigChange({ altitudeM: Number(event.target.value) || 0 })} /> m</label>
+                      <label>BATTERIE <input type="number" min="0" max="100000" value={config.batteryWh} onChange={event => onConfigChange({ batteryWh: Number(event.target.value) || 0 })} /> Wh</label>
+                      <label>CHARGE UTILE <input type="number" min="0" max="1000" step="0.1" value={config.payloadKg} onChange={event => onConfigChange({ payloadKg: Number(event.target.value) || 0 })} /> kg</label>
+                      <label>VITESSE <input type="number" min="0" max="500" value={config.cruiseSpeedKmh} onChange={event => onConfigChange({ cruiseSpeedKmh: Number(event.target.value) || 0 })} /> km/h</label>
+                    </div>
+                  </> : <div className="eng-empty-state"><Activity size={22} /><b>Flux verrouillé — aucune source utilisateur</b><span>Sélectionnez une cellule dans la Bibliothèque ou créez un dessin de drone. Aucun flux synthétique n’est affiché avant cette action.</span></div>}</section></main>
         <aside className="eng-rail"><section className="eng-panel eng-disposition"><div className="eng-panel-title"><span>DISPOSITION D’INGÉNIERIE</span><b>03</b></div><div className="eng-disposition-status"><small>DISPOSITION RECOMMANDÉE</small><strong className={configured ? "eng-warn" : "eng-muted"}>{configured ? "PASSAGE EN REVUE HUMAINE" : "HOLD"}</strong><span>{configured ? "Model outputs are preliminary and require evidence review before acceptance." : "Aucune décision ne peut être préparée sans configuration active."}</span></div><div className="eng-decision-metrics"><div><small>READINESS</small><strong>{configured ? "82%" : "—"}</strong></div><div><small>RISQUES OUVERTS</small><strong className={riskCount ? "eng-warn" : "eng-good"}>{configured ? String(riskCount).padStart(2, "0") : "—"}</strong></div><div><small>EXIG. OUVERTES</small><strong>{unresolvedRequirements}</strong></div></div><button className="eng-text-action" onClick={() => onView("simulation")}>Ouvrir les détails d’analyse <ArrowRight size={13} /></button></section><section className="eng-panel"><div className="eng-panel-title"><span>POINT OUVERT PRIORITAIRE</span><b>04</b></div>{openRisk ? <div className="eng-open-item"><span className={`orc-severity severity-${openRisk.severity}`} /><b>{openRisk.label}</b><small>{openRisk.probability} · {openRisk.status.toUpperCase()}</small></div> : <div className="eng-no-item"><CheckCircle2 size={15} /> Aucun risque ouvert dans le calcul courant</div>}<div className="eng-control-note"><Info size={13} /> Aucune commande d’actionneur, transmission de mission ou approbation autonome n’est disponible ici.</div></section></aside>
       </div>
       <section className="eng-panel eng-ledger"><div className="eng-panel-title"><span>SUIVI DE CONFIGURATION / REGISTRE DE REVUE</span><b>ENREGISTREMENT CONTRÔLÉ</b></div><div className="eng-ledger-head"><span>ÉLÉMENT</span><span>BASELINE / SOURCE</span><span>PREUVE</span><span>ÉTAT</span><span>RESPONSABLE</span></div><div className="eng-ledger-row"><b>Identité cellule</b><span>{selectedLibraryProfile?.id ?? "—"}</span><span>Profil bibliothèque</span><em className={selectedLibraryProfile ? "eng-good" : "eng-warn"}>{selectedLibraryProfile ? "SYNCED" : "OPEN"}</em><small>Configuration</small></div><div className="eng-ledger-row"><b>Géométrie & propulsion</b><span>{config.motorCount ?? 0} motors · {formatNumber(config.wingspan ?? 0, 2)} m</span><span>Modèle paramétrique</span><em className={configured ? "eng-good" : "eng-warn"}>{configured ? "CALCULABLE" : "VERROUILLÉ"}</em><small>Engineering</small></div><div className="eng-ledger-row"><b>Exigences</b><span>{visibleRequirements.length} visible / {satisfiedRequirements} satisfied</span><span>Exigences register</span><em className={visibleRequirements.length && unresolvedRequirements === 0 ? "eng-good" : "eng-warn"}>{visibleRequirements.length ? `${requirementProgress}%` : "OPEN"}</em><small>Systèmes</small></div><div className="eng-ledger-row"><b>Preuve de simulation</b><span>{overviewFlight.samples.length} frames · local model</span><span>Plan de données ingénierie</span><em className={configured ? "eng-warn" : "eng-muted"}>{configured ? "PRÉLIMINAIRE" : "N/A"}</em><small>Analyse</small></div></section>
@@ -12535,10 +12547,12 @@ export default function Home() {
   const lastWorkspaceUpdatedAt = useRef<string>("");
   const workspaceSaveQueue = useRef(createSerialWriteQueue()).current;
   const workspaceSaveGeneration = useRef(0);
-  const initialProjectId = initialState.activeProjectId ?? "";
-  const initialProjects = initialState.projects?.length
-    ? initialState.projects
-    : [];
+  // An authenticated workspace is server-authoritative. Never render the
+  // previous browser draft while the account project list is loading.
+  const initialProjectId = authenticatedUser ? "" : (initialState.activeProjectId ?? "");
+  const initialProjects = authenticatedUser
+    ? []
+    : (initialState.projects?.length ? initialState.projects : []);
   const [projects, setProjects] = useState<ProjectRecord[]>(initialProjects);
   const [activeProjectId, setActiveProjectId] = useState(initialProjectId);
   const integrationProjectRef = useRef(initialProjectId);
@@ -12728,13 +12742,10 @@ export default function Home() {
     skipServerSave.current = true;
     const remoteProjects =
       (serverProjectsQuery.data as unknown as ProjectRecord[]) ?? [];
-    // Une réponse distante vide ou momentanément incomplète ne doit jamais
-    // effacer un projet déjà affiché après un rafraîchissement.
-    const remoteById = new Map(remoteProjects.map(item => [item.id, item]));
-    const mergedProjects = [
-      ...projects.filter(item => !remoteById.has(item.id)),
-      ...remoteProjects,
-    ];
+    // Pour un compte authentifié, la base serveur est la seule source de
+    // vérité. Un brouillon du navigateur ne doit jamais réapparaître comme
+    // projet initié à la connexion.
+    const mergedProjects = remoteProjects;
     setProjects(mergedProjects);
     const selected = mergedProjects.find(item => item.id === activeProjectId);
     if (!selected) {
@@ -13977,6 +13988,8 @@ export default function Home() {
                 runId={runId}
                 projectId={activeProjectId}
                 workflowRun={workflowRun}
+                dataSourceReady={cellIntegratedThisSession}
+                onConfigChange={patch => setConfig(current => ({ ...current, ...patch }))}
                 onRunCommitted={run => { setWorkflowRun(run); setRunId(`WORKFLOW-${run.id.slice(0, 8)}`); }}
               />
             ) : activeView === "labbench" ? (

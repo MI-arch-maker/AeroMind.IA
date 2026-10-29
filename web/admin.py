@@ -361,9 +361,15 @@ def activity() -> dict[str, Any]:
                 details = json.loads(event["payloadJson"] or "{}")
                 deleted_accounts.append({**details, "id": details.get("id", event["targetUserId"]),
                                          "deletedBy": event["actorId"], "deletedAt": event["createdAt"]})
-        projects = [{"id": p.id, "name": p.name, "userId": p.user_id,
-                     "createdAt": p.created_at.isoformat() if p.created_at else None}
-                    for p in db.scalars(select(Project).order_by(Project.created_at.desc()).limit(100)).all()]
+        projects = []
+        for p in db.scalars(select(Project).order_by(Project.created_at.desc()).limit(100)).all():
+            try:
+                project_body = json.loads(p.data_json or "{}")
+            except (TypeError, json.JSONDecodeError):
+                project_body = {}
+            projects.append({"id": p.id, "name": p.name, "userId": p.user_id,
+                             "createdAt": p.created_at.isoformat() if p.created_at else None,
+                             "controlStatus": project_body.get("adminControl", {}).get("status", "active")})
         runs = [{"id": r.id, "projectId": r.project_id,
                  "createdAt": r.created_at.isoformat() if r.created_at else None}
                 for r in db.scalars(select(Simulation).order_by(Simulation.created_at.desc()).limit(100)).all()]
