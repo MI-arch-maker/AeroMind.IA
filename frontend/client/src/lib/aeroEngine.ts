@@ -122,6 +122,8 @@ export type InstalledMaterial = {
   /** Calque documentaire d’origine, facultatif et sans effet sur le calcul physique. */
   layer?: string;
   use: string;
+  /** Optional installation offset; X is expressed as a percentage of wingspan. */
+  position?: [number, number, number];
   massKg: number;
   /** Masse unitaire; la masse installée d’une ligne est massKg × quantity. */
   quantity?: number;
