@@ -11,3 +11,8 @@ cryptography==46.0.3
 numpy==2.5.3
 python-multipart==0.0.20
 pymavlink==2.4.49
+# P1-obs fix (INSPECT-DEVOPS F-7.3, F-7.4, F-9.5): observability stack
+sentry-sdk[fastapi]==2.18.0
+structlog==24.4.0
+slowapi==0.1.9
+prometheus-fastapi-instrumentator==7.0.0

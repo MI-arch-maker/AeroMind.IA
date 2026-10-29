@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .labbench_auth import (
@@ -176,13 +177,52 @@ def step_up(
     user_id = user["id"]
     # Verify project ownership
     _verify_project_owner_str(user_id, payload.project_id)
-    # Validate roles
+
+    # P0-12 fix (INSPECT-TESTS-AUDITS T-HIGH-27, SEC-08):
+    # The endpoint previously accepted `roles=set(payload.roles)` from the
+    # request body after only validating role names against ROLES. This
+    # allowed any authenticated user to self-assign admin/approver/operator
+    # roles. The fix derives roles server-side from the user's account record
+    # and only allows DOWNGRADE (intersection with requested roles).
+    try:
+        from .admin import account_for_identity
+        acct = account_for_identity(user.get("email", ""), user.get("subject", ""))
+    except Exception:
+        acct = None
+    # Compute server-side roles: from account if present, otherwise fall back
+    # to the user's authenticated role, with a minimal 'reader' default.
+    if acct and acct.get("role"):
+        _server_roles = {acct["role"]}
+    else:
+        _server_roles = {user.get("role", "reader")}
+    # super_admin always allowed (it implies all roles)
+    if user.get("role") == "super_admin":
+        _server_roles = ROLES  # full set
+    # Validate requested role names against ROLES (still reject typos).
     invalid = set(payload.roles) - ROLES
     if invalid:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail=f"Rôles invalides: {sorted(invalid)}. Valid: {sorted(ROLES)}",
         )
+    # Intersection: client can only request roles the user already has
+    # (least-privilege downgrade). Cannot elevate.
+    if payload.roles:
+        requested = set(payload.roles) & ROLES
+        final_roles = _server_roles & requested
+        if not final_roles:
+            # User requested only roles they don't have — refuse to issue.
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Vous ne disposez pas des rôles demandés pour cette "
+                    "session step-up. Rôles serveur: "
+                    f"{sorted(_server_roles)}. Demandés: {sorted(requested)}."
+                ),
+            )
+    else:
+        final_roles = _server_roles
+
     # LABBENCH 01 access exclusively uses the six-digit code issued by the
     # Super-Admin for this account and UTC day. The enrolled personal TOTP is
     # intentionally not an alternative for this protected entry point.
@@ -196,7 +236,7 @@ def step_up(
     session_token, expires_at, csrf_token = issue_step_up_session(
         user_id=user_id,
         project_id=payload.project_id,
-        roles=set(payload.roles),
+        roles=final_roles,
         assurance_level=payload.assurance_level,
         drone_id=payload.drone_id,
         revision_id=payload.revision_id,
@@ -207,7 +247,7 @@ def step_up(
         action="lab.session.step_up", decision="allow",
         project_id=payload.project_id,
         message=f"Session LABBENCH step-up émise pour utilisateur {user_id}",
-        payload={"roles": list(payload.roles), "assurance": payload.assurance_level},
+        payload={"roles": list(final_roles), "assurance": payload.assurance_level},
     )
     # Set cookies (the endpoint returns the tokens too for API clients)
     response_data = StepUpResponse(
@@ -216,12 +256,37 @@ def step_up(
         csrf_token=csrf_token,
         expires_at=expires_at.isoformat(),
         project_id=payload.project_id,
-        roles=list(payload.roles),
+        roles=list(final_roles),
         assurance_level=payload.assurance_level,
     )
-    # Note: actual cookie setting requires returning a Response object.
-    # For now, the client is responsible for setting cookies from the response.
-    return response_data
+    # P0-12 / P2-MED: actually set the cookies server-side so HttpOnly+Secure
+    # is enforced (the previous "client is responsible" comment broke the
+    # security model documented in AUDIT_TECHNIQUE_AEROMIND_2026-10-14 §8).
+    response = JSONResponse(
+        response_data.model_dump(mode="json"),
+        headers={"Cache-Control": "no-store", "Vary": "Cookie"},
+    )
+    response.set_cookie(
+        key="lab_session_token",
+        value=session_token,
+        httponly=True,
+        secure=__import__("os").environ.get("AEROMIND_ENV", "development") == "production",
+        samesite="lax",
+        max_age=int((__import__("datetime").datetime.fromisoformat(expires_at.isoformat())
+                     - __import__("datetime").datetime.now(UTC)).total_seconds()),
+        path="/",
+    )
+    response.set_cookie(
+        key="lab_csrf_token",
+        value=csrf_token,
+        httponly=False,  # CSRF token must be readable by JS to set X-CSRF-Token header
+        secure=__import__("os").environ.get("AEROMIND_ENV", "development") == "production",
+        samesite="lax",
+        max_age=int((__import__("datetime").datetime.fromisoformat(expires_at.isoformat())
+                     - __import__("datetime").datetime.now(UTC)).total_seconds()),
+        path="/",
+    )
+    return response
 
 
 def _verify_project_owner_str(user_id: str, project_id: str) -> None:

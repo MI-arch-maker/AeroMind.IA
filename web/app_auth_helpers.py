@@ -22,3 +22,35 @@ def current_user(cookie: str | None, authorization: str | None = None):
         return {'id': account.get('accountId') or subject, 'subject': subject, 'email': email, 'name': account.get('name') or email, 'role': account.get('role', 'user'), 'level': account.get('level', 'L1'), 'accountStatus': account.get('accountStatus', 'active')}
     except Exception:
         return None
+
+
+def current_user_or_401(request) -> dict:
+    """Return the authenticated user or raise 401 immediately.
+
+    P0-01 fix (INSPECT-BACKEND B-CRIT-01): the canonical LABBENCH router
+    `/api/lab/sessions/step-up` imports `current_user_or_401` from this
+    module. Without this definition, every call raised ImportError and the
+    entire /api/lab/* router (12 endpoints, 737 lines) was unreachable.
+    """
+    cookie = None
+    authorization = None
+    if request is not None:
+        try:
+            cookie = request.cookies.get('aeromind_session')
+        except Exception:
+            cookie = None
+        try:
+            authorization = request.headers.get('authorization')
+        except Exception:
+            authorization = None
+    user = current_user(cookie, authorization)
+    if user is None:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=401,
+            detail={
+                'code': 'UNAUTHENTICATED',
+                'message': 'Authentication required for this endpoint.',
+            },
+        )
+    return user

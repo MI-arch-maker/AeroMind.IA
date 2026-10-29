@@ -37,14 +37,14 @@ export default defineConfig({
     allowedHosts: [
       "localhost",
       "127.0.0.1",
-      "4173-iiu0bwsf8nrsan73hz6bs-1c1fd84a.us3.manus.computer",
+      // P1-cleanup (INSPECT-FRONTEND F-HIGH-24): removed stale manus.computer preview host.
       "*.onrender.com",
     ],
   },
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
-    sourcemap: false,
+    sourcemap: 'hidden',  // P1-cleanup: emit hidden source maps for Sentry — not referenced in HTML.
     chunkSizeWarningLimit: 1536,
     rollupOptions: {
       output: {

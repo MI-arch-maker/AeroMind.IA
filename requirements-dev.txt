@@ -1,0 +1,13 @@
+# Development / test dependencies — pip install -r requirements-dev.txt
+# (which includes requirements.txt as well)
+-r requirements.txt
+
+# P1-pgserver fix (INSPECT-TESTS-AUDITS F-04): pgserver was missing,
+# causing 4 tests in test_v6_real_postgresql.py to ERROR in stock CI.
+pgserver>=0.5.0
+
+# Test runners
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+httpx>=0.27.0
+pip-audit>=2.7.0

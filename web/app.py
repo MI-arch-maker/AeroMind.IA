@@ -69,6 +69,32 @@ def _engine_status():
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings = get_settings()
+    # P1-obs fix (INSPECT-DEVOPS F-7.3): structured logging + Sentry init
+    import logging as _logging
+    import os as _os
+    _log_level = _os.getenv("LOG_LEVEL", "INFO").upper()
+    _logging.basicConfig(
+        level=getattr(_logging, _log_level, _logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    log = _logging.getLogger("aeromind.app")
+    log.info("AeroMind starting up environment=%s hardware_control=%s",
+             settings.environment, _os.getenv("HARDWARE_CONTROL", "false"))
+    # Sentry (optional)
+    _sentry_dsn = _os.getenv("SENTRY_DSN")
+    if _sentry_dsn:
+        try:
+            import sentry_sdk
+            from sentry_sdk.integrations.fastapi import FastApiIntegration
+            sentry_sdk.init(
+                dsn=_sentry_dsn,
+                environment=settings.environment,
+                traces_sample_rate=0.1,
+                integrations=[FastApiIntegration()],
+            )
+            log.info("Sentry initialized for environment=%s", settings.environment)
+        except ImportError:
+            log.warning("SENTRY_DSN set but sentry-sdk not installed; skipping Sentry init")
     Path('data').mkdir(exist_ok=True)
     Path('logs').mkdir(exist_ok=True)
     # The production deployment can run migrations independently, while the
@@ -119,6 +145,18 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title='AeroMind AI API', version='2.0.0', docs_url='/docs' if settings.environment != 'production' else None, redoc_url=None, lifespan=lifespan)
+# P1-obs fix (INSPECT-DEVOPS F-9.5): rate limiting on auth endpoints
+try:
+    from slowapi import Limiter
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    from slowapi import _rate_limit_exceeded_handler
+    _limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = _limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    _HAS_SLOWAPI = True
+except ImportError:
+    _HAS_SLOWAPI = False
 # P0-05 — anonymous workspace drafts are keyed by client-supplied opaque
 # identifier (validated for shape) so two anonymous browsers cannot read
 # or overwrite each other's drafts. The store is bounded; older entries
@@ -173,13 +211,68 @@ app.include_router(labbench_canonical_router)
 
 @app.middleware('http')
 async def security_headers(request: Request, call_next):
+    # P0-04 fix (INSPECT-BACKEND B-CRIT-03): enforce CSRF on state-changing
+    # methods when the lab_csrf cookie is present (i.e. user has step-up
+    # session). If cookie is absent we don't block — the endpoint's own
+    # auth check will return 401 if needed. This middleware specifically
+    # prevents CSRF attacks where an attacker has the victim's aeromind_session
+    # cookie but cannot read the CSRF token from sessionStorage/httpOnly.
+    if request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+        # Skip CSRF for OIDC callback (state nonce already verified) and
+        # local login (no CSRF cookie set yet).
+        _path = request.url.path
+        _skip_paths = {
+            "/api/auth/oidc/callback",
+            "/api/auth/oidc/login",
+            "/api/auth/local/login",
+            "/api/auth/local/enroll",
+            "/api/auth/dev-login",
+            "/api/local/workspace",  # workspace uses X-AeroMind-Workspace header instead
+            "/api/trpc",  # tRPC bridge has its own auth checks
+        }
+        if not any(_path.startswith(p) for p in _skip_paths):
+            cookie_token = request.cookies.get("lab_csrf_token") or request.cookies.get("aeromind_lab_csrf")
+            if cookie_token:
+                # Step-up session present → require matching X-CSRF-Token header.
+                import hmac as _hmac
+                header_token = (
+                    request.headers.get("X-CSRF-Token")
+                    or request.headers.get("x-csrf-token")
+                    or ""
+                )
+                if not header_token or not _hmac.compare_digest(header_token, cookie_token):
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "error": {
+                                "code": "CSRF_FORBIDDEN",
+                                "message": "CSRF token invalide ou manquant. "
+                                          "Header X-CSRF-Token doit correspondre au cookie lab_csrf_token.",
+                            }
+                        },
+                    )
     response = await call_next(request)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'no-referrer'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     if settings.environment == 'production':
-        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+    # P1-CSP fix (INSPECT-FRONTEND F-CRIT-12): Content-Security-Policy header
+    # closes the XSS attack surface. Combined with P0-04 (no token in
+    # sessionStorage) the attack surface is drastically reduced.
+    # Tighten progressively after audit (e.g. add 'unsafe-hashes' -> hashes).
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob: https:; "
+        "connect-src 'self' https://login.microsoftonline.com https://api.openai.com "
+        "wss://*.onrender.com https://*.openstreetmap.org https://server.arcgisonline.com "
+        "https://nominatim.openstreetmap.org; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'"
+    )
     return response
 
 
@@ -335,6 +428,7 @@ async def dev_login(request: Request):
     Creates or reuses a dev user in admin_accounts, signs a session token,
     and returns it. Only available when AEROMIND_ENV=development.
     """
+    # P1-obs TODO: rate-limit this endpoint with slowapi (5/minute) — see inspection report F-9.5
     if settings.environment != 'development':
         return JSONResponse(status_code=403, content={'error': {'code': 'DEV_LOGIN_FORBIDDEN', 'message': 'Connexion développement disponible uniquement en mode développement.'}})
     import json as _json
@@ -1199,7 +1293,15 @@ async def hardware_pool_register(request: Request, aeromind_session: str | None 
         return _trpc_error(400, 'BAD_REQUEST', 'droneId and connectionUrl are required')
     try:
         pool = mavlink_pool_service.get_pool()
-        entry = pool.register(drone_id, drone_name, connection_url)
+        # P0-03 fix (INSPECT-BACKEND B-CRIT-04): pass owner_id and project_id
+        # to satisfy SEC-02 tenant isolation. Without these, MavlinkPool.register
+        # raised HardwareCommandError(400, "BAD_REQUEST", "owner_id et project_id
+        # sont requis (SEC-02 isolation inter-tenant)") on every call.
+        entry = pool.register(
+            drone_id, drone_name, connection_url,
+            owner_id=user['id'],
+            project_id=project_id or '',
+        )
         # Mark the drone as registered in the hardware gate state.
         if project_id:
             with SessionLocal() as db:
@@ -1224,7 +1326,10 @@ def hardware_pool_unregister(drone_id: str, aeromind_session: str | None = Cooki
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
-    removed = mavlink_pool_service.get_pool().unregister(drone_id)
+    # P0-03 fix (INSPECT-BACKEND B-HIGH-01): pass owner_id to enforce SEC-02
+    # tenant isolation on unregister. Without it any authenticated user could
+    # unregister another tenant's drone from the pool.
+    removed = mavlink_pool_service.get_pool().unregister(drone_id, owner_id=user['id'])
     return JSONResponse({'removed': removed, 'droneId': drone_id})
 
 
@@ -1301,7 +1406,10 @@ async def hardware_drone_command(drone_id: str, request: Request, aeromind_sessi
             return _trpc_error(403, 'TOKEN_DRONE_MISMATCH', 'Le jeton ne correspond pas à ce drone')
         # Get the pilot from the pool
         pool = mavlink_pool_service.get_pool()
-        pilot = pool.pilot(drone_id)
+        # P0-03 fix (INSPECT-BACKEND B-HIGH-01): pass owner_id so pool.pilot
+        # enforces SEC-02 tenant isolation — without it any authenticated user
+        # could send physical MAVLink commands to another tenant's drone.
+        pilot = pool.pilot(drone_id, owner_id=user['id'])
         # Geofence validation
         geofence = geofence_service.get_geofence(project_id) if project_id else None
         receipt = pilot.send_command(
@@ -1424,7 +1532,25 @@ async def hardware_geofence_set(request: Request, aeromind_session: str | None =
         home_lat=payload.get('homeLat'),
         home_lon=payload.get('homeLon'),
     )
-    geofence_service.set_geofence(geofence)
+    # P0-03 fix (INSPECT-BACKEND B-CRIT-05): pass owner_id (keyword-only) to
+    # set_geofence — without it the call raised TypeError on every geofence PUT,
+    # and since geofence is fail-closed, no MAVLink command could ever be authorized.
+    # P2-validation: cap polygon length (200 points) and maxAltitudeM (EASA Open 120m)
+    # and validate home_lat/home_lon ranges for defence-in-depth.
+    if len(polygon_pairs) > 200:
+        return _trpc_error(400, 'BAD_REQUEST', 'polygon must not exceed 200 points (DoS protection)')
+    _max_alt = float(payload.get('maxAltitudeM') or geofence_service.DEFAULT_MAX_ALTITUDE_M)
+    if _max_alt > 120.0:
+        return _trpc_error(400, 'BAD_REQUEST', 'maxAltitudeM must not exceed 120.0 m (EASA Open category cap)')
+    if payload.get('homeLat') is not None:
+        _hl = float(payload.get('homeLat'))
+        if not (-90.0 <= _hl <= 90.0):
+            return _trpc_error(400, 'BAD_REQUEST', 'homeLat must be in [-90, 90]')
+    if payload.get('homeLon') is not None:
+        _hn = float(payload.get('homeLon'))
+        if not (-180.0 <= _hn <= 180.0):
+            return _trpc_error(400, 'BAD_REQUEST', 'homeLon must be in [-180, 180]')
+    geofence_service.set_geofence(geofence, owner_id=user['id'])
     return JSONResponse({'ok': True, 'projectId': project_id, 'polygonSize': len(polygon_pairs)})
 
 

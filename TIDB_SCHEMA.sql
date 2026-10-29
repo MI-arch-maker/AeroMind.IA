@@ -1,5 +1,19 @@
 
 
+-- ============================================================================
+-- WARNING (P0-06 fix, INSPECT-BACKEND B-CRIT-07):
+-- This file is a MINIMAL bootstrap covering only 3 tables (audit_events,
+-- admin_accounts, admin_account_events). For a complete TiDB deployment
+-- you MUST ALSO apply, in order:
+--   1. migrations/2026-10-21_admin_account_registry_tidb.sql
+--   2. migrations/2026-10-21_validation_audit_events.sql
+--   3. migrations/2026-10-25_canonical_labbench_schema_tidb.sql
+-- Failing to do so will leave the database without users, projects, drones,
+-- lab_sessions, missions, hardware_tokens, gate_validations, etc.
+-- See TIDB_SETUP_FR.md for the full deployment procedure.
+-- ============================================================================
+
+
 -- Persistent owner-scoped validation journal (required by auditEvents.list/record).
 CREATE TABLE audit_events (
     id VARCHAR(36) NOT NULL,

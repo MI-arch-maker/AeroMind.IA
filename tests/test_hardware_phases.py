@@ -19,6 +19,37 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("AEROMIND_SESSION_SECRET", "x" * 32)
 os.environ.setdefault("AEROMIND_ENV", "development")
 
+
+def _approve_all_gates(db_session, project_id, user_id):
+    """P0-08 helper: pre-approve all 6 G0-G5 gates so tests that exercise
+    issue_hardware_confirmation_token can succeed. Without this, the new
+    gate enforcement (EXIGENCE C-001) raises GATE_NOT_READY.
+    """
+    try:
+        from web.canonical_models import GateValidation
+        from datetime import UTC, datetime
+        import uuid as _uuid
+        _required_gates = (
+            "G0_gel", "G1_securite", "G2_fiabilite",
+            "G3_banc", "G4_qualification", "G5_exploitation",
+        )
+        for _g in _required_gates:
+            db_session.add(GateValidation(
+                id=str(_uuid.uuid4()),
+                project_id=project_id,
+                gate=_g,
+                state="approved",
+                reviewer_id=user_id,
+                evidence_json="{}",
+                approved_at=datetime.now(UTC),
+            ))
+        db_session.commit()
+    except Exception:
+        # GateValidation table not yet created (migration not applied).
+        # hardware_gate.py code logs a warning and proceeds fail-open.
+        pass
+
+
 from web.database import Base  # noqa: E402
 from web import mavlink_command_api as cmd  # noqa: E402
 from web import mavlink_pool as pool_mod  # noqa: E402
@@ -727,6 +758,9 @@ def test_issue_and_consume_token(db_session):
     row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     db_session.commit()
 
+    # P0-08 fix: pre-approve all 6 G0-G5 gates (EXIGENCE C-001 enforcement).
+    _approve_all_gates(db_session, project_id, user["id"])
+
     # V5 — issue now requires command + params (DB-persisted token with HMAC).
     issued = hw_gate.issue_hardware_confirmation_token(
         db_session, user, project_id, drones[0].id,
@@ -775,6 +809,7 @@ def test_token_signature_tampering_rejected(db_session):
     data["conditions"]["drone_registered_in_pool"] = True
     row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     db_session.commit()
+    _approve_all_gates(db_session, project_id, user["id"])
     issued = hw_gate.issue_hardware_confirmation_token(
         db_session, user, project_id, drones[0].id,
         command="NAV_TAKEOFF", params={"p7": 30.0},
@@ -815,6 +850,7 @@ def test_token_wrong_command_rejected(db_session):
     data["conditions"]["drone_registered_in_pool"] = True
     row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     db_session.commit()
+    _approve_all_gates(db_session, project_id, user["id"])
     issued = hw_gate.issue_hardware_confirmation_token(
         db_session, user, project_id, drones[0].id,
         command="NAV_TAKEOFF", params={"p7": 30.0},

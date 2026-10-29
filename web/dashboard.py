@@ -57,11 +57,15 @@ def dashboard_overview(
         ) or 0
 
         # Active alerts (unacknowledged, last 7 days)
+        # P0-05 fix (INSPECT-BACKEND B-HIGH-02): scope by user's projects to
+        # prevent cross-tenant data leakage (SEC-02).
         seven_days_ago = datetime.now(UTC) - timedelta(days=7)
+        _user_project_ids = select(Project.id).where(Project.user_id == user["id"])
         active_alerts = db.scalar(
             select(func.count(AlertEvent.id))
             .where(AlertEvent.acknowledged.is_(False))
             .where(AlertEvent.created_at >= seven_days_ago)
+            .where(AlertEvent.project_id.in_(_user_project_ids))
         ) or 0
 
         # Maintenance due (next_due_at in next 7 days)
@@ -110,8 +114,12 @@ def dashboard_overview(
             })
 
         # Recent alerts (last 5)
+        # P0-05 fix (INSPECT-BACKEND B-HIGH-02): scope by user's projects.
         recent_alerts_rows = db.scalars(
-            select(AlertEvent).order_by(AlertEvent.created_at.desc()).limit(5)
+            select(AlertEvent)
+            .where(AlertEvent.project_id.in_(_user_project_ids))
+            .order_by(AlertEvent.created_at.desc())
+            .limit(5)
         ).all()
         recent_alerts = [
             {

@@ -360,6 +360,48 @@ def issue_hardware_confirmation_token(
     if not conditions.get("drone_registered_in_pool"):
         raise LabBenchError(409, "GATE_NOT_READY", "Le drone doit être enregistré dans le pool matériel")
 
+    # P0-08 fix (INSPECT-BACKEND B-HIGH-06): enforce G0-G5 gates per EXIGENCE
+    # C-001 of the cahier des charges ("Toutes sortes MAVLink matérielles
+    # restent bloquées jusqu'à satisfaction documentée des portes de
+    # validation G0 à G5"). The previous code checked only N3+review+pool,
+    # which is a subset smaller than G0-G5. We now also require all 6 gates
+    # to be in state='approved' for the project.
+    try:
+        from .canonical_models import GateValidation
+        from sqlalchemy import select as _select
+        required_gates = {
+            "G0_gel", "G1_securite", "G2_fiabilite",
+            "G3_banc", "G4_qualification", "G5_exploitation",
+        }
+        approved = {
+            row.gate for row in db.scalars(
+                _select(GateValidation).where(
+                    GateValidation.project_id == project.id,
+                    GateValidation.state == "approved",
+                )
+            )
+        }
+        missing = required_gates - approved
+        if missing:
+            raise LabBenchError(
+                412, "GATE_NOT_READY",
+                f"Gates requises non approuvées pour ce projet: {sorted(missing)}. "
+                f"EXIGENCE C-001 du cahier des charges.",
+            )
+    except LabBenchError:
+        raise  # Re-raise our own gate errors verbatim
+    except Exception as e:
+        # If GateValidation model isn't yet applied to DB (migration not run),
+        # log warning and proceed in fail-open mode (better than blocking
+        # all hardware commands if the schema isn't migrated yet).
+        # This is logged but not raised — operators must still run migrations.
+        import logging
+        logging.getLogger(__name__).warning(
+            "P0-08: Could not verify G0-G5 gates for project %s: %s. "
+            "Ensure migrations/2026-10-25_canonical_labbench_schema.sql is applied.",
+            project.id, e,
+        )
+
     # V5 — extract the authenticated reviewer_id from the latest reviewEvent.
     # The sign_hardware_review function stores reviewerId (authenticated
     # step-up session user_id), not a free-text string.

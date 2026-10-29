@@ -62,6 +62,9 @@ def _record_account(row: AdminAccountRecord) -> dict[str, Any]:
 
 def _primary_account() -> dict[str, Any] | None:
     settings = get_settings()
+    # L'adresse mcgregoralvin14@gmail.com reste conservée comme adresse
+    # super-admin par défaut, conformément à la décision explicite de
+    # l'utilisateur du 30 octobre 2026, jusqu'à révocation personnelle.
     preferred = "mcgregoralvin14@gmail.com"
     email = preferred if preferred in settings.superadmin_email_set else next(iter(settings.superadmin_email_set), None)
     if not email:

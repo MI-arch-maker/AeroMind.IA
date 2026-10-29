@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict
+from datetime import UTC, datetime
 from threading import Lock
 from typing import Any
 
@@ -42,32 +43,143 @@ def get_observer() -> MavlinkObserver:
         return _observer
 
 
-# Per-session telemetry consent tracking (SEC-07 — opt-in polling)
-# Map: session_id -> { consent_granted: bool, last_poll_at: datetime }
-_consent_state: dict[str, dict[str, Any]] = {}
-_consent_lock = Lock()
+# Per-session telemetry consent tracking (SEC-07 — opt-in polling).
+#
+# P0-07 fix (INSPECT-BACKEND B-HIGH-04): previously this was a per-process
+# dict keyed by session_id. On Render's multi-worker setup, a consent granted
+# on worker A would be invisible to worker B, so the next /status poll (likely
+# routed to a different worker) returned 403 — breaking the MAVLink telemetry
+# UX for ~50% of polls after a worker restart.
+#
+# The fix persists consent into the LabSession.data_json JSON payload (key
+# ``telemetry_consent`` → ``{drone_id: consent_data}``) so it survives worker
+# restarts and is shared across workers. A per-process cache keeps the hot path
+# fast; the DB is the source of truth.
+#
+# The consent is now keyed by (user_id, drone_id) instead of session_id, which
+# matches the MAVLink telemetry semantics (a user grants consent to read a
+# specific drone's telemetry — not a specific session).
 
 
-def grant_telemetry_consent(session: StepUpSession) -> None:
-    """EXIGENCE IAM-04 — telemetry polling requires explicit per-session consent."""
-    with _consent_lock:
-        _consent_state[session.session_id] = {
-            "consent_granted": True,
-            "user_id": session.user_id,
-            "project_id": session.project_id,
-            "granted_at": __import__("datetime").datetime.now(__import__("datetime").UTC),
-        }
+# Per-process cache, DB is source of truth. Key: f"telemetry_consent:{user_id}:{drone_id}"
+_consent_cache: dict[str, dict] = {}
 
 
-def revoke_telemetry_consent(session_id: str) -> None:
-    with _consent_lock:
-        _consent_state.pop(session_id, None)
+def _consent_db_key(user_id: str, drone_id: str) -> str:
+    return f"telemetry_consent:{user_id}:{drone_id}"
 
 
-def _has_consent(session_id: str) -> bool:
-    with _consent_lock:
-        entry = _consent_state.get(session_id)
-        return entry is not None and entry.get("consent_granted") is True
+def grant_consent(user_id: str, drone_id: str, scopes: list[str]) -> dict:
+    """Grant telemetry consent for (user_id, drone_id) — persisted to DB."""
+    consent_data = {
+        "scopes": scopes,
+        "granted_at": datetime.now(UTC).isoformat(),
+    }
+    _consent_cache[_consent_db_key(user_id, drone_id)] = consent_data
+    try:
+        # P0-07: session_store.py exposes only session-by-token helpers
+        # (_db_fetch_session(token), _db_persist_session(token, ...)) — none
+        # take a user_id. Per the task fallback instruction, we use
+        # SessionLocal() directly to read/write the LabSession.data_json JSON
+        # payload keyed by user_id. The most-recent row for the user is updated
+        # so the consent is visible regardless of which worker issued it.
+        import json as _json
+        from .database import SessionLocal
+        from .canonical_models import LabSession
+        from sqlalchemy import select
+        with SessionLocal() as db:
+            row = db.scalar(
+                select(LabSession)
+                .where(LabSession.user_id == user_id)
+                .order_by(LabSession.id.desc())
+                .limit(1)
+            )
+            if row is not None:
+                try:
+                    data = _json.loads(row.data_json or "{}")
+                except Exception:
+                    data = {}
+                data.setdefault("telemetry_consent", {})[drone_id] = consent_data
+                row.data_json = _json.dumps(data, ensure_ascii=False)
+                db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "P0-07: Could not persist telemetry consent to DB for user=%s drone=%s: %s",
+            user_id, drone_id, e,
+        )
+    return consent_data
+
+
+def get_consent(user_id: str, drone_id: str) -> dict | None:
+    """Get telemetry consent for (user_id, drone_id) — DB first, cache fallback."""
+    cache_key = _consent_db_key(user_id, drone_id)
+    # Try cache first (fast path)
+    if cache_key in _consent_cache:
+        return _consent_cache[cache_key]
+    # Fall back to DB
+    try:
+        import json as _json
+        from .database import SessionLocal
+        from .canonical_models import LabSession
+        from sqlalchemy import select
+        with SessionLocal() as db:
+            row = db.scalar(
+                select(LabSession)
+                .where(LabSession.user_id == user_id)
+                .order_by(LabSession.id.desc())
+                .limit(1)
+            )
+            if row is not None:
+                try:
+                    data = _json.loads(row.data_json or "{}")
+                except Exception:
+                    data = {}
+                entry = data.get("telemetry_consent", {}).get(drone_id)
+                if entry:
+                    _consent_cache[cache_key] = entry
+                    return entry
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "P0-07: Could not read telemetry consent from DB: %s", e,
+        )
+    return None
+
+
+def revoke_consent(user_id: str, drone_id: str) -> bool:
+    """Revoke telemetry consent — persisted to DB."""
+    cache_key = _consent_db_key(user_id, drone_id)
+    existed = cache_key in _consent_cache
+    _consent_cache.pop(cache_key, None)
+    try:
+        import json as _json
+        from .database import SessionLocal
+        from .canonical_models import LabSession
+        from sqlalchemy import select
+        with SessionLocal() as db:
+            row = db.scalar(
+                select(LabSession)
+                .where(LabSession.user_id == user_id)
+                .order_by(LabSession.id.desc())
+                .limit(1)
+            )
+            if row is not None:
+                try:
+                    data = _json.loads(row.data_json or "{}")
+                except Exception:
+                    data = {}
+                tc = data.get("telemetry_consent", {})
+                existed = existed or (drone_id in tc)
+                tc.pop(drone_id, None)
+                row.data_json = _json.dumps(data, ensure_ascii=False)
+                db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "P0-07: Could not revoke telemetry consent in DB: %s", e,
+        )
+    return existed
 
 
 def _classify_state(observer: MavlinkObserver) -> str:
@@ -123,7 +235,9 @@ def status(
     Never raises on observer errors — captures them in 'state: error'.
     """
     # SEC-07 fix — auth + consent required
-    if not _has_consent(session.session_id):
+    # P0-07 fix: consent is now DB-backed (was per-process dict). The check
+    # uses (user_id, drone_id) as the consent key — see grant_consent() above.
+    if not get_consent(session.user_id, session.drone_id or ""):
         audit_decision(
             actor_id=session.user_id, actor_role="reader",
             action="telemetry.poll", decision="deny",
@@ -156,13 +270,15 @@ def status(
 
 
 @router.post("/consent")
-def grant_consent(session: StepUpSession = Depends(verify_lab_session)) -> dict[str, str]:
+def grant_consent_endpoint(session: StepUpSession = Depends(verify_lab_session)) -> dict[str, str]:
     """Grant per-session telemetry polling consent (EXIGENCE IAM-04).
 
     Must be called BEFORE GET /api/telemetry/mavlink/status.
     Consent is automatically revoked when the session expires or is revoked.
     """
-    grant_telemetry_consent(session)
+    # P0-07 fix: persist consent to DB so it survives worker restarts and is
+    # shared across workers. Keyed by (user_id, drone_id) — see grant_consent().
+    grant_consent(session.user_id, session.drone_id or "", list(session.scope))
     audit_decision(
         actor_id=session.user_id, actor_role="reader",
         action="telemetry.consent.granted", decision="allow",
@@ -173,9 +289,10 @@ def grant_consent(session: StepUpSession = Depends(verify_lab_session)) -> dict[
 
 
 @router.delete("/consent")
-def revoke_consent(session: StepUpSession = Depends(verify_lab_session)) -> dict[str, str]:
+def revoke_consent_endpoint(session: StepUpSession = Depends(verify_lab_session)) -> dict[str, str]:
     """Revoke telemetry polling consent (EXIGENCE IAM-04)."""
-    revoke_telemetry_consent(session.session_id)
+    # P0-07 fix: revoke consent in DB so the revocation is visible to all workers.
+    revoke_consent(session.user_id, session.drone_id or "")
     audit_decision(
         actor_id=session.user_id, actor_role="reader",
         action="telemetry.consent.revoked", decision="allow",
@@ -185,4 +302,4 @@ def revoke_consent(session: StepUpSession = Depends(verify_lab_session)) -> dict
     return {"status": "consent_revoked"}
 
 
-__all__ = ["router", "grant_telemetry_consent", "revoke_telemetry_consent"]
+__all__ = ["router", "grant_consent", "get_consent", "revoke_consent"]

@@ -24,6 +24,9 @@ os.environ.setdefault("AEROMIND_ENV", "development")
 
 import psycopg
 import pytest
+# P1-pgserver fix (INSPECT-TESTS-AUDITS F-04): skip cleanly if pgserver
+# isn't installed (it's now in requirements-dev.txt but not requirements.txt).
+pgserver = pytest.importorskip("pgserver")
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
 CANONICAL_MIGRATION = MIGRATIONS_DIR / "2026-10-25_canonical_labbench_schema.sql"
@@ -31,7 +34,6 @@ CANONICAL_MIGRATION = MIGRATIONS_DIR / "2026-10-25_canonical_labbench_schema.sql
 
 def _bootstrap_pg_cluster():
     """Boot a real PostgreSQL 16.x cluster via pgserver."""
-    import pgserver
     pgdata = Path(tempfile.mkdtemp(prefix='pg-v6-'))
     srv = pgserver.get_server(pgdata, cleanup_mode='delete')
     return srv, srv.get_uri()

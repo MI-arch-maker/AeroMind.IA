@@ -40,4 +40,12 @@ USER aeromind
 EXPOSE 10000
 
 # Render utilise /api/ready comme health check ; le port est défini par PORT.
-CMD ["sh", "-c", "uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-10000}"]
+# HEALTHCHECK explicite pour les déploiements hors-Render (docker-compose, k8s,
+# etc.) ; Render s'appuie sur healthCheckPath dans render.yaml.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:${PORT:-10000}/api/ready', timeout=3).status==200 else 1)"
+
+# CMD en forme exec (pas shell form) : permet à uvicorn de recevoir SIGTERM
+# directement pour un graceful shutdown. Workers/timings alignés avec les
+# recommandations Render starter (2 vCPU).
+CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "10000", "--workers", "2", "--limit-concurrency", "100", "--timeout-keep-alive", "30", "--timeout-graceful-shutdown", "5"]

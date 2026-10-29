@@ -26,13 +26,20 @@ propre commande.
 - Appartenance à un projet (vérifiée par l'administrateur)
 - Code MFA TOTP disponible (application Google Authenticator, 1Password, etc.)
 
-### Procédure
+### Procédure MFA LABBENCH 01 (step-up)
 
-1. **Se connecter à AeroMind** via la page de login (Microsoft Entra).
-2. **Naviguer vers LABBENCH** — l'interface vous demandera une authentification renforcée.
-3. **Saisir le code MFA TOTP** à 6 chiffres (renouvelé toutes les 30 secondes).
-4. **Confirmer le projet** auquel la session sera liée.
-5. **La session step-up est émise** pour 15 minutes (renouvelable).
+L'accès LABBENCH 01 utilise un code à 6 chiffres émis par le Super-Admin
+pour le compte et le jour UTC en cours. Ce code n'est PAS un TOTP RFC-6238
+par utilisateur — c'est un code quotidien délivré par le Super-Admin via
+l'interface d'administration.
+
+Pour obtenir le code du jour :
+1. Contacter le Super-Admin (adresse configurée via AEROMIND_SUPERADMIN_EMAILS).
+2. Le Super-Admin génère le code via `superAdmin.issueDailyCode` (tRPC).
+3. Saisir le code à 6 chiffres dans le champ MFA de l'écran LABBENCH 01.
+
+Le code expire à minuit UTC. Pour les sessions longue durée, prévoir un
+re-step-up avant expiration.
 
 ### En cas d'échec
 

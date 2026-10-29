@@ -379,7 +379,27 @@ def audit_decision(
 # Hardware token issuance — signed, expiring, single-use (SEC-03 fix)
 # ─────────────────────────────────────────────────────────────────────────────
 def _hmac_secret() -> bytes:
-    secret = getattr(settings, "AEROMIND_SESSION_SECRET", "") or "insecure-dev-only"
+    """Return the HMAC secret used to sign hardware tokens.
+
+    P0-02 fix (INSPECT-BACKEND B-CRIT-02): previously the function called
+    `getattr(settings, "AEROMIND_SESSION_SECRET", "")` which always
+    returned "" because Pydantic Settings exposes the Python attribute
+    name (`session_secret`), not the env alias (`AEROMIND_SESSION_SECRET`).
+    The fallback `"insecure-dev-only"` was therefore always used, meaning
+    every AeroMind deployment in the world signed its hardware tokens
+    with the same constant key.
+
+    The fix uses `_get_settings().session_secret` which reads the proper
+    Pydantic Settings field, and refuses to boot if the secret is missing
+    or too short (defence-in-depth against misconfiguration).
+    """
+    secret = _get_settings().session_secret
+    if not secret or len(secret) < 32:
+        raise RuntimeError(
+            "AEROMIND_SESSION_SECRET must be set and >= 32 bytes for "
+            "hardware token HMAC signing. Refusing to operate with an "
+            "insecure key. (P0-02 fix)"
+        )
     return secret.encode("utf-8")[:64]  # cap to 64 bytes for HMAC
 
 

@@ -1,3 +1,12 @@
+# docker-compose.yml — AeroMind local dev stack.
+#
+# Changes (P0-09 / INSPECT-DEVOPS):
+#  - POSTGRES_PASSWORD sourced from .env (no hardcoded secret in VCS).
+#  - app service uses init: true (tini) for clean SIGTERM propagation.
+#  - Explicit aeromind-net bridge network isolates db/app traffic.
+#  - Resource limits (mem_limit/cpus) mirror Render starter tier.
+#  - json-file log rotation caps disk usage (P1-obs F-7.4).
+#  - AEROMIND_AUTO_CREATE_SCHEMA explicit (dev convenience only).
 services:
   db:
     image: postgres:16-alpine
@@ -5,9 +14,18 @@ services:
     environment:
       POSTGRES_DB: aeromind
       POSTGRES_USER: aeromind
-      POSTGRES_PASSWORD: aeromind_dev_only
+      # Password sourced from .env (no secret committed to VCS).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
     volumes:
       - aeromind-postgres:/var/lib/postgresql/data
+    # P1-obs fix (INSPECT-DEVOPS F-7.4): cap log size on disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - aeromind-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aeromind -d aeromind"]
       interval: 5s
@@ -19,20 +37,40 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    # init: true runs the app under tini so SIGTERM reaches uvicorn for
+    # graceful shutdown (paired with exec-form CMD in Dockerfile).
+    init: true
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "10000:10000"
+    # Resource limits: 1 GB RAM + 1.5 vCPU mirrors Render starter tier.
+    mem_limit: 1g
+    cpus: "1.5"
     environment:
       AEROMIND_ENV: development
       PORT: 10000
       AEROMIND_SESSION_SECRET: local-compose-secret-change-me-32-bytes
-      DATABASE_URL: postgresql://aeromind:aeromind_dev_only@db:5432/aeromind
+      # DATABASE_URL reuses the same .env POSTGRES_PASSWORD so credentials
+      # stay in sync with the db service above.
+      DATABASE_URL: postgresql://aeromind:${POSTGRES_PASSWORD}@db:5432/aeromind
       AEROMIND_ALLOWED_ORIGINS: http://localhost:10000
       AEROMIND_ALLOWED_HOSTS: localhost,127.0.0.1
       HARDWARE_CONTROL: "false"
       AEROMIND_TRIAL_EMAILS: demo@example.com
+      # Dev convenience: auto-create schema on container start so fresh
+      # `docker compose up` works without running migrations manually.
+      # Prod uses preDeployCommand instead (see render.yaml).
+      AEROMIND_AUTO_CREATE_SCHEMA: "true"
+    # P1-obs fix (INSPECT-DEVOPS F-7.4): cap log size on disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - aeromind-net
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:10000/api/ready\", timeout=3)' || exit 1"]
       interval: 10s
@@ -41,3 +79,9 @@ services:
 
 volumes:
   aeromind-postgres:
+
+# P0-09 fix: explicit bridge network isolates db/app traffic from the
+# default compose network and makes service-to-service DNS explicit.
+networks:
+  aeromind-net:
+    driver: bridge

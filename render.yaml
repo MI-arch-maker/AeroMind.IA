@@ -21,17 +21,29 @@ services:
   - type: web
     name: aeromind-ai
     runtime: docker
-    plan: free
+    # P0-09 fix (INSPECT-DEVOPS B-HIGH-09): starter plan required for pre-deploy
+    # commands, persistent disk, and prod-grade resources. Free tier cannot run
+    # preDeployCommand reliably and has cold-start issues.
+    plan: starter
     region: frankfurt
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/ready
-    autoDeploy: true
+    # P0-09 fix (INSPECT-DEVOPS B-HIGH-09): run migrations before each deploy
+    # so the schema is guaranteed to be present before the app starts. Replaces
+    # the previous reliance on AEROMIND_AUTO_CREATE_SCHEMA at runtime.
+    preDeployCommand: "bash scripts/apply_migrations.sh $DATABASE_URL"
+    # Security: no auto-deploy without CI green. Deploys must be triggered
+    # manually or via a CI pipeline that gates on test/build success.
+    autoDeploy: false
     envVars:
       - key: AEROMIND_ENV
         value: production
+      # P0-09 fix: schema is now created by preDeployCommand, not at runtime.
+      # Runtime auto-create is disabled to avoid race conditions during
+      # multi-worker startup and to keep schema ownership in migrations.
       - key: AEROMIND_AUTO_CREATE_SCHEMA
-        value: "true"
+        value: "false"
       - key: PORT
         value: "10000"
       - key: DATABASE_URL
@@ -94,7 +106,10 @@ services:
 
 databases:
   - name: aeromind-db
-    plan: free
+    # P0-09 fix (INSPECT-DEVOPS B-HIGH-09): starter plan — free PostgreSQL
+    # on Render expires after 90 days and lacks backups. Starter provides
+    # persistent storage and daily backups required for prod data.
+    plan: starter
     region: frankfurt
     databaseName: aeromind
     user: aeromind
