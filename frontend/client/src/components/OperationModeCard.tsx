@@ -8,6 +8,7 @@ type ModeInfo = {
   hardware_control: boolean;
   available_transitions: string[];
   all_gates_approved: boolean;
+  gate_project_id?: string | null;
   timestamp: string;
 };
 
@@ -19,7 +20,7 @@ type HealthInfo = {
   database_url_configured: boolean;
   oidc_configured: boolean;
   sentry_configured: boolean;
-  stats: Record<string, number>;
+  stats: Record<string, number | string>;
   warnings?: string[];
   timestamp: string;
 };
@@ -56,17 +57,21 @@ export function OperationModeCard() {
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [changing, setChanging] = useState(false);
+  const [gateProjectId, setGateProjectId] = useState("");
 
-  const fetchMode = async () => {
+  const fetchMode = async (projectId = gateProjectId) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/ops/mode", {
+      const query = projectId.trim() ? `?project_id=${encodeURIComponent(projectId.trim())}` : "";
+      const response = await fetch(`/api/ops/mode${query}`, {
         credentials: "include",
         headers: bearerHeaders(),
       });
-      if (response.ok) setMode(await response.json());
-    } catch {
-      /* ignore */
+      if (!response.ok) throw new Error("État du mode indisponible.");
+      setMode(await response.json());
+    } catch (error) {
+      setMode(null);
+      toast.error("Vérification impossible", { description: error instanceof Error ? error.message : "Connexion à l’API indisponible." });
     } finally {
       setLoading(false);
     }
@@ -78,9 +83,10 @@ export function OperationModeCard() {
         credentials: "include",
         headers: bearerHeaders(),
       });
-      if (response.ok) setHealth(await response.json());
+      if (!response.ok) throw new Error("Santé système indisponible.");
+      setHealth(await response.json());
     } catch {
-      /* ignore */
+      setHealth(null);
     }
   };
 
@@ -91,7 +97,11 @@ export function OperationModeCard() {
 
   const changeMode = async (newMode: string) => {
     if (newMode === mode?.current_mode) return;
-    const reason = window.prompt(`Changer le mode vers ${modeLabels[newMode]} ?\nMotif (optionnel) :`) ?? "";
+    if (newMode === "HARDWARE" && !gateProjectId.trim()) {
+      toast.error("Projet requis", { description: "Saisissez l’identifiant du projet puis vérifiez ses gates avant de demander HARDWARE." });
+      return;
+    }
+    const reason = window.prompt(`Changer le mode vers ${modeLabels[newMode]} ?\nMotif (optionnel) :`);
     if (reason === null) return;
     setChanging(true);
     try {
@@ -99,14 +109,14 @@ export function OperationModeCard() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", ...bearerHeaders() },
-        body: JSON.stringify({ mode: newMode, reason }),
+        body: JSON.stringify({ mode: newMode, reason, ...(newMode === "HARDWARE" ? { project_id: gateProjectId.trim() } : {}) }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail || "Changement refusé.");
       toast.success(`Mode changé : ${modeLabels[newMode]}`, {
         description: result.warning || "Le changement est effectif immédiatement.",
       });
-      await fetchMode();
+      await fetchMode(gateProjectId);
       await fetchHealth();
     } catch (error: any) {
       toast.error("Changement impossible", { description: error.message });
@@ -151,6 +161,15 @@ export function OperationModeCard() {
           </div>
         </div>
 
+        {/* Gate verification is scoped to one explicit project; approvals are never pooled. */}
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <label className="grid gap-1 text-xs font-semibold text-slate-600">
+            Projet à vérifier pour HARDWARE
+            <input value={gateProjectId} onChange={event => setGateProjectId(event.target.value)} placeholder="Identifiant exact du projet" className="rounded-lg border border-slate-300 px-3 py-2 font-normal" aria-label="Identifiant du projet pour vérification des gates" />
+          </label>
+          <button onClick={() => void fetchMode(gateProjectId)} disabled={loading || !gateProjectId.trim()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">Vérifier les gates</button>
+        </div>
+
         {/* Mode selector */}
         <div className="mt-5">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Changer de mode</div>
@@ -171,9 +190,9 @@ export function OperationModeCard() {
             ))}
             <button
               onClick={() => void changeMode("HARDWARE")}
-              disabled={changing || currentMode === "HARDWARE" || !mode?.all_gates_approved}
+              disabled={changing || currentMode === "HARDWARE" || !gateProjectId.trim() || mode?.gate_project_id !== gateProjectId.trim() || !mode?.all_gates_approved}
               className="rounded-lg border-2 border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-              title={!mode?.all_gates_approved ? "G0-G5 requises pour activer le mode HARDWARE" : ""}
+              title={!gateProjectId.trim() ? "Saisissez un identifiant de projet" : mode?.gate_project_id !== gateProjectId.trim() ? "Vérifiez les gates pour le projet sélectionné" : !mode?.all_gates_approved ? "G0-G5 requises pour ce projet" : ""}
             >
               <Power size={11} className="inline mr-1" />
               HARDWARE
@@ -181,7 +200,7 @@ export function OperationModeCard() {
           </div>
           {!mode?.all_gates_approved && (
             <p className="mt-2 text-xs text-amber-600">
-              ⚠ Le mode HARDWARE nécessite l'approbation des 6 gates G0-G5 pour ce projet.
+              ⚠ Saisissez un identifiant de projet et vérifiez ses 6 gates G0-G5; les validations d’autres projets ne sont pas prises en compte.
             </p>
           )}
         </div>
@@ -225,7 +244,7 @@ export function OperationModeCard() {
                 </div>
               ))}
             </div>
-            {health.stats.pending_outbox_events > 0 && (
+            {Number(health.stats.pending_outbox_events) > 0 && (
               <p className="mt-2 text-xs text-amber-600">
                 ⚠ {health.stats.pending_outbox_events} événement(s) en attente dans l'event outbox — un worker de drainage est nécessaire.
               </p>

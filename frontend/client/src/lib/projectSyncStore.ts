@@ -52,7 +52,7 @@ const conceptConfigSchema = z
     propDiameter: z.number().finite(),
     batteryWh: z.number().finite(),
     payloadKg: z.number().finite(),
-    cruiseSpeedKmh: z.number().finite(),
+    cruiseSpeedKmh: z.number().finite().max(650),
     windSpeedKmh: z.number().finite(),
     reserveFraction: z.number().finite(),
     maxTakeoffKg: z.number().finite(),

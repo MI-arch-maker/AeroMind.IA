@@ -1960,7 +1960,7 @@ function Overview({
                       <label>ALTITUDE DE CONCEPTION <input type="number" min="0" max="6000" value={config.altitudeM} onChange={event => onConfigChange({ altitudeM: Number(event.target.value) || 0 })} /> m</label>
                       <label>BATTERIE <input type="number" min="0" max="100000" value={config.batteryWh} onChange={event => onConfigChange({ batteryWh: Number(event.target.value) || 0 })} /> Wh</label>
                       <label>CHARGE UTILE <input type="number" min="0" max="1000" step="0.1" value={config.payloadKg} onChange={event => onConfigChange({ payloadKg: Number(event.target.value) || 0 })} /> kg</label>
-                      <label>VITESSE <input type="number" min="0" max="500" value={config.cruiseSpeedKmh} onChange={event => onConfigChange({ cruiseSpeedKmh: Number(event.target.value) || 0 })} /> km/h</label>
+                      <label>VITESSE CIBLE · SIMULATION <input type="number" min="0" max="650" value={config.cruiseSpeedKmh} onChange={event => onConfigChange({ cruiseSpeedKmh: Number(event.target.value) || 0 })} /> km/h <small>&gt;216 km/h : performance hors calibration.</small></label>
                     </div>
                   </> : <div className="eng-empty-state"><Activity size={22} /><b>Flux verrouillé — aucune source utilisateur</b><span>Sélectionnez une cellule dans la Bibliothèque ou créez un dessin de drone. Aucun flux synthétique n’est affiché avant cette action.</span></div>}</section></main>
         <aside className="eng-rail"><section className="eng-panel eng-disposition"><div className="eng-panel-title"><span>DISPOSITION D’INGÉNIERIE</span><b>03</b></div><div className="eng-disposition-status"><small>DISPOSITION RECOMMANDÉE</small><strong className={configured ? "eng-warn" : "eng-muted"}>{configured ? "PASSAGE EN REVUE HUMAINE" : "HOLD"}</strong><span>{configured ? "Model outputs are preliminary and require evidence review before acceptance." : "Aucune décision ne peut être préparée sans configuration active."}</span></div><div className="eng-decision-metrics"><div><small>READINESS</small><strong>{configured ? "82%" : "—"}</strong></div><div><small>RISQUES OUVERTS</small><strong className={riskCount ? "eng-warn" : "eng-good"}>{configured ? String(riskCount).padStart(2, "0") : "—"}</strong></div><div><small>EXIG. OUVERTES</small><strong>{unresolvedRequirements}</strong></div></div><button className="eng-text-action" onClick={() => onView("simulation")}>Ouvrir les détails d’analyse <ArrowRight size={13} /></button></section><section className="eng-panel"><div className="eng-panel-title"><span>POINT OUVERT PRIORITAIRE</span><b>04</b></div>{openRisk ? <div className="eng-open-item"><span className={`orc-severity severity-${openRisk.severity}`} /><b>{openRisk.label}</b><small>{openRisk.probability} · {openRisk.status.toUpperCase()}</small></div> : <div className="eng-no-item"><CheckCircle2 size={15} /> Aucun risque ouvert dans le calcul courant</div>}<div className="eng-control-note"><Info size={13} /> Aucune commande d’actionneur, transmission de mission ou approbation autonome n’est disponible ici.</div></section></aside>
@@ -4859,11 +4859,11 @@ function ConceptView({
             {activeAssemblyTool === "performance" && (
               <div className="assembly-fields">
                 <ParameterField
-                  label="Vitesse de croisière"
+                  label="Vitesse cible de conception · simulation"
                   value={config.cruiseSpeedKmh}
                   unit="km/h"
-                  min={10}
-                  max={150}
+                  min={5}
+                  max={650}
                   step={1}
                   onChange={value => updateConfig("cruiseSpeedKmh", value)}
                 />
@@ -6458,10 +6458,11 @@ function SimulationView({
             />
           </label>
           <label>
-            <span>Vitesse (km/h)</span>
+            <span>Vitesse cible (km/h · simulation)</span>
             <input
               type="number"
               min="1"
+              max="650"
               step="1"
               value={config.cruiseSpeedKmh}
               onChange={event =>
@@ -9977,12 +9978,12 @@ function MissionOperationsView({
             </small>
           </label>
           <label>
-            Vitesse de croisière (km/h)
+            Vitesse cible de conception · simulation (km/h)
             <input
-              aria-label="Vitesse de croisière de conception en kilomètres par heure"
+              aria-label="Vitesse de conception en kilomètres par heure"
               type="number"
               min="0"
-              max="300"
+              max="650"
               step="1"
               value={config.cruiseSpeedKmh}
               onChange={event =>
@@ -11912,7 +11913,7 @@ function OperationsView({
   const [plan, setPlan] = useState<MissionPlan>(() => ({
     ...defaultMissionPlan,
     maxAltitudeM: config.altitudeM || defaultMissionPlan.maxAltitudeM,
-    maxSpeedKmh: config.cruiseSpeedKmh || defaultMissionPlan.maxSpeedKmh,
+    maxSpeedKmh: Math.min(config.cruiseSpeedKmh || defaultMissionPlan.maxSpeedKmh, 300),
     geofenceRadiusKm:
       config.missionPlan?.radiusKm || defaultMissionPlan.geofenceRadiusKm,
     minimumBatteryPercent: config.reserveFraction
@@ -11960,11 +11961,14 @@ function OperationsView({
     record("Itinéraire manuel effacé · aucun point de passage conservé");
   };
   const updatePlan = (next: MissionPlan) => {
-    setPlan(next);
+    const boundedPlan = {
+      ...next,
+      maxSpeedKmh: Math.min(300, Math.max(1, Number(next.maxSpeedKmh) || 1)),
+    };
+    setPlan(boundedPlan);
     setConfig({
       ...config,
       altitudeM: next.maxAltitudeM,
-      cruiseSpeedKmh: next.maxSpeedKmh,
       reserveFraction: next.minimumBatteryPercent / 100,
       missionPlan: {
         ...defaultLocalMissionPlan,
@@ -11978,7 +11982,6 @@ function OperationsView({
     setPlan(current => ({
       ...current,
       maxAltitudeM: config.altitudeM || current.maxAltitudeM,
-      maxSpeedKmh: config.cruiseSpeedKmh || current.maxSpeedKmh,
       geofenceRadiusKm:
         config.missionPlan?.radiusKm || current.geofenceRadiusKm,
       minimumBatteryPercent: config.reserveFraction
@@ -11988,7 +11991,6 @@ function OperationsView({
     }));
   }, [
     config.altitudeM,
-    config.cruiseSpeedKmh,
     config.missionPlan?.radiusKm,
     config.missionPlan?.lostLinkAction,
     config.reserveFraction,
@@ -12280,9 +12282,11 @@ function OperationsView({
               Vitesse max. (km/h)
               <input
                 type="number"
+                min={1}
+                max={300}
                 value={plan.maxSpeedKmh}
                 onChange={e =>
-                  updatePlan({ ...plan, maxSpeedKmh: Number(e.target.value) })
+                  updatePlan({ ...plan, maxSpeedKmh: Math.min(300, Math.max(1, Number(e.target.value) || 1)) })
                 }
               />
             </label>
@@ -12830,23 +12834,6 @@ function requirementsForDroneProfile(
     },
   ];
 }
-
-// CAHIER DES CHARGES 2026-10-30 — Anomalie affichage :
-// Vues "pleine hauteur" qui gèrent leur propre layout interne (grid/flex)
-// et ont un SEUL composant racine avec height:100%. Pour ces vues,
-// workspace-window-inner utilise la classe is-flush (pas de padding,
-// overflow hidden, flex column) afin que les children avec height:100%
-// résolvent correctement. Sans cela, ParametricDroneCenter et MissionPlannerView
-// collapsent à height=0.
-// NB: "simulation" n'est PAS dans cette liste car elle contient deux composants
-// empilés (AeroTestFieldStation + VirtualSimulationCenter) qui doivent scroller
-// normalement avec le padding standard.
-const FULL_HEIGHT_VIEWS = new Set<ViewId>([
-  "parametric-center",
-  "mission-planner",
-  "design-studio",
-  "digital-twin",
-]);
 
 export default function Home() {
   const initialState = useMemo(readPersistedState, []);
@@ -14420,78 +14407,13 @@ export default function Home() {
                 workspaceConfig={cellIntegratedThisSession ? config : undefined}
                 userIntegratedThisSession={cellIntegratedThisSession}
               />
-            ) : activeView === "parametric-center" ? (
-              <div className="direct-view-container direct-view-parametric">
-                <div className="direct-view-header">
-                  <strong>{viewTitle}</strong>
-                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
-                </div>
-                <div className="direct-view-body">
-                  <ParametricDroneCenter
-                    config={config}
-                    setConfig={setConfig}
-                    onCommit={() => { void runSimulationNow(config); }}
-                  />
-                </div>
-              </div>
-            ) : activeView === "simulation" ? (
-              <div className="direct-view-container direct-view-simulation">
-                <div className="direct-view-header">
-                  <strong>{viewTitle}</strong>
-                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
-                </div>
-                <div className="direct-view-body direct-view-body-scroll">
-                  <AeroTestFieldStation config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
-                  <VirtualSimulationCenter
-                    simulation={simulation}
-                    requirements={requirements}
-                    onRunSimulation={runSimulationNow}
-                    isRunning={isRunning}
-                    config={config}
-                    setConfig={setConfig}
-                    history={(serverRunsQuery.data ?? []) as Array<{ id: number; runId: string; engineVersion: string; createdAt: Date }>}
-                    versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
-                    onRestoreVersion={restoreDesignVersion}
-                  />
-                </div>
-              </div>
-            ) : activeView === "mission-planner" ? (
-              <div className="direct-view-container direct-view-mission-planner">
-                <div className="direct-view-header">
-                  <strong>{viewTitle}</strong>
-                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
-                </div>
-                <div className="direct-view-body">
-                  <MissionPlannerView
-                    config={config}
-                    setConfig={setConfig}
-                  />
-                </div>
-              </div>
-            ) : activeView === "design-studio" ? (
-              <div className="direct-view-container direct-view-design-studio">
-                <div className="direct-view-header">
-                  <strong>{viewTitle}</strong>
-                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
-                </div>
-                <div className="direct-view-body direct-view-body-scroll">
-                  <DesignStudioView
-                    config={config}
-                    setConfig={setConfig}
-                    onUserIntegration={() => setCellIntegratedThisSession(true)}
-                    onSelectProfile={design => loadDroneExample(design, true)}
-                    onOpenLibrary={() => setActiveView("catalog")}
-                    activeProfile={activeLibraryDesign}
-                  />
-                </div>
-              </div>
             ) : (
               <WorkspaceWindow
                 viewId={activeView}
                 title={viewTitle}
                 onClose={() => setActiveView("overview")}
               >
-                <div className={`workspace-window-inner ${FULL_HEIGHT_VIEWS.has(activeView) ? "is-flush" : ""}`}>
+                <div className="workspace-window-inner">
                   <>
                     {activeView === "requirements" && (
                       <RequirementsView
@@ -14553,6 +14475,22 @@ export default function Home() {
                         onOpenCatalog={() => navigateToView("catalog")}
                         onOpenSketch={() => setActiveView("design-studio")}
                       />
+                    )}
+                    {activeView === "simulation" && (
+                      <>
+                        <AeroTestFieldStation config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
+                        <VirtualSimulationCenter
+                          simulation={simulation}
+                          requirements={requirements}
+                          onRunSimulation={runSimulationNow}
+                          isRunning={isRunning}
+                          config={config}
+                          setConfig={setConfig}
+                          history={(serverRunsQuery.data ?? []) as Array<{ id: number; runId: string; engineVersion: string; createdAt: Date }>}
+                          versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
+                          onRestoreVersion={restoreDesignVersion}
+                        />
+                      </>
                     )}
                     {activeView === "command-center" && <HumanCommandCenter />}
                     {activeView === "live" && (
@@ -14646,6 +14584,34 @@ export default function Home() {
                     )}
                     {activeView === "aero-center" && (
                       <AeronauticalCenterView
+                        config={config}
+                        setConfig={setConfig}
+                      />
+                    )}
+                    {activeView === "design-studio" && (
+                      <DesignStudioView
+                        config={config}
+                        setConfig={setConfig}
+                        onUserIntegration={() => setCellIntegratedThisSession(true)}
+                        onSelectProfile={design =>
+                          loadDroneExample(design, true)
+                        }
+                        onOpenLibrary={() => setActiveView("catalog")}
+                        activeProfile={activeLibraryDesign}
+                      />
+                    )}
+                    {activeView === "parametric-center" && (
+                      <ParametricDroneCenter
+                        config={config}
+                        setConfig={setConfig}
+                        onCommit={() => {
+                          // Trigger simulation refresh when params are committed
+                          void runSimulationNow(config);
+                        }}
+                      />
+                    )}
+                    {activeView === "mission-planner" && (
+                      <MissionPlannerView
                         config={config}
                         setConfig={setConfig}
                       />

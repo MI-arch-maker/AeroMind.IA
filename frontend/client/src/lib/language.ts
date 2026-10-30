@@ -4,11 +4,6 @@ export type AppLanguage = "fr" | "en";
  * Source unique des libellés d'interface traduits. La valeur française est la clé
  * stable, ce qui rend chaque entrée vérifiable et évite les chaînes de traduction
  * implicites ou les traductions automatiques non contrôlées.
- *
- * CAHIER DES CHARGES 2026-10-30 — Intégration FR/EN parfaite :
- * Les deux langues sont entièrement intégrées. Chaque chaîne française passée
- * à translate() possède une contrepartie anglaise dans en.json. Les clés non
- * trouvées retombent sur le texte français (fallback explicite et documenté).
  */
 import frCatalog from "./fr.json";
 import enCatalog from "./en.json";
@@ -55,14 +50,12 @@ export function missingLanguageEntries(language: AppLanguage): string[] {
 }
 
 export function translate(language: AppLanguage, frenchText: string): string {
-  if (language === "fr") return frenchText;
-  const exact = languageDictionary.en[frenchText];
+  const exact = languageDictionary[language][frenchText];
   if (exact) return exact;
   const normalized = frenchText.replace(/\s+/g, " ").trim();
-  const translated = languageDictionary.en[normalized];
+  const translated = languageDictionary[language][normalized];
   if (translated) return translated;
-  // Fallback: try reverse lookup (English → French), then return French as-is
-  if (language === "en") return englishToFrench.get(normalized) ?? frenchText;
+  if (language === "fr") return englishToFrench.get(normalized) ?? frenchText;
   return frenchText;
 }
 

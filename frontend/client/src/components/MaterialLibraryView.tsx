@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback } from "react";
 import { Search, Package, Cpu, Battery, Radio, Camera, Shield, Wrench, Key, Frame, Fan } from "lucide-react";
 
 // ===========================================================================
@@ -61,32 +61,51 @@ export type MaterialLibraryHandle = {
   refresh: () => void;
 };
 
+export function materialCatalogUrl(category: string | null, search: string, origin: string): string {
+  const url = new URL("/api/materials/catalog", origin);
+  if (category) url.searchParams.set("category", category);
+  if (search.trim()) url.searchParams.set("q", search.trim());
+  return url.toString();
+}
+
 export const MaterialLibraryView = forwardRef<MaterialLibraryHandle, { }>(
   function MaterialLibraryView(_props, ref) {
     const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(false);
-
-    const refresh = async () => {
+    const [loadError, setLoadError] = useState(false);
+    const requestId = useRef(0);
+    const activeController = useRef<AbortController | null>(null);
+    const loadCatalog = useCallback(async () => {
+      const id = ++requestId.current;
+      activeController.current?.abort();
+      const controller = new AbortController();
+      activeController.current = controller;
       setLoading(true);
+      setLoadError(false);
       try {
-        const url = new URL("/api/materials/catalog", window.location.origin);
-        if (selectedCategory) url.searchParams.set("category", selectedCategory);
-        if (search.trim()) url.searchParams.set("q", search.trim());
-        const r = await fetch(url.toString(), { credentials: "include" });
-        if (r.ok) setCatalog(await r.json());
+        const r = await fetch(materialCatalogUrl(selectedCategory, search, window.location.origin), { credentials: "include", signal: controller.signal });
+        if (!r.ok) throw new Error(`Catalogue indisponible (${r.status})`);
+        const result = await r.json() as CatalogResponse;
+        if (requestId.current === id) setCatalog(result);
       } catch {
-        // ignore — keep last catalog
+        if (!controller.signal.aborted && requestId.current === id) setLoadError(true);
       } finally {
-        setLoading(false);
+        if (requestId.current === id) setLoading(false);
       }
-    };
-
-    useImperativeHandle(ref, () => ({ refresh }));
-
-    useEffect(() => { void refresh(); }, []);
-    useEffect(() => { void refresh(); }, [selectedCategory, search]);
+    }, [selectedCategory, search]);
+    const refreshRef = useRef(loadCatalog);
+    refreshRef.current = loadCatalog;
+    useImperativeHandle(ref, () => ({ refresh: () => { void refreshRef.current(); } }), []);
+    useEffect(() => {
+      const timer = window.setTimeout(() => { void loadCatalog(); }, search.trim() ? 300 : 0);
+      return () => {
+        window.clearTimeout(timer);
+        activeController.current?.abort();
+        requestId.current += 1;
+      };
+    }, [loadCatalog, search]);
 
     const categories = catalog?.categories ?? [];
     const items = catalog?.items ?? [];
@@ -108,6 +127,11 @@ export const MaterialLibraryView = forwardRef<MaterialLibraryHandle, { }>(
             {loading ? "Chargement…" : `${items.length} / ${catalog?.totalCount ?? 0} références`}
           </span>
         </div>
+        {loadError && (
+          <p role="alert" className="lb-empty-state">
+            Échec du chargement du catalogue. {catalog ? "Données affichées périmées ; " : ""}Vérifiez votre connexion et actualisez.
+          </p>
+        )}
 
         {/* Category chips */}
         <div className="lb-materials-categories">

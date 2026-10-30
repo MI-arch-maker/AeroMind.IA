@@ -23,9 +23,9 @@ export function validateConfig(config: LabConfig): string[] {
     errors.push(
       "La capacité énergétique doit être comprise entre 50 et 50 000 Wh.",
     );
-  if (drone.cruiseSpeedMps < 2 || drone.cruiseSpeedMps > 60)
+  if (drone.cruiseSpeedMps < 2 || drone.cruiseSpeedMps > 200)
     errors.push(
-      "La vitesse de croisière doit être comprise entre 2 et 60 m/s.",
+      "La vitesse de croisière simulée doit être comprise entre 2 et 200 m/s.",
     );
   if (drone.nominalPowerW < 20 || drone.nominalPowerW > 20000)
     errors.push(
@@ -257,6 +257,17 @@ export function simulate(config: LabConfig): SimulationResult {
       explanation:
         "Temps estimé comparé à l’endurance disponible après application de la réserve cible.",
     },
+    {
+      key: "speed-model-domain",
+      label: "Domaine du modèle de vitesse",
+      value: round(drone.cruiseSpeedMps, 1),
+      displayValue: `${round(drone.cruiseSpeedMps, 1)} m/s (${round(drone.cruiseSpeedMps * 3.6)} km/h)`,
+      threshold: "≤ 60 m/s (216 km/h) pour ce modèle conceptuel",
+      pass: drone.cruiseSpeedMps <= 60,
+      marginPct: round(((60 - drone.cruiseSpeedMps) / 60) * 100),
+      explanation:
+        "Au-dessus de 60 m/s, puissance, autonomie et qualité de mission ne sont pas calibrées : résultat haute vitesse exploratoire uniquement.",
+    },
   ];
   const severeFailure =
     conditions.payloadKg > drone.payloadLimitKg ||
@@ -281,6 +292,9 @@ export function simulate(config: LabConfig): SimulationResult {
     "Vent et turbulence sont agrégés en pénalités; le relief, les obstacles, les rafales locales et la météo réelle ne sont pas représentés.",
     "Puissance, stabilité, dérive et qualité sont des estimations indicatives, non des performances certifiées.",
     "Aucun plan de vol, capteur, réseau, actionneur ni aéronef réel n’est connecté ou commandé.",
+    ...(drone.cruiseSpeedMps > 60
+      ? ["Cible > 216 km/h hors domaine calibré : les métriques de performance ne doivent pas être interprétées comme une capacité réelle."]
+      : []),
   ];
   return {
     verdict,
