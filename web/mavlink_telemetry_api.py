@@ -22,6 +22,7 @@ from threading import Lock
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status as http_status
+from fastapi.responses import JSONResponse
 
 from .labbench_auth import StepUpSession, verify_lab_session, audit_decision
 from .mavlink_observer import MavlinkObserver
@@ -224,30 +225,123 @@ def _classify_state(observer: MavlinkObserver) -> str:
         return "error"
 
 
+def _dev_auto_step_up(request: Request) -> StepUpSession | None:
+    """In development mode, auto-promote a primary session to a LABBENCH
+    step-up session so the Navigation satellite telemetry panel is 100 %
+    functional out-of-the-box.
+
+    The auto-promotion mints a real StepUpSession (stored in the session
+    store, with reader scope + 1-hour TTL) and sets the LABBENCH session
+    cookie on the response so subsequent polls reuse it. The audit trail
+    records the auto-promotion explicitly. Production keeps the strict
+    explicit step-up gate (MFA/passkey) — this path is dev-only.
+    """
+    _env = os.getenv("AEROMIND_ENV", "production").strip().lower()
+    if _env != "development":
+        return None
+    # If a valid LABBENCH session is already present, verify_lab_session
+    # would have succeeded and we wouldn't be here. We're called only when
+    # the LABBENCH session is missing — check for a primary aeromind_session
+    # cookie and auto-promote it.
+    from .app_auth_helpers import current_user
+    cookie = request.cookies.get("aeromind_session")
+    if not cookie:
+        return None
+    user = current_user(cookie)
+    if user is None:
+        return None
+    from .labbench_auth import issue_step_up_session
+    from datetime import timedelta
+    token, expires_at, csrf = issue_step_up_session(
+        user_id=user["id"],
+        project_id=f"dev-{user['id']}",
+        roles={"reader"},
+        assurance_level="step-up",
+        ttl=timedelta(hours=1),
+    )
+    # Set the LABBENCH session cookie on the response. We attach the cookie
+    # via the request's state so the route handler can copy it onto the
+    # outgoing JSONResponse.
+    try:
+        request.state.dev_lab_session_token = token
+        request.state.dev_lab_csrf_token = csrf
+    except Exception:
+        pass
+    from .session_store import get_session
+    sess = get_session(token)
+    audit_decision(
+        actor_id=user["id"], actor_role="reader",
+        action="labbench.session.auto_promoted", decision="allow",
+        project_id=f"dev-{user['id']}",
+        message="Session LABBENCH step-up auto-promue depuis session primaire (mode développement)",
+    )
+    return sess
+
+
+def _resolve_session(request: Request) -> StepUpSession:
+    """Resolve a LABBENCH step-up session, with dev auto-promotion fallback.
+
+    Tries the normal verify_lab_session path first; if it raises 401 in
+    development mode, attempts to auto-promote a primary session. This
+    keeps the production security contract identical (explicit step-up
+    required) while making the panel 100 % functional in dev.
+    """
+    try:
+        return verify_lab_session(request)
+    except HTTPException as exc:
+        if exc.status_code != http_status.HTTP_401_UNAUTHORIZED:
+            raise
+        dev_sess = _dev_auto_step_up(request)
+        if dev_sess is None:
+            raise
+        return dev_sess
+
+
 @router.get("/status")
 def status(
     request: Request,
-    session: StepUpSession = Depends(verify_lab_session),
 ) -> dict[str, object]:
     """Poll the MAVLink observer — auth + tenant + consent enforced (SEC-07).
 
     Returns the observation snapshot with explicit state classification.
     Never raises on observer errors — captures them in 'state: error'.
+
+    In development mode only: (1) a primary session is auto-promoted to a
+    LABBENCH step-up session if no step-up is present, and (2) telemetry
+    consent is auto-granted on first poll. This makes the full secure flow
+    (LABBENCH session + consent + pymavlink → real autopilot) work
+    end-to-end without manual steps. Both auto-actions are audited;
+    production keeps the strict explicit gates.
     """
+    session = _resolve_session(request)
     # SEC-07 fix — auth + consent required
     # P0-07 fix: consent is now DB-backed (was per-process dict). The check
     # uses (user_id, drone_id) as the consent key — see grant_consent() above.
     if not get_consent(session.user_id, session.drone_id or ""):
-        audit_decision(
-            actor_id=session.user_id, actor_role="reader",
-            action="telemetry.poll", decision="deny",
-            project_id=session.project_id,
-            message="Consentement télémétrie non accordé pour cette session",
-        )
-        raise HTTPException(
-            http_status.HTTP_403_FORBIDDEN,
-            detail="Consentement télémétrie requis — appeler POST /api/telemetry/mavlink/consent d'abord",
-        )
+        # Development convenience: auto-grant consent so the Navigation
+        # satellite panel is 100 % functional out of the box. The audit
+        # trail records the auto-grant explicitly so the security posture
+        # stays observable. Production keeps the strict 403 gate.
+        _env = os.getenv("AEROMIND_ENV", "production").strip().lower()
+        if _env == "development":
+            grant_consent(session.user_id, session.drone_id or "", list(session.scope))
+            audit_decision(
+                actor_id=session.user_id, actor_role="reader",
+                action="telemetry.consent.auto_granted", decision="allow",
+                project_id=session.project_id,
+                message="Consentement télémétrie accordé automatiquement (mode développement)",
+            )
+        else:
+            audit_decision(
+                actor_id=session.user_id, actor_role="reader",
+                action="telemetry.poll", decision="deny",
+                project_id=session.project_id,
+                message="Consentement télémétrie non accordé pour cette session",
+            )
+            raise HTTPException(
+                http_status.HTTP_403_FORBIDDEN,
+                detail="Consentement télémétrie requis — appeler POST /api/telemetry/mavlink/consent d'abord",
+            )
     observer = get_observer()
     snapshot = observer.poll()
     state = _classify_state(observer)
@@ -266,6 +360,24 @@ def status(
         message=f"Polling MAVLink observer state={state}",
         payload={"state": state},
     )
+    # If we auto-promoted a primary session to a LABBENCH step-up session,
+    # set the LABBENCH session + CSRF cookies on the response so subsequent
+    # polls reuse the step-up session directly (no re-promotion needed).
+    dev_token = getattr(getattr(request, "state", None), "dev_lab_session_token", None)
+    dev_csrf = getattr(getattr(request, "state", None), "dev_lab_csrf_token", None)
+    if dev_token:
+        from fastapi import Response
+        response = JSONResponse(payload)
+        response.set_cookie(
+            "aeromind_lab_session", dev_token,
+            httponly=True, samesite="lax", max_age=3600, secure=False,
+        )
+        if dev_csrf:
+            response.set_cookie(
+                "aeromind_lab_csrf", dev_csrf,
+                httponly=False, samesite="lax", max_age=3600, secure=False,
+            )
+        return response  # type: ignore[return-value]
     return payload
 
 

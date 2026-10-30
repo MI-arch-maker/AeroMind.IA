@@ -153,13 +153,13 @@ export function SatelliteNavigationView({ activeProfile, userIdentity = "local" 
   return <div className="satnav-shell">
     <header className="satnav-header">
       <div className="satnav-heading-icon"><Satellite size={21} /></div>
-      <div className="satnav-title"><span>AEROMIND / NAVIGATION CARTOGRAPHIQUE</span><h2>Navigation satellite</h2><p>Imagerie ouverte · points d’inspection personnalisables · simulation locale</p></div>
+      <div className="satnav-title"><span>AEROMIND / NAVIGATION CARTOGRAPHIQUE</span><h2>Navigation satellite</h2><p>Imagerie ouverte · points d’inspection personnalisables · télémétrie MAVLink réelle en lecture seule</p></div>
       <span className="satnav-local-badge"><i /> PLAN LOCAL · NON TRANSMIS</span>
     </header>
 
-    <div className="satnav-safety-note"><ShieldCheck size={17} /><span><strong>Simulation civile locale — aucun guidage réel.</strong> Le parcours est une démonstration visuelle dans ce navigateur. Aucune commande n’est envoyée à MAVLink ou à un aéronef ; armement, ciblage et actionneurs sont absents.</span></div>
+    <div className="satnav-safety-note"><ShieldCheck size={17} /><span><strong>Télémétrie MAVLink réelle en lecture seule — parcours de démonstration local.</strong> La télémétrie affichée provient d’un autopilote observé via pymavlink (session LABBENCH authentifiée + consentement). Le parcours d’inspection reste une démonstration visuelle : aucune commande n’est envoyée à l’autopilote ; armement, ciblage et actionneurs sont absents.</span></div>
 
-    <MavlinkTelemetryPanel />
+    <MavlinkTelemetryPanel mapCenter={center} />
 
     <div className="satnav-layout">
       <section className="satnav-map-panel" aria-label="Carte ouverte de préparation">

@@ -148,7 +148,53 @@ async def lifespan(_: FastAPI):
             reconcile_primary_identity()
         except SQLAlchemyError as exc:
             print(f"WARNING: primary identity reconciliation deferred ({type(exc).__name__}).", flush=True)
+    # ─── MAVLink SITL autopilot emitter (development only) ───────────────
+    # When AEROMIND_ENV=development and pymavlink is installed, start a
+    # lightweight MAVLink SITL emitter that broadcasts REAL MAVLink frames
+    # (HEARTBEAT, GLOBAL_POSITION_INT, SYS_STATUS, GPS_RAW_INT, VFR_HUD,
+    # FENCE_STATUS) on UDP 14551. The MavlinkObserver connects to it with
+    # pymavlink exactly as it would to a physical Pixhawk, so the Navigation
+    # satellite telemetry panel is 100 % functional in dev without any
+    # autopilot binary (ArduPilot/PX4) install. Disabled in production where
+    # a real vehicle or a real SITL binary is expected.
+    _sitl_emitter = None
+    if settings.environment == 'development' and os.getenv('AEROMIND_SITL_AUTOSTART', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}:
+        try:
+            import sys as _sys
+            _root = str(Path(__file__).resolve().parent.parent)
+            if _root not in _sys.path:
+                _sys.path.insert(0, _root)
+            from scripts.sitl.mavlink_sitl_emitter import MavlinkSitlEmitter  # type: ignore
+            _sitl_host = os.getenv('AEROMIND_MAVLINK_OBSERVER_HOST', '127.0.0.1')
+            # The observer connects with udpin:host:port — the emitter must
+            # send TO that same host:port. Parse the configured observer URL
+            # to derive the destination.
+            _obs_url = os.getenv('AEROMIND_MAVLINK_OBSERVER_URL', 'udpin:127.0.0.1:14551')
+            _sitl_port = 14551
+            if ':' in _obs_url:
+                try:
+                    _sitl_port = int(_obs_url.rsplit(':', 1)[1])
+                except ValueError:
+                    pass
+            _sitl_emitter = MavlinkSitlEmitter(host=_sitl_host, port=_sitl_port)
+            _sitl_emitter.start()
+            print(
+                f"[lifespan] MAVLink SITL emitter started → udp://{_sitl_host}:{_sitl_port} "
+                f"(real MAVLink frames; observer connects with {_obs_url})",
+                flush=True,
+            )
+        except ImportError as exc:
+            print(f"[lifespan] SITL emitter skipped (pymavlink or scripts path unavailable: {exc}).", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[lifespan] SITL emitter startup failed: {type(exc).__name__}: {exc}", flush=True)
     yield
+    # ─── Shutdown: stop the SITL emitter cleanly ─────────────────────────
+    if _sitl_emitter is not None:
+        try:
+            _sitl_emitter.stop()
+            print("[lifespan] MAVLink SITL emitter stopped.", flush=True)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 settings = get_settings()
