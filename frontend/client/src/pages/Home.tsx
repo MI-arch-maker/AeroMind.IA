@@ -12831,23 +12831,6 @@ function requirementsForDroneProfile(
   ];
 }
 
-// CAHIER DES CHARGES 2026-10-30 — Anomalie affichage :
-// Vues "pleine hauteur" qui gèrent leur propre layout interne (grid/flex)
-// et ont un SEUL composant racine avec height:100%. Pour ces vues,
-// workspace-window-inner utilise la classe is-flush (pas de padding,
-// overflow hidden, flex column) afin que les children avec height:100%
-// résolvent correctement. Sans cela, ParametricDroneCenter et MissionPlannerView
-// collapsent à height=0.
-// NB: "simulation" n'est PAS dans cette liste car elle contient deux composants
-// empilés (AeroTestFieldStation + VirtualSimulationCenter) qui doivent scroller
-// normalement avec le padding standard.
-const FULL_HEIGHT_VIEWS = new Set<ViewId>([
-  "parametric-center",
-  "mission-planner",
-  "design-studio",
-  "digital-twin",
-]);
-
 export default function Home() {
   const initialState = useMemo(readPersistedState, []);
   const { language, setLanguage, t, tKey } = useLanguage();
@@ -14420,78 +14403,13 @@ export default function Home() {
                 workspaceConfig={cellIntegratedThisSession ? config : undefined}
                 userIntegratedThisSession={cellIntegratedThisSession}
               />
-            ) : activeView === "parametric-center" ? (
-              <div className="direct-view-container direct-view-parametric">
-                <div className="direct-view-header">
-                  <strong>{viewTitle}</strong>
-                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
-                </div>
-                <div className="direct-view-body">
-                  <ParametricDroneCenter
-                    config={config}
-                    setConfig={setConfig}
-                    onCommit={() => { void runSimulationNow(config); }}
-                  />
-                </div>
-              </div>
-            ) : activeView === "simulation" ? (
-              <div className="direct-view-container direct-view-simulation">
-                <div className="direct-view-header">
-                  <strong>{viewTitle}</strong>
-                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
-                </div>
-                <div className="direct-view-body direct-view-body-scroll">
-                  <AeroTestFieldStation config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
-                  <VirtualSimulationCenter
-                    simulation={simulation}
-                    requirements={requirements}
-                    onRunSimulation={runSimulationNow}
-                    isRunning={isRunning}
-                    config={config}
-                    setConfig={setConfig}
-                    history={(serverRunsQuery.data ?? []) as Array<{ id: number; runId: string; engineVersion: string; createdAt: Date }>}
-                    versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
-                    onRestoreVersion={restoreDesignVersion}
-                  />
-                </div>
-              </div>
-            ) : activeView === "mission-planner" ? (
-              <div className="direct-view-container direct-view-mission-planner">
-                <div className="direct-view-header">
-                  <strong>{viewTitle}</strong>
-                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
-                </div>
-                <div className="direct-view-body">
-                  <MissionPlannerView
-                    config={config}
-                    setConfig={setConfig}
-                  />
-                </div>
-              </div>
-            ) : activeView === "design-studio" ? (
-              <div className="direct-view-container direct-view-design-studio">
-                <div className="direct-view-header">
-                  <strong>{viewTitle}</strong>
-                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
-                </div>
-                <div className="direct-view-body direct-view-body-scroll">
-                  <DesignStudioView
-                    config={config}
-                    setConfig={setConfig}
-                    onUserIntegration={() => setCellIntegratedThisSession(true)}
-                    onSelectProfile={design => loadDroneExample(design, true)}
-                    onOpenLibrary={() => setActiveView("catalog")}
-                    activeProfile={activeLibraryDesign}
-                  />
-                </div>
-              </div>
             ) : (
               <WorkspaceWindow
                 viewId={activeView}
                 title={viewTitle}
                 onClose={() => setActiveView("overview")}
               >
-                <div className={`workspace-window-inner ${FULL_HEIGHT_VIEWS.has(activeView) ? "is-flush" : ""}`}>
+                <div className="workspace-window-inner">
                   <>
                     {activeView === "requirements" && (
                       <RequirementsView
@@ -14553,6 +14471,22 @@ export default function Home() {
                         onOpenCatalog={() => navigateToView("catalog")}
                         onOpenSketch={() => setActiveView("design-studio")}
                       />
+                    )}
+                    {activeView === "simulation" && (
+                      <>
+                        <AeroTestFieldStation config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
+                        <VirtualSimulationCenter
+                          simulation={simulation}
+                          requirements={requirements}
+                          onRunSimulation={runSimulationNow}
+                          isRunning={isRunning}
+                          config={config}
+                          setConfig={setConfig}
+                          history={(serverRunsQuery.data ?? []) as Array<{ id: number; runId: string; engineVersion: string; createdAt: Date }>}
+                          versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
+                          onRestoreVersion={restoreDesignVersion}
+                        />
+                      </>
                     )}
                     {activeView === "command-center" && <HumanCommandCenter />}
                     {activeView === "live" && (
@@ -14646,6 +14580,34 @@ export default function Home() {
                     )}
                     {activeView === "aero-center" && (
                       <AeronauticalCenterView
+                        config={config}
+                        setConfig={setConfig}
+                      />
+                    )}
+                    {activeView === "design-studio" && (
+                      <DesignStudioView
+                        config={config}
+                        setConfig={setConfig}
+                        onUserIntegration={() => setCellIntegratedThisSession(true)}
+                        onSelectProfile={design =>
+                          loadDroneExample(design, true)
+                        }
+                        onOpenLibrary={() => setActiveView("catalog")}
+                        activeProfile={activeLibraryDesign}
+                      />
+                    )}
+                    {activeView === "parametric-center" && (
+                      <ParametricDroneCenter
+                        config={config}
+                        setConfig={setConfig}
+                        onCommit={() => {
+                          // Trigger simulation refresh when params are committed
+                          void runSimulationNow(config);
+                        }}
+                      />
+                    )}
+                    {activeView === "mission-planner" && (
+                      <MissionPlannerView
                         config={config}
                         setConfig={setConfig}
                       />
