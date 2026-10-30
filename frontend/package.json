@@ -4,10 +4,10 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "cd .. && AEROMIND_ENV=development python -m uvicorn web.app:app --reload --host 0.0.0.0 --port ${PORT:-10000}",
-    "dev:api": "cd .. && AEROMIND_ENV=development python -m uvicorn web.app:app --reload --host 0.0.0.0 --port ${AEROMIND_API_PORT:-10000}",
+    "dev": "cd .. && AEROMIND_ENV=development python -m uvicorn web.app:app --reload --host 0.0.0.0 --port ${PORT:-3000}",
+    "dev:api": "cd .. && AEROMIND_ENV=development python -m uvicorn web.app:app --reload --host 0.0.0.0 --port ${AEROMIND_API_PORT:-5173}",
     "build": "vite build",
-    "start": "cd .. && AEROMIND_ENV=production python -m uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-10000}",
+    "start": "cd .. && AEROMIND_ENV=production python -m uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-3000}",
     "check": "pnpm i18n:catalogs && tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",

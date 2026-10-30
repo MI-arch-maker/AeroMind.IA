@@ -15636,3 +15636,332 @@ button:disabled {
 .session-mfa-form input { width:100%; min-height:32px; padding:7px 9px; border:1px solid var(--line-strong); border-radius:5px; outline:none; background:rgba(1,9,15,.62); color:var(--text); font-size:11px; }
 .session-mfa-form input:focus { border-color:#75e2dc; box-shadow:0 0 0 2px rgba(117,226,220,.12); }
 .session-mfa-error { margin:0; color:#ff9d9d; font-size:9px; line-height:1.45; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   CAHIER DES CHARGES 2026-10-30 — RAPPORT MODERNISÉ
+   Styles pour le dossier de preuves unifié (onglets modernes), les figures
+   de capture, les résumés Mission/Simulation/Décisions/Atelier.
+   ────────────────────────────────────────────────────────────────────────── */
+.report-modern-evidence {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 28px;
+  padding: 18px;
+  border: 1px solid #2a4a5a;
+  background: linear-gradient(180deg, rgba(11,28,38,0.92) 0%, rgba(8,18,26,0.95) 100%);
+  border-radius: 10px;
+  color: #cfe0e8;
+}
+.report-modern-evidence-head { display: grid; gap: 12px; }
+.report-modern-evidence-head .eyebrow { color: #25d0d9; font: 800 9px monospace; letter-spacing: 0.16em; }
+.report-modern-evidence-head h4 { margin: 4px 0 0; color: #e8f2f5; font-size: 18px; font-weight: 700; }
+.report-modern-evidence-head p { margin: 4px 0 0; color: #92a8b3; font-size: 12px; line-height: 1.5; }
+
+.report-modern-tabs {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 4px;
+  background: rgba(4,12,18,0.6);
+  border: 1px solid #1a2e3e;
+  border-radius: 8px;
+}
+.report-modern-tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #8aa0ab;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.report-modern-tab:hover { background: rgba(37,208,217,0.06); color: #cfe0e8; }
+.report-modern-tab.is-active {
+  background: linear-gradient(180deg, rgba(37,208,217,0.18) 0%, rgba(37,208,217,0.08) 100%);
+  border-color: rgba(37,208,217,0.4);
+  color: #25d0d9;
+  box-shadow: 0 0 0 1px rgba(37,208,217,0.2), 0 2px 8px rgba(37,208,217,0.12);
+}
+.report-modern-tab-icon { font-size: 13px; line-height: 1; }
+.report-modern-tab-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 16px; padding: 0 5px;
+  background: rgba(37,208,217,0.15);
+  color: #25d0d9;
+  border-radius: 8px;
+  font: 700 9px monospace;
+}
+.report-modern-tab.is-active .report-modern-tab-count { background: #25d0d9; color: #0a1218; }
+
+.report-modern-evidence-body { min-height: 240px; }
+
+.report-modern-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.report-modern-figure {
+  display: grid; gap: 0;
+  background: rgba(6,14,20,0.6);
+  border: 1px solid #1a2e3e;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.report-modern-figure:hover {
+  border-color: #25d0d9;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(37,208,217,0.18);
+}
+.report-modern-figure figcaption {
+  display: grid; gap: 2px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid #1a2e3e;
+  background: rgba(8,18,26,0.85);
+}
+.report-modern-figure-kicker {
+  font: 800 8px monospace;
+  letter-spacing: 0.16em;
+  color: #25d0d9;
+  text-transform: uppercase;
+}
+.report-modern-figure figcaption strong {
+  color: #e8f2f5;
+  font-size: 13px;
+  font-weight: 700;
+}
+.report-modern-figure figcaption small {
+  color: #7a8e9a;
+  font: 600 9px monospace;
+}
+.report-modern-figure figcaption code {
+  color: #92a8b3;
+  font: 600 9px monospace;
+  letter-spacing: 0.04em;
+  word-break: break-word;
+}
+.report-modern-figure img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  background: #0a1218;
+}
+.report-modern-figure-parametric { border-top: 3px solid #25d0d9; }
+.report-modern-figure-idds { border-top: 3px solid #3b82f6; }
+.report-modern-figure-sketch { border-top: 3px solid #f5a623; }
+.report-modern-figure-workbench { border-top: 3px solid #8b5cf6; }
+.report-modern-figure-xray { border-top: 3px solid #10b981; }
+
+.report-modern-figure-empty {
+  display: grid; gap: 6px; align-content: start;
+  padding: 18px 16px;
+  background: rgba(6,14,20,0.6);
+  border: 1px dashed #1a2e3e;
+  border-radius: 8px;
+  text-align: left;
+}
+.report-modern-figure-empty span {
+  font: 800 8px monospace;
+  letter-spacing: 0.16em;
+  color: #4a5e6a;
+}
+.report-modern-figure-empty strong {
+  color: #92a8b3;
+  font-size: 13px;
+  font-weight: 700;
+}
+.report-modern-figure-empty p {
+  color: #6a7e8a;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+}
+.report-modern-figure-empty button {
+  margin-top: 6px;
+  align-self: start;
+  background: rgba(37,208,217,0.1);
+  border: 1px solid rgba(37,208,217,0.3);
+  color: #25d0d9;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.report-modern-figure-empty button:hover { background: rgba(37,208,217,0.18); }
+
+.report-modern-empty {
+  margin: 0;
+  padding: 14px;
+  background: rgba(6,14,20,0.6);
+  border: 1px dashed #1a2e3e;
+  border-radius: 6px;
+  color: #6a7e8a;
+  font-size: 11px;
+}
+
+/* Onglet CONSTRUCTION */
+.report-modern-construction { display: grid; gap: 12px; }
+.report-modern-construction-summary {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  padding: 10px 12px;
+  background: rgba(8,18,26,0.6);
+  border: 1px solid #1a2e3e;
+  border-radius: 6px;
+}
+.report-modern-construction-summary span {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 10px monospace;
+  color: #92a8b3;
+}
+.report-modern-construction-summary b {
+  color: #25d0d9;
+  font-weight: 700;
+}
+
+/* Onglet MISSION */
+.report-modern-mission { display: grid; gap: 12px; }
+.report-modern-mission-summary {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  padding: 10px 12px;
+  background: rgba(8,18,26,0.6);
+  border: 1px solid #1a2e3e;
+  border-radius: 6px;
+}
+.report-modern-mission-summary span { font: 600 10px monospace; color: #92a8b3; }
+.report-modern-mission-summary b { color: #25d0d9; font-weight: 700; }
+.report-modern-mission-list {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; gap: 4px;
+  max-height: 280px; overflow-y: auto;
+}
+.report-modern-mission-list li {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(6,14,20,0.6);
+  border: 1px solid #1a2e3e;
+  border-radius: 4px;
+}
+.report-modern-mission-list li b {
+  font: 800 11px monospace;
+  color: #25d0d9;
+}
+.report-modern-mission-list li span { display: grid; gap: 2px; }
+.report-modern-mission-list li strong { color: #cfe0e8; font-size: 12px; font-weight: 700; }
+.report-modern-mission-list li code { font: 600 9px monospace; color: #92a8b3; }
+.report-modern-mission-list li em {
+  font: 600 9px monospace;
+  color: #8aa0ab;
+  font-style: normal;
+}
+
+/* Onglet SIMULATION */
+.report-modern-simulation { display: grid; gap: 12px; }
+.report-modern-sim-summary {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  padding: 10px 12px;
+  background: rgba(8,18,26,0.6);
+  border: 1px solid #1a2e3e;
+  border-radius: 6px;
+}
+.report-modern-sim-summary span { font: 600 10px monospace; color: #92a8b3; }
+.report-modern-sim-summary b { color: #25d0d9; font-weight: 700; }
+
+/* Onglet DÉCISIONS */
+.report-modern-decisions { display: grid; gap: 12px; }
+.report-modern-decisions-list {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; gap: 4px;
+  max-height: 320px; overflow-y: auto;
+}
+.report-modern-decisions-list li {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(6,14,20,0.6);
+  border: 1px solid #1a2e3e;
+  border-radius: 4px;
+}
+.report-modern-decisions-list li b { font: 700 9px monospace; color: #92a8b3; }
+.report-modern-decisions-list li span { display: grid; gap: 2px; }
+.report-modern-decisions-list li strong { color: #cfe0e8; font-size: 11px; font-weight: 700; }
+.report-modern-decisions-list li code {
+  font: 600 9px monospace;
+  color: #6a7e8a;
+  word-break: break-word;
+}
+
+/* Onglet ATELIER */
+.report-modern-workshop {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.report-modern-workshop-card {
+  display: grid; gap: 10px;
+  padding: 14px;
+  background: rgba(6,14,20,0.6);
+  border: 1px solid #1a2e3e;
+  border-radius: 8px;
+}
+.report-modern-workshop-card.virtual { border-top: 3px solid #25d0d9; }
+.report-modern-workshop-card.physical { border-top: 3px solid #f5a623; }
+.report-modern-workshop-card header { display: grid; gap: 4px; }
+.report-modern-workshop-card .eyebrow {
+  font: 800 8px monospace;
+  letter-spacing: 0.16em;
+  color: #25d0d9;
+}
+.report-modern-workshop-card.physical .eyebrow { color: #f5a623; }
+.report-modern-workshop-card h5 { margin: 0; color: #e8f2f5; font-size: 14px; font-weight: 700; }
+.report-modern-workshop-card ul {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; gap: 5px;
+}
+.report-modern-workshop-card li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dotted #1a2e3e;
+  font-size: 11px;
+  color: #92a8b3;
+}
+.report-modern-workshop-card li b {
+  font: 700 11px monospace;
+  color: #cfe0e8;
+  text-align: right;
+}
+.report-modern-workshop-note {
+  margin: 6px 0 0;
+  padding: 8px;
+  background: rgba(245,166,35,0.06);
+  border: 1px solid rgba(245,166,35,0.18);
+  border-radius: 4px;
+  color: #c9a26a;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* Capture buttons in toolbars */
+.pdc-tb-btn-capture {
+  background: rgba(37,208,217,0.1) !important;
+  color: #25d0d9 !important;
+  border: 1px solid rgba(37,208,217,0.3) !important;
+}
+.pdc-tb-btn-capture:hover {
+  background: rgba(37,208,217,0.18) !important;
+  box-shadow: 0 0 0 1px rgba(37,208,217,0.2);
+}
+.studio-tool-capture {
+  background: rgba(37,208,217,0.1) !important;
+  color: #25d0d9 !important;
+  border: 1px solid rgba(37,208,217,0.3) !important;
+}
+.studio-tool-capture:hover {
+  background: rgba(37,208,217,0.18) !important;
+}

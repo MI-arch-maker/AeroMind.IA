@@ -12,6 +12,7 @@ import {
   AlignCenterHorizontal,
   Box,
   Boxes,
+  Camera,
   Check,
   Copy,
   Crosshair,
@@ -1260,6 +1261,44 @@ export function DesignStudioView({
     setView("top");
     announce("Vue ajustée · assemblage complet");
   };
+  // CAHIER DES CHARGES 2026-10-30 : captures IDDS + croquis drone pour le Rapport.
+  // On sérialise la scène SVG (IDDSParametricScene) en data URL et on dispatche
+  // un CustomEvent écouté par Home.tsx pour alimenter ReportView.
+  const captureIddsConstruction = () => {
+    try {
+      const svg = stageRef.current ?? document.querySelector<SVGSVGElement>(".idds-parametric-scene");
+      if (!svg) { announce("Aucune construction IDDS à capturer."); return; }
+      const serialized = new XMLSerializer().serializeToString(svg);
+      const image = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
+      const payload = JSON.stringify({
+        image,
+        capturedAt: new Date().toISOString(),
+        partsCount: parts.length,
+        totalMass: totalMass.toFixed(2),
+        renderMode,
+        zoom,
+      });
+      localStorage.setItem("aeromind-idds-capture", payload);
+      window.dispatchEvent(new CustomEvent("aeromind-idds-capture", { detail: payload }));
+      announce("Capture IDDS enregistrée · ajoutée au rapport.");
+    } catch { announce("Capture IDDS impossible."); }
+  };
+  const captureDroneSketch = () => {
+    try {
+      const sketchSvg = document.querySelector<SVGSVGElement>(".drone-sketch-workbench svg, .drone-sketch-pro-workbench svg");
+      if (!sketchSvg) { announce("Aucun croquis de drone à capturer."); return; }
+      const serialized = new XMLSerializer().serializeToString(sketchSvg);
+      const image = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
+      const payload = JSON.stringify({
+        image,
+        capturedAt: new Date().toISOString(),
+        strokes: (iddsSketch ?? []).length,
+      });
+      localStorage.setItem("aeromind-sketch-capture", payload);
+      window.dispatchEvent(new CustomEvent("aeromind-sketch-capture", { detail: payload }));
+      announce("Croquis de drone capturé · ajouté au rapport.");
+    } catch { announce("Croquis impossible à capturer."); }
+  };
   const toggleAllParts = () => {
     const nextVisible = parts.some(
       part => !part.visible || layerVisibility[part.layer] === false
@@ -1598,6 +1637,12 @@ export function DesignStudioView({
           </button>
           <button className="studio-tool" onClick={assemblyReview}>
             <Box size={15} /> Auditer construction
+          </button>
+          <button className="studio-tool studio-tool-capture" onClick={captureIddsConstruction} title="Capturer la construction IDDS pour le rapport">
+            <Camera size={15} /> Capturer IDDS
+          </button>
+          <button className="studio-tool studio-tool-capture" onClick={captureDroneSketch} title="Capturer le croquis de drone pour le rapport">
+            <Pencil size={15} /> Capturer croquis
           </button>
           <button
             className="studio-tool"

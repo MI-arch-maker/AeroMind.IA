@@ -615,15 +615,23 @@ const navItems: Array<{
 ];
 
 // Arborescence nominale : vue générale, mission, architecture, construction, observation, simulation, validation, commande sûre.
+// CAHIER DES CHARGES 2026-10-30 :
+//   - CENTRE PARAMETRIC doit se trouver juste après STUDIO IDDS (onglet design-studio).
+//   - MISSION PLANNER doit se trouver juste en dessous de SIMULATION & ANALYSES.
+//   - Les deux onglets étaient absents de l'ordre canonique et étaient donc triés en tête
+//     de nav (indexOf = -1), ce qui les détachait de leur groupe et empêchait l'affichage
+//     contextuel attendu. Ils sont désormais insérés à leur position canonique.
 const engineeringNavOrder: ViewId[] = [
   "overview",
   "requirements",
   "catalog",
   "digital-twin",
   "design-studio",
+  "parametric-center", // ← après STUDIO IDDS
   "materials",
   "aero-center",
   "simulation",
+  "mission-planner", // ← en dessous de SIMULATION & ANALYSES
   "labbench",
   "mission-center",
   "satellite-nav",
@@ -7152,6 +7160,9 @@ function ReportView({
   remoteReady,
   language,
   workbenchCapture,
+  parametricCapture,
+  iddsCapture,
+  sketchCapture,
 }: {
   project: ProjectState;
   requirements: Requirement[];
@@ -7164,6 +7175,9 @@ function ReportView({
   remoteReady: boolean;
   language: AppLanguage;
   workbenchCapture: string;
+  parametricCapture: string;
+  iddsCapture: string;
+  sketchCapture: string;
 }) {
   const t = (text: string) => translate(language, text);
   const reportsQuery = trpc.reports.list.useQuery(activeProjectId, {
@@ -7181,6 +7195,31 @@ function ReportView({
     enabled: remoteReady && selectedReportId !== null,
     retry: false,
   });
+  // CAHIER DES CHARGES 2026-10-30 — Rapport modernisé : on agrège toutes les
+  // captures et tous les événéments journalisés pour offrir une vue unique du
+  // jumeau numérique (virtuel) et de l'atelier physique.
+  const parseCapturePayload = (raw: string): { image: string; capturedAt?: string; meta?: Record<string, unknown> } | null => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as { image?: string; capturedAt?: string; [k: string]: unknown };
+      if (!parsed.image) return null;
+      const { image, capturedAt, ...meta } = parsed;
+      return { image, capturedAt, meta };
+    } catch {
+      // fallback : raw est peut-être déjà une data URL
+      return raw.startsWith("data:") ? { image: raw } : null;
+    }
+  };
+  const parametricCaptureData = useMemo(() => parseCapturePayload(parametricCapture), [parametricCapture]);
+  const iddsCaptureData = useMemo(() => parseCapturePayload(iddsCapture), [iddsCapture]);
+  const sketchCaptureData = useMemo(() => parseCapturePayload(sketchCapture), [sketchCapture]);
+  const workbenchCaptureData = useMemo(() => workbenchCapture ? { image: workbenchCapture } : null, [workbenchCapture]);
+  // Décisions journalisées (validationAuditOutbox)
+  const auditEntries = useMemo(() => readValidationAuditOutbox(activeProjectId), [activeProjectId]);
+  // Mission plan résumé
+  const missionPlan = config.missionPlan;
+  // Indices de la section moderne
+  const [modernTab, setModernTab] = useState<"evidence" | "construction" | "mission" | "simulation" | "decisions" | "workshop">("evidence");
   if (!activeProjectId) {
     return (
       <div className="view-stack">
@@ -7253,6 +7292,281 @@ function ReportView({
             </div>
           </div>
           <div className="report-body">
+            {/* ── CAHIER DES CHARGES 2026-10-30 — RAPPORT MODERNISÉ ──
+                Section 00 — DOSSIER DE PREUVES UNIFIÉ (onglets modernes).
+                Regroupe : captures paramétriques, constructions IDDS, croquis de drone,
+                captures X-Ray (ingénierie/montage/simulation/operation) et captures
+                du poste de construction mécanique. Chaque onglet est cliquable et
+                expose la capture avec sa date et ses métadonnées. */}
+            <section className="report-modern-evidence" aria-label={t("Dossier de preuves unifié")}>
+              <header className="report-modern-evidence-head">
+                <div>
+                  <span className="eyebrow">00 / PREUVES UNIFIÉES</span>
+                  <h4>{t("Dossier de preuves — jumeau numérique & atelier physique")}</h4>
+                  <p>{t("Captures des constructions PARAMETRIC, des assemblages STUDIO IDDS, des croquis de drone, des missions, des simulations, des rapports de décisions et de tous les artefacts virtuels et physiques du projet.")}</p>
+                </div>
+                <nav className="report-modern-tabs" role="tablist">
+                  {([
+                    { id: "evidence", label: t("Preuves"), icon: "📸", count: (parametricCaptureData ? 1 : 0) + (iddsCaptureData ? 1 : 0) + (sketchCaptureData ? 1 : 0) + xrayCaptures.length + (workbenchCaptureData ? 1 : 0) },
+                    { id: "construction", label: t("Construction"), icon: "🔧", count: (config.installedMaterials?.length ?? 0) },
+                    { id: "mission", label: t("Mission"), icon: "🎯", count: missionPlan?.waypoints.length ?? 0 },
+                    { id: "simulation", label: t("Simulation"), icon: "📊", count: simulation.metrics.length },
+                    { id: "decisions", label: t("Décisions"), icon: "📋", count: auditEntries.length },
+                    { id: "workshop", label: t("Atelier"), icon: "🏭", count: 0 },
+                  ] as const).map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={modernTab === tab.id}
+                      className={`report-modern-tab ${modernTab === tab.id ? "is-active" : ""}`}
+                      onClick={() => setModernTab(tab.id)}
+                    >
+                      <span className="report-modern-tab-icon" aria-hidden="true">{tab.icon}</span>
+                      <span className="report-modern-tab-label">{tab.label}</span>
+                      <span className="report-modern-tab-count">{tab.count}</span>
+                    </button>
+                  ))}
+                </nav>
+              </header>
+
+              <div className="report-modern-evidence-body">
+                {/* Onglet PREUVES — captures du jumeau numérique et de l'atelier physique */}
+                {modernTab === "evidence" && (
+                  <div className="report-modern-evidence-grid">
+                    {parametricCaptureData ? (
+                      <figure className="report-modern-figure report-modern-figure-parametric">
+                        <figcaption>
+                          <span className="report-modern-figure-kicker">CENTRE PARAMETRIC</span>
+                          <strong>{t("Construction paramétrique")}</strong>
+                          <small>{parametricCaptureData.capturedAt ? new Date(parametricCaptureData.capturedAt).toLocaleString("fr-FR") : t("Capture locale")}</small>
+                          {parametricCaptureData.meta && Object.keys(parametricCaptureData.meta).length > 0 && (
+                            <code>{Object.entries(parametricCaptureData.meta).slice(0, 4).map(([k, v]) => `${k}: ${typeof v === "number" ? (typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : v) : v}`).join(" · ")}</code>
+                          )}
+                        </figcaption>
+                        <img src={parametricCaptureData.image} alt={t("Capture de la construction paramétrique du Centre Paramétrique")} />
+                      </figure>
+                    ) : (
+                      <div className="report-modern-figure-empty">
+                        <span>PARAMETRIC</span>
+                        <strong>{t("Aucune capture paramétrique")}</strong>
+                        <p>{t("Ouvrez le Centre Paramétrique puis cliquez « Capturer » pour ajouter la construction au rapport.")}</p>
+                        <button className="secondary-button" onClick={() => onView("parametric-center")}>{t("Ouvrir le Centre Paramétrique")}</button>
+                      </div>
+                    )}
+                    {iddsCaptureData ? (
+                      <figure className="report-modern-figure report-modern-figure-idds">
+                        <figcaption>
+                          <span className="report-modern-figure-kicker">STUDIO IDDS</span>
+                          <strong>{t("Assemblage IDDS")}</strong>
+                          <small>{iddsCaptureData.capturedAt ? new Date(iddsCaptureData.capturedAt).toLocaleString("fr-FR") : t("Capture locale")}</small>
+                          {iddsCaptureData.meta && iddsCaptureData.meta.partsCount !== undefined && (
+                            <code>{iddsCaptureData.meta.partsCount} pièces · {iddsCaptureData.meta.totalMass} kg · {String(iddsCaptureData.meta.renderMode ?? "—")}</code>
+                          )}
+                        </figcaption>
+                        <img src={iddsCaptureData.image} alt={t("Capture de l'assemblage IDDS")} />
+                      </figure>
+                    ) : (
+                      <div className="report-modern-figure-empty">
+                        <span>STUDIO IDDS</span>
+                        <strong>{t("Aucune capture IDDS")}</strong>
+                        <p>{t("Ouvrez le Studio IDDS puis cliquez « Capturer IDDS » pour ajouter l'assemblage au rapport.")}</p>
+                        <button className="secondary-button" onClick={() => onView("design-studio")}>{t("Ouvrir le Studio IDDS")}</button>
+                      </div>
+                    )}
+                    {sketchCaptureData ? (
+                      <figure className="report-modern-figure report-modern-figure-sketch">
+                        <figcaption>
+                          <span className="report-modern-figure-kicker">CROQUIS DRONE</span>
+                          <strong>{t("Croquis de drone effectué")}</strong>
+                          <small>{sketchCaptureData.capturedAt ? new Date(sketchCaptureData.capturedAt).toLocaleString("fr-FR") : t("Capture locale")}</small>
+                          {sketchCaptureData.meta && sketchCaptureData.meta.strokes !== undefined && (
+                            <code>{sketchCaptureData.meta.strokes} tracés</code>
+                          )}
+                        </figcaption>
+                        <img src={sketchCaptureData.image} alt={t("Croquis de drone effectué dans le Studio")} />
+                      </figure>
+                    ) : (
+                      <div className="report-modern-figure-empty">
+                        <span>CROQUIS</span>
+                        <strong>{t("Aucun croquis de drone")}</strong>
+                        <p>{t("Ouvrez le Studio IDDS puis cliquez « Capturer croquis » pour ajouter le dessin au rapport.")}</p>
+                        <button className="secondary-button" onClick={() => onView("design-studio")}>{t("Ouvrir le Studio IDDS")}</button>
+                      </div>
+                    )}
+                    {workbenchCaptureData ? (
+                      <figure className="report-modern-figure report-modern-figure-workbench">
+                        <figcaption>
+                          <span className="report-modern-figure-kicker">POSTE DE CONSTRUCTION</span>
+                          <strong>{t("Jumeau mécanique")}</strong>
+                          <small>{t("Capture locale du poste de construction")}</small>
+                        </figcaption>
+                        <img src={workbenchCaptureData.image} alt={t("Capture du poste de construction mécanique AeroMind")} />
+                      </figure>
+                    ) : null}
+                    {xrayCaptures.map(item => (
+                      <figure key={item.label} className="report-modern-figure report-modern-figure-xray">
+                        <figcaption>
+                          <span className="report-modern-figure-kicker">X-RAY · {item.label.toUpperCase()}</span>
+                          <strong>{t("Capture X-Ray")} — {item.label}</strong>
+                        </figcaption>
+                        <img src={item.value} alt={`Capture X-Ray ${item.label}`} />
+                      </figure>
+                    ))}
+                  </div>
+                )}
+
+                {/* Onglet CONSTRUCTION — nomenclature et composants installés */}
+                {modernTab === "construction" && (
+                  <div className="report-modern-construction">
+                    <div className="report-modern-construction-summary">
+                      <span>{t("Architecture")} <b>{config.airframe ?? t("Non définie")}</b></span>
+                      <span>{t("Profil")} <b>{config.platformProfile ?? t("Non défini")}</b></span>
+                      <span>{t("Famille matériaux")} <b>{config.materialFamily ?? t("Non définie")}</b></span>
+                      <span>{t("Masse construction")} <b>{formatNumber(config.constructionMassKg ?? 0)} kg</b></span>
+                      <span>{t("Composants installés")} <b>{config.installedMaterials?.length ?? 0}</b></span>
+                    </div>
+                    <table className="report-table report-bom-table">
+                      <thead><tr><th>{t("Élément")}</th><th>{t("Fonction")}</th><th>{t("Masse")}</th><th>{t("Source")}</th></tr></thead>
+                      <tbody>
+                        {(config.installedMaterials ?? []).length ? (
+                          (config.installedMaterials ?? []).map(item => (
+                            <tr key={item.id}>
+                              <td>{item.label}</td>
+                              <td>{item.use}</td>
+                              <td>{formatNumber(item.massKg, 2)} kg × {item.quantity ?? 1}</td>
+                              <td>{item.catalogSource === "manufacturer" ? t("Fabricant") : t("Concept / saisie")}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan={4}>{t("Aucun composant n'est encore inscrit dans la nomenclature.")}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Onglet MISSION — waypoints, rayon, plan de vol */}
+                {modernTab === "mission" && (
+                  <div className="report-modern-mission">
+                    <div className="report-modern-mission-summary">
+                      <span>{t("Waypoints")} <b>{missionPlan?.waypoints.length ?? 0}</b></span>
+                      <span>{t("Rayon local")} <b>{missionPlan?.radiusKm ?? "—"} km</b></span>
+                      <span>{t("Altitude retour")} <b>{missionPlan?.returnAltitudeM ?? "—"} m</b></span>
+                      <span>{t("Perte de lien")} <b>{missionPlan?.lostLinkAction ?? "—"}</b></span>
+                    </div>
+                    {missionPlan?.waypoints.length ? (
+                      <ol className="report-modern-mission-list">
+                        {missionPlan.waypoints.map((wp, idx) => (
+                          <li key={wp.id}>
+                            <b>{String(idx + 1).padStart(2, "0")}</b>
+                            <span>
+                              <strong>{wp.name}</strong>
+                              <code>
+                                {wp.latitude !== undefined && wp.longitude !== undefined
+                                  ? `${wp.latitude.toFixed(5)}, ${wp.longitude.toFixed(5)}`
+                                  : `X${wp.x} Y${wp.y}`}
+                              </code>
+                            </span>
+                            <em>{wp.altitudeM} m · {wp.speedKmh} km/h · {wp.action}</em>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="report-modern-empty">{t("Aucun waypoint de mission déclaré. Ouvrez le Mission Planner pour construire un plan.")}</p>
+                    )}
+                    <button className="secondary-button" onClick={() => onView("mission-planner")}>{t("Ouvrir le Mission Planner")}</button>
+                  </div>
+                )}
+
+                {/* Onglet SIMULATION — métriques, risques, autonomie */}
+                {modernTab === "simulation" && (
+                  <div className="report-modern-simulation">
+                    <div className="report-modern-sim-summary">
+                      <span>{t("Run ID")} <b>{simulation.runId}</b></span>
+                      <span>{t("Masse totale")} <b>{formatNumber(simulation.totalMassKg)} kg</b></span>
+                      <span>{t("Autonomie")} <b>{formatNumber(simulation.enduranceH)} h</b></span>
+                      <span>{t("Marge vent")} <b>{Math.round(simulation.windMarginPercent)} %</b></span>
+                      <span>{t("Risques ouverts")} <b>{simulation.risks.filter(r => r.status === "open").length}</b></span>
+                    </div>
+                    <table className="report-table">
+                      <thead><tr><th>{t("Indicateur")}</th><th>{t("Valeur")}</th><th>{t("Cible")}</th><th>{t("Statut")}</th></tr></thead>
+                      <tbody>
+                        {simulation.metrics.map(metric => (
+                          <tr key={metric.id}>
+                            <td>{metric.label}</td>
+                            <td>{formatNumber(metric.value, metric.unit === "km" ? 0 : 1)} {metric.unit}</td>
+                            <td>{metric.target}</td>
+                            <td><span className={`report-status report-${metric.status}`}>{metricStatusLabel[metric.status]}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <button className="secondary-button" onClick={() => onView("simulation")}>{t("Ouvrir Simulation & analyses")}</button>
+                  </div>
+                )}
+
+                {/* Onglet DÉCISIONS — journal d'audit validationAuditOutbox */}
+                {modernTab === "decisions" && (
+                  <div className="report-modern-decisions">
+                    {auditEntries.length ? (
+                      <ol className="report-modern-decisions-list">
+                        {auditEntries.slice(-25).reverse().map(entry => (
+                          <li key={entry.id}>
+                            <b>{new Date(entry.occurredAt).toLocaleString("fr-FR")}</b>
+                            <span>
+                              <strong>{entry.message}</strong>
+                              <code>{entry.eventType}{entry.details && Object.keys(entry.details).length ? ` · ${JSON.stringify(entry.details).slice(0, 120)}` : ""}</code>
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="report-modern-empty">{t("Aucune décision journalisée pour ce projet. Les décisions de validation seront enregistrées ici.")}</p>
+                    )}
+                    <button className="secondary-button" onClick={() => onView("operations")}>{t("Ouvrir le journal de validation")}</button>
+                  </div>
+                )}
+
+                {/* Onglet ATELIER — informations virtuelles et physiques */}
+                {modernTab === "workshop" && (
+                  <div className="report-modern-workshop">
+                    <div className="report-modern-workshop-card virtual">
+                      <header>
+                        <span className="eyebrow">JUMEAAU NUMÉRIQUE · VIRTUEL</span>
+                        <h5>{t("Atelier virtuel")}</h5>
+                      </header>
+                      <ul>
+                        <li>{t("Architecture active")} : <b>{config.airframe ?? "—"}</b></li>
+                        <li>{t("Moteurs")} : <b>{config.motorCount ?? "—"} · Ø {formatNumber(config.propDiameter, 2)} m</b></li>
+                        <li>{t("Batterie")} : <b>{formatNumber(config.batteryWh, 0)} Wh</b></li>
+                        <li>{t("Envergure")} : <b>{formatNumber(config.wingspan, 2)} m</b></li>
+                        <li>{t("Mission plan")} : <b>{missionPlan?.waypoints.length ?? 0} waypoints</b></li>
+                        <li>{t("Mode commande")} : <b>{config.flightControls?.mode ?? "—"}</b></li>
+                        <li>{t("Matériaux installés")} : <b>{config.installedMaterials?.length ?? 0}</b></li>
+                      </ul>
+                    </div>
+                    <div className="report-modern-workshop-card physical">
+                      <header>
+                        <span className="eyebrow">ATELIER PHYSIQUE</span>
+                        <h5>{t("Atelier physique")}</h5>
+                      </header>
+                      <ul>
+                        <li>{t("Masse construction déclarée")} : <b>{formatNumber(config.constructionMassKg ?? 0)} kg</b></li>
+                        <li>{t("Famille matériaux")} : <b>{config.materialFamily ?? "—"}</b></li>
+                        <li>{t("Cellule intégrée (session)")} : <b>{config.engineeringSelection?.droneLabel ?? "—"}</b></li>
+                        <li>{t("Statut LabBench")} : <b>{t("Simulation locale")}</b></li>
+                        <li>{t("Sortie matérielle")} : <b>{t("Désactivée (N2)")}</b></li>
+                        <li>{t("Validation humaine")} : <b>{t("Requise")}</b></li>
+                      </ul>
+                      <p className="report-modern-workshop-note">{t("L'atelier physique reste désactivé en mode simulation. Aucune commande n'est transmise à un aéronef ou à un actionneur physique.")}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Legacy evidence blocks retained for backward compatibility */}
             {xrayCaptures.length > 0 && (
               <section className="report-workbench-evidence">
                 <div><span>08 / X-RAY EVIDENCE</span><h4>Captures d’ingénierie, montage, simulation et opération</h4><p>Captures intégrées au dossier transmis pour consultation du surveillant et du Super-Admin.</p></div>
@@ -12529,6 +12843,37 @@ export default function Home() {
     window.addEventListener("aeromind-workbench-capture", receiveCapture);
     return () => window.removeEventListener("aeromind-workbench-capture", receiveCapture);
   }, []);
+  // CAHIER DES CHARGES 2026-10-30 : captures additionnelles pour le Rapport modernisé.
+  //   - aeromind-parametric-capture : capture du Centre Paramétrique (Three.js canvas)
+  //   - aeromind-idds-capture       : capture du Studio IDDS (SVG paramétrique)
+  //   - aeromind-sketch-capture     : croquis de drone effectué dans le Studio
+  //   Chaque payload est un JSON stringifié { image, capturedAt, ... } stocké en
+  //   localStorage et transmis à ReportView via une prop dédiée.
+  const [parametricCapture, setParametricCapture] = useState(() => {
+    try { return window.localStorage.getItem("aeromind-parametric-capture") ?? ""; }
+    catch { return ""; }
+  });
+  const [iddsCapture, setIddsCapture] = useState(() => {
+    try { return window.localStorage.getItem("aeromind-idds-capture") ?? ""; }
+    catch { return ""; }
+  });
+  const [sketchCapture, setSketchCapture] = useState(() => {
+    try { return window.localStorage.getItem("aeromind-sketch-capture") ?? ""; }
+    catch { return ""; }
+  });
+  useEffect(() => {
+    const receiveParametric = (event: Event) => setParametricCapture((event as CustomEvent<string>).detail ?? "");
+    const receiveIdds = (event: Event) => setIddsCapture((event as CustomEvent<string>).detail ?? "");
+    const receiveSketch = (event: Event) => setSketchCapture((event as CustomEvent<string>).detail ?? "");
+    window.addEventListener("aeromind-parametric-capture", receiveParametric);
+    window.addEventListener("aeromind-idds-capture", receiveIdds);
+    window.addEventListener("aeromind-sketch-capture", receiveSketch);
+    return () => {
+      window.removeEventListener("aeromind-parametric-capture", receiveParametric);
+      window.removeEventListener("aeromind-idds-capture", receiveIdds);
+      window.removeEventListener("aeromind-sketch-capture", receiveSketch);
+    };
+  }, []);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [cellIntegratedThisSession, setCellIntegratedThisSession] = useState(false);
   useEffect(() => {
@@ -14193,6 +14538,9 @@ export default function Home() {
                         activeProjectId={activeProjectId}
                         language={language}
                         workbenchCapture={workbenchCapture}
+                        parametricCapture={parametricCapture}
+                        iddsCapture={iddsCapture}
+                        sketchCapture={sketchCapture}
                         remoteReady={Boolean(
                           authenticatedUser && serverProjectsQuery.isSuccess
                         )}

@@ -36,7 +36,22 @@ const DEFAULT_LAYOUT: WindowLayout = {
   maximized: false,
   zIndex: 2,
 };
-const FULL_WORKSPACE_VIEWS = new Set(["design-studio", "construction", "digital-twin", "tools", "inspector"]);
+// CAHIER DES CHARGES 2026-10-30 :
+//   - CENTRE PARAMETRIC, SIMULATION & ANALYSES, MISSION PLANNER et RAPPORT
+//     doivent s'afficher en plein écran (fenêtre maximisée) plutôt que comme
+//     petites fenêtres flottantes 1100x720 mal intégrées. On les ajoute donc
+//     à FULL_WORKSPACE_VIEWS.
+const FULL_WORKSPACE_VIEWS = new Set([
+  "design-studio",
+  "construction",
+  "digital-twin",
+  "tools",
+  "inspector",
+  "parametric-center",
+  "simulation",
+  "mission-planner",
+  "report",
+]);
 const VIEW_LAYOUTS: Record<string, Partial<WindowLayout>> = {
   simulation: { x: 18, y: 76, width: 1280, height: 820 },
   live: { x: 18, y: 76, width: 1540, height: 940 },
@@ -81,12 +96,16 @@ export function WorkspaceWindow({
     const saved = loadLayouts()[viewId];
     const preset = VIEW_LAYOUTS[viewId] ?? {};
     const upgradeLegacyLiveSize = viewId === "live" && saved?.width === 1280 && saved?.height === 820;
+    // CAHIER DES CHARGES 2026-10-30 : pour les vues plein écran, on force
+    // systématiquement maximized=true afin d'ignorer un état précédemment
+    // sauvegardé comme fenêtre flottante.
+    const forceMaximized = FULL_WORKSPACE_VIEWS.has(viewId);
     return clampLayout({
       ...DEFAULT_LAYOUT,
       ...preset,
       ...saved,
       ...(upgradeLegacyLiveSize ? { width: preset.width, height: preset.height } : {}),
-      maximized: saved?.maximized ?? FULL_WORKSPACE_VIEWS.has(viewId),
+      maximized: forceMaximized || (saved?.maximized ?? false),
       zIndex: 10,
     });
   });

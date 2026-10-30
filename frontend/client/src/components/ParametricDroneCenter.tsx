@@ -15,7 +15,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import {
-  Activity, Box, Cog, Copy, Download, Layers, Maximize2, Plus,
+  Activity, Box, Camera, Cog, Copy, Download, Layers, Maximize2, Plus,
   Ruler, Save, Search, Settings as SettingsIcon, Upload, Wrench,
 } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
@@ -292,6 +292,27 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
   const aspectRatio = Math.pow(vars.wingspan ?? 15, 2) / wingArea;
   const emptyMass = 0.5 * (vars.length ?? 10) * (vars.wingspan ?? 15) * (vars.max_thickness ?? 0.3) * 10;
 
+  // CAHIER DES CHARGES 2026-10-30 : capture du poste paramétrique pour le Rapport.
+  // On sérialise le canvas Three.js (ou la zone SVG en fallback) en data URL et
+  // on dispatche un CustomEvent écouté par Home.tsx pour alimenter ReportView.
+  const captureParametric = () => {
+    try {
+      const canvas = document.querySelector<HTMLCanvasElement>(".pdc-viewport canvas");
+      const image = canvas ? canvas.toDataURL("image/jpeg", 0.78) : "";
+      if (!image) { toast.error(t("Aucune vue 3D à capturer.")); return; }
+      const payload = JSON.stringify({
+        image,
+        capturedAt: new Date().toISOString(),
+        variables: vars,
+        wingArea: wingArea.toFixed(2),
+        emptyMass: emptyMass.toFixed(1),
+      });
+      localStorage.setItem("aeromind-parametric-capture", payload);
+      window.dispatchEvent(new CustomEvent("aeromind-parametric-capture", { detail: payload }));
+      toast.success(t("Capture paramétrique enregistrée"), { description: t("Ajoutée au rapport révisable.") });
+    } catch { toast.error(t("Capture impossible.")); }
+  };
+
   return (
     <div className="pdc-app">
       {/* Menubar */}
@@ -328,6 +349,8 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
         <div className="pdc-tb-sep" />
         <button className="pdc-tb-btn" onClick={handleImport}><Upload size={14} /> {t("Import")}</button>
         <button className="pdc-tb-btn" onClick={handleExport}><Download size={14} /> {t("Export")}</button>
+        <div className="pdc-tb-sep" />
+        <button className="pdc-tb-btn pdc-tb-btn-capture" onClick={captureParametric} title={t("Capturer la construction paramétrique pour le rapport")}><Camera size={14} /> {t("Capturer")}</button>
         <div className="pdc-spacer" />
         <div className="pdc-search">
           <Search size={12} />
