@@ -7341,7 +7341,7 @@ function ReportView({
                           <strong>{t("Construction paramétrique")}</strong>
                           <small>{parametricCaptureData.capturedAt ? new Date(parametricCaptureData.capturedAt).toLocaleString("fr-FR") : t("Capture locale")}</small>
                           {parametricCaptureData.meta && Object.keys(parametricCaptureData.meta).length > 0 && (
-                            <code>{Object.entries(parametricCaptureData.meta).slice(0, 4).map(([k, v]) => `${k}: ${typeof v === "number" ? (typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : v) : v}`).join(" · ")}</code>
+                            <code>{Object.entries(parametricCaptureData.meta).slice(0, 4).map(([k, v]) => `${k}: ${typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : String(v)}`).join(" · ")}</code>
                           )}
                         </figcaption>
                         <img src={parametricCaptureData.image} alt={t("Capture de la construction paramétrique du Centre Paramétrique")} />
@@ -7361,7 +7361,7 @@ function ReportView({
                           <strong>{t("Assemblage IDDS")}</strong>
                           <small>{iddsCaptureData.capturedAt ? new Date(iddsCaptureData.capturedAt).toLocaleString("fr-FR") : t("Capture locale")}</small>
                           {iddsCaptureData.meta && iddsCaptureData.meta.partsCount !== undefined && (
-                            <code>{iddsCaptureData.meta.partsCount} pièces · {iddsCaptureData.meta.totalMass} kg · {String(iddsCaptureData.meta.renderMode ?? "—")}</code>
+                            <code>{String(iddsCaptureData.meta.partsCount)} pièces · {String(iddsCaptureData.meta.totalMass)} kg · {String(iddsCaptureData.meta.renderMode ?? "—")}</code>
                           )}
                         </figcaption>
                         <img src={iddsCaptureData.image} alt={t("Capture de l'assemblage IDDS")} />
@@ -7381,7 +7381,7 @@ function ReportView({
                           <strong>{t("Croquis de drone effectué")}</strong>
                           <small>{sketchCaptureData.capturedAt ? new Date(sketchCaptureData.capturedAt).toLocaleString("fr-FR") : t("Capture locale")}</small>
                           {sketchCaptureData.meta && sketchCaptureData.meta.strokes !== undefined && (
-                            <code>{sketchCaptureData.meta.strokes} tracés</code>
+                            <code>{String(sketchCaptureData.meta.strokes)} tracés</code>
                           )}
                         </figcaption>
                         <img src={sketchCaptureData.image} alt={t("Croquis de drone effectué dans le Studio")} />
