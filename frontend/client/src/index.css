@@ -409,6 +409,72 @@ button:disabled {
   margin: 0 auto;
   padding: 40px 42px 22px;
 }
+/* CAHIER DES CHARGES 2026-10-30 — Vues directes (bypass WorkspaceWindow) :
+   Quand main-content contient une direct-view-container, il passe en mode
+   plein écran sans max-width ni padding, pour que les vues comme Centre
+   Paramétrique et Simulation & Analyses remplissent tout l'espace. */
+.main-content:has(.direct-view-container) {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: calc(100vh - 130px);
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.direct-view-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+.direct-view-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(7, 18, 22, 0.98);
+  border-bottom: 1px solid rgba(117, 226, 220, 0.34);
+  gap: 12px;
+}
+.direct-view-header strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8f2f5;
+}
+.direct-view-header .secondary-button {
+  font-size: 11px;
+  padding: 4px 12px;
+}
+.direct-view-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.direct-view-body > * {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.direct-view-body-scroll {
+  overflow-y: auto;
+  display: block;
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  gap: 16px;
+}
+.direct-view-body-scroll > * {
+  width: 100%;
+  flex: none;
+}
 .hero-row {
   display: flex;
   justify-content: space-between;

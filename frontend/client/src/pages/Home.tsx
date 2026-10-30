@@ -14420,6 +14420,71 @@ export default function Home() {
                 workspaceConfig={cellIntegratedThisSession ? config : undefined}
                 userIntegratedThisSession={cellIntegratedThisSession}
               />
+            ) : activeView === "parametric-center" ? (
+              <div className="direct-view-container direct-view-parametric">
+                <div className="direct-view-header">
+                  <strong>{viewTitle}</strong>
+                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
+                </div>
+                <div className="direct-view-body">
+                  <ParametricDroneCenter
+                    config={config}
+                    setConfig={setConfig}
+                    onCommit={() => { void runSimulationNow(config); }}
+                  />
+                </div>
+              </div>
+            ) : activeView === "simulation" ? (
+              <div className="direct-view-container direct-view-simulation">
+                <div className="direct-view-header">
+                  <strong>{viewTitle}</strong>
+                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
+                </div>
+                <div className="direct-view-body direct-view-body-scroll">
+                  <AeroTestFieldStation config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
+                  <VirtualSimulationCenter
+                    simulation={simulation}
+                    requirements={requirements}
+                    onRunSimulation={runSimulationNow}
+                    isRunning={isRunning}
+                    config={config}
+                    setConfig={setConfig}
+                    history={(serverRunsQuery.data ?? []) as Array<{ id: number; runId: string; engineVersion: string; createdAt: Date }>}
+                    versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
+                    onRestoreVersion={restoreDesignVersion}
+                  />
+                </div>
+              </div>
+            ) : activeView === "mission-planner" ? (
+              <div className="direct-view-container direct-view-mission-planner">
+                <div className="direct-view-header">
+                  <strong>{viewTitle}</strong>
+                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
+                </div>
+                <div className="direct-view-body">
+                  <MissionPlannerView
+                    config={config}
+                    setConfig={setConfig}
+                  />
+                </div>
+              </div>
+            ) : activeView === "design-studio" ? (
+              <div className="direct-view-container direct-view-design-studio">
+                <div className="direct-view-header">
+                  <strong>{viewTitle}</strong>
+                  <button className="secondary-button" onClick={() => setActiveView("overview")}>← {t("Vue générale")}</button>
+                </div>
+                <div className="direct-view-body direct-view-body-scroll">
+                  <DesignStudioView
+                    config={config}
+                    setConfig={setConfig}
+                    onUserIntegration={() => setCellIntegratedThisSession(true)}
+                    onSelectProfile={design => loadDroneExample(design, true)}
+                    onOpenLibrary={() => setActiveView("catalog")}
+                    activeProfile={activeLibraryDesign}
+                  />
+                </div>
+              </div>
             ) : (
               <WorkspaceWindow
                 viewId={activeView}
@@ -14488,22 +14553,6 @@ export default function Home() {
                         onOpenCatalog={() => navigateToView("catalog")}
                         onOpenSketch={() => setActiveView("design-studio")}
                       />
-                    )}
-                    {activeView === "simulation" && (
-                      <>
-                        <AeroTestFieldStation config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
-                        <VirtualSimulationCenter
-                          simulation={simulation}
-                          requirements={requirements}
-                          onRunSimulation={runSimulationNow}
-                          isRunning={isRunning}
-                          config={config}
-                          setConfig={setConfig}
-                          history={(serverRunsQuery.data ?? []) as Array<{ id: number; runId: string; engineVersion: string; createdAt: Date }>}
-                          versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
-                          onRestoreVersion={restoreDesignVersion}
-                        />
-                      </>
                     )}
                     {activeView === "command-center" && <HumanCommandCenter />}
                     {activeView === "live" && (
@@ -14597,34 +14646,6 @@ export default function Home() {
                     )}
                     {activeView === "aero-center" && (
                       <AeronauticalCenterView
-                        config={config}
-                        setConfig={setConfig}
-                      />
-                    )}
-                    {activeView === "design-studio" && (
-                      <DesignStudioView
-                        config={config}
-                        setConfig={setConfig}
-                        onUserIntegration={() => setCellIntegratedThisSession(true)}
-                        onSelectProfile={design =>
-                          loadDroneExample(design, true)
-                        }
-                        onOpenLibrary={() => setActiveView("catalog")}
-                        activeProfile={activeLibraryDesign}
-                      />
-                    )}
-                    {activeView === "parametric-center" && (
-                      <ParametricDroneCenter
-                        config={config}
-                        setConfig={setConfig}
-                        onCommit={() => {
-                          // Trigger simulation refresh when params are committed
-                          void runSimulationNow(config);
-                        }}
-                      />
-                    )}
-                    {activeView === "mission-planner" && (
-                      <MissionPlannerView
                         config={config}
                         setConfig={setConfig}
                       />
