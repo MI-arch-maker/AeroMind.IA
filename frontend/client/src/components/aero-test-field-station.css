@@ -1,6 +1,7 @@
 /* AeroTestFieldStation — engineering blueprint stylesheet.
    Dark header + data panel (env+telemetry / field / waypoint editor) + progress strip.
-   Each environment (urban / sand / forest / snow) ships its own gradient + decor palette. */
+   Eight test environments ship their own gradient + decor palette + vignette + badge:
+   forest · urban · flatland · mountain · scrubland · snow · hot · sea. */
 
 .aero-field-station {
   /* base ink palette */
@@ -23,6 +24,7 @@
   --afs-env-badge-fg: #d8e8f0;
   --afs-env-badge-bg: rgba(20, 38, 54, .9);
   --afs-env-badge-border: rgba(126, 184, 220, .35);
+  --afs-env-accent: #6fd6e6;
 
   --afs-font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --afs-font-sans: Inter, "Segoe UI", Arial, sans-serif;
@@ -107,17 +109,21 @@
   border: 1px solid var(--afs-line); border-radius: 3px;
   background: rgba(8, 18, 26, .72);
 }
+/* 8-button environment selector: 4 cols default, 2 cols mobile, 8 cols wide. */
 .afs-env-selector {
-  display: inline-flex; gap: 2px; padding: 2px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px; padding: 2px;
   border: 1px solid var(--afs-line-strong); border-radius: 3px;
   background: rgba(5, 12, 18, .85);
+  color: var(--afs-cyan);
 }
 .afs-env-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  min-height: 26px; padding: 4px 9px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 26px; padding: 4px 8px;
   border: 1px solid transparent; border-radius: 2px;
   color: var(--afs-muted); background: transparent;
-  font: 600 9.5px var(--afs-font-mono); letter-spacing: .08em; text-transform: uppercase;
+  font: 600 9px var(--afs-font-mono); letter-spacing: .06em; text-transform: uppercase;
+  white-space: nowrap;
 }
 .afs-env-btn:hover:not(.afs-env-btn--active) {
   border-color: var(--afs-line); color: #c4d8e2; background: rgba(20, 38, 54, .55);
@@ -145,12 +151,12 @@
 /* --- 3-column data panel layout -------------------------------------- */
 .afs-layout {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr) minmax(290px, 340px);
+  grid-template-columns: 220px minmax(0, 1fr) minmax(290px, 340px);
   grid-template-areas: "side scene route" "bottom bottom bottom";
   gap: 14px; align-items: start;
 }
 
-/* --- left side panel (env + telemetry) ------------------------------- */
+/* --- left side panel (env + atmospheric + telemetry) ----------------- */
 .afs-side-panel {
   grid-area: side;
   display: grid; gap: 12px; align-content: start;
@@ -168,13 +174,41 @@
   color: var(--afs-env-badge-fg);
   background: var(--afs-env-badge-bg);
   border: 1px solid var(--afs-env-badge-border);
-  font: 700 10px var(--afs-font-mono); letter-spacing: .12em; text-transform: uppercase;
+  font: 700 10px var(--afs-font-mono); letter-spacing: .1em; text-transform: uppercase;
+  flex-wrap: wrap;
 }
 .afs-env-badge strong { font-weight: 700; }
-.afs-env-badge--urban { --afs-env-badge-fg: #c8e0f0; --afs-env-badge-bg: rgba(28, 48, 70, .92); --afs-env-badge-border: rgba(126, 184, 220, .55); }
-.afs-env-badge--sand  { --afs-env-badge-fg: #fbe6c4; --afs-env-badge-bg: rgba(76, 56, 26, .92); --afs-env-badge-border: rgba(243, 201, 105, .55); }
-.afs-env-badge--forest{ --afs-env-badge-fg: #cdeccb; --afs-env-badge-bg: rgba(20, 50, 30, .92); --afs-env-badge-border: rgba(116, 226, 154, .55); }
-.afs-env-badge--snow  { --afs-env-badge-fg: #eaf4fc; --afs-env-badge-bg: rgba(40, 70, 100, .92); --afs-env-badge-border: rgba(190, 220, 240, .65); }
+.afs-env-badge--forest    { --afs-env-badge-fg: #cdeccb; --afs-env-badge-bg: rgba(20, 50, 30, .92);  --afs-env-badge-border: rgba(116, 226, 154, .55); }
+.afs-env-badge--urban     { --afs-env-badge-fg: #c8e0f0; --afs-env-badge-bg: rgba(28, 48, 70, .92);  --afs-env-badge-border: rgba(126, 184, 220, .55); }
+.afs-env-badge--flatland  { --afs-env-badge-fg: #f3e7b6; --afs-env-badge-bg: rgba(48, 58, 30, .92);  --afs-env-badge-border: rgba(232, 208, 120, .55); }
+.afs-env-badge--mountain  { --afs-env-badge-fg: #d6e2ec; --afs-env-badge-bg: rgba(34, 46, 64, .92);  --afs-env-badge-border: rgba(180, 200, 220, .6); }
+.afs-env-badge--scrubland { --afs-env-badge-fg: #f1d8a8; --afs-env-badge-bg: rgba(64, 40, 22, .92);  --afs-env-badge-border: rgba(220, 170, 90, .55); }
+.afs-env-badge--snow      { --afs-env-badge-fg: #eaf4fc; --afs-env-badge-bg: rgba(40, 70, 100, .92); --afs-env-badge-border: rgba(190, 220, 240, .65); }
+.afs-env-badge--hot       { --afs-env-badge-fg: #ffe2c4; --afs-env-badge-bg: rgba(82, 30, 14, .92);  --afs-env-badge-border: rgba(255, 130, 70, .6); }
+.afs-env-badge--sea       { --afs-env-badge-fg: #cde9f6; --afs-env-badge-bg: rgba(18, 50, 72, .92);  --afs-env-badge-border: rgba(120, 200, 230, .6); }
+
+/* atmospheric data chip — small mono readout, accent per env */
+.afs-atmos {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 9px; border-radius: 2px;
+  border: 1px solid var(--afs-env-badge-border);
+  background: rgba(8, 18, 24, .85);
+  color: var(--afs-env-badge-fg);
+  font: 700 9px var(--afs-font-mono); letter-spacing: .06em;
+}
+.afs-atmos::before {
+  content: ""; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--afs-env-accent, var(--afs-cyan));
+  box-shadow: 0 0 6px var(--afs-env-accent, rgba(111, 214, 230, .6));
+}
+.afs-atmos--forest    { --afs-env-accent: #74e29a; }
+.afs-atmos--urban     { --afs-env-accent: #6fd6e6; }
+.afs-atmos--flatland  { --afs-env-accent: #e8d078; }
+.afs-atmos--mountain  { --afs-env-accent: #b8c8dc; }
+.afs-atmos--scrubland { --afs-env-accent: #dcaa5a; }
+.afs-atmos--snow      { --afs-env-accent: #c8e6f6; }
+.afs-atmos--hot       { --afs-env-accent: #ff8246; }
+.afs-atmos--sea       { --afs-env-accent: #78c8e6; }
 
 .afs-telemetry { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .afs-telemetry li {
@@ -211,7 +245,7 @@
 .afs-scene-heading strong { color: #e9f2f5; font-size: 13px; letter-spacing: -.01em; }
 .afs-scene-heading .afs-ref { color: #788f9b; font-size: 8px; font-family: var(--afs-font-mono); letter-spacing: .14em; text-align: right; text-transform: uppercase; }
 
-/* --- field + environment variants ----------------------------------- */
+/* --- field + 8 environment variants ---------------------------------- */
 .afs-field {
   position: relative; isolation: isolate;
   min-height: clamp(360px, 39vw, 580px); overflow: hidden;
@@ -224,6 +258,16 @@
 }
 .afs-field.is-editing { cursor: crosshair; }
 
+/* FOREST — deep green canopy */
+.aero-field-station.afs-env--forest,
+.afs-field.afs-field--forest {
+  --afs-env-bg-1: #1c3a26;
+  --afs-env-bg-2: #0a1a10 70%;
+  --afs-env-decor: rgba(120, 200, 140, .28);
+  --afs-env-decor-2: rgba(80, 160, 100, .45);
+  --afs-env-vignette: rgba(4, 18, 8, .45);
+}
+
 /* URBAN — concrete / asphalt / cool slate */
 .aero-field-station.afs-env--urban,
 .afs-field.afs-field--urban {
@@ -234,24 +278,34 @@
   --afs-env-vignette: rgba(7, 18, 28, .42);
 }
 
-/* SAND — desert dunes / warm tan */
-.aero-field-station.afs-env--sand,
-.afs-field.afs-field--sand {
-  --afs-env-bg-1: #b9935e;
-  --afs-env-bg-2: #6a4d2a 75%;
-  --afs-env-decor: rgba(255, 234, 180, .35);
-  --afs-env-decor-2: rgba(255, 210, 130, .5);
-  --afs-env-vignette: rgba(60, 32, 8, .35);
+/* FLATLAND — wheat plains, warm daylight sky */
+.aero-field-station.afs-env--flatland,
+.afs-field.afs-field--flatland {
+  --afs-env-bg-1: #6a8caa;
+  --afs-env-bg-2: #c8b878 70%;
+  --afs-env-decor: rgba(232, 208, 120, .55);
+  --afs-env-decor-2: rgba(120, 96, 40, .55);
+  --afs-env-vignette: rgba(40, 32, 14, .35);
 }
 
-/* FOREST — deep green canopy */
-.aero-field-station.afs-env--forest,
-.afs-field.afs-field--forest {
-  --afs-env-bg-1: #1c3a26;
-  --afs-env-bg-2: #0a1a10 70%;
-  --afs-env-decor: rgba(120, 200, 140, .28);
-  --afs-env-decor-2: rgba(80, 160, 100, .45);
-  --afs-env-vignette: rgba(4, 18, 8, .45);
+/* MOUNTAIN — alpine ridgelines, cold high-altitude sky */
+.aero-field-station.afs-env--mountain,
+.afs-field.afs-field--mountain {
+  --afs-env-bg-1: #4a6480;
+  --afs-env-bg-2: #1a2638 75%;
+  --afs-env-decor: rgba(200, 214, 228, .6);
+  --afs-env-decor-2: rgba(110, 130, 160, .55);
+  --afs-env-vignette: rgba(12, 22, 36, .5);
+}
+
+/* SCRUBLAND — dry ochre / maquis terrain */
+.aero-field-station.afs-env--scrubland,
+.afs-field.afs-field--scrubland {
+  --afs-env-bg-1: #a8743c;
+  --afs-env-bg-2: #5a3a1a 75%;
+  --afs-env-decor: rgba(220, 170, 90, .5);
+  --afs-env-decor-2: rgba(130, 86, 36, .6);
+  --afs-env-vignette: rgba(40, 22, 8, .45);
 }
 
 /* SNOW — cold white / blue */
@@ -264,6 +318,26 @@
   --afs-env-vignette: rgba(40, 70, 100, .35);
 }
 
+/* HOT — torrid orange sky, sun, heat shimmer */
+.aero-field-station.afs-env--hot,
+.afs-field.afs-field--hot {
+  --afs-env-bg-1: #c63a18;
+  --afs-env-bg-2: #5a1408 80%;
+  --afs-env-decor: rgba(255, 196, 120, .6);
+  --afs-env-decor-2: rgba(255, 130, 60, .55);
+  --afs-env-vignette: rgba(40, 8, 4, .55);
+}
+
+/* SEA — coastal blue water with horizon */
+.aero-field-station.afs-env--sea,
+.afs-field.afs-field--sea {
+  --afs-env-bg-1: #2a6a8c;
+  --afs-env-bg-2: #0c2840 80%;
+  --afs-env-decor: rgba(180, 220, 240, .55);
+  --afs-env-decor-2: rgba(120, 200, 230, .45);
+  --afs-env-vignette: rgba(4, 16, 28, .5);
+}
+
 /* --- field overlays -------------------------------------------------- */
 .afs-field-vignette {
   position: absolute; inset: 0; z-index: 2; pointer-events: none;
@@ -272,20 +346,62 @@
     linear-gradient(180deg, rgba(255, 255, 255, .03), transparent 30%);
 }
 
-/* env decorative svg layer */
+/* env decorative svg layer (pointer-events disabled so clicks reach the field) */
 .afs-env-svg {
   position: absolute; inset: 0; z-index: 0;
   width: 100%; height: 100%; pointer-events: none;
 }
-.afs-decor-building { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .2; vector-effect: non-scaling-stroke; }
+
+/* shared decor primitives */
 .afs-decor-street { stroke: var(--afs-env-decor-2); stroke-width: .35; stroke-dasharray: 1.5 1; vector-effect: non-scaling-stroke; }
-.afs-decor-dune { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .25; vector-effect: non-scaling-stroke; opacity: .85; }
-.afs-decor-dune--2 { fill: var(--afs-env-decor-2); opacity: .65; }
-.afs-decor-dune--3 { fill: rgba(255, 255, 255, .12); opacity: .5; }
-.afs-decor-sun { fill: rgba(255, 220, 140, .55); stroke: rgba(255, 240, 200, .7); stroke-width: .25; vector-effect: non-scaling-stroke; }
+.afs-decor-horizon,
+.afs-decor-horizon-sea {
+  stroke: var(--afs-env-decor-2); stroke-width: .35;
+  stroke-dasharray: .8 .6; vector-effect: non-scaling-stroke;
+}
+
+/* forest: pine trees */
 .afs-decor-tree { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .2; vector-effect: non-scaling-stroke; }
+
+/* urban: building blocks */
+.afs-decor-building { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .2; vector-effect: non-scaling-stroke; }
+
+/* flatland: rolling hills + wheat stalks */
+.afs-decor-hill { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .25; vector-effect: non-scaling-stroke; opacity: .75; }
+.afs-decor-hill--2 { fill: var(--afs-env-decor-2); opacity: .65; }
+.afs-decor-wheat { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .25; vector-effect: non-scaling-stroke; }
+.afs-decor-wheat line { stroke: var(--afs-env-decor-2); stroke-width: .3; vector-effect: non-scaling-stroke; }
+
+/* mountain: layered ridges + peaks + snow caps */
+.afs-decor-ridge { fill: none; stroke: var(--afs-env-decor-2); stroke-width: .35; vector-effect: non-scaling-stroke; }
+.afs-decor-ridge--back { stroke: var(--afs-env-decor); stroke-width: .3; opacity: .55; }
+.afs-decor-ridge--mid { stroke: var(--afs-env-decor-2); stroke-width: .35; opacity: .75; }
+.afs-decor-peak { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .25; vector-effect: non-scaling-stroke; }
+.afs-decor-peak--2 { fill: var(--afs-env-decor-2); }
+.afs-decor-snowcap { fill: rgba(255, 255, 255, .82); stroke: rgba(255, 255, 255, .9); stroke-width: .15; vector-effect: non-scaling-stroke; }
+
+/* scrubland: dry earth patches + bush clusters */
+.afs-decor-earth { fill: var(--afs-env-decor-2); stroke: rgba(80, 50, 20, .5); stroke-width: .2; vector-effect: non-scaling-stroke; opacity: .55; }
+.afs-decor-bush { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .2; vector-effect: non-scaling-stroke; }
+.afs-decor-bush-stem { stroke: var(--afs-env-decor-2); stroke-width: .25; vector-effect: non-scaling-stroke; }
+
+/* snow: drifts + flakes (kept from original) */
 .afs-decor-drift { fill: var(--afs-env-decor); stroke: rgba(255, 255, 255, .55); stroke-width: .25; vector-effect: non-scaling-stroke; }
 .afs-decor-flake line { stroke: rgba(255, 255, 255, .65); stroke-width: .3; vector-effect: non-scaling-stroke; }
+
+/* hot: sun, sun rays, heat shimmer, dunes */
+.afs-decor-sun-hot { fill: rgba(255, 220, 140, .8); stroke: rgba(255, 240, 200, .9); stroke-width: .3; vector-effect: non-scaling-stroke; }
+.afs-decor-sunray { stroke: rgba(255, 220, 140, .75); stroke-width: .35; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.afs-decor-shimmer { fill: none; stroke: rgba(255, 220, 180, .35); stroke-width: .3; vector-effect: non-scaling-stroke; }
+.afs-decor-dune-hot { fill: var(--afs-env-decor); stroke: var(--afs-env-decor-2); stroke-width: .25; vector-effect: non-scaling-stroke; opacity: .85; }
+.afs-decor-dune-hot--2 { fill: var(--afs-env-decor-2); opacity: .65; }
+
+/* sea: horizon, sun + reflection, waves, coast strip */
+.afs-decor-sea-sun { fill: rgba(255, 234, 180, .8); stroke: rgba(255, 240, 200, .85); stroke-width: .25; vector-effect: non-scaling-stroke; }
+.afs-decor-reflect { fill: rgba(255, 234, 180, .35); }
+.afs-decor-wave { fill: none; stroke: var(--afs-env-decor); stroke-width: .3; vector-effect: non-scaling-stroke; opacity: .8; }
+.afs-decor-wave:nth-child(odd) { stroke: var(--afs-env-decor-2); opacity: .65; }
+.afs-decor-coast { fill: rgba(220, 200, 140, .55); stroke: rgba(180, 160, 100, .6); stroke-width: .2; vector-effect: non-scaling-stroke; }
 
 /* --- technical grid layer ------------------------------------------- */
 .afs-grid {
@@ -578,8 +694,9 @@
   .afs-toolbar { align-items: stretch; }
   .afs-drone-id { width: 100%; margin-left: 0; }
   .afs-drone-id strong { max-width: 100%; }
-  .afs-env-selector { width: 100%; justify-content: space-between; }
-  .afs-env-btn { flex: 1; justify-content: center; }
+  /* 8 environments collapse to a 2-column grid on phones */
+  .afs-env-selector { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .afs-env-btn { width: 100%; }
   .afs-scene-card, .afs-route-card { padding: 10px; }
   .afs-scene-heading { flex-direction: column; align-items: flex-start; }
   .afs-scene-heading .afs-ref { text-align: left; }
@@ -590,6 +707,10 @@
   .afs-field-readout { flex-direction: column; align-items: flex-start; gap: 3px; }
   .afs-bottom-meta { flex-direction: column; }
   .afs-footer-strip { gap: 10px; }
+}
+/* On wide desktops, all 8 environment buttons fit on a single row */
+@media (min-width: 1500px) {
+  .afs-env-selector { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .aero-field-station *, .aero-field-station *::before, .aero-field-station *::after {

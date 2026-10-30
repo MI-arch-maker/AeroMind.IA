@@ -13793,6 +13793,18 @@ export default function Home() {
               <small>SECURE</small>
             </button>
           )}
+          {authenticatedUser && (
+            <button
+              className="nav-item"
+              onClick={() => {
+                window.location.href = "/audit-journal";
+              }}
+            >
+              <Activity size={16} />
+              <span>Journal d'audit</span>
+              <small>PERSONNEL</small>
+            </button>
+          )}
           <SessionControls />
           <button
             className="user-row"

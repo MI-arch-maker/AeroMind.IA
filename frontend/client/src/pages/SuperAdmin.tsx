@@ -484,7 +484,7 @@ export default function SuperAdmin() {
         </section>}
         {activeSection === "overview" && <div className="mb-7"><OperationModeCard /></div>}
 
-        <SectionPanel section={activeSection} totals={totals} activity={activity.data} reports={reports.data} reportsLoading={reports.isLoading} onCreate={() => setShowCreate(true)} onReports={() => { setShowReports(true); setActiveSection("reports"); }} onApprove={(id) => approve.mutate({ id })} onProjectAction={(id, action) => { if (action === "save") saveProject.mutate({ id }); else if (action === "observe") observeProject.mutate({ id }); else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id }); }} t={t} />
+        <SectionPanel section={activeSection} totals={totals} activity={activity.data} reports={reports.data} reportsLoading={reports.isLoading} onCreate={() => setShowCreate(true)} onReports={() => { setShowReports(true); setActiveSection("reports"); }} onApprove={(id) => approve.mutate({ id })} onProjectAction={(id, action) => { if (action === "save") saveProject.mutate({ id }); else if (action === "observe") observeProject.mutate({ id }); else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id }); }} invalidate={async () => { await invalidate(); }} t={t} />
 
         {/* Accounts section — denser, sortable, Excel-like with sticky header */}
         <div className={`grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] ${activeSection !== "accounts" ? "hidden" : ""}`}>
@@ -614,14 +614,60 @@ export default function SuperAdmin() {
 
 function AuthShell({ children }: { children: React.ReactNode }) { return <main className="grid min-h-screen place-items-center bg-[#f5f7fa] p-5 text-[#10243a]"><div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl"><Link href="/" className="mb-8 flex items-center gap-3"><span className="grid h-9 w-9 skew-x-[-8deg] place-items-center border border-blue-600 text-2xl italic text-blue-600">A</span><strong className="tracking-[.18em]">AEROMIND</strong></Link>{children}</div></main>; }
 
-function SectionPanel({ section, totals, activity, reports, reportsLoading, onCreate, onReports, onApprove, onProjectAction, t }: { section: Section; totals: any; activity: any; reports?: any[]; reportsLoading: boolean; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; t: (text: string) => string }) {
+function SectionPanel({ section, totals, activity, reports, reportsLoading, onCreate, onReports, onApprove, onProjectAction, invalidate, t }: { section: Section; totals: any; activity: any; reports?: any[]; reportsLoading: boolean; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
   if (section === "accounts") return null;
   if (section === "approvals") return null;
   if (section === "overview") return <section className="mb-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-widest text-blue-600">{t("Vue d'ensemble active")}</p><h2 className="mt-2 text-2xl font-bold">{t("Bienvenue dans la gouvernance AeroMind")}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{t("Utilisez le menu de gauche pour ouvrir chaque espace. Les compteurs sont lus depuis le backend, tandis que les décisions sont journalisées.")}</p><div className="mt-5 flex flex-wrap gap-3"><button onClick={onCreate} className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-bold text-white">{t("Créer un compte")}</button><button onClick={onReports} className="rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700">{t("Ouvrir les rapports")}</button></div></section>;
   if (section === "projects") return <WorkspaceCard title={t("Projets")} subtitle={t("Vue globale des projets AeroMind persistés. Chaque action est contrôlée et journalisée.")} t={t}><div className="space-y-3">{(activity?.projects || []).length ? (activity.projects as any[]).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{p.name || t("Projet sans nom")}</strong><small className="text-xs text-slate-400">{t("Propriétaire")} : {p.userId} · {t("créé")} {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "—"}</small></div><div className="flex flex-wrap items-center gap-2"><Pill tone={p.controlStatus === "observed" ? "amber" : p.controlStatus === "saved" ? "blue" : "green"}>{p.controlStatus === "observed" ? t("Observation") : p.controlStatus === "saved" ? t("Sauvegardé") : t("Actif")}</Pill><button onClick={() => onProjectAction(String(p.id), "save")} className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-700"><Save size={13} /> {t("Sauvegarder")}</button><button onClick={() => onProjectAction(String(p.id), "observe")} className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1.5 text-[11px] font-semibold text-amber-700"><Eye size={13} /> {t("Observer")}</button><button onClick={() => onProjectAction(String(p.id), "delete")} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600"><Trash2 size={13} /> {t("Supprimer")}</button></div></div>) : <Empty title={t("Aucun projet persistant")} text={t("Les projets créés par les utilisateurs apparaîtront ici.")} />}</div></WorkspaceCard>;
   if (section === "reports") return <WorkspaceCard title={t("Rapports à valider")} subtitle={t("Les rapports suivent le circuit surveillant puis approbation Super-Admin.")} t={t}><div className="space-y-3">{reportsLoading ? <p className="text-sm text-slate-400">{t("Chargement des rapports…")}</p> : (reports || []).filter((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)).map((r: any) => <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{t("Rapport")} {String(r.id).slice(0, 8)}</strong><span className="text-xs text-slate-500">{t("Statut")} : {r.status}</span></div>{r.status === "reviewed_by_supervisor" ? <button onClick={() => onApprove(String(r.id))} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">{t("Approuver définitivement")}</button> : <Pill tone="amber">{t("En attente du surveillant")}</Pill>}</div>)}{!reportsLoading && !(reports || []).some((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)) && <Empty title={t("Aucun rapport en attente")} text={t("Les rapports soumis apparaîtront ici après contrôle.")} />}</div></WorkspaceCard>;
   if (section === "levels") return <WorkspaceCard title={t("Niveaux & quotas")} subtitle={t("Les niveaux sont attribués selon le grade et appliqués par le backend.")} t={t}><div className="grid gap-3 md:grid-cols-2">{([["L1", t("Découverte"), t("Accès de base")], ["L2", t("Ingénieur"), t("Projets et simulations")], ["L3", t("Avancé"), t("Workflows avancés")], ["L4", t("Expert"), t("Gouvernance et validation")]] as [string, string, string][]).map(([id, label, text]) => <div key={id} className="rounded-xl border border-slate-200 p-4"><Pill tone="blue">{id}</Pill><strong className="mt-3 block text-sm">{label}</strong><p className="mt-1 text-xs text-slate-400">{text}</p></div>)}</div></WorkspaceCard>;
-  if (section === "audit") return <WorkspaceCard title={t("Journal d'audit")} subtitle={t("Historique des créations, promotions, évaluations et suppressions.")} t={t}><div className="space-y-3">{(activity?.adminEvents || []).length ? (activity.adminEvents as any[]).map(event => <div key={event.id} className="rounded-xl border border-slate-100 p-4"><div className="flex justify-between gap-3"><strong className="text-xs">{event.eventType}</strong><small className="text-[11px] text-slate-400">{event.createdAt ? new Date(event.createdAt).toLocaleString("fr-FR") : "—"}</small></div><p className="mt-1 text-xs text-slate-500">{t("Par")} {event.actorEmail}</p></div>) : <Empty title={t("Journal vide")} text={t("Les prochaines décisions seront enregistrées ici.")} />}</div></WorkspaceCard>;
+  if (section === "audit") return <WorkspaceCard title={t("Journal d'audit")} subtitle={t("Historique des créations, promotions, évaluations et suppressions.")} t={t}>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 text-red-600" size={18} />
+        <div>
+          <strong className="block text-xs font-bold text-red-800">{t("Vider le journal d'audit global")}</strong>
+          <p className="mt-1 text-[11px] text-red-700">{t("Supprime définitivement toutes les entrées des tables admin_account_events, audit_events_ext et audit_events. Cette action est journalisée (un événement audit_log.cleared survit à la purge).")}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select aria-label={t("Portée de purge")} id="audit-clear-scope" defaultValue="all" className="rounded-md border border-red-300 bg-white px-2 py-1.5 text-[11px] text-red-800">
+          <option value="all">{t("Toutes les tables")}</option>
+          <option value="admin_account_events">{t("Événements admin")}</option>
+          <option value="audit_events_ext">{t("Audit canonique (hash-chainé)")}</option>
+          <option value="audit_events">{t("Audit legacy projets")}</option>
+        </select>
+        <button onClick={async () => {
+          const scope = (document.getElementById("audit-clear-scope") as HTMLSelectElement)?.value || "all";
+          if (!window.confirm(t("Vider le journal d'audit (portée : ") + scope + t(") ? Cette action est irréversible."))) return;
+          try {
+            const r = await fetch("/api/trpc/superAdmin.clearAuditLog", {
+              method: "POST", credentials: "include",
+              headers: { "Content-Type": "application/json", ...bearerHeaders() },
+              body: JSON.stringify({ json: { scope } }),
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data?.error?.message || "Purge failed");
+            const result = data.result?.data?.json ?? data;
+            const counts = result.cleared || result.counts || {};
+            const total = Object.values(counts).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
+            const failures = result.failures || {};
+            const failureKeys = Object.keys(failures);
+            toast.success(t("Journal d'audit vidé"), { description: String(total) + t(" entrée(s) supprimée(s)") + (failureKeys.length ? ` · ${failureKeys.length} ${t("table(s) non purgeable(s) en prod PG (trigger append-only)")}` : "") });
+            await invalidate();
+          } catch (e: any) {
+            toast.error(t("Vidage du journal échoué"), { description: e.message });
+          }
+        }} className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-red-700">
+          <Trash2 size={13} /> {t("Vider le journal")}
+        </button>
+        <Link href="/audit-journal" className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
+          <Activity size={13} /> {t("Mon journal personnel")}
+        </Link>
+      </div>
+    </div>
+    <div className="space-y-3">{(activity?.adminEvents || []).length ? (activity.adminEvents as any[]).map(event => <div key={event.id} className="rounded-xl border border-slate-100 p-4"><div className="flex justify-between gap-3"><strong className="text-xs">{event.eventType}</strong><small className="text-[11px] text-slate-400">{event.createdAt ? new Date(event.createdAt).toLocaleString("fr-FR") : "—"}</small></div><p className="mt-1 text-xs text-slate-500">{t("Par")} {event.actorEmail}</p></div>) : <Empty title={t("Journal vide")} text={t("Les prochaines décisions seront enregistrées ici.")} />}</div>
+  </WorkspaceCard>;
   return <WorkspaceCard title={t("Paramètres")} subtitle={t("État opérationnel de la console Super-Admin.")} t={t}><div className="grid gap-3 md:grid-cols-3"><Info label={t("Comptes actifs")} value={String(totals.actifs ?? 0)} t={t} /><Info label={t("Décisions journalisées")} value={String(totals.decisions ?? 0)} t={t} /><Info label={t("Session")} value={t("OIDC sécurisée")} t={t} /></div><p className="mt-5 rounded-lg bg-slate-50 p-4 text-xs leading-5 text-slate-500">{t("Les paramètres sensibles de déploiement et de fournisseur OIDC restent protégés côté serveur.")}</p></WorkspaceCard>;
 }
 function WorkspaceCard({ title, subtitle, children, t }: { title: string; subtitle: string; children: React.ReactNode; t: (text: string) => string }) { return <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">{title}</h2><p className="mt-1 mb-5 text-sm text-slate-400">{subtitle}</p>{children}<p className="mt-4 text-[10px] text-slate-400">{t("Action journalisée · traçable côté serveur")}</p></section>; }

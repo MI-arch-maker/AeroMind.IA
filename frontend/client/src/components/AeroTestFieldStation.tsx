@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from "react";
-import { Activity, Building2, CloudSnow, MapPin, Pause, Play, Plus, RotateCcw, Route, SunMedium, Trash2, TreePine } from "lucide-react";
+import { Activity, Building2, CloudSnow, MapPin, Mountain, Pause, Play, Plus, RotateCcw, Route, Shrub, ThermometerSun, Trash2, TreePine, Waves, Wheat } from "lucide-react";
 import type { ConceptConfig, MissionWaypoint, SimulationResult } from "../lib/aeroEngine";
 import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
 import { ParametricDronePreview } from "./ParametricDronePreview";
 import { useLanguage } from "../contexts/LanguageContext";
 import "./aero-test-field-station.css";
 
-type Environment = "urban" | "sand" | "forest" | "snow";
+type Environment = "forest" | "urban" | "flatland" | "mountain" | "scrubland" | "snow" | "hot" | "sea";
 type LucideIcon = typeof Building2;
 
 type Props = {
@@ -18,12 +18,6 @@ type Props = {
   onOpenBuilder: () => void;
 };
 
-const ENVIRONMENT_DEFS: ReadonlyArray<{ id: Environment; label: string; Icon: LucideIcon }> = [
-  { id: "urban", label: "Zone urbaine", Icon: Building2 },
-  { id: "sand", label: "Sable", Icon: SunMedium },
-  { id: "forest", label: "Forêt", Icon: TreePine },
-  { id: "snow", label: "Neige", Icon: CloudSnow },
-];
 const AXIS_TICKS = [0, 25, 50, 75, 100];
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const fieldScreenPoint = (point: MissionWaypoint, altitudeLimit: number) => ({
@@ -35,52 +29,150 @@ function emptyMissionPlan(config: ConceptConfig) {
   return { operationName: "Itinéraire terrain personnalisé", radiusKm: 1, returnAltitudeM: Math.max(5, Math.min(config.altitudeM || 30, 100)), lostLinkAction: "return" as const, homeX: 50, homeY: 82, waypoints: [] as MissionWaypoint[] };
 }
 
-/** SVG decorative layer per environment — small, performant, pointer-events disabled via CSS. */
-const ENV_DECOR: Record<Environment, ReactNode> = {
-  urban: (
-    <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      {[[8, 70, 6, 22], [16, 64, 8, 28], [26, 76, 5, 16], [38, 60, 10, 36], [52, 68, 7, 26], [64, 72, 6, 20], [76, 62, 9, 30], [86, 70, 6, 24]].map(([x, yb, w, h], i) => (
-        <rect key={`b${i}`} x={x} y={yb - h} width={w} height={h} rx="0.4" className="afs-decor-building" />
-      ))}
-      <line x1="6" y1="78" x2="94" y2="78" className="afs-decor-street" />
-      <line x1="6" y1="86" x2="94" y2="86" className="afs-decor-street" />
-    </svg>
-  ),
-  sand: (
-    <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <circle cx="78" cy="20" r="5" className="afs-decor-sun" />
-      <path d="M0 62 Q15 50 30 62 T60 62 T100 62 L100 100 L0 100 Z" className="afs-decor-dune" />
-      <path d="M0 76 Q22 66 44 76 T88 76 L100 76 L100 100 L0 100 Z" className="afs-decor-dune afs-decor-dune--2" />
-      <path d="M0 88 Q26 82 52 88 T100 88 L100 100 L0 100 Z" className="afs-decor-dune afs-decor-dune--3" />
-    </svg>
-  ),
-  forest: (
-    <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      {[[10, 74], [18, 80], [26, 72], [38, 78], [48, 70], [60, 76], [70, 70], [82, 78], [88, 72], [14, 62], [32, 64], [50, 60], [70, 64], [86, 58]].map(([x, y], i) => (
-        <g key={`t${i}`} className="afs-decor-tree" transform={`translate(${x} ${y})`}>
-          <rect x="-0.25" y="0" width="0.5" height="2" />
-          <polygon points="-1.6,0 1.6,0 0,-4.2" />
-        </g>
-      ))}
-      <line x1="0" y1="88" x2="100" y2="88" className="afs-decor-street" />
-    </svg>
-  ),
-  snow: (
-    <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <ellipse cx="20" cy="78" rx="16" ry="4" className="afs-decor-drift" />
-      <ellipse cx="60" cy="82" rx="24" ry="5" className="afs-decor-drift" />
-      <ellipse cx="90" cy="76" rx="11" ry="3.5" className="afs-decor-drift" />
-      {[[10, 18], [26, 30], [42, 14], [58, 26], [74, 18], [88, 32], [22, 42], [54, 48], [78, 50], [36, 22]].map(([x, y], i) => (
-        <g key={`f${i}`} className="afs-decor-flake" transform={`translate(${x} ${y})`}>
-          <line x1="-1.4" y1="0" x2="1.4" y2="0" />
-          <line x1="0" y1="-1.4" x2="0" y2="1.4" />
-          <line x1="-1" y1="-1" x2="1" y2="1" />
-          <line x1="-1" y1="1" x2="1" y2="-1" />
-        </g>
-      ))}
-    </svg>
-  ),
+/* === Per-environment SVG decorative layers ============================
+   Each scene draws its own shapes (NOT just a recolored gradient):
+   pine trees, building blocks, wheat stalks, mountain peaks, bush
+   clusters, snowflakes, sun rays, sea waves. pointer-events: none is
+   forced via the .afs-env-svg rule so clicks always reach the field. */
+
+const FOREST_DECOR: ReactNode = (
+  <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    {[[10, 74], [18, 80], [26, 72], [38, 78], [48, 70], [60, 76], [70, 70], [82, 78], [88, 72], [14, 62], [32, 64], [50, 60], [70, 64], [86, 58]].map(([x, y], i) => (
+      <g key={`t${i}`} className="afs-decor-tree" transform={`translate(${x} ${y})`}>
+        <rect x="-0.25" y="0" width="0.5" height="2" />
+        <polygon points="-1.6,0 1.6,0 0,-4.2" />
+        <polygon points="-1.2,-2.8 1.2,-2.8 0,-5.4" />
+      </g>
+    ))}
+    <line x1="0" y1="88" x2="100" y2="88" className="afs-decor-street" />
+  </svg>
+);
+
+const URBAN_DECOR: ReactNode = (
+  <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    {[[8, 70, 6, 22], [16, 64, 8, 28], [26, 76, 5, 16], [38, 60, 10, 36], [52, 68, 7, 26], [64, 72, 6, 20], [76, 62, 9, 30], [86, 70, 6, 24]].map(([x, yb, w, h], i) => (
+      <rect key={`b${i}`} x={x} y={yb - h} width={w} height={h} rx="0.4" className="afs-decor-building" />
+    ))}
+    <line x1="6" y1="78" x2="94" y2="78" className="afs-decor-street" />
+    <line x1="6" y1="86" x2="94" y2="86" className="afs-decor-street" />
+    <line x1="38" y1="76" x2="38" y2="100" className="afs-decor-street" />
+    <line x1="68" y1="76" x2="68" y2="100" className="afs-decor-street" />
+  </svg>
+);
+
+const FLATLAND_DECOR: ReactNode = (
+  <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <line x1="0" y1="74" x2="100" y2="74" className="afs-decor-horizon" />
+    <path d="M0 76 Q20 72 40 76 T80 76 T100 76 L100 100 L0 100 Z" className="afs-decor-hill" />
+    <path d="M0 86 Q25 82 50 86 T100 86 L100 100 L0 100 Z" className="afs-decor-hill afs-decor-hill--2" />
+    {[[6, 82], [12, 80], [18, 84], [24, 80], [30, 82], [36, 78], [42, 82], [48, 80], [54, 84], [60, 80], [66, 82], [72, 78], [78, 82], [84, 80], [90, 84], [96, 80]].map(([x, y], i) => (
+      <g key={`w${i}`} className="afs-decor-wheat" transform={`translate(${x} ${y})`}>
+        <line x1="0" y1="0" x2="0" y2="-5" />
+        <ellipse cx="-0.7" cy="-4.4" rx="0.4" ry="1.1" transform="rotate(-25 -0.7 -4.4)" />
+        <ellipse cx="0.7" cy="-4.4" rx="0.4" ry="1.1" transform="rotate(25 0.7 -4.4)" />
+        <ellipse cx="-0.55" cy="-2.9" rx="0.35" ry="0.85" transform="rotate(-25 -0.55 -2.9)" />
+        <ellipse cx="0.55" cy="-2.9" rx="0.35" ry="0.85" transform="rotate(25 0.55 -2.9)" />
+      </g>
+    ))}
+  </svg>
+);
+
+const MOUNTAIN_DECOR: ReactNode = (
+  <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="0,52 10,42 18,48 28,36 38,46 48,38 58,48 68,40 78,50 88,42 100,52" className="afs-decor-ridge afs-decor-ridge--back" />
+    <polyline points="0,64 8,56 16,62 26,50 36,60 46,54 56,64 66,56 76,62 86,54 100,64" className="afs-decor-ridge afs-decor-ridge--mid" />
+    <polygon points="6,82 20,58 34,82" className="afs-decor-peak" />
+    <polygon points="36,82 52,48 68,82" className="afs-decor-peak afs-decor-peak--2" />
+    <polygon points="66,82 82,56 98,82" className="afs-decor-peak" />
+    <polygon points="18,62 20,58 22,62" className="afs-decor-snowcap" />
+    <polygon points="50,52 52,48 54,52" className="afs-decor-snowcap" />
+    <polygon points="80,60 82,56 84,60" className="afs-decor-snowcap" />
+    <line x1="0" y1="82" x2="100" y2="82" className="afs-decor-horizon" />
+  </svg>
+);
+
+const SCRUBLAND_DECOR: ReactNode = (
+  <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <line x1="0" y1="68" x2="100" y2="68" className="afs-decor-horizon" />
+    <ellipse cx="22" cy="86" rx="16" ry="3" className="afs-decor-earth" />
+    <ellipse cx="62" cy="82" rx="20" ry="3.5" className="afs-decor-earth" />
+    <ellipse cx="90" cy="88" rx="10" ry="2.5" className="afs-decor-earth" />
+    {[[8, 78], [16, 82], [24, 76], [32, 80], [42, 74], [52, 80], [62, 76], [72, 80], [82, 76], [92, 82], [18, 72], [46, 70], [68, 72], [86, 70]].map(([x, y], i) => (
+      <g key={`s${i}`} className="afs-decor-bush" transform={`translate(${x} ${y})`}>
+        <circle cx="-1.2" cy="0.5" r="1.3" />
+        <circle cx="1.2" cy="0.5" r="1.3" />
+        <circle cx="0" cy="-1" r="1.6" />
+        <line x1="0" y1="1.5" x2="0" y2="3" className="afs-decor-bush-stem" />
+      </g>
+    ))}
+  </svg>
+);
+
+const SNOW_DECOR: ReactNode = (
+  <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <ellipse cx="20" cy="78" rx="16" ry="4" className="afs-decor-drift" />
+    <ellipse cx="60" cy="82" rx="24" ry="5" className="afs-decor-drift" />
+    <ellipse cx="90" cy="76" rx="11" ry="3.5" className="afs-decor-drift" />
+    {[[10, 18], [26, 30], [42, 14], [58, 26], [74, 18], [88, 32], [22, 42], [54, 48], [78, 50], [36, 22], [6, 38], [62, 10], [90, 8], [44, 38]].map(([x, y], i) => (
+      <g key={`f${i}`} className="afs-decor-flake" transform={`translate(${x} ${y})`}>
+        <line x1="-1.4" y1="0" x2="1.4" y2="0" />
+        <line x1="0" y1="-1.4" x2="0" y2="1.4" />
+        <line x1="-1" y1="-1" x2="1" y2="1" />
+        <line x1="-1" y1="1" x2="1" y2="-1" />
+      </g>
+    ))}
+  </svg>
+);
+
+const HOT_DECOR: ReactNode = (
+  <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <circle cx="74" cy="22" r="5" className="afs-decor-sun-hot" />
+    {Array.from({ length: 12 }).map((_, i) => {
+      const a = (i * 30 * Math.PI) / 180;
+      return <line key={`r${i}`} x1={74 + Math.cos(a) * 6.5} y1={22 + Math.sin(a) * 6.5} x2={74 + Math.cos(a) * 9.5} y2={22 + Math.sin(a) * 9.5} className="afs-decor-sunray" />;
+    })}
+    {[40, 48, 56, 64].map((y, i) => (
+      <path key={`h${i}`} d={`M0 ${y} Q12 ${y - 1.2} 24 ${y} T48 ${y} T72 ${y} T100 ${y}`} className="afs-decor-shimmer" />
+    ))}
+    <path d="M0 72 Q15 62 30 72 T60 72 T100 72 L100 100 L0 100 Z" className="afs-decor-dune-hot" />
+    <path d="M0 86 Q22 80 44 86 T88 86 L100 86 L100 100 L0 100 Z" className="afs-decor-dune-hot afs-decor-dune-hot--2" />
+  </svg>
+);
+
+const SEA_DECOR: ReactNode = (
+  <svg className="afs-env-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <line x1="0" y1="48" x2="100" y2="48" className="afs-decor-horizon-sea" />
+    <circle cx="50" cy="40" r="3" className="afs-decor-sea-sun" />
+    <ellipse cx="50" cy="56" rx="6" ry="0.8" className="afs-decor-reflect" />
+    {[56, 62, 68, 74, 80, 86].map((y, i) => (
+      <path key={`wv${i}`} d={`M0 ${y} Q5 ${y - 1} 10 ${y} T20 ${y} T30 ${y} T40 ${y} T50 ${y} T60 ${y} T70 ${y} T80 ${y} T90 ${y} T100 ${y}`} className="afs-decor-wave" />
+    ))}
+    <path d="M0 92 Q30 88 60 92 T100 92 L100 100 L0 100 Z" className="afs-decor-coast" />
+  </svg>
+);
+
+type EnvConfig = {
+  label: string;
+  Icon: LucideIcon;
+  atmospheric: string;
+  decor: ReactNode;
 };
+
+/** Single source of truth for every test environment.
+ *  ENV_ORDER follows the cahier des charges verbatim:
+ *  FORÊT, URBAIN, TERRE PLATE, MONTAGNE, BROUSSE, NEIGE, TEMPS CHAUD, MER. */
+const ENV_CONFIG: Record<Environment, EnvConfig> = {
+  forest:    { label: "Forêt",        Icon: TreePine,      atmospheric: "Humidité 78%",              decor: FOREST_DECOR },
+  urban:     { label: "Zone urbaine", Icon: Building2,     atmospheric: "Vent urbain 8 km/h",        decor: URBAN_DECOR },
+  flatland:  { label: "Terre plate",  Icon: Wheat,         atmospheric: "Vent 14 km/h",              decor: FLATLAND_DECOR },
+  mountain:  { label: "Montagne",    Icon: Mountain,      atmospheric: "Altitude base 1240 m",      decor: MOUNTAIN_DECOR },
+  scrubland: { label: "Brousse",      Icon: Shrub,         atmospheric: "Humidité 22%",              decor: SCRUBLAND_DECOR },
+  snow:      { label: "Neige",        Icon: CloudSnow,     atmospheric: "Température -8°C",         decor: SNOW_DECOR },
+  hot:       { label: "Temps chaud",  Icon: ThermometerSun, atmospheric: "Température 47°C",        decor: HOT_DECOR },
+  sea:       { label: "Mer",          Icon: Waves,         atmospheric: "Marée 1.2 m / Vent 12 nds", decor: SEA_DECOR },
+};
+
+const ENV_ORDER: readonly Environment[] = ["forest", "urban", "flatland", "mountain", "scrubland", "snow", "hot", "sea"];
 
 function TechnicalGrid({ lang }: { lang: string }) {
   return (
@@ -108,7 +200,7 @@ function TechnicalGrid({ lang }: { lang: string }) {
 }
 
 export function AeroTestFieldStation({ config, setConfig, simulation, isRunning, onRunSimulation, onOpenBuilder }: Props) {
-  const { t, tKey, language } = useLanguage();
+  const { t, language } = useLanguage();
   const [routeEditMode, setRouteEditMode] = useState(false);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -209,9 +301,10 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
   };
   const resetPlayback = () => { setPlaying(false); setProgress(0); };
 
-  const activeEnvDef = ENVIRONMENT_DEFS.find((e) => e.id === environment) ?? ENVIRONMENT_DEFS[0];
-  const envLabel = t(activeEnvDef.label);
-  const EnvBadgeIcon = activeEnvDef.Icon;
+  const activeEnv = ENV_CONFIG[environment];
+  const envLabel = t(activeEnv.label);
+  const EnvBadgeIcon = activeEnv.Icon;
+  const atmospheric = t(activeEnv.atmospheric);
 
   return (
     <main className={`aero-field-station afs-env--${environment}`}>
@@ -231,11 +324,14 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
 
       <div className="afs-toolbar">
         <div className="afs-env-selector" role="group" aria-label={t("Sélecteur d’environnement de test")}>
-          {ENVIRONMENT_DEFS.map(({ id, label, Icon }) => (
-            <button key={id} type="button" className={`afs-env-btn ${environment === id ? "afs-env-btn--active" : ""}`} onClick={() => setEnvironment(id)} aria-pressed={environment === id} title={t(label)}>
-              <Icon size={13} /><span>{t(label)}</span>
-            </button>
-          ))}
+          {ENV_ORDER.map((id) => {
+            const { label, Icon } = ENV_CONFIG[id];
+            return (
+              <button key={id} type="button" className={`afs-env-btn ${environment === id ? "afs-env-btn--active" : ""}`} onClick={() => setEnvironment(id)} aria-pressed={environment === id} title={t(label)}>
+                <Icon size={13} /><span>{t(label)}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="afs-drone-id">
           <span>{t("DRONE DU PROJET")}</span>
@@ -253,8 +349,14 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
       <div className="afs-layout">
         <aside className="afs-side-panel">
           <div className="afs-panel-block">
-            <span className="afs-panel-label">{t("ENVIRONNEMENT ACTIF")}</span>
-            <div className={`afs-env-badge afs-env-badge--${environment}`}><EnvBadgeIcon size={14} /><strong>{envLabel.toUpperCase()}</strong></div>
+            <div className={`afs-env-badge afs-env-badge--${environment}`}>
+              <EnvBadgeIcon size={14} />
+              <strong>{t("ENVIRONNEMENT ACTIF")} · {envLabel.toUpperCase()}</strong>
+            </div>
+          </div>
+          <div className="afs-panel-block">
+            <span className="afs-panel-label">{t("DONNÉES ATMOSPHÉRIQUES")}</span>
+            <div className={`afs-atmos afs-atmos--${environment}`}>{atmospheric}</div>
           </div>
           <div className="afs-panel-block">
             <span className="afs-panel-label">{t("TÉLÉMÉTRIE LOCALE")}</span>
@@ -278,7 +380,7 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
           </div>
           <div className={`afs-field afs-field--${environment} ${routeEditMode ? "is-editing" : ""}`} onClick={handleFieldClick} role="img" aria-label={t("Terrain d’essai extérieur avec trajectoire locale du drone sélectionné")}>
             <div className="afs-field-vignette" />
-            {ENV_DECOR[environment]}
+            {activeEnv.decor}
             <TechnicalGrid lang={language} />
             <div className="afs-runway-marking" aria-hidden="true"><i /><b>{t("H-01")}</b></div>
             <svg className="afs-route-layer" viewBox="0 0 100 100" preserveAspectRatio="none" shapeRendering="geometricPrecision" aria-label={t("Itinéraire local dessiné sur le terrain")}>

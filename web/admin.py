@@ -759,3 +759,175 @@ def migrate_legacy_registry() -> dict[str, int]:
             if not archived.exists():
                 path.replace(archived)
     return {"accounts": account_count, "events": event_count}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Super-Admin audit log purge (EXIGENCE IAM-05 operational override)
+# ─────────────────────────────────────────────────────────────────────────────
+# The audit_events_ext table is append-only at the PostgreSQL level via the
+# audit_ext_no_update_delete trigger (migrations/2026-10-25_canonical_labbench_schema.sql).
+# That trigger exists ONLY on PostgreSQL (the migration's CREATE TRIGGER
+# statement uses information_schema.triggers which is PG-specific). In the
+# dev SQLite profile the table was created manually without the trigger, so
+# DELETE works there. In production (PostgreSQL) the trigger blocks DELETE
+# and the database raises:
+#   sqlalchemy.exc.OperationalError: (psycopg.errors.RaiseException)
+#   audit_events_ext is append-only (EXIGENCE IAM-05): UPDATE and DELETE are forbidden
+# We catch that error class and re-raise a clean ValueError so the tRPC
+# dispatcher can convert it to an HTTP 409 with a clear message.
+APPEND_ONLY_TRIGGER_HINT = "append-only"
+
+
+def _is_append_only_trigger_error(exc: BaseException) -> bool:
+    """Heuristic: detect the PostgreSQL ``audit_ext_no_update_delete`` trigger
+    rejection from the SQLAlchemy exception chain.
+
+    The trigger message contains the literal ``append-only`` phrase (see
+    migrations/2026-10-25_canonical_labbench_schema.sql line 211). We match
+    case-insensitively against the exception string and its ``__cause__`` so
+    the helper works for both raw ``OperationalError`` and any DBAPI wrapper
+    used by psycopg / psycopg2.
+    """
+    haystacks = []
+    cursor = exc
+    seen: set[int] = set()
+    while cursor is not None and id(cursor) not in seen:
+        seen.add(id(cursor))
+        haystacks.append(str(cursor))
+        cursor = getattr(cursor, "__cause__", None) or getattr(cursor, "orig", None)
+    haystack = "\n".join(haystacks).lower()
+    return APPEND_ONLY_TRIGGER_HINT in haystack or "audit_events_ext is append-only" in haystack
+
+
+def _safe_table_delete(db: Session, model_cls: Any) -> int:
+    """DELETE every row of ``model_cls`` from the database.
+
+    Returns the count of deleted rows. If the underlying table is guarded
+    by the PostgreSQL append-only trigger (audit_events_ext only), the
+    DELETE is rejected by the DB and the transaction is rolled back. In
+    that case this function raises a ``ValueError`` that the caller can
+    surface as an HTTP 409 — the trigger cannot be bypassed without
+    disabling it at the schema level.
+    """
+    from sqlalchemy.exc import DatabaseError, OperationalError
+
+    try:
+        # SQLAlchemy 1.4/2.0 — query.delete() returns the rowcount.
+        count = db.query(model_cls).delete(synchronize_session=False)
+        db.commit()
+        return int(count or 0)
+    except (OperationalError, DatabaseError) as exc:
+        db.rollback()
+        if _is_append_only_trigger_error(exc):
+            raise ValueError(
+                "Cannot delete from audit_events_ext: append-only trigger is "
+                "active (production mode). Use the dev SQLite database for "
+                "delete operations, or temporarily disable the trigger."
+            ) from exc
+        # Re-raise unrelated DB errors (connection lost, check constraint, …).
+        raise
+
+
+def clear_audit_logs(actor: dict[str, Any], scope: str = "all") -> dict[str, Any]:
+    """Super-Admin global audit purge — deletes every row from one or more
+    audit tables, then records an ``audit_log.cleared`` event in
+    ``admin_account_events`` so the purge itself is traceable.
+
+    Parameters
+    ----------
+    actor
+        The authenticated Super-Admin user dict (``role == 'super_admin'``).
+    scope
+        One of ``"all"``, ``"admin_account_events"``, ``"audit_events_ext"``
+        or ``"audit_events"``. ``"all"`` clears all three tables.
+
+    Returns
+    -------
+    dict
+        ``{"cleared": {"admin_account_events": int, "audit_events_ext": int,
+        "audit_events": int}}``. Counts are zero for tables outside the
+        requested scope, or zero for ``audit_events_ext`` in production
+        PostgreSQL deployments where the append-only trigger rejects the
+        DELETE (the failure is raised as a ``ValueError`` so the caller
+        can convert it to HTTP 409).
+
+    Side effects
+    ------------
+    After the purge a NEW ``admin_account_event`` row is appended with
+    ``event_type='audit_log.cleared'`` and payload
+    ``{scope, cleared_by, cleared_at, counts}``. This event survives the
+    purge because it is recorded AFTER the deletes.
+    """
+    from sqlalchemy import inspect as _sa_inspect
+
+    from .canonical_models import AuditEventExt
+    from .database import engine as _engine
+    from .models import AuditEvent
+
+    _assert_superadmin_actor(actor)
+    if scope not in {"all", "admin_account_events", "audit_events_ext", "audit_events"}:
+        raise ValueError(
+            "Scope inconnu — attendu: all, admin_account_events, audit_events_ext ou audit_events"
+        )
+
+    inspector = _sa_inspect(_engine)
+
+    def _has_table(name: str) -> bool:
+        try:
+            return inspector.has_table(name)
+        except Exception:
+            return False
+
+    tables_in_scope: list[tuple[str, Any]] = []
+    if scope in {"all", "admin_account_events"}:
+        tables_in_scope.append(("admin_account_events", AdminAccountEvent))
+    if scope in {"all", "audit_events_ext"} and _has_table("audit_events_ext"):
+        tables_in_scope.append(("audit_events_ext", AuditEventExt))
+    if scope in {"all", "audit_events"} and _has_table("audit_events"):
+        tables_in_scope.append(("audit_events", AuditEvent))
+
+    cleared: dict[str, int] = {
+        "admin_account_events": 0, "audit_events_ext": 0, "audit_events": 0,
+    }
+    failed: dict[str, str] = {}
+
+    # Each table gets its own short-lived session so that a trigger-blocked
+    # DELETE on audit_events_ext cannot abort the transaction used to clear
+    # admin_account_events / audit_events.
+    for name, model_cls in tables_in_scope:
+        try:
+            with SessionLocal() as db:
+                cleared[name] = _safe_table_delete(db, model_cls)
+        except ValueError as exc:
+            # Append-only trigger active — record the reason and continue
+            # so the other tables still get cleared.
+            failed[name] = str(exc)
+            cleared[name] = 0
+        except Exception as exc:  # pragma: no cover — defensive
+            failed[name] = f"{type(exc).__name__}: {exc}"
+            cleared[name] = 0
+
+    # Record the audit_log.cleared event AFTER the purge so it survives.
+    payload = {
+        "scope": scope,
+        "cleared_by": str(actor["id"]),
+        "cleared_at": _now(),
+        "counts": dict(cleared),
+    }
+    if failed:
+        payload["failures"] = failed
+    with SessionLocal() as db:
+        db.add(_event(db, "audit_log.cleared", actor, None, payload))
+        db.commit()
+
+    # If a hard failure happened on audit_events_ext (the append-only
+    # trigger is active), bubble up a clear ValueError so the tRPC layer
+    # can convert it to HTTP 409 — but only when that table was in scope
+    # AND the caller explicitly targeted it (scope == 'audit_events_ext').
+    # For scope == 'all' we keep the partial-success contract: counts
+    # reflect what was actually cleared, and the audit_log.cleared event
+    # captures the failure detail for triage.
+    if scope == "audit_events_ext" and "audit_events_ext" in failed:
+        raise ValueError(failed["audit_events_ext"])
+
+    return {"cleared": cleared, "failures": failed}

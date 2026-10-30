@@ -21,7 +21,7 @@ from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
-from .admin import activity as admin_activity, create_account, delete_account, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
+from .admin import activity as admin_activity, clear_audit_logs, create_account, delete_account, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
 from .local_auth import router as local_auth_router
@@ -58,6 +58,14 @@ from .realtime import router as realtime_router
 from .labbench_canonical_api import router as labbench_canonical_router
 from .database import Base, engine, ping_database, SessionLocal
 from .models import User, Project, Drone, Simulation, Report, AuditEvent, LabSession
+# P0-07 audit_events_ext — ensure AuditEventExt is registered on Base.metadata
+# BEFORE lifespan runs Base.metadata.create_all(), so the table is auto-created
+# in dev (SQLite) without needing to apply the canonical migration manually.
+# Without this import the AuditEventExt class is only loaded lazily inside
+# admin.py / labbench_auth.py / ops_control_api.py, and create_all() skips the
+# table entirely, which makes every auditEventsExt.* procedure fail with
+# "no such table: audit_events_ext" in the dev profile.
+from . import canonical_models  # noqa: F401 — registers AuditEventExt on Base.metadata
 from sqlalchemy import select
 from uuid import UUID, uuid4
 from sitl_modules.api import router as sitl_router
@@ -646,6 +654,7 @@ async def trpc_compat(
         'superAdmin.deleteSuperadminAccount',
         'superAdmin.rotateSuperadminAuthorizationCode',
         'superAdmin.resetSuperadminLocalAuth',
+        'superAdmin.clearAuditLog',
     )):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
@@ -1115,6 +1124,257 @@ async def trpc_compat(
                 data = labbench_service.run_fleet_simulation(db, current_user, str(project_id or ''), payload if isinstance(payload, dict) else {})
         except labbench_service.LabBenchError as exc:
             return _trpc_error(exc.status_code, exc.code, exc.message)
+    # ───────────────────────────────────────────────────────────────────────
+    # auditEventsExt.* — per-user tamper-evident audit log (EXIGENCE IAM-05)
+    # ───────────────────────────────────────────────────────────────────────
+    # The audit_events_ext table is the canonical hash-chained journal. It is
+    # append-only at the PostgreSQL level (audit_ext_no_update_delete trigger
+    # in migrations/2026-10-25_canonical_labbench_schema.sql). The dev SQLite
+    # profile created the table manually WITHOUT that trigger, so the per-user
+    # DELETE / CLEAR procedures below only succeed in dev. In production they
+    # raise a clear HTTP 409 with the message defined in
+    # web.admin._safe_table_delete(); the audit_events_ext rows are immutable
+    # there by design.
+    elif name.endswith('auditEventsExt.list'):
+        if not current_user:
+            return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        from .canonical_models import AuditEventExt
+        from sqlalchemy import inspect as _sa_inspect
+        # The dev SQLite profile may not have applied the canonical migration
+        # — return an empty result instead of 500 when the table is missing
+        # so the React audit journal view renders cleanly on a fresh boot.
+        if not _sa_inspect(engine).has_table('audit_events_ext'):
+            data = {'events': [], 'nextCursor': None, 'totalCount': 0}
+        else:
+            action_filter = str(payload.get('actionFilter') or payload.get('action_filter') or '').strip() if isinstance(payload, dict) else ''
+            decision_filter = str(payload.get('decisionFilter') or payload.get('decision_filter') or '').strip() if isinstance(payload, dict) else ''
+            try:
+                limit = int(payload.get('limit') or 200) if isinstance(payload, dict) else 200
+            except (TypeError, ValueError):
+                limit = 200
+            limit = max(1, min(limit, 1000))
+            cursor_raw = payload.get('cursor') if isinstance(payload, dict) else None
+            cursor_dt = None
+            if cursor_raw:
+                try:
+                    cursor_dt = datetime.fromisoformat(str(cursor_raw).replace('Z', '+00:00'))
+                    if cursor_dt.tzinfo is None:
+                        cursor_dt = cursor_dt.replace(tzinfo=UTC)
+                except (TypeError, ValueError):
+                    return _trpc_error(400, 'BAD_REQUEST', 'Invalid cursor (expected ISO 8601 datetime)')
+            with SessionLocal() as db:
+                query = select(AuditEventExt).where(AuditEventExt.actor_id == current_user['id'])
+                if action_filter:
+                    query = query.where(AuditEventExt.action.like(f'%{action_filter}%'))
+                if decision_filter:
+                    query = query.where(AuditEventExt.decision == decision_filter)
+                if cursor_dt is not None:
+                    query = query.where(AuditEventExt.occurred_at < cursor_dt)
+                from sqlalchemy import func as _sa_func
+                total_count = db.scalar(
+                    select(_sa_func.count(AuditEventExt.id)).where(AuditEventExt.actor_id == current_user['id'])
+                ) or 0
+                rows = db.scalars(
+                    query.order_by(AuditEventExt.occurred_at.desc()).limit(limit + 1)
+                ).all()
+                has_more = len(rows) > limit
+                rows = rows[:limit]
+                def _iso(dt):
+                    if dt is None:
+                        return None
+                    return (dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)).isoformat()
+                events = []
+                for row in rows:
+                    try:
+                        payload_dict = _json.loads(row.payload_json or '{}')
+                    except (_json.JSONDecodeError, TypeError):
+                        payload_dict = {}
+                    events.append({
+                        'id': row.id,
+                        'actor_id': row.actor_id,
+                        'actor_role': row.actor_role,
+                        'action': row.action,
+                        'resource_id': row.resource_id,
+                        'decision': row.decision,
+                        'project_id': row.project_id,
+                        'drone_id': row.drone_id,
+                        'correlation_id': row.correlation_id,
+                        'message': row.message,
+                        'payload_json': payload_dict,
+                        'occurred_at': _iso(row.occurred_at),
+                        'prev_hash': row.prev_hash,
+                        'chain_hash': row.chain_hash,
+                    })
+                next_cursor = _iso(rows[-1].occurred_at) if has_more and rows else None
+                data = {'events': events, 'nextCursor': next_cursor, 'totalCount': int(total_count)}
+    elif name.endswith('auditEventsExt.record'):
+        if not current_user:
+            return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        from .canonical_models import AuditEventExt
+        import hashlib as _hashlib, uuid as _uuid
+        from sqlalchemy import inspect as _sa_inspect
+        if not _sa_inspect(engine).has_table('audit_events_ext'):
+            # Ensure the table exists before attempting the INSERT — the dev
+            # profile auto-creates it via lifespan.create_all(), but a
+            # freshly-imported app instance (e.g. in tests) might miss it.
+            Base.metadata.create_all(bind=engine, tables=[AuditEventExt.__table__])
+        if not isinstance(payload, dict):
+            return _trpc_error(400, 'BAD_REQUEST', 'Expected JSON object payload')
+        action = str(payload.get('action') or '').strip()
+        message = str(payload.get('message') or '').strip()
+        decision = str(payload.get('decision') or '').strip()
+        if not action or not message:
+            return _trpc_error(400, 'BAD_REQUEST', 'action and message are required')
+        if decision not in ('allow', 'deny', 'error'):
+            return _trpc_error(400, 'BAD_REQUEST', "decision must be one of: 'allow', 'deny', 'error'")
+        resource_id = str(payload.get('resource_id') or payload.get('resourceId') or '').strip() or None
+        project_id = str(payload.get('project_id') or payload.get('projectId') or '').strip() or None
+        drone_id = str(payload.get('drone_id') or payload.get('droneId') or '').strip() or None
+        payload_dict = payload.get('payload')
+        if payload_dict is None:
+            payload_dict = {}
+        if not isinstance(payload_dict, dict):
+            return _trpc_error(400, 'BAD_REQUEST', 'payload must be a JSON object')
+        occurred_at = datetime.now(UTC)
+        occurred_at_iso = occurred_at.isoformat()
+        correlation_id = str(_uuid.uuid4())
+        try:
+            with SessionLocal() as db:
+                # Per-actor hash chain — only the caller's own events
+                # participate (vs. the global chain in labbench_auth.audit_decision).
+                prev_row = db.scalars(
+                    select(AuditEventExt)
+                    .where(AuditEventExt.actor_id == current_user['id'])
+                    .order_by(AuditEventExt.occurred_at.desc())
+                    .limit(1)
+                ).first()
+                if prev_row is not None and prev_row.chain_hash:
+                    prev_hash = _hashlib.sha256(prev_row.chain_hash.encode('utf-8')).hexdigest()
+                else:
+                    prev_hash = None
+                chain_hash = _hashlib.sha256(
+                    f"{prev_hash if prev_hash else ''}|{message}|{action}|{occurred_at_iso}".encode('utf-8')
+                ).hexdigest()
+                record = AuditEventExt(
+                    id=str(_uuid.uuid4()),
+                    actor_id=current_user['id'],
+                    actor_role=str(current_user.get('role', 'user')),
+                    action=action,
+                    resource_id=resource_id,
+                    decision=decision,
+                    project_id=project_id,
+                    drone_id=drone_id,
+                    correlation_id=correlation_id,
+                    message=message,
+                    payload_json=_json.dumps(payload_dict, ensure_ascii=False, default=str),
+                    occurred_at=occurred_at,
+                    prev_hash=prev_hash,
+                    chain_hash=chain_hash,
+                )
+                db.add(record)
+                db.commit()
+                db.refresh(record)
+                try:
+                    parsed_payload = _json.loads(record.payload_json or '{}')
+                except (_json.JSONDecodeError, TypeError):
+                    parsed_payload = {}
+                iso_dt = (record.occurred_at.replace(tzinfo=UTC)
+                          if record.occurred_at.tzinfo is None
+                          else record.occurred_at.astimezone(UTC)).isoformat()
+                data = {
+                    'id': record.id,
+                    'actor_id': record.actor_id,
+                    'actor_role': record.actor_role,
+                    'action': record.action,
+                    'resource_id': record.resource_id,
+                    'decision': record.decision,
+                    'project_id': record.project_id,
+                    'drone_id': record.drone_id,
+                    'correlation_id': record.correlation_id,
+                    'message': record.message,
+                    'payload_json': parsed_payload,
+                    'occurred_at': iso_dt,
+                    'prev_hash': record.prev_hash,
+                    'chain_hash': record.chain_hash,
+                }
+        except SQLAlchemyError as exc:
+            return _trpc_error(503, 'AUDIT_PERSISTENCE_FAILED',
+                               f'audit_events_ext insert failed: {type(exc).__name__}: {exc}')
+    elif name.endswith('auditEventsExt.delete'):
+        # IMPORTANT — append-only trigger caveat:
+        # In dev (SQLite) the trigger does not exist, so this DELETE works.
+        # In prod (PostgreSQL) the audit_ext_no_update_delete trigger blocks
+        # DELETE and raises OperationalError. We translate that to HTTP 409.
+        if not current_user:
+            return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        from .canonical_models import AuditEventExt
+        from .admin import _is_append_only_trigger_error
+        from sqlalchemy import inspect as _sa_inspect
+        if not _sa_inspect(engine).has_table('audit_events_ext'):
+            return _trpc_error(404, 'NOT_FOUND', 'audit_events_ext table is not initialized')
+        event_id = str((payload or {}).get('id', '')) if isinstance(payload, dict) else str(payload or '')
+        if not event_id:
+            return _trpc_error(400, 'BAD_REQUEST', 'id is required')
+        try:
+            with SessionLocal() as db:
+                row = db.get(AuditEventExt, event_id)
+                if row is None or row.actor_id != current_user['id']:
+                    data = {'deleted': False, 'id': event_id}
+                else:
+                    # Use a DELETE WHERE clause so the trigger (if any) sees a
+                    # single-statement DELETE on audit_events_ext.
+                    deleted_count = db.query(AuditEventExt).filter(
+                        AuditEventExt.id == event_id,
+                        AuditEventExt.actor_id == current_user['id'],
+                    ).delete(synchronize_session=False)
+                    db.commit()
+                    data = {'deleted': bool(deleted_count), 'id': event_id}
+        except SQLAlchemyError as exc:
+            if _is_append_only_trigger_error(exc):
+                return _trpc_error(409, 'APPEND_ONLY_TRIGGER_ACTIVE',
+                                   'Cannot delete from audit_events_ext: append-only trigger is '
+                                   'active (production mode). Use the dev SQLite database for '
+                                   'delete operations, or temporarily disable the trigger.')
+            return _trpc_error(503, 'AUDIT_DELETE_FAILED',
+                               f'{type(exc).__name__}: {exc}')
+    elif name.endswith('auditEventsExt.clear'):
+        # Same trigger caveat as auditEventsExt.delete — works in dev SQLite,
+        # raises HTTP 409 in prod PostgreSQL.
+        if not current_user:
+            return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        from .canonical_models import AuditEventExt
+        from .admin import _is_append_only_trigger_error
+        from sqlalchemy import inspect as _sa_inspect
+        if not _sa_inspect(engine).has_table('audit_events_ext'):
+            return _trpc_error(404, 'NOT_FOUND', 'audit_events_ext table is not initialized')
+        try:
+            with SessionLocal() as db:
+                deleted_count = db.query(AuditEventExt).filter(
+                    AuditEventExt.actor_id == current_user['id'],
+                ).delete(synchronize_session=False)
+                db.commit()
+                data = {'deletedCount': int(deleted_count or 0)}
+        except SQLAlchemyError as exc:
+            if _is_append_only_trigger_error(exc):
+                return _trpc_error(409, 'APPEND_ONLY_TRIGGER_ACTIVE',
+                                   'Cannot delete from audit_events_ext: append-only trigger is '
+                                   'active (production mode). Use the dev SQLite database for '
+                                   'delete operations, or temporarily disable the trigger.')
+            return _trpc_error(503, 'AUDIT_CLEAR_FAILED',
+                               f'{type(exc).__name__}: {exc}')
+    elif name.endswith('superAdmin.clearAuditLog'):
+        # Auth guard already enforced above (role == 'super_admin').
+        try:
+            scope = str((payload or {}).get('scope', 'all') if isinstance(payload, dict) else 'all')
+            data = clear_audit_logs(current_user, scope)
+        except ValueError as exc:
+            # Trigger rejection / unknown scope — surface as 409 / 400.
+            if 'append-only' in str(exc).lower():
+                return _trpc_error(409, 'APPEND_ONLY_TRIGGER_ACTIVE', str(exc))
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+        except SQLAlchemyError as exc:
+            return _trpc_error(503, 'AUDIT_PURGE_FAILED',
+                               f'{type(exc).__name__}: {exc}')
     else:
         data = None
     # The legacy React client uses the SuperJSON transformer. Its wire format

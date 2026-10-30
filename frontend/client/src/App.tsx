@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 // integrated Home workspace. Keep the legacy URL as an alias to that same
 // shell so bookmarks cannot open a detached LabBench instance.
 const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
+const AuditJournal = lazy(() => import("@/pages/AuditJournal"));
 
 function PageLoader() {
   return (
@@ -40,6 +41,11 @@ function Router() {
       <Route path="/super-admin">
         <Suspense fallback={<PageLoader />}>
           <SuperAdmin />
+        </Suspense>
+      </Route>
+      <Route path="/audit-journal">
+        <Suspense fallback={<PageLoader />}>
+          <AuditJournal />
         </Suspense>
       </Route>
       <Route path={"/404"} component={NotFound} />
