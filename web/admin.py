@@ -24,6 +24,17 @@ _ACCOUNTS_FILE = _DATA_DIR / "accounts.json"
 _EVENTS_FILE = _DATA_DIR / "admin_events.json"
 _DELETED_ACCOUNTS_FILE = _DATA_DIR / "deleted_accounts.json"
 
+# Runtime override for the Super-Admin email allowlist.
+#
+# ``Settings.superadmin_email_set`` is computed once at startup from the
+# ``AEROMIND_SUPERADMIN_EMAILS`` environment variable. To allow the primary
+# Super-Admin identity (email) to be modified or revoked at runtime from the
+# admin console, this module-level set takes precedence over the static
+# configuration when it is not ``None``. It is updated by
+# ``set_runtime_superadmin_emails()`` whenever the Super-Admin account is
+# updated or definitively deleted.
+_RUNTIME_SUPERADMIN_EMAILS: set[str] | None = None
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -60,13 +71,39 @@ def _record_account(row: AdminAccountRecord) -> dict[str, Any]:
     return json.loads(row.data_json)
 
 
+def current_superadmin_emails() -> set[str]:
+    """Return the set of lower-cased emails currently treated as Super-Admin.
+
+    The runtime set (``_RUNTIME_SUPERADMIN_EMAILS``) takes precedence over the
+    static configuration in ``Settings.superadmin_email_set`` so that the
+    Super-Admin email can be modified or revoked at runtime through the admin
+    console. The returned set is always a fresh copy: callers may mutate it
+    without affecting module state.
+    """
+    if _RUNTIME_SUPERADMIN_EMAILS is not None:
+        return {email for email in _RUNTIME_SUPERADMIN_EMAILS}
+    return get_settings().superadmin_email_set
+
+
+def set_runtime_superadmin_emails(emails: set[str]) -> None:
+    """Replace the runtime Super-Admin email allowlist.
+
+    Used by ``update_superadmin_account`` (when the Super-Admin email changes)
+    and ``delete_superadmin_account`` (when the Super-Admin is definitively
+    deleted) so subsequent role checks and the dev-login flow see the new
+    state. The provided set is copied and normalised to lower-case strings.
+    """
+    global _RUNTIME_SUPERADMIN_EMAILS
+    _RUNTIME_SUPERADMIN_EMAILS = {str(email).strip().casefold() for email in emails if str(email).strip()}
+
+
 def _primary_account() -> dict[str, Any] | None:
-    settings = get_settings()
+    emails = current_superadmin_emails()
     # L'adresse mcgregoralvin14@gmail.com reste conservée comme adresse
     # super-admin par défaut, conformément à la décision explicite de
     # l'utilisateur du 30 octobre 2026, jusqu'à révocation personnelle.
     preferred = "mcgregoralvin14@gmail.com"
-    email = preferred if preferred in settings.superadmin_email_set else next(iter(settings.superadmin_email_set), None)
+    email = preferred if preferred in emails else next(iter(emails), None)
     if not email:
         return None
     return {"id": "primary-super-admin", "name": "Administrateur principal", "email": email,
@@ -350,6 +387,229 @@ def delete_account(actor: dict[str, Any], account_id: str, permanent: bool = Fal
         db.delete(row)
         db.commit()
         return {"id": account_id, "deleted": True, "permanentlyDeleted": True, "auditRecordId": tombstone_id}
+
+
+def _assert_superadmin_actor(actor: dict[str, Any] | None) -> None:
+    """Guard: only the authenticated Super-Admin session may invoke the
+    Super-Admin override operations. The dispatcher already enforces
+    ``current_user['role'] == 'super_admin'``; this is a defence-in-depth
+    check that also tolerates direct library callers.
+    """
+    if not actor or str(actor.get("role", "")).casefold() != "super_admin":
+        raise ValueError("Seul le compte Super-Admin authentifié peut exécuter cette action")
+
+
+def _is_superadmin_account(account: dict[str, Any]) -> bool:
+    """Return ``True`` when the supplied record represents a Super-Admin
+    identity (either through the ``role`` flag or membership in the runtime
+    Super-Admin email allowlist).
+    """
+    return bool(account.get("role") == "super_admin"
+                or account.get("email", "").casefold() in current_superadmin_emails())
+
+
+def update_superadmin_account(actor: dict[str, Any], account_id: str, changes: dict[str, Any]) -> dict[str, Any]:
+    """Modify the Super-Admin account from the admin console.
+
+    Overrides the regular ``update_account`` security restriction. The actor
+    must be ``super_admin`` (enforced by the dispatcher and re-checked here as
+    defence-in-depth). Allowed changes: ``email``, ``name``, ``level`` (locked
+    to ``L4``) and ``accountStatus`` (locked to ``active``). The role remains
+    ``super_admin`` and cannot be changed. When the email changes, the new
+    address is also written into the in-memory Super-Admin allowlist via
+    ``set_runtime_superadmin_emails`` so subsequent role checks and the
+    dev-login flow see the new identity.
+
+    Audit event: ``superadmin.account.updated``.
+    """
+    _assert_superadmin_actor(actor)
+    with SessionLocal() as db:
+        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.id == account_id))
+        if row is None:
+            raise KeyError("Compte introuvable")
+        account = _record_account(row)
+        if not _is_superadmin_account(account):
+            raise ValueError("Ce compte n'est pas un compte Super-Admin")
+        # Role is locked to ``super_admin``: a no-op value is tolerated, any
+        # other value is rejected so the caller cannot demote the account.
+        if "role" in changes and changes.get("role") != "super_admin":
+            raise ValueError("Le rôle Super-Admin ne peut pas être modifié")
+        if "level" in changes and changes.get("level") != "L4":
+            raise ValueError("Le niveau du compte Super-Admin doit rester L4")
+        if "accountStatus" in changes and changes.get("accountStatus") != "active":
+            raise ValueError("Le statut du compte Super-Admin doit rester actif")
+
+        applied: dict[str, Any] = {}
+        old_email = account.get("email", "").casefold()
+        new_email: str | None = None
+        if "email" in changes and str(changes.get("email", "")).strip():
+            candidate = str(changes["email"]).strip().casefold()
+            if not candidate or "@" not in candidate:
+                raise ValueError("Adresse e-mail invalide")
+            if candidate != old_email:
+                existing = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == candidate))
+                if existing is not None and existing.id != account_id:
+                    raise ValueError("Un compte ou une demande existe déjà pour cet e-mail")
+                new_email = candidate
+                account["email"] = candidate
+                row.email = candidate
+                applied["email"] = candidate
+        if "name" in changes and str(changes.get("name", "")).strip():
+            account["name"] = str(changes["name"]).strip()
+            applied["name"] = account["name"]
+        if "level" in changes:
+            account["level"] = "L4"
+            applied["level"] = "L4"
+        if "accountStatus" in changes:
+            account["accountStatus"] = "active"
+            account["approvalStatus"] = "approved"
+            applied["accountStatus"] = "active"
+
+        row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
+
+        # Propagate the email change to the in-memory Super-Admin allowlist so
+        # the dev-login flow and role checks immediately recognise the new
+        # identity without a process restart.
+        if new_email is not None:
+            updated_set = {email for email in current_superadmin_emails() if email != old_email}
+            updated_set.add(new_email)
+            set_runtime_superadmin_emails(updated_set)
+
+        db.add(_event(db, "superadmin.account.updated", actor, account_id,
+                      {"changes": applied, "role": account.get("role"),
+                       "level": account.get("level"),
+                       "accountStatus": account.get("accountStatus"),
+                       "emailRotated": new_email is not None,
+                       "previousEmail": old_email if new_email is not None else None}))
+        try:
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            raise ValueError("Un compte ou une demande existe déjà pour cet e-mail") from exc
+        return _public_account(account)
+
+
+def delete_superadmin_account(actor: dict[str, Any], account_id: str, permanent: bool = False) -> dict[str, Any]:
+    """Soft-delete or definitively delete the Super-Admin account.
+
+    Overrides the regular ``delete_account`` security restriction. The actor
+    must be ``super_admin`` (enforced by the dispatcher and re-checked here).
+    When ``permanent=False`` the account is placed in compliance alert:
+    ``accountStatus`` becomes ``cancelled`` and ``deletionState`` becomes
+    ``pending_compliance``. When ``permanent=True`` the account must already
+    be ``cancelled`` (soft-deleted); the row is tombstoned (deleted from the
+    table) but the audit event ``superadmin.account.permanently_deleted``
+    remains durable, and the email is removed from the runtime Super-Admin
+    allowlist via ``set_runtime_superadmin_emails``.
+
+    Audit events: ``superadmin.account.deletion_requested`` (soft) and
+    ``superadmin.account.permanently_deleted`` (permanent).
+    """
+    _assert_superadmin_actor(actor)
+    with SessionLocal() as db:
+        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.id == account_id))
+        if row is None:
+            raise KeyError("Compte introuvable")
+        account = _record_account(row)
+        if not _is_superadmin_account(account):
+            raise ValueError("Ce compte n'est pas un compte Super-Admin")
+        target_email = account.get("email", "").casefold()
+        if not permanent:
+            account.update({"accountStatus": "cancelled", "approvalStatus": "cancelled",
+                            "deletionState": "pending_compliance", "deletionRequestedAt": _now(),
+                            "deletionRequestedBy": actor["id"]})
+            row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
+            db.add(_event(db, "superadmin.account.deletion_requested", actor, account_id,
+                          {"email": target_email, "role": account.get("role"),
+                           "state": "pending_compliance"}))
+            db.commit()
+            return {"id": account_id, "deleted": False, "pendingCompliance": True,
+                    "accountStatus": "cancelled"}
+        if account.get("accountStatus") != "cancelled":
+            raise ValueError("La suppression définitive exige une première suppression et une mise en conformité")
+        tombstone_id = str(uuid.uuid4())
+        db.add(_event(db, "superadmin.account.permanently_deleted", actor, account_id,
+                      {"id": account_id, "auditRecordId": tombstone_id, "email": target_email,
+                       "role": account.get("role"), "deletedAt": _now(), "deletedBy": actor["id"],
+                       "deletionState": "permanently_deleted", "auditRecord": True}))
+        db.delete(row)
+        # Remove the deleted email from the runtime Super-Admin allowlist so
+        # subsequent role checks (and the dev-login bootstrap) no longer
+        # recognise it as Super-Admin.
+        remaining = {email for email in current_superadmin_emails() if email != target_email}
+        set_runtime_superadmin_emails(remaining)
+        db.commit()
+        return {"id": account_id, "deleted": True, "permanentlyDeleted": True,
+                "auditRecordId": tombstone_id}
+
+
+def reset_superadmin_local_auth(actor: dict[str, Any], account_id: str) -> dict[str, Any]:
+    """Revoke local credentials on the Super-Admin account and issue a fresh
+    one-time setup invitation.
+
+    Mirrors ``reset_local_auth`` but lifts the Super-Admin restriction. The
+    actor must be ``super_admin``. Audit event:
+    ``superadmin.account.local_auth_reset``.
+    """
+    _assert_superadmin_actor(actor)
+    with SessionLocal() as db:
+        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.id == account_id))
+        if row is None:
+            raise KeyError("Compte introuvable")
+        account = _record_account(row)
+        if not _is_superadmin_account(account):
+            raise ValueError("Ce compte n'est pas un compte Super-Admin")
+        invite = f"AER-{secrets.token_urlsafe(24)}"
+        for key in ("localPasswordHash", "localTotpSecretEnc", "localTotpLastCounter",
+                    "localAuthPendingAt", "localLoginFailures"):
+            account.pop(key, None)
+        account.update({"localAuthEnabled": False,
+                        "localAuthGeneration": int(account.get("localAuthGeneration", 0)) + 1,
+                        "localEnrollmentCodeHash": _code_hash(invite),
+                        "localEnrollmentCodeLast4": invite[-4:],
+                        "localEnrollmentCodeIssuedAtEpoch": int(datetime.now(timezone.utc).timestamp()),
+                        "localAuthenticationAvailable": True,
+                        "loginMethod": "entra-or-local-password-totp"})
+        row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
+        db.add(_event(db, "superadmin.account.local_auth_reset", actor, account_id,
+                      {"mfa": "totp", "credentials_revoked": True}))
+        db.commit()
+        return {**_public_account(account), "localEnrollmentCode": invite}
+
+
+def rotate_superadmin_authorization_code(actor: dict[str, Any], account_id: str) -> dict[str, Any]:
+    """Rotate the authorization code on the Super-Admin account.
+
+    Mirrors ``rotate_authorization_code`` but lifts the Super-Admin restriction.
+    The actor must be ``super_admin``. Audit event:
+    ``superadmin.account.authorization_code_rotated``.
+    """
+    _assert_superadmin_actor(actor)
+    with SessionLocal() as db:
+        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.id == account_id))
+        if row is None:
+            raise KeyError("Compte introuvable")
+        account = _record_account(row)
+        if not _is_superadmin_account(account):
+            raise ValueError("Ce compte n'est pas un compte Super-Admin")
+        code = _new_authorization_code()
+        account.update({"authorizationCodeHash": _code_hash(code),
+                        "authorizationCodeLast4": code[-4:],
+                        "authorizationCodeIssuedAt": _now()})
+        local_enrollment_code = None
+        if not account.get("localAuthEnabled"):
+            local_enrollment_code = f"AER-{secrets.token_urlsafe(24)}"
+            account.update({"localEnrollmentCodeHash": _code_hash(local_enrollment_code),
+                            "localEnrollmentCodeLast4": local_enrollment_code[-4:],
+                            "localEnrollmentCodeIssuedAtEpoch": int(datetime.now(timezone.utc).timestamp())})
+        row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
+        db.add(_event(db, "superadmin.account.authorization_code_rotated", actor, account_id,
+                      {"authorizationCodeLast4": account["authorizationCodeLast4"]}))
+        db.commit()
+        result = {**_public_account(account), "authorizationCode": code}
+        if local_enrollment_code:
+            result["localEnrollmentCode"] = local_enrollment_code
+        return result
 
 
 def activity() -> dict[str, Any]:

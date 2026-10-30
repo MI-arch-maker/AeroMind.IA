@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+/* Google Fonts @import removed (was blocked by CSP font-src 'self' policy).
+   IBM Plex Sans/Mono fall back to local ui-sans-serif/ui-monospace stacks. */
 
 .labbench-shell { --lb-ink:#e9f6f8; --lb-muted:#8fa9b0; --lb-cyan:#25d0d9; --lb-cyan-soft:rgba(37,208,217,.12); --lb-blue:#101e2d; --lb-blue-2:#14283a; --lb-line:rgba(160,215,222,.13); --lb-amber:#f1b954; --lb-red:#fa7f78; --lb-green:#75d7ad; min-height:100vh; background:#09131f; color:var(--lb-ink); display:flex; font-family:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif; letter-spacing:.005em; }
 .labbench-shell * { box-sizing:border-box; }

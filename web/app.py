@@ -21,7 +21,7 @@ from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
-from .admin import activity as admin_activity, create_account, delete_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, rotate_authorization_code, update_account, update_project_control, verify_authorization_code
+from .admin import activity as admin_activity, create_account, delete_account, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
 from .local_auth import router as local_auth_router
@@ -322,8 +322,9 @@ async def security_headers(request: Request, call_next):
     # Tighten progressively after audit (e.g. add 'unsafe-hashes' -> hashes).
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self' data:; "
         "img-src 'self' data: blob: https:; "
         "connect-src 'self' https://login.microsoftonline.com https://api.openai.com "
         "wss://*.onrender.com https://*.openstreetmap.org https://server.arcgisonline.com "
@@ -641,6 +642,10 @@ async def trpc_compat(
         'superAdmin.accounts', 'superAdmin.activity',
         'superAdmin.createAccount', 'superAdmin.updateAccount',
         'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode', 'superAdmin.resetLocalAuth', 'superAdmin.issueDailyTotpCode', 'superAdmin.saveProject', 'superAdmin.observeProject', 'superAdmin.deleteProject',
+        'superAdmin.updateSuperadminAccount', 'superAdmin.updateSuperadminEmail',
+        'superAdmin.deleteSuperadminAccount',
+        'superAdmin.rotateSuperadminAuthorizationCode',
+        'superAdmin.resetSuperadminLocalAuth',
     )):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
@@ -734,6 +739,35 @@ async def trpc_compat(
     elif name.endswith('superAdmin.resetLocalAuth'):
         try:
             data = reset_local_auth(current_user, str(payload.get('id', '')))
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.updateSuperadminAccount'):
+        try:
+            account_id = str(payload.get('id', ''))
+            changes = {key: value for key, value in payload.items() if key != 'id'}
+            data = update_superadmin_account(current_user, account_id, changes)
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.updateSuperadminEmail'):
+        try:
+            account_id = str(payload.get('id', ''))
+            new_email = str(payload.get('email', '')).strip()
+            data = update_superadmin_account(current_user, account_id, {'email': new_email})
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.deleteSuperadminAccount'):
+        try:
+            data = delete_superadmin_account(current_user, str(payload.get('id', '')), bool(payload.get('permanent', False)))
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.rotateSuperadminAuthorizationCode'):
+        try:
+            data = rotate_superadmin_authorization_code(current_user, str(payload.get('id', '')))
+        except (KeyError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.resetSuperadminLocalAuth'):
+        try:
+            data = reset_superadmin_local_auth(current_user, str(payload.get('id', '')))
         except (KeyError, ValueError) as exc:
             return _trpc_error(400, 'BAD_REQUEST', str(exc))
     elif name.endswith('superAdmin.issueDailyTotpCode'):
@@ -868,7 +902,7 @@ async def trpc_compat(
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
         with SessionLocal() as db:
             query = select(Report).where(Report.project_id.in_(select(Project.id).where(Project.user_id == current_user['id']))) if current_user.get('role') not in {'surveillant', 'admin', 'super_admin'} else select(Report)
-            data = [{'id': r.id, 'projectId': r.project_id, **__import__('json').loads(r.data_json or '{}')} for r in db.scalars(query).order_by(Report.created_at.desc()).limit(100)]
+            data = [{'id': r.id, 'projectId': r.project_id, **__import__('json').loads(r.data_json or '{}')} for r in db.scalars(query.order_by(Report.created_at.desc()).limit(100))]
     elif name.endswith('reports.review'):
         if not current_user or current_user.get('role') not in {'surveillant', 'admin', 'super_admin'}:
             return _trpc_error(403, 'FORBIDDEN', 'Rôle Surveillant requis')

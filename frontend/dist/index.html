@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0" />
+    <title>AeroMind AI — Cockpit d’ingénierie</title>
+    <!-- THIS IS THE START OF A COMMENT BLOCK, BLOCK TO BE DELETED: Google Fonts here, example:
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    THIS IS THE END OF A COMMENT BLOCK, BLOCK TO BE DELETED -->
+    <script type="module" crossorigin src="/assets/index-CCKtDuHX.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-data-Dh6UGHKK.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-radix-D5M1CBCO.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-hls-ToztMTY2.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-three-DnqVp2he.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-markdown-1k6fCR3u.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-ui-xEgImIuy.js">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-markdown-CyAuISp2.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-DmKJUEfY.css">
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script>
+      (() => {
+        const supported = new Set(["fr", "en"]);
+        let selected = null;
+        try {
+          const stored = localStorage.getItem("aeromind-language");
+          if (supported.has(stored)) selected = stored;
+        } catch {}
+        if (!selected) {
+          const browserLanguages = [...(navigator.languages || []), navigator.language || ""];
+          selected = browserLanguages.map(value => value.toLowerCase().split("-")[0]).find(value => supported.has(value)) || "en";
+          try { localStorage.setItem("aeromind-language", selected); } catch {}
+        }
+        document.documentElement.lang = selected;
+        window.__AEROMIND_INITIAL_LANGUAGE__ = selected;
+      })();
+    </script>
+    <script src="/api/platform/config.js"></script>
+
+  </body>
+
+</html>

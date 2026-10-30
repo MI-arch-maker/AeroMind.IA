@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Code applicatif (backend + SITL + frontend compilé).
 COPY web ./web
 COPY sitl_modules ./sitl_modules
-COPY main.py README.md ./
+COPY main.py ./
 COPY .env.example ./.env.example
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
