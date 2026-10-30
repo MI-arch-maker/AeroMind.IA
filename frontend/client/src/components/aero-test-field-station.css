@@ -347,6 +347,18 @@
     linear-gradient(180deg, rgba(255, 255, 255, .03), transparent 30%);
 }
 
+/* ── Real 3D terrain canvas (React Three Fiber) ── */
+.afs-terrain-3d {
+  position: absolute; inset: 0; z-index: 0;
+  width: 100%; height: 100%; pointer-events: none;
+  background: var(--afs-env-bg-1, #1a2530);
+}
+.afs-terrain-3d canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
 /* env decorative svg layer (pointer-events disabled so clicks reach the field) */
 .afs-env-svg {
   position: absolute; inset: 0; z-index: 0;

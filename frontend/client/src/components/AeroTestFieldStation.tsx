@@ -3,6 +3,7 @@ import { Activity, Building2, CloudSnow, MapPin, Mountain, Pause, Play, Plus, Ro
 import type { ConceptConfig, MissionWaypoint, SimulationResult } from "../lib/aeroEngine";
 import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
 import { ParametricDronePreview } from "./ParametricDronePreview";
+import { PhotorealisticTerrain3D } from "./PhotorealisticTerrain3D";
 import { useLanguage } from "../contexts/LanguageContext";
 import "./aero-test-field-station.css";
 
@@ -638,7 +639,13 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
           </div>
           <div className={`afs-field afs-field--${environment} ${routeEditMode ? "is-editing" : ""}`} onClick={handleFieldClick} role="img" aria-label={t("Terrain d’essai extérieur avec trajectoire locale du drone sélectionné")}>
             <div className="afs-field-vignette" />
-            {activeEnv.decor}
+            {/* Real animated 3D terrain (React Three Fiber) — replaces static SVG scenes */}
+            <div className="afs-terrain-3d" aria-hidden="true">
+              <PhotorealisticTerrain3D
+                environment={environment}
+                dronePosition={position ? { x: position.x, y: position.y, z: position.altitudeM, yaw: position.yaw } : undefined}
+              />
+            </div>
             <TechnicalGrid lang={language} />
             <div className="afs-runway-marking" aria-hidden="true"><i /><b>{t("H-01")}</b></div>
             <svg className="afs-route-layer" viewBox="0 0 100 100" preserveAspectRatio="none" shapeRendering="geometricPrecision" aria-label={t("Itinéraire local dessiné sur le terrain")}>

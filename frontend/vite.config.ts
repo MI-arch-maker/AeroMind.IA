@@ -44,7 +44,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
-    sourcemap: 'hidden',  // P1-cleanup: emit hidden source maps for Sentry — not referenced in HTML.
+    sourcemap: false,  // disabled to reduce build memory pressure (re-enable for prod Sentry)
     chunkSizeWarningLimit: 1536,
     rollupOptions: {
       output: {

@@ -508,11 +508,22 @@ async def dev_login(request: Request):
     dev_user_id = primary['id']
     # Development login is a local convenience for the configured primary admin.
     token = _signed(_b64(f'{dev_user_id}|{dev_email}'.encode()))
+    # P-LOGOUT-3 fix: register the dev-login session in the server-side
+    # allowlist so revoke_primary_session() can actually invalidate it on
+    # logout (previously dev-login tokens were un-revocable).
+    try:
+        from .primary_session_store import register_primary_session
+        register_primary_session(token, dev_user_id, dev_email)
+    except Exception:  # noqa: BLE001 — best-effort, must not block dev-login
+        pass
     response = JSONResponse({
         'user': {'id': dev_user_id, 'email': dev_email, 'name': primary.get('name', 'Administrateur principal'), 'role': 'super_admin', 'level': 'L4', 'accountStatus': 'active'},
         'token': token,
     })
-    response.set_cookie('aeromind_session', token, httponly=True, samesite='lax', max_age=86400)
+    # P-LOGOUT-5 fix: reduce dev-login cookie lifetime from 24h to 8h to
+    # match OIDC/local-MFA sessions (28800s = 8h). This limits the window
+    # during which a stolen cookie can be replayed.
+    response.set_cookie('aeromind_session', token, httponly=True, samesite='lax', max_age=28800)
     return response
 
 

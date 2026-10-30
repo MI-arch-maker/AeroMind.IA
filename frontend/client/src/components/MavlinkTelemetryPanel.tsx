@@ -101,23 +101,12 @@ export function MavlinkTelemetryPanel({ mapCenter = { lat: 48.8566, lng: 2.3522 
       timer = window.setTimeout(() => void poll(), delay);
     };
 
-    // ── Bootstrap: dev-login + consent grant (best-effort, no error surface) ──
-    // In development, the backend exposes /api/auth/dev-login which establishes
-    // a primary-session cookie. The /api/telemetry/mavlink/status endpoint
-    // requires a LABBENCH step-up session; in dev the consent is auto-granted
-    // server-side on first poll, so we just need to ensure the session cookie
-    // is set. If dev-login is unavailable (production), the call returns 403
-    // and we silently fall back to the simulation — the operator never sees
-    // an error.
-    const ensureDevSession = async () => {
-      if (bootstrapRef.current.triedLogin) return;
-      bootstrapRef.current.triedLogin = true;
-      try {
-        await fetch("/api/auth/dev-login", { method: "POST", credentials: "include" });
-      } catch {
-        // Static preview / no backend — fall through silently.
-      }
-    };
+    // ── Bootstrap: consent grant (best-effort, no error surface) ──
+    // P-AUTOLOGIN fix: ensureDevSession() was removed — AeroMind must NOT
+    // auto-login without human intervention. The panel now relies on the
+    // existing session (if any). If unauthenticated, it falls back to the
+    // simulation path silently. The operator must explicitly log in via the
+    // Home page "Connexion" button (or OIDC) to see real MAVLink telemetry.
     const ensureConsent = async () => {
       if (bootstrapRef.current.triedConsent) return;
       bootstrapRef.current.triedConsent = true;
@@ -146,9 +135,8 @@ export function MavlinkTelemetryPanel({ mapCenter = { lat: 48.8566, lng: 2.3522 
     };
 
     const poll = async () => {
-      // First poll: try to establish a dev session + consent so the real
-      // MAVLink telemetry path is taken. Subsequent polls skip this.
-      await ensureDevSession();
+      // First poll: try to grant telemetry consent so the real MAVLink path
+      // is taken (only if a session already exists). Subsequent polls skip this.
       await ensureConsent();
       try {
         const response = await fetch("/api/telemetry/mavlink/status", { cache: "no-store", credentials: "include" });

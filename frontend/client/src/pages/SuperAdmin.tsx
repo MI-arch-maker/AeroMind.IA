@@ -287,6 +287,9 @@ export default function SuperAdmin() {
       clearSessionToken();
       setUser(null);
       await utils.reset();
+      // P-LOGOUT-2 fix: dispatch the auth-changed event so other mounted
+      // tabs/components (e.g. an open Home tab) refresh their session state.
+      window.dispatchEvent(new Event("aeromind-auth-changed"));
       toast.success(t("Session fermée"));
     } finally { setLogoutBusy(false); }
   };

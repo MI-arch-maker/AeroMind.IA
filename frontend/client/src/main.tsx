@@ -1,11 +1,10 @@
 import { trpc } from "@/lib/trpc";
-import { COOKIE_NAME, UNAUTHED_ERR_MSG } from '@shared/const';
+import { COOKIE_NAME } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpLink, TRPCClientError } from "@trpc/client";
+import { httpLink } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { startLogin } from "./const";
 import { installLocaleFetch } from "./i18n/requestLocale";
 import { bearerHeaders, consumeSessionTokenFromFragment } from "./lib/sessionToken";
 import "./index.css";
@@ -17,15 +16,17 @@ installLocaleFetch();
 
 const queryClient = new QueryClient();
 
-const redirectToLoginIfUnauthorized = (error: unknown) => {
-  if (!(error instanceof TRPCClientError)) return;
-  if (typeof window === "undefined") return;
-
-  const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
-  if (!isUnauthorized) return;
-
-  startLogin();
+// P-AUTOLOGIN fix: the previous listener auto-redirected to OIDC login
+// whenever a tRPC query/mutation returned the legacy 'Please login (10001)'
+// error message. This was a latent logout-bypass: after logout, any
+// subsequent tRPC call whose error payload matched would silently redirect
+// to Entra, "rejecting" the logout from the user's perspective. AeroMind
+// must NOT auto-login without human intervention — the operator must
+// explicitly click "Connexion" to (re)authenticate. The listener is now
+// disabled (kept as a no-op so the rest of the file's references stay valid).
+const redirectToLoginIfUnauthorized = (_error: unknown) => {
+  // Intentionally a no-op — see P-AUTOLOGIN fix above.
+  return;
 };
 
 queryClient.getQueryCache().subscribe(event => {

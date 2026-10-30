@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import "../components/sharedWorkspaceSync.css";
 import "../components/drone-catalog-premium.css";
 import "../components/external-drone-import.css";
 import type Hls from "hls.js";
 import {
-  AIChatBox,
   type Message as ChatMessage,
 } from "../components/AIChatBox";
+// Lazy-load AIChatBox to avoid bundling shiki (3.8MB) in the main chunk
+const AIChatBox = lazy(() => import("../components/AIChatBox").then(m => ({ default: m.AIChatBox })));
 import { trpc } from "../lib/trpc";
 import { bearerHeaders, clearSessionToken } from "../lib/sessionToken";
 import {
@@ -111,6 +113,8 @@ import {
 import { AeronauticalCenterView } from "../components/AeronauticalCenterView";
 import { WorkspaceWindow } from "../components/WorkspaceWindow";
 import { DesignStudioView } from "../components/DesignStudioView";
+import { ParametricDroneCenter } from "../components/ParametricDroneCenter";
+import { MissionPlannerView } from "../components/MissionPlannerView";
 import { DigitalTwinExplorer } from "../components/DigitalTwinExplorer";
 import { SatelliteNavigationView } from "../components/SatelliteNavigationView";
 import { LocalMfaLogin } from "../components/LocalMfaLogin";
@@ -200,6 +204,7 @@ import {
   Wind,
   Video,
   Wrench,
+  Map as MapIcon,
   Gauge,
   Lightbulb,
   LogIn,
@@ -282,6 +287,11 @@ function SessionControls() {
   const [devLoginAvailable, setDevLoginAvailable] = useState(false);
   const [devLoginBusy, setDevLoginBusy] = useState(false);
   const [loginMethod, setLoginMethod] = useState<"entra" | "mfa">("entra");
+  // P-LOGOUT-1 fix: access the React Query cache so logout can invalidate
+  // the trpc.auth.me query. Without this, the stale user record wins at
+  // line ~12511 (authenticatedUser = authQuery.data ?? sessionUser) and the
+  // session appears to "reject" the logout.
+  const queryClient = useQueryClient();
 
   const refresh = async () => {
     try {
@@ -306,9 +316,17 @@ function SessionControls() {
   const logout = async () => {
     setBusy(true);
     try {
-      await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include" });
+      await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
       clearSessionToken();
       setUser(null);
+      // P-LOGOUT-1 fix: invalidate the trpc.auth.me cache so the Home page's
+      // authenticatedUser (line ~12511) returns null instead of the stale
+      // user record. This was the root cause of the "rejection" — the cache
+      // held the old user and ?? fell through to it.
+      await queryClient.invalidateQueries({ queryKey: ["auth.me"] });
+      queryClient.setQueryData(["auth.me"], null);
+      // Also clear any other auth-derived queries so the UI fully resets.
+      await queryClient.invalidateQueries({ queryKey: ["superAdmin"] });
       window.dispatchEvent(new Event("aeromind-auth-changed"));
     } finally {
       setBusy(false);
@@ -325,9 +343,10 @@ function SessionControls() {
           <button type="button" role="tab" aria-selected={loginMethod === "mfa"} className={loginMethod === "mfa" ? "is-active" : ""} onClick={() => setLoginMethod("mfa")}><ShieldCheck size={13}/> Connexion MFA</button>
         </div>
         {loginMethod === "entra" ? <button className="primary-button session-button" onClick={login} type="button"><LogIn size={14} />Connexion sur Microsoft Entra</button> : <LocalMfaLogin onAuthenticated={() => { void refresh(); window.dispatchEvent(new Event("aeromind-auth-changed")); }} />}
-        {devLoginAvailable && loginMethod === "entra" && (
-          <button className="secondary-button session-button" onClick={async () => { setDevLoginBusy(true); await devLogin(); }} disabled={devLoginBusy} type="button"><LogIn size={14} /> {devLoginBusy ? "Connexion…" : "Connexion développement"}</button>
-        )}
+        {/* P-AUTOLOGIN fix: dev-login button removed from the Home cockpit.
+            The super-admin has a separate console at /super-admin with its
+            own authentication flow. AeroMind must NOT offer auto-login from
+            the operator cockpit. */}
       </div>
     );
   }
@@ -367,6 +386,7 @@ type ViewId =
   | "catalog"
   | "satellite-nav"
   | "simulation"
+  | "mission-planner"
   | "labbench"
   | "live"
   | "mission-center"
@@ -377,6 +397,7 @@ type ViewId =
   | "materials"
   | "aero-center"
   | "design-studio"
+  | "parametric-center"
 ;
 type ProjectState = {
   name: string;
@@ -506,6 +527,14 @@ const navItems: Array<{
     primary: true,
   },
   {
+    id: "parametric-center",
+    label: "Centre Paramétrique",
+    meta: "PAR",
+    icon: Wrench,
+    group: "CONCEVOIR",
+    primary: true,
+  },
+  {
     id: "catalog",
     label: "Bibliothèque de cellules",
     meta: String(droneCatalog.length).padStart(2, "0"),
@@ -534,6 +563,14 @@ const navItems: Array<{
     label: "Simulation & analyses",
     meta: "SIM-000",
     icon: Activity,
+    group: "SIMULER",
+    primary: true,
+  },
+  {
+    id: "mission-planner",
+    label: "Mission Planner",
+    meta: "MAP",
+    icon: MapIcon,
     group: "SIMULER",
     primary: true,
   },
@@ -7008,6 +7045,7 @@ function CopilotView({
                 : "Moteur local contrôlé"}
             </div>
           </div>
+          <Suspense fallback={<div className="copilot-loading">Chargement du copilote…</div>}>
           <AIChatBox
             messages={messages}
             onSendMessage={sendMessage}
@@ -7021,6 +7059,7 @@ function CopilotView({
               "Audite les hypothèses critiques avant la revue.",
             ]}
           />
+          </Suspense>
           <div className="copilot-action-rail">
             <span>ANALYSE RAPIDE</span>
             <button
@@ -14207,6 +14246,22 @@ export default function Home() {
                         }
                         onOpenLibrary={() => setActiveView("catalog")}
                         activeProfile={activeLibraryDesign}
+                      />
+                    )}
+                    {activeView === "parametric-center" && (
+                      <ParametricDroneCenter
+                        config={config}
+                        setConfig={setConfig}
+                        onCommit={() => {
+                          // Trigger simulation refresh when params are committed
+                          void runSimulationNow(config);
+                        }}
+                      />
+                    )}
+                    {activeView === "mission-planner" && (
+                      <MissionPlannerView
+                        config={config}
+                        setConfig={setConfig}
                       />
                     )}
                   </>
