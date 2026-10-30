@@ -27,9 +27,10 @@ RUN addgroup --system aeromind && adduser --system --ingroup aeromind aeromind
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Code applicatif (backend + SITL + frontend compilé).
+# Code applicatif (backend + SITL emitter + frontend compilé).
 COPY web ./web
 COPY sitl_modules ./sitl_modules
+COPY scripts ./scripts
 COPY main.py ./
 COPY .env.example ./.env.example
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
