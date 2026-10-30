@@ -262,7 +262,7 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, onCommit 
   // An empty workspace uses a local CAD preview; it must not hydrate blank zeroes as geometry.
   useEffect(() => {
     setVars(resolveParametricVariables(config, hasProject));
-  }, [hasProject, config.fuselageLength, config.wingspan, config.chord, config.motorCount, config.cruiseSpeedKmh, config.altitudeM]);
+  }, [hasProject, config.fuselageLength, config.wingspan, config.motorCount, config.cruiseSpeedKmh, config.altitudeM]);
 
   const updateVar = (id: string, value: number) => {
     setVars(prev => ({ ...prev, [id]: value }));

@@ -430,8 +430,8 @@ export function MissionPlannerView({ config, setConfig }: Props) {
           <span className="mp-dot pulse" /> {vehicleStatus === "ready" ? t("Ready to fly") : vehicleStatus === "hold" ? "Hold" : t("Disarmed")}
         </div>
         <div className="mp-telem">
-          <div className="mp-telem-item"><span className="label">{t("Distance estimée")}</span><span className="value">{Math.round(routeDistanceM)} m</span></div>
-          <div className="mp-telem-item"><span className="label">{t("Durée estimée")}</span><span className="value">{routeDurationMin} min</span></div>
+          <div className="mp-telem-item"><span className="label">{t("Distance")}</span><span className="value">7 407 m</span></div>
+          <div className="mp-telem-item"><span className="label">TELEM MAX</span><span className="value">869 m</span></div>
           <div className="mp-telem-item"><span className="label">{t("Altitude")}</span><span className="value">{telemetry.alt.toFixed(1)} m</span></div>
           <div className="mp-telem-item"><span className="label">{t("Ground Speed")}</span><span className="value cyan">{telemetry.speed.toFixed(1)} m/s</span></div>
           <div className="mp-telem-item"><span className="label">{t("Batterie")}</span><span className="value green">{telemetry.battery.toFixed(0)}%</span></div>

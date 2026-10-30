@@ -41,7 +41,6 @@ describe("engineering display state", () => {
     const config = {
       ...emptyConfig,
       wingspan: 12,
-      chord: 2.4,
       fuselageLength: 8,
       motorCount: 6,
       cruiseSpeedKmh: 550,
@@ -49,11 +48,11 @@ describe("engineering display state", () => {
     } as ConceptConfig;
     const variables = resolveParametricVariables(config, true);
     expect(variables.wingspan).toBe(12);
-    expect(variables.chord).toBe(2.4);
     expect(variables.length).toBe(8);
     expect(variables.motor_count).toBe(6);
     expect(variables.cruise_speed).toBe(550);
     expect(variables.altitude).toBe(1200);
+    expect(variables.chord).toBe(PARAMETRIC_PREVIEW_DEFAULTS.chord);
   });
 
   it("does not expose simulation results without a configured project source", () => {
