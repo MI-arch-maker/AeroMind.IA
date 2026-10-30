@@ -13,7 +13,6 @@ add waypoints, reorder, then upload to a drone.
 from __future__ import annotations
 
 import json
-import math
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -29,7 +28,6 @@ ALLOWED_WAYPOINT_COMMANDS = frozenset({
     "NAV_LOITER_TO_ALT", "NAV_SPLINE_WAYPOINT", "NAV_SPLINE_ROI",
     "DO_CHANGE_SPEED", "DO_SET_HOME", "DO_JUMP",
 })
-SUPPORTED_MISSION_UPLOAD_COMMANDS = frozenset({"NAV_WAYPOINT"})
 
 
 def _validate_waypoint_command(cmd: str) -> str:
@@ -40,35 +38,6 @@ def _validate_waypoint_command(cmd: str) -> str:
             f"Commande waypoint {cmd!r} non autorisée. Allowlist navigation uniquement (P1-17).",
         )
     return cmd
-
-
-def _validate_waypoint_coordinates(latitude: Any, longitude: Any, index: int) -> tuple[float | None, float | None]:
-    """Validate an optional WGS84 pair; drafts may omit both, never only one."""
-    if latitude is None and longitude is None:
-        return None, None
-    if latitude is None or longitude is None or isinstance(latitude, bool) or isinstance(longitude, bool):
-        raise HTTPException(400, f"Waypoint #{index}: latitude et longitude doivent être fournies ensemble en degrés décimaux WGS84.")
-    try:
-        lat, lon = float(latitude), float(longitude)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise HTTPException(400, f"Waypoint #{index}: coordonnées WGS84 invalides.") from exc
-    if not math.isfinite(lat) or not math.isfinite(lon) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
-        raise HTTPException(400, f"Waypoint #{index}: latitude doit être dans [-90, 90] et longitude dans [-180, 180].")
-    return lat, lon
-
-
-def _validate_upload_waypoint_commands(waypoints: list[Any]) -> None:
-    """Fail closed until non-waypoint MAVLink command/parameter mapping is implemented."""
-    unsupported = sorted({
-        str(getattr(waypoint, "command", "NAV_WAYPOINT"))
-        for waypoint in waypoints
-        if str(getattr(waypoint, "command", "NAV_WAYPOINT")) not in SUPPORTED_MISSION_UPLOAD_COMMANDS
-    })
-    if unsupported:
-        raise HTTPException(
-            409,
-            "Upload bloqué : mapping MAVLink non implémenté pour " + ", ".join(unsupported),
-        )
 from fastapi.responses import JSONResponse
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -167,16 +136,13 @@ async def create_mission(
         for i, wp in enumerate(waypoints_in):
             if not isinstance(wp, dict):
                 continue
-            latitude, longitude = _validate_waypoint_coordinates(
-                wp.get("latitude"), wp.get("longitude"), i + 1
-            )
             w = Waypoint(
                 id=str(uuid4()),
                 mission_id=mission_id,
                 sequence=int(wp.get("sequence", i + 1)),
                 command=_validate_waypoint_command(str(wp.get("command") or "NAV_WAYPOINT")),
-                latitude=latitude,
-                longitude=longitude,
+                latitude=float(wp["latitude"]) if wp.get("latitude") is not None else None,
+                longitude=float(wp["longitude"]) if wp.get("longitude") is not None else None,
                 altitude_m=float(wp.get("altitude_m")) if wp.get("altitude_m") is not None else None,
                 param1=float(wp.get("param1")) if wp.get("param1") is not None else None,
                 param2=float(wp.get("param2")) if wp.get("param2") is not None else None,
@@ -224,16 +190,13 @@ async def update_mission(
             for i, wp in enumerate(body["waypoints"]):
                 if not isinstance(wp, dict):
                     continue
-                latitude, longitude = _validate_waypoint_coordinates(
-                    wp.get("latitude"), wp.get("longitude"), i + 1
-                )
                 db.add(Waypoint(
                     id=str(uuid4()),
                     mission_id=mission_id,
                     sequence=int(wp.get("sequence", i + 1)),
                     command=_validate_waypoint_command(str(wp.get("command") or "NAV_WAYPOINT")),
-                    latitude=latitude,
-                    longitude=longitude,
+                    latitude=float(wp["latitude"]) if wp.get("latitude") is not None else None,
+                    longitude=float(wp["longitude"]) if wp.get("longitude") is not None else None,
                     altitude_m=float(wp.get("altitude_m")) if wp.get("altitude_m") is not None else None,
                     param1=float(wp.get("param1")) if wp.get("param1") is not None else None,
                     param2=float(wp.get("param2")) if wp.get("param2") is not None else None,
@@ -318,8 +281,6 @@ async def upload_mission_to_drone(
         if not waypoints:
             return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "Mission has no waypoints"}})
 
-        _validate_upload_waypoint_commands(waypoints)
-
         # Geofence check on each waypoint that has lat/lon
         geofence = geo.get_geofence(project_id) if project_id else None
 
@@ -330,10 +291,6 @@ async def upload_mission_to_drone(
         for i, w in enumerate(waypoints):
             if w.latitude is None or w.longitude is None:
                 return JSONResponse(status_code=400, content={"error": {"code": "WAYPOINT_MISSING_COORDINATES", "message": f"Waypoint #{i + 1} has null latitude/longitude — cannot upload a mission with missing coordinates (CAHIER DES CHARGES: pas de fausses écritures)"}})
-            try:
-                _validate_waypoint_coordinates(w.latitude, w.longitude, i + 1)
-            except HTTPException as exc:
-                return JSONResponse(status_code=400, content={"error": {"code": "WAYPOINT_INVALID_COORDINATES", "message": str(exc.detail)}})
 
         if geofence and geofence.polygon:
             for i, w in enumerate(waypoints):

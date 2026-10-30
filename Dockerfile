@@ -14,10 +14,14 @@ COPY scripts ../scripts
 RUN pnpm run check && pnpm run build
 
 FROM python:3.12-slim AS runtime
+# CAHIER DES CHARGES 2026-10-30 — Anomalie 4 :
+# PORT par défaut = 10000 (standard Render). Render injecte PORT=10000 au
+# runtime via render.yaml. Pour le preview Z.ai (Caddy → port 3000), le
+# .env ou l'env extérieure set PORT=3000. Le CMD ci-dessous utilise $PORT.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     AEROMIND_ENV=production \
-    PORT=3000 \
+    PORT=10000 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
@@ -43,10 +47,16 @@ EXPOSE 10000
 # Render utilise /api/ready comme health check ; le port est défini par PORT.
 # HEALTHCHECK explicite pour les déploiements hors-Render (docker-compose, k8s,
 # etc.) ; Render s'appuie sur healthCheckPath dans render.yaml.
+# CAHIER DES CHARGES 2026-10-30 — Anomalie 4 : healthcheck aligné sur $PORT.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:${PORT:-3000}/api/ready', timeout=3).status==200 else 1)"
+  CMD python -c "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','10000')+'/api/ready', timeout=3).status==200 else 1)"
 
-# CMD en forme exec (pas shell form) : permet à uvicorn de recevoir SIGTERM
-# directement pour un graceful shutdown. Workers/timings alignés avec les
-# recommandations Render starter (2 vCPU).
-CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "10000", "--workers", "2", "--limit-concurrency", "100", "--timeout-keep-alive", "30", "--timeout-graceful-shutdown", "5"]
+# CAHIER DES CHARGES 2026-10-30 — Anomalies 1+2+4 :
+#   - --workers 1 (au lieu de 2) : élimine la race condition qui tuait le
+#     child process [25] et faisait hang le process [26]. Avec 2 workers,
+#     les deux tentent Base.metadata.create_all() + SITL emitter + MAVLink
+#     pool simultanément → deadlock et crash du premier worker.
+#   - Shell form (sh -c) pour permettre l'expansion de $PORT au runtime.
+#     Render set PORT=10000 ; le preview Z.ai set PORT=3000.
+#   - exec pour que uvicorn reçoive SIGTERM directement (graceful shutdown).
+CMD ["sh", "-c", "exec uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --limit-concurrency 100 --timeout-keep-alive 30 --timeout-graceful-shutdown 5"]

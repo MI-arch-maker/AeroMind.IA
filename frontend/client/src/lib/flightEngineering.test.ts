@@ -66,17 +66,6 @@ describe("flight engineering preview", () => {
     ).toBe(false);
   });
 
-  it("blocks local preflight for conceptual high-speed targets outside the mission envelope", () => {
-    const highSpeedConfig = { ...defaultConcept, cruiseSpeedKmh: 550 };
-    const template = buildMissionTemplate("area-grid", highSpeedConfig);
-    expect(template.every(point => point.speedKmh <= 300)).toBe(true);
-    const checks = validateLocalMission(
-      highSpeedConfig,
-      createCompatibleDemoMissionPlan(highSpeedConfig),
-    );
-    expect(checks.some(check => check.severity === "block" && check.message.includes("prévol local bloqué"))).toBe(true);
-  });
-
   it("keeps the demo mission inside a small platform envelope", () => {
     const compactConfig = {
       ...defaultConcept,

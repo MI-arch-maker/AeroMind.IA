@@ -39,7 +39,7 @@ class CanonicalConfig(BaseModel):
     propeller_diameter_m: float = Field(gt=0, le=20)
     battery_wh: float = Field(ge=0, le=10_000_000)
     payload_kg: float = Field(ge=0, le=10_000)
-    cruise_speed_mps: float = Field(gt=0, le=200)
+    cruise_speed_mps: float = Field(gt=0, le=500)
     wind_speed_mps: float = Field(ge=0, le=200)
     altitude_m: float = Field(ge=0, le=100_000)
     max_takeoff_mass_kg: float = Field(gt=0, le=100_000)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { AlertTriangle, Box, CheckCircle2, ClipboardCheck, GitCompareArrows, Move3d, PackagePlus, Ruler, ShieldCheck, Trash2, Wrench } from "lucide-react";
 import type { ConceptConfig, InstalledMaterial } from "../lib/aeroEngine";
 import type { DroneCatalogDesign } from "../lib/droneCatalog";
@@ -29,53 +29,11 @@ const checklistLabels = [
 ];
 
 const physicalParts = (config: ConceptConfig) => (config.installedMaterials ?? []).filter(item => Boolean(item.physicalId));
-export const CHECKLIST_STORAGE_VERSION = 1;
-export const checklistStorageKey = (config: ConceptConfig, profile?: DroneCatalogDesign) => {
-  // Catalogue identity is stable across edits; ad-hoc configs use an unambiguous
-  // baseline fingerprint because ConceptConfig has no project/design ID.
-  const identity = profile?.id
-    ? `profile:${profile.id}`
-    : `config:${JSON.stringify([config.designName ?? null, config.modelType ?? null, config.airframe ?? null, config.wingspan, config.chord, config.fuselageLength, config.propDiameter, config.motorCount ?? null])}`;
-  return `aeromind:physical-checklist:v${CHECKLIST_STORAGE_VERSION}:${encodeURIComponent(identity)}`;
-};
-export const readChecklist = (storage: Pick<Storage, "getItem">, key: string): Record<string, boolean> => {
-  const raw = storage.getItem(key);
-  if (!raw) return {};
-  let parsed: unknown;
-  try { parsed = JSON.parse(raw); } catch { return {}; }
-  if (!parsed || typeof parsed !== "object") return {};
-  const record = parsed as { version?: unknown; checks?: unknown };
-  if (record.version !== CHECKLIST_STORAGE_VERSION || !record.checks || typeof record.checks !== "object" || Array.isArray(record.checks)) return {};
-  return Object.fromEntries(Object.entries(record.checks).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean"));
-};
-export const writeChecklist = (storage: Pick<Storage, "setItem">, key: string, checks: Record<string, boolean>) =>
-  storage.setItem(key, JSON.stringify({ version: CHECKLIST_STORAGE_VERSION, checks }));
-export const persistLoadedChecklist = (storage: Pick<Storage, "setItem">, key: string, loadedKey: string, checks: Record<string, boolean>): boolean => {
-  if (key !== loadedKey) return false;
-  try { writeChecklist(storage, key, checks); return true; } catch { return false; }
-};
 
 export function PhysicalDesignWorkbench({ config, setConfig, activeProfile }: Props) {
   const [tab, setTab] = useState<PhysicalTab>("model");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const storageKey = checklistStorageKey(config, activeProfile);
-  const [checks, setChecks] = useState<Record<string, boolean>>(() => {
-    try { return typeof window === "undefined" ? {} : readChecklist(window.localStorage, storageKey); } catch { return {}; }
-  });
-  const [checklistSaved, setChecklistSaved] = useState(true);
-  const [loadedChecklistKey, setLoadedChecklistKey] = useState(storageKey);
-  useEffect(() => {
-    try {
-      const restored = readChecklist(window.localStorage, storageKey);
-      setChecks(restored);
-      setLoadedChecklistKey(storageKey);
-      setChecklistSaved(true);
-    } catch { setLoadedChecklistKey(storageKey); setChecklistSaved(false); }
-  }, [storageKey]);
-  useEffect(() => {
-    if (loadedChecklistKey !== storageKey) return;
-    setChecklistSaved(persistLoadedChecklist(window.localStorage, storageKey, loadedChecklistKey, checks));
-  }, [checks, storageKey, loadedChecklistKey]);
+  const [checks, setChecks] = useState<Record<string, boolean>>({});
   const selected = (config.installedMaterials ?? []).find(item => item.id === selectedId);
   const modifications = useMemo(() => physicalParts(config), [config]);
   const deltaMass = useMemo(() => modifications.reduce((sum, item) => sum + item.massKg * (item.quantity ?? 1), 0), [modifications]);
@@ -159,7 +117,7 @@ export function PhysicalDesignWorkbench({ config, setConfig, activeProfile }: Pr
 
       {tab === "compare" && <div className="physical-design-compare-grid"><section className="physical-design-panel"><div className="physical-design-panel-heading"><div><span>BASELINE / CONFIGURATION D’ORIGINE</span><h3>Référence de départ</h3></div><ShieldCheck size={16} /></div><div className="physical-design-compare-card"><strong>{activeProfile?.label ?? config.designName ?? "Cellule active"}</strong><span>{config.motorCount ?? 0} moteurs · {baselineMass.toFixed(2)} kg de base</span><small>Snapshot de référence conservé localement avant modification.</small></div></section><section className="physical-design-panel"><div className="physical-design-panel-heading"><div><span>PROPOSITION / RÉVISION {modifications.length ? "01" : "—"}</span><h3>Éléments ajoutés ou déplacés</h3></div><GitCompareArrows size={16} /></div>{modifications.length ? <div className="physical-design-diff-list">{modifications.map(item => <div key={item.id}><span className="physical-design-diff-add">AJOUT</span><strong>{item.label}</strong><small>+{item.massKg.toFixed(2)} kg · {item.dimensions ?? "dimensions à confirmer"}</small></div>)}</div> : <div className="physical-design-empty"><GitCompareArrows size={18} /><span>Aucune modification documentée.</span></div>}<div className="physical-design-warning"><AlertTriangle size={15} /><span>Les interférences et le centre de gravité restent à vérifier mécaniquement.</span></div></section></div>}
 
-      {tab === "validate" && <div className="physical-design-validation-grid"><section className="physical-design-panel"><div className="physical-design-panel-heading"><div><span>CONTRÔLES PRÉALABLES</span><h3>Checklist avant réalisation</h3></div><ClipboardCheck size={16} /></div><div className="physical-design-progress"><span><strong>{completedChecks}/{checklistLabels.length}</strong> contrôles documentés</span><div><i style={{ width: `${(completedChecks / checklistLabels.length) * 100}%` }} /></div></div><div className="physical-design-checklist">{checklistLabels.map(label => <label key={label} className={checks[label] ? "is-done" : ""}><input type="checkbox" checked={Boolean(checks[label])} onChange={() => setChecks(current => ({ ...current, [label]: !current[label] }))} /><span>{label}</span>{checks[label] ? <CheckCircle2 size={15} /> : <Ruler size={15} />}</label>)}<p role="status" aria-live="polite">{checklistSaved ? "Checklist enregistrée localement." : "Checklist non enregistrée localement — stockage indisponible."}</p></div></section><aside className="physical-design-panel physical-design-safety"><AlertTriangle size={22} /><h3>Validation humaine obligatoire</h3><p>Cette interface prépare une modification physique et sa documentation. Elle ne constitue ni une analyse FEA/CFD, ni une certification, ni une autorisation de vol ou de mise en service.</p><strong>Avant toute réalisation : revue mécanique, électrique et réglementaire indépendante.</strong></aside></div>}
+      {tab === "validate" && <div className="physical-design-validation-grid"><section className="physical-design-panel"><div className="physical-design-panel-heading"><div><span>CONTRÔLES PRÉALABLES</span><h3>Checklist avant réalisation</h3></div><ClipboardCheck size={16} /></div><div className="physical-design-progress"><span><strong>{completedChecks}/{checklistLabels.length}</strong> contrôles documentés</span><div><i style={{ width: `${(completedChecks / checklistLabels.length) * 100}%` }} /></div></div><div className="physical-design-checklist">{checklistLabels.map(label => <label key={label} className={checks[label] ? "is-done" : ""}><input type="checkbox" checked={Boolean(checks[label])} onChange={() => setChecks(current => ({ ...current, [label]: !current[label] }))} /><span>{label}</span>{checks[label] ? <CheckCircle2 size={15} /> : <Ruler size={15} />}</label>)}</div></section><aside className="physical-design-panel physical-design-safety"><AlertTriangle size={22} /><h3>Validation humaine obligatoire</h3><p>Cette interface prépare une modification physique et sa documentation. Elle ne constitue ni une analyse FEA/CFD, ni une certification, ni une autorisation de vol ou de mise en service.</p><strong>Avant toute réalisation : revue mécanique, électrique et réglementaire indépendante.</strong></aside></div>}
     </section>
   );
 }

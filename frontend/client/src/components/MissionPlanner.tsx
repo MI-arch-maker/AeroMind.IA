@@ -51,41 +51,25 @@ type Props = {
 const W = 640;
 const H = 480;
 
-export function missionHttpError(status: number, body: unknown): string {
-  if (body && typeof body === "object") {
-    const record = body as { detail?: unknown; message?: unknown; error?: unknown };
-    const nested = record.error && typeof record.error === "object" ? (record.error as { message?: unknown }).message : undefined;
-    for (const candidate of [record.detail, nested, record.message]) {
-      if (typeof candidate === "string" && candidate.trim()) return candidate;
-    }
-  }
-  return `HTTP ${status}`;
-}
-
 export function MissionPlanner({ projectId, geofence }: Props) {
   const [missions, setMissions] = useState<any[]>([]);
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-
-  const responseError = async (r: Response) => {
-    try { return missionHttpError(r.status, await r.json()); }
-    catch { return `HTTP ${r.status}`; }
-  };
 
   const refreshMissions = async () => {
     const url = new URL("/api/missions", window.location.origin);
     if (projectId) url.searchParams.set("projectId", projectId);
     const r = await fetch(url.toString(), { credentials: "include" });
-    if (!r.ok) throw new Error(await responseError(r));
-    const body = await r.json() as { missions?: Mission[] };
-    const list: Mission[] = Array.isArray(body?.missions) ? body.missions : [];
-    setMissions(list);
+    if (r.ok) {
+      const body = await r.json() as { missions?: Mission[] };
+      const list: Mission[] = Array.isArray(body?.missions) ? body.missions : [];
+      setMissions(list);
+    }
   };
 
-  useEffect(() => { void refreshMissions().catch((error) => setActionMessage(`Échec du rafraîchissement des missions: ${error instanceof Error ? error.message : "erreur réseau"}`)); }, [projectId]);
+  useEffect(() => { void refreshMissions(); }, [projectId]);
 
   const homeLat = geofence?.homeLat ?? 38.0;
   const homeLon = geofence?.homeLon ?? -122.0;
@@ -131,7 +115,6 @@ export function MissionPlanner({ projectId, geofence }: Props) {
   const createMission = async () => {
     if (!newName.trim()) return;
     setLoading(true);
-    setActionMessage(null);
     try {
       const r = await fetch("/api/missions", {
         method: "POST",
@@ -139,36 +122,30 @@ export function MissionPlanner({ projectId, geofence }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName.trim(), projectId, waypoints: [] }),
       });
-      if (!r.ok) throw new Error(await responseError(r));
-      const created = await r.json();
-      setNewName("");
-      // Select the new mission
-      const newM: Mission = {
-        id: created.id,
-        projectId,
-        name: newName.trim() || created.name,
-        description: "",
-        waypointsCount: 0,
-        waypoints: [],
-        createdAt: new Date().toISOString(),
-        uploadedAt: null,
-        uploadedToDroneId: null,
-      };
-      setActiveMission(newM);
-      try {
-        await refreshMissions();
-      } catch (error) {
-        setActionMessage(`Mission créée, mais la liste n’a pas pu être actualisée: ${error instanceof Error ? error.message : "erreur réseau"}`);
+      if (r.ok) {
+        const created = await r.json();
+        setNewName("");
+        void refreshMissions();
+        // Select the new mission
+        const newM: Mission = {
+          id: created.id,
+          projectId,
+          name: newName.trim() || created.name,
+          description: "",
+          waypointsCount: 0,
+          waypoints: [],
+          createdAt: new Date().toISOString(),
+          uploadedAt: null,
+          uploadedToDroneId: null,
+        };
+        setActiveMission(newM);
       }
-    } catch (error) {
-      setActionMessage(`Échec de création: ${error instanceof Error ? error.message : "erreur réseau"}`);
     } finally { setLoading(false); }
   };
 
   const saveMission = async () => {
     if (!activeMission) return;
     setLoading(true);
-    setActionMessage(null);
     try {
       const r = await fetch(`/api/missions/${activeMission.id}`, {
         method: "PUT",
@@ -176,15 +153,10 @@ export function MissionPlanner({ projectId, geofence }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ waypoints: activeMission.waypoints }),
       });
-      if (!r.ok) throw new Error(await responseError(r));
-      setActionMessage("Mission sauvegardée.");
-      try {
+      if (r.ok) {
         await refreshMissions();
-      } catch (error) {
-        setActionMessage(`Mission sauvegardée, mais la liste n’a pas pu être actualisée: ${error instanceof Error ? error.message : "erreur réseau"}`);
+        alert("Mission sauvegardée");
       }
-    } catch (error) {
-      setActionMessage(`Échec de sauvegarde; le plan local est conservé: ${error instanceof Error ? error.message : "erreur réseau"}`);
     } finally { setLoading(false); }
   };
 
@@ -198,7 +170,6 @@ export function MissionPlanner({ projectId, geofence }: Props) {
       return;
     }
     setLoading(true);
-    setActionMessage(null);
     try {
       const r = await fetch(`/api/missions/${activeMission.id}/upload`, {
         method: "POST",
@@ -206,44 +177,25 @@ export function MissionPlanner({ projectId, geofence }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ droneId, confirmationToken: token, projectId }),
       });
-      if (!r.ok) throw new Error(await responseError(r));
-      const body = await r.json().catch(() => null) as { waypointsSent?: unknown; totalWaypoints?: unknown } | null;
-      if (typeof body?.waypointsSent === "number" && typeof body.totalWaypoints === "number") {
+      const body = await r.json();
+      if (r.ok) {
         setUploadResult(`Mission uploadée: ${body.waypointsSent}/${body.totalWaypoints} waypoints envoyés`);
-      } else {
-        setUploadResult("Réponse HTTP réussie; le bilan d’envoi n’a pas été fourni et reste à confirmer.");
-      }
-      try {
         await refreshMissions();
-      } catch (error) {
-        setActionMessage(`Upload terminé, mais la liste n’a pas pu être actualisée: ${error instanceof Error ? error.message : "erreur réseau"}`);
+      } else {
+        setUploadResult(`Échec upload: ${body?.error?.message ?? `HTTP ${r.status}`}`);
       }
-    } catch (error) {
-      setUploadResult(`Échec upload: ${error instanceof Error ? error.message : "erreur réseau"}`);
     } finally { setLoading(false); }
   };
 
   const deleteMission = async (id: string) => {
     if (!confirm("Supprimer cette mission ?")) return;
-    setLoading(true);
-    setActionMessage(null);
-    try {
-      const r = await fetch(`/api/missions/${id}`, { method: "DELETE", credentials: "include" });
-      if (!r.ok) throw new Error(await responseError(r));
-      // Avoid TypeScript type narrowing on activeMission?.id
-      const am = activeMission as Mission | null;
-      if (am != null && am.id === id) setActiveMission(null);
-      setActionMessage("Mission supprimée.");
-      try {
-        await refreshMissions();
-      } catch (error) {
-        setActionMessage(`Mission supprimée, mais la liste n’a pas pu être actualisée: ${error instanceof Error ? error.message : "erreur réseau"}`);
-      }
-    } catch (error) {
-      setActionMessage(`Échec de suppression: ${error instanceof Error ? error.message : "erreur réseau"}`);
-    } finally {
-      setLoading(false);
+    await fetch(`/api/missions/${id}`, { method: "DELETE", credentials: "include" });
+    // Avoid TypeScript type narrowing on activeMission?.id
+    const am = activeMission as Mission | null;
+    if (am != null && am.id === id) {
+      setActiveMission(null);
     }
+    void refreshMissions();
   };
 
   const removeWaypoint = (seq: number) => {
@@ -256,7 +208,6 @@ export function MissionPlanner({ projectId, geofence }: Props) {
 
   return (
     <div className="lb-mission">
-      {actionMessage && <div role="status" aria-live="polite">{actionMessage}</div>}
       <div className="lb-mission-toolbar">
         <span className="lb-radar-title">
           <Plane size={14} /> Mission planner · {missions.length} mission(s)

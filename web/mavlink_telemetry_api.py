@@ -216,10 +216,10 @@ def _classify_state(observer: MavlinkObserver) -> str:
             last_hb_dt = last_hb
         age = datetime.now(UTC) - last_hb_dt
         timeout_s = float(os.getenv("AEROMIND_MAVLINK_HEARTBEAT_TIMEOUT_S", "5"))
-        if age > timedelta(seconds=timeout_s * 24):  # 24× timeout = offline
-            return "offline"
         if age > timedelta(seconds=timeout_s * 6):  # 6× timeout = stale
             return "stale"
+        if age > timedelta(seconds=timeout_s * 24):  # 24× timeout = offline
+            return "offline"
         return "fresh"
     except Exception:
         return "error"

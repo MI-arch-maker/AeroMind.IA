@@ -5,6 +5,7 @@ import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
 import { ParametricDronePreview } from "./ParametricDronePreview";
 import { PhotorealisticTerrain3D } from "./PhotorealisticTerrain3D";
 import { useLanguage } from "../contexts/LanguageContext";
+import { analyzeAerodynamics } from "../lib/aerodynamics";
 import "./aero-test-field-station.css";
 
 type Environment = "forest" | "urban" | "flatland" | "mountain" | "scrubland" | "snow" | "hot" | "sea";
@@ -499,6 +500,21 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
   const altitudeLimit = Math.max(1, config.altitudeM || 100, ...route.map((point) => point.altitudeM));
   const screenRoute = route.map((point) => fieldScreenPoint(point, altitudeLimit));
   const routePath = screenRoute.map((point) => `${point.x},${point.y}`).join(" ");
+
+  // CAHIER DES CHARGES 2026-10-30 — Analyse aérodynamique avancée
+  const aeroAnalysis = useMemo(() => {
+    const wingArea = (config.wingspan || 0) * (config.chord || 0);
+    if (!wingArea || !config.cruiseSpeedKmh) return null;
+    return analyzeAerodynamics({
+      massKg: simulation.totalMassKg,
+      wingAreaM2: wingArea,
+      wingspanM: config.wingspan,
+      chordM: config.chord || 0.3,
+      cruiseSpeedKmh: config.cruiseSpeedKmh,
+      altitudeM: config.altitudeM || 100,
+      airfoilProfile: "NACA-2412",
+    });
+  }, [config.wingspan, config.chord, config.cruiseSpeedKmh, config.altitudeM, simulation.totalMassKg]);
   const position = useMemo(() => {
     if (!route.length) return null;
     if (route.length === 1) return { ...fieldScreenPoint(route[0], altitudeLimit), yaw: 0, altitudeM: route[0].altitudeM };
@@ -629,6 +645,32 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
               <li><span>{t("Moteurs")}</span><b>{Math.max(1, Math.round(config.motorCount ?? 1))}</b></li>
             </ul>
           </div>
+          {aeroAnalysis && (
+            <div className="afs-panel-block afs-aero-panel">
+              <span className="afs-panel-label">{t("ANALYSE AÉRODYNAMIQUE")}</span>
+              <ul className="afs-telemetry afs-aero-data">
+                <li><span>CL</span><b>{aeroAnalysis.liftCoefficient.toFixed(3)}</b></li>
+                <li><span>CD</span><b>{aeroAnalysis.dragCoefficient.toFixed(4)}</b></li>
+                <li><span>L/D</span><b>{aeroAnalysis.liftToDragRatio.toFixed(1)}</b></li>
+                <li><span>L/D max</span><b>{aeroAnalysis.maxGlideRatio.toFixed(1)}</b></li>
+                <li><span>Re</span><b>{(aeroAnalysis.reynoldsNumber / 1e6).toFixed(2)}M</b></li>
+                <li><span>Mach</span><b>{aeroAnalysis.machNumber.toFixed(3)}</b></li>
+                <li><span>q [Pa]</span><b>{Math.round(aeroAnalysis.dynamicPressurePa)}</b></li>
+                <li><span>α opt</span><b>{aeroAnalysis.optimalAlphaDeg.toFixed(1)}°</b></li>
+                <li><span>Portance</span><b>{Math.round(aeroAnalysis.liftN)} N</b></li>
+                <li><span>Traînée</span><b>{Math.round(aeroAnalysis.dragN)} N</b></li>
+                <li><span>Poussée req.</span><b>{Math.round(aeroAnalysis.thrustRequiredN)} N</b></li>
+                <li><span>W/S</span><b>{Math.round(aeroAnalysis.wingLoadingNm2)} N/m²</b></li>
+                <li><span>Vs</span><b>{aeroAnalysis.stallSpeedKmh.toFixed(0)} km/h</b></li>
+                <li><span>AR</span><b>{aeroAnalysis.aspectRatio.toFixed(2)}</b></li>
+              </ul>
+              <div className={`afs-aero-status ${aeroAnalysis.aboveStall ? "ok" : "warn"}`}>
+                {aeroAnalysis.aboveStall
+                  ? `${t("Au-dessus de Vs")} (×${(aeroAnalysis.speedMs / Math.max(aeroAnalysis.stallSpeedMs, 0.1)).toFixed(1)})`
+                  : t("ATTENTION : sous la vitesse de décrochage")}
+              </div>
+            </div>
+          )}
           {playing && <div className="afs-live-indicator" role="status" aria-live="polite"><i /><span>{t("INDICATEUR TEMPS RÉEL · VOL EN COURS")}</span></div>}
         </aside>
 
@@ -748,7 +790,7 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
               </div>
               <div>
                 <label>{t("Altitude")} · m<input type="number" min="0" max="6000" step="5" value={selectedWaypoint.altitudeM} onChange={(event) => updateWaypoint({ altitudeM: clamp(Number(event.target.value), 0, 6000) })} /></label>
-                <label>{t("Vitesse")} · km/h<input type="number" min="0" max="300" value={selectedWaypoint.speedKmh} onChange={(event) => updateWaypoint({ speedKmh: clamp(Number(event.target.value), 0, 300) })} /></label>
+                <label>{t("Vitesse")} · km/h<input type="number" min="0" max="800" value={selectedWaypoint.speedKmh} onChange={(event) => updateWaypoint({ speedKmh: clamp(Number(event.target.value), 0, 800) })} /></label>
               </div>
             </div>
           )}

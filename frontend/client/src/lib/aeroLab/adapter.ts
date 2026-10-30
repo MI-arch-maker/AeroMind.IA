@@ -98,7 +98,7 @@ export function adaptProjectToLab(
       emptyMassKg,
       payloadLimitKg,
       batteryWh: clamp(project.batteryWh, 50, 50000),
-      cruiseSpeedMps: clamp(project.cruiseSpeedKmh / 3.6, 2, 200),
+      cruiseSpeedMps: clamp(project.cruiseSpeedKmh / 3.6, 2, 60),
       nominalPowerW: referencePowerW,
       // Valeur de départ hypothétique; l’utilisateur peut la modifier pour son scénario.
       stabilityRating: 90,

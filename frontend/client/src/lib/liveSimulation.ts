@@ -85,7 +85,7 @@ export function normalizeLiveParams(
   // inventer une capacité, un plafond ou une charge que l'opérateur n'a pas
   // saisis. Les seules valeurs de repli concernent la propulsion.
   return {
-    cruiseSpeedKmh: clamp(safe(Number(params?.cruiseSpeedKmh), 0), 0, 650),
+    cruiseSpeedKmh: clamp(safe(Number(params?.cruiseSpeedKmh), 0), 0, 800),
     designAltitudeM: clamp(safe(Number(params?.designAltitudeM), 0), 0, 600),
     batteryWh: clamp(safe(Number(params?.batteryWh), 0), 0, 4000),
     payloadKg: clamp(safe(Number(params?.payloadKg), 0), 0, 30),
@@ -125,7 +125,7 @@ export function hasEnergyBudget(
 
 /** Vitesse cible en croisière simulée, bornée par la vitesse paramétrée. */
 export function cruiseSpeedTarget(params: LiveFlightParams): number {
-  return round(clamp(params.cruiseSpeedKmh * 0.92, 6, 180), 1);
+  return round(clamp(params.cruiseSpeedKmh * 0.92, 6, 736), 1);
 }
 
 /**

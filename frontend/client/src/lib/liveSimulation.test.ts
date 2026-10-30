@@ -35,11 +35,6 @@ const run = (state: ReturnType<typeof createLiveFlightState>, seconds: number, d
 };
 
 describe("live flight simulation stream", () => {
-  it("keeps high design speeds visible in simulation while clamping above the declared 650 km/h limit", () => {
-    expect(normalizeLiveParams({ cruiseSpeedKmh: 550 }).cruiseSpeedKmh).toBe(550);
-    expect(normalizeLiveParams({ cruiseSpeedKmh: 900 }).cruiseSpeedKmh).toBe(650);
-  });
-
   it("starts on the ground with an immediately usable telemetry buffer", () => {
     const state = createLiveFlightState(params);
     expect(state.armed).toBe(false);

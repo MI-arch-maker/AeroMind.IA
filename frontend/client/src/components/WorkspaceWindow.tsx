@@ -125,12 +125,6 @@ export function WorkspaceWindow({
   }, [layout, viewId]);
 
   useEffect(() => {
-    const recalculate = () => setLayout(current => current.maximized ? current : clampLayout(current));
-    window.addEventListener("resize", recalculate);
-    return () => window.removeEventListener("resize", recalculate);
-  }, []);
-
-  useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
       const interaction = interactionRef.current;
       if (!interaction) return;

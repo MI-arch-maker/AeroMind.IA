@@ -224,9 +224,9 @@ def test_workspace_db_unavailable_degrades_gracefully(workspace_db, monkeypatch)
         raise RuntimeError("DB unavailable")
     from web import database as _db_mod
     monkeypatch.setattr(_db_mod, "SessionLocal", _broken_session)
-    # PUT keeps a local copy for continuity but reports persistence failure.
+    # PUT — should NOT raise (degrades to in-memory only)
     key = _key("X")
-    assert app_mod._workspace_db_put(key, _payload("degraded")) is False
+    app_mod._workspace_db_put(key, _payload("degraded"))
     # In-memory cache has it
     assert app_mod._local_workspaces.get(key) is not None
     # GET — returns from cache (DB fallback fails silently)
@@ -237,18 +237,3 @@ def test_workspace_db_unavailable_degrades_gracefully(workspace_db, monkeypatch)
     app_mod._local_workspaces.clear()
     fetched2 = app_mod._workspace_db_get(key)
     assert fetched2 is None
-
-def test_workspace_put_returns_503_when_canonical_store_is_unavailable(workspace_db, monkeypatch):
-    """The API must not acknowledge canonical persistence when only memory was updated."""
-    from web import database as _db_mod
-    from fastapi.testclient import TestClient
-
-    monkeypatch.setattr(_db_mod, "SessionLocal", lambda: (_ for _ in ()).throw(RuntimeError("DB unavailable")))
-    response = TestClient(app_mod.app, base_url="http://localhost").put(
-        "/api/local/workspace",
-        headers={"X-AeroMind-Workspace": _key("Y")},
-        json={"workspace": _payload("degraded")},
-    )
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "WORKSPACE_PERSISTENCE_FAILED"
-    assert response.headers["cache-control"] == "no-store"

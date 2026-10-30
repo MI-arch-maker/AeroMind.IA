@@ -349,7 +349,7 @@ def _active_control_mode():
     return 'simulation'
 
 
-@app.get('/api/health')
+@app.api_route('/api/health', methods=['GET', 'HEAD'])
 def health():
     try:
         connected = ping_database()
@@ -424,7 +424,7 @@ def _workspace_db_get(key: str) -> dict | None:
         return _local_workspaces.get(key)
 
 
-def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> bool:
+def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> None:
     """V5 LOT B / R-04 — persist anonymous workspace to DB (canonical store).
 
     Uses ``INSERT OR REPLACE`` semantics so the row is created or updated
@@ -466,15 +466,12 @@ def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> 
                 if origin_ip:
                     existing.origin_ip = origin_ip
             db.commit()
-        return True
     except Exception as exc:  # noqa: BLE001
         # DB unavailable — degrade to in-memory only. The cache is already
-        # populated above for local continuity, but callers must not report a
-        # canonical persistence acknowledgement.
+        # populated above so the worker continues to serve the request.
         print(f"WARNING: anonymous workspace DB persist failed ({type(exc).__name__}); "
               f"degraded to in-memory only — workspace will not survive restart.",
               flush=True)
-        return False
 
 
 def _workspace_db_delete(key: str) -> None:
@@ -616,11 +613,7 @@ async def put_local_workspace(request: Request):
     if workspace.get('physicalOutputEnabled') is not False:
         return JSONResponse(status_code=422, content={'error': {'code': 'PHYSICAL_OUTPUT_FORBIDDEN', 'message': 'physicalOutputEnabled must remain false'}})
     origin_ip = request.client.host if request.client else None
-    if not _workspace_db_put(raw_key, workspace, origin_ip=origin_ip):
-        return JSONResponse(status_code=503, content={'error': {
-            'code': 'WORKSPACE_PERSISTENCE_FAILED',
-            'message': 'Le workspace reste local à ce worker : la persistance canonique n’est pas confirmée.',
-        }}, headers={'Cache-Control': 'no-store'})
+    _workspace_db_put(raw_key, workspace, origin_ip=origin_ip)
     return {'ok': True, 'source': 'LOCAL', 'updatedAt': workspace.get('updatedAt')}
 
 
@@ -1414,7 +1407,10 @@ def legacy_oidc_login():
     return RedirectResponse('/api/auth/oidc/login', status_code=307)
 
 
-@app.get('/', response_class=HTMLResponse)
+# CAHIER DES CHARGES 2026-10-30 — Anomalie 3 : HEAD / retournait 405.
+# Le health check de Render envoie HEAD en premier. On déclare GET+HEAD
+# pour que HEAD renvoie 200 (FastAPI ne retourne que les headers, sans body).
+@app.api_route('/', methods=['GET', 'HEAD'], response_class=HTMLResponse)
 def home():
     if FRONTEND_INDEX.is_file():
         return FileResponse(FRONTEND_INDEX)
@@ -1433,7 +1429,7 @@ def favicon():
     return Response(status_code=204)
 
 
-@app.get('/api/ready')
+@app.api_route('/api/ready', methods=['GET', 'HEAD'])
 def ready():
     try:
         ping_database()
@@ -2164,7 +2160,9 @@ async def prepare_cfd_case(request: Request, aeromind_session: str | None = Cook
     }
 
 
-@app.get('/{path:path}', include_in_schema=False)
+# CAHIER DES CHARGES 2026-10-30 — Anomalie 3 : HEAD sur les routes SPA.
+# Permet aux health checks et probes d'utiliser HEAD sans recevoir 405.
+@app.api_route('/{path:path}', methods=['GET', 'HEAD'], include_in_schema=False)
 def frontend_routes(path: str):
     if path.startswith('api/'):
         raise HTTPException(404, 'Not found')

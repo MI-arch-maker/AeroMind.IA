@@ -22,7 +22,6 @@ import type {
 import { adaptProjectToLab } from "../lib/aeroLab/adapter";
 import { transitionRunState } from "../lib/aeroLab/labMachine";
 import { scenarios } from "../lib/aeroLab/scenarios";
-import { calculateFixedWingAerodynamics } from "../lib/fixedWingAerodynamics";
 import {
   makeTelemetrySeries,
   simulate,
@@ -77,12 +76,6 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
   const [feedback, setFeedback] = useState(
     "Le banc est amorcé avec le profil AeroMind actif.",
   );
-  const [aeroModelSettings, setAeroModelSettings] = useState({
-    cd0: 0.04,
-    oswaldEfficiency: 0.8,
-    clMax: 1.2,
-    bankDeg: 25,
-  });
   const [events, setEvents] = useState<LabEvent[]>([
     { key: "Profil AeroMind chargé depuis le projet actif.", time: "T+00:00" },
   ]);
@@ -96,17 +89,6 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
     [labConfig, validationErrors],
   );
   const visibleResult = result ?? previewResult;
-  const aeroResult = useMemo(() => calculateFixedWingAerodynamics({
-    architecture: project.airframe,
-    spanM: project.wingspan,
-    chordM: project.chord,
-    taperRatio: (project as ConceptConfig & { taperRatio?: number }).taperRatio ?? 0.65,
-    massKg: labConfig.drone.emptyMassKg + labConfig.conditions.payloadKg,
-    speedMps: labConfig.drone.cruiseSpeedMps,
-    altitudeM: labConfig.conditions.altitudeM,
-    temperatureC: labConfig.conditions.temperatureC,
-    ...aeroModelSettings,
-  }), [project, labConfig, aeroModelSettings]);
   const liveTelemetry: TelemetryPoint | null = visibleResult
     ? telemetryAt(progress, visibleResult)
     : null;
@@ -591,7 +573,7 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
                 value={labConfig.drone.cruiseSpeedMps}
                 unit="m/s"
                 min={2}
-                max={200}
+                max={60}
                 step={0.5}
                 disabled={locked}
                 onChange={(value) =>
@@ -1040,17 +1022,6 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
             </section>
           )}
 
-          <section className="aerolab-analysis aerolab-fixed-wing" aria-label={t("Estimation aérodynamique voilure fixe")}>
-            <div className="aerolab-section-title"><div><span className="aerolab-kicker">MODÈLE ANALYTIQUE · SIMULATION SEULE</span><h3>{t("Aérodynamique — voilure fixe")}</h3></div><span>{t(aeroResult.status === "not-applicable" ? "NON APPLICABLE" : aeroResult.status === "stall-risk" ? "RISQUE DE DÉCROCHAGE" : aeroResult.status === "ok" ? "ESTIMATION" : "HORS DOMAINE")}</span></div>
-            {!aeroResult.applicable || !aeroResult.densityKgM3 ? <p>{t(aeroResult.reasons[0])}</p> : <><p>{aeroResult.reasons.join(" ") || t("Estimation conceptuelle dans les limites du modèle.")}</p><div className="aerolab-metric-grid">{[["Mach indicatif",aeroResult.machNumber,""],["Densité",aeroResult.densityKgM3,"kg/m³"],["Surface",aeroResult.wingAreaM2,"m²"],["Allongement",aeroResult.aspectRatio,""],["CL requis",aeroResult.requiredCL,""],["CD polaire",aeroResult.cd,""],["Traînée",aeroResult.dragN,"N"],["Puissance propulsive estimée",aeroResult.propulsivePowerW,"W"],["Vs estimée · banque saisie",aeroResult.stallSpeedMps,"m/s"],["Facteur de charge n",aeroResult.loadFactor,""],["Marge à 1,3×Vs · banque",aeroResult.marginAt1_3VsMps,"m/s"],["Finesse CL/CD",aeroResult.glideRatio,""],["Rayon virage coordonné · banque saisie",aeroResult.turnRadiusM,"m"]].map(([label,value,unit])=><article className="aerolab-metric" key={String(label)}><small>{t(String(label))}</small><b>{value == null ? "—" : format(Number(value),2)} {value == null ? "" : String(unit)}</b></article>)}</div>
-              <div className="aerolab-aero-parameters" aria-label={t("Hypothèses aérodynamiques réglables")}>
-                <NumberField id="aerolab-aero-cd0" label="CD₀" value={aeroModelSettings.cd0} unit="coefficient" min={0.005} max={0.2} step={0.005} disabled={locked} onChange={value => setAeroModelSettings(current => ({ ...current, cd0: value }))} />
-                <NumberField id="aerolab-aero-oswald" label="Efficacité d’Oswald (e)" value={aeroModelSettings.oswaldEfficiency} unit="coefficient" min={0.3} max={1} step={0.05} disabled={locked} onChange={value => setAeroModelSettings(current => ({ ...current, oswaldEfficiency: value }))} />
-                <NumberField id="aerolab-aero-clmax" label="CL max hypothétique" value={aeroModelSettings.clMax} unit="coefficient" min={0.5} max={2.5} step={0.1} disabled={locked} onChange={value => setAeroModelSettings(current => ({ ...current, clMax: value }))} />
-                <NumberField id="aerolab-aero-bank" label="Inclinaison de virage" value={aeroModelSettings.bankDeg} unit="°" min={0} max={60} step={1} disabled={locked} onChange={value => setAeroModelSettings(current => ({ ...current, bankDeg: value }))} />
-              </div></>}
-            <ul>{aeroResult.assumptions.map((assumption)=><li key={assumption}>{t(assumption)}</li>)}</ul><small>{t("Masse utilisée = masse à vide du scénario + charge utile du scénario. Vitesse, altitude et température proviennent du scénario AeroLab. Géométrie du projet AeroMind; le scénario ne modifie pas le bilan AeroLab existant.")}</small><p>{t("Simulation uniquement : non certifié, sans branchement au guidage matériel.")}</p>
-          </section>
           <section className="aerolab-analysis">
             <div className="aerolab-section-title">
               <div>

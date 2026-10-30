@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Battery, Wrench, Plus, Trash2, Calendar, AlertTriangle } from "lucide-react";
 
 // ===========================================================================
@@ -36,18 +36,6 @@ type BatteryAggregate = {
   lastDischargeAt: string | null;
 };
 
-export function maintenanceErrorMessage(status: number, body: unknown): string {
-  if (body && typeof body === "object") {
-    const value = body as { detail?: unknown; message?: unknown };
-    if (typeof value.detail === "string" && value.detail.trim()) return value.detail;
-    if (typeof value.message === "string" && value.message.trim()) return value.message;
-  }
-  return `HTTP ${status}`;
-}
-async function maintenanceResponseError(response: Response): Promise<string> {
-  try { return maintenanceErrorMessage(response.status, await response.json()); }
-  catch { return maintenanceErrorMessage(response.status, null); }
-}
 type Props = {
   projectId: string | null;
 };
@@ -58,9 +46,6 @@ export function MaintenanceView({ projectId }: Props) {
   const [cycles, setCycles] = useState<BatteryCycle[]>([]);
   const [aggregates, setAggregates] = useState<BatteryAggregate[]>([]);
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const refreshRequestId = useRef(0);
 
   // Form state — maintenance
   const [mType, setMType] = useState("inspection");
@@ -76,96 +61,82 @@ export function MaintenanceView({ projectId }: Props) {
   const [bCapacity, setBCapacity] = useState("");
 
   const refresh = async () => {
-    const requestId = ++refreshRequestId.current;
     setLoading(true);
-    setError(null);
     try {
       if (tab === "maintenance") {
         const url = new URL("/api/maintenance/records", window.location.origin);
         if (projectId) url.searchParams.set("projectId", projectId);
         const r = await fetch(url.toString(), { credentials: "include" });
-        if (!r.ok) throw new Error(await maintenanceResponseError(r));
-        const body = await r.json();
-        if (requestId !== refreshRequestId.current) return;
-        setRecords(Array.isArray(body?.records) ? body.records : []);
+        if (r.ok) {
+          const body = await r.json();
+          setRecords(Array.isArray(body?.records) ? body.records : []);
+        }
       } else {
         const url = new URL("/api/maintenance/batteries", window.location.origin);
         if (projectId) url.searchParams.set("projectId", projectId);
         const r = await fetch(url.toString(), { credentials: "include" });
-        if (!r.ok) throw new Error(await maintenanceResponseError(r));
-        const body = await r.json();
-        if (requestId !== refreshRequestId.current) return;
-        setCycles(Array.isArray(body?.cycles) ? body.cycles : []);
-        setAggregates(Array.isArray(body?.aggregates) ? body.aggregates : []);
+        if (r.ok) {
+          const body = await r.json();
+          setCycles(Array.isArray(body?.cycles) ? body.cycles : []);
+          setAggregates(Array.isArray(body?.aggregates) ? body.aggregates : []);
+        }
       }
-    } catch (cause) {
-      if (requestId === refreshRequestId.current) setError(cause instanceof Error ? cause.message : "Connexion à l’API indisponible.");
-    } finally { if (requestId === refreshRequestId.current) setLoading(false); }
+    } finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    void refresh();
-    return () => { refreshRequestId.current += 1; };
-  }, [tab, projectId]);
+  useEffect(() => { void refresh(); }, [tab, projectId]);
 
   const createMaintenance = async () => {
-    if (!mType.trim() || submitting) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const r = await fetch("/api/maintenance/records", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, droneId: mDroneId.trim() || null, maintenanceType: mType.trim(), description: mDescription.trim(), nextDueInDays: Number(mNextDueDays) || null, flightHoursAtMaintenance: mFlightHours ? Number(mFlightHours) : null }),
-      });
-      if (!r.ok) { setError(await maintenanceResponseError(r)); return; }
+    if (!mType.trim()) return;
+    const r = await fetch("/api/maintenance/records", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        droneId: mDroneId.trim() || null,
+        maintenanceType: mType.trim(),
+        description: mDescription.trim(),
+        nextDueInDays: Number(mNextDueDays) || null,
+        flightHoursAtMaintenance: mFlightHours ? Number(mFlightHours) : null,
+      }),
+    });
+    if (r.ok) {
       setMDescription("");
       setMFlightHours("");
-      await refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Connexion à l’API indisponible.");
-    } finally { setSubmitting(false); }
+      void refresh();
+    }
   };
 
   const deleteMaintenance = async (id: string) => {
-    if (!window.confirm("Supprimer cet enregistrement de maintenance ?")) return;
-    if (submitting) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/maintenance/records/${id}`, { method: "DELETE", credentials: "include" });
-      if (!response.ok) { setError(await maintenanceResponseError(response)); return; }
-      await refresh();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Connexion à l’API indisponible."); }
-    finally { setSubmitting(false); }
+    await fetch(`/api/maintenance/records/${id}`, { method: "DELETE", credentials: "include" });
+    void refresh();
   };
 
   const recordBatteryCycle = async () => {
-    if (!bLabel.trim() || submitting) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const r = await fetch("/api/maintenance/batteries", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, batteryLabel: bLabel.trim(), eventType: bEventType, voltageV: bVoltage ? Number(bVoltage) : null, capacityMahUsed: bCapacity ? Number(bCapacity) : null }),
-      });
-      if (!r.ok) { setError(await maintenanceResponseError(r)); return; }
+    if (!bLabel.trim()) return;
+    const r = await fetch("/api/maintenance/batteries", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        batteryLabel: bLabel.trim(),
+        eventType: bEventType,
+        voltageV: bVoltage ? Number(bVoltage) : null,
+        capacityMahUsed: bCapacity ? Number(bCapacity) : null,
+      }),
+    });
+    if (r.ok) {
       setBLabel("");
       setBVoltage("");
       setBCapacity("");
-      await refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Connexion à l’API indisponible.");
-    } finally { setSubmitting(false); }
+      void refresh();
+    }
   };
 
   return (
     <div className="lb-maintenance">
-      {error && <p role="alert" className="lb-text-danger">Échec de l’opération : {error}</p>}
-      {loading && <p role="status">Chargement…</p>}
       <div className="lb-maintenance-toolbar">
         <button
           className={`lb-secondary ${tab === "maintenance" ? "is-active" : ""}`}
@@ -216,7 +187,7 @@ export function MaintenanceView({ projectId }: Props) {
                 <span>Heures de vol à la maintenance</span>
                 <input type="number" step={0.1} value={mFlightHours} onChange={(e) => setMFlightHours(e.target.value)} placeholder="Ex: 12.5" />
               </label>
-              <button className="lb-primary" onClick={createMaintenance} disabled={submitting || loading}>{submitting ? "Enregistrement…" : "Enregistrer"}</button>
+              <button className="lb-primary" onClick={createMaintenance}>Enregistrer</button>
             </div>
           </section>
 
@@ -225,7 +196,7 @@ export function MaintenanceView({ projectId }: Props) {
               <Wrench size={17} />
               <span>Historique ({records.length})</span>
             </div>
-            {records.length === 0 && !loading && !error ? (
+            {records.length === 0 ? (
               <p className="lb-empty-state">Aucune maintenance enregistrée.</p>
             ) : (
               <div className="lb-maintenance-list">
@@ -243,7 +214,7 @@ export function MaintenanceView({ projectId }: Props) {
                       )}
                       {r.flightHoursAtMaintenance != null && <small>{r.flightHoursAtMaintenance}h de vol</small>}
                     </div>
-                    <button className="lb-secondary" onClick={() => deleteMaintenance(r.id)} disabled={submitting || loading} aria-label={`Supprimer la maintenance ${r.maintenanceType}`}>
+                    <button className="lb-secondary" onClick={() => deleteMaintenance(r.id)}>
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -280,7 +251,7 @@ export function MaintenanceView({ projectId }: Props) {
                 <span>Capacité utilisée (mAh)</span>
                 <input type="number" step={50} value={bCapacity} onChange={(e) => setBCapacity(e.target.value)} placeholder="4500" />
               </label>
-              <button className="lb-primary" onClick={recordBatteryCycle} disabled={submitting || loading || !bLabel.trim()}>{submitting ? "Enregistrement…" : "Enregistrer cycle"}</button>
+              <button className="lb-primary" onClick={recordBatteryCycle}>Enregistrer cycle</button>
             </div>
           </section>
 
@@ -309,7 +280,7 @@ export function MaintenanceView({ projectId }: Props) {
               <Battery size={17} />
               <span>Cycles récents ({cycles.length})</span>
             </div>
-            {cycles.length === 0 && !loading && !error ? (
+            {cycles.length === 0 ? (
               <p className="lb-empty-state">Aucun cycle batterie enregistré.</p>
             ) : (
               <div className="lb-maintenance-list">

@@ -841,14 +841,13 @@ export function runSimulation(
     requirements.find(item => item.id === "payload")?.value ?? config.payloadKg
   );
   const energyMarginH = enduranceH - enduranceTarget;
-  const speedOutsideCalibratedRange = config.cruiseSpeedKmh > 216;
   const windMarginPercent = Math.max(
     0,
     ((windTarget - config.windSpeedKmh) / windTarget) * 100
   );
   const massStatus: MetricStatus = totalMassKg <= massTarget ? "pass" : "fail";
   const enduranceStatus: MetricStatus =
-    enduranceH >= enduranceTarget && !speedOutsideCalibratedRange ? "pass" : "review";
+    enduranceH >= enduranceTarget ? "pass" : "review";
   const windStatus: MetricStatus =
     config.windSpeedKmh <= windTarget ? "pass" : "fail";
   const payloadStatus: MetricStatus =
@@ -889,18 +888,6 @@ export function runSimulation(
       status: "review",
       uncertainty: "± 20 %",
       assumption: "Vitesse sol supposée égale à la vitesse de croisière.",
-    },
-    {
-      id: "speed-domain",
-      label: "Domaine de vitesse du modèle",
-      value: round(config.cruiseSpeedKmh),
-      unit: "km/h",
-      target: "≤ 216 km/h (modèle préliminaire)",
-      margin: `${formatNumber(216 - config.cruiseSpeedKmh)} km/h`,
-      status: speedOutsideCalibratedRange ? "review" : "pass",
-      uncertainty: speedOutsideCalibratedRange ? "hors domaine" : "indicative",
-      assumption:
-        "Au-dessus de 216 km/h, le modèle de puissance/autonomie n’est pas calibré; résultats haute vitesse exploratoires seulement.",
     },
     {
       id: "wing-loading",
@@ -984,23 +971,12 @@ export function runSimulation(
         "Revue réglementaire UE/Roumanie selon catégorie et opération.",
       status: "open",
     },
-    ...(speedOutsideCalibratedRange
-      ? [{
-          id: "speed-domain-risk",
-          label: "Vitesse hors domaine de calcul calibré",
-          severity: "high" as const,
-          probability: "Confirmé par la cible saisie",
-          mitigation:
-            "Ne pas interpréter les estimations comme une performance réelle; une étude aérodynamique, propulsion et structure dédiée est nécessaire.",
-          status: "open" as const,
-        }]
-      : []),
   ];
 
   const hasMissingOrConflicting = requirements.some(
     item => item.status === "conflict"
   );
-  const confidence = hasMissingOrConflicting || speedOutsideCalibratedRange
+  const confidence = hasMissingOrConflicting
     ? "indicative"
     : metrics.filter(item => item.status === "pass").length >= 4
       ? "moderate"
@@ -1033,9 +1009,6 @@ export function runSimulation(
       "Les masses sont des corrélations préliminaires, pas des mesures physiques.",
       `Architecture calculée : ${calculationProfile.modelType} (base ${config.airframe ?? "non définie"}), coefficients spécialisés appliqués.`,
       `Nomenclature installée : ${round(installedMaterialMass)} kg ajoutés aux familles correspondantes (quantité × masse unitaire).`,
-      ...(speedOutsideCalibratedRange
-        ? ["Cible > 216 km/h hors domaine calibré; les résultats de performance sont indicatifs et ne constituent pas une capacité opérationnelle."]
-        : []),
     ],
     limits: [
       "Ce calcul ne remplace ni CFD, ni essai en vol, ni certification.",

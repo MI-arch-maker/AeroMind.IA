@@ -55,35 +55,3 @@
 
 /* Functional-control feedback: the canvas rotates by drag and read-only parts cannot be rescaled. */
 .vaw-stage{cursor:grab;touch-action:pan-y}.vaw-stage:active{cursor:grabbing}.vaw-dimension input:disabled{opacity:.42;cursor:not-allowed}.vaw-dimension>small{color:#718d91;font-size:8px;line-height:1.4}.vaw-step-detail button:disabled{opacity:.5;cursor:not-allowed;border-color:#455357;color:#8b9c9d}.vaw-step-detail button:not(:disabled):hover{border-color:#79e9df;color:#edfffa}
-
-
-/* Accessibilité de la sous-vue IDDS : focus visible et tailles de lecture minimales. */
-.vaw-studio .vaw-component-search:focus-within {
-  border-color: #73e2d7;
-  box-shadow: 0 0 0 2px #73e2d744;
-}
-.vaw-studio .vaw-component-search input:focus-visible {
-  outline: 2px solid #73e2d7;
-  outline-offset: 2px;
-}
-.vaw-component-search input { font-size: 11px; }
-.vaw-component-tree h5,
-.vaw-layer-list > header strong,
-.vaw-layer-name span,
-.vaw-layer-name small,
-.vaw-layer-list > small,
-.vaw-step-detail > strong,
-.vaw-step-detail li,
-.vaw-step-detail > small,
-.vaw-assembly-timeline > button small { font-size: 10px; }
-.vaw-component-tree section > button,
-.vaw-step-heading,
-.vaw-step-detail > button,
-.vaw-assembly-timeline > button span { font-size: 11px; }
-.vaw-step-heading b { font-size: 9px; }
-.vaw-step-detail p { font-size: 11px; }
-.vaw-timeline-heading strong { font-size: 11px; }
-@media (max-width: 700px) {
-  .vaw-studio .vaw-step-detail { gap: 9px; }
-  .vaw-studio .vaw-assembly-timeline > button { min-height: 74px; }
-}

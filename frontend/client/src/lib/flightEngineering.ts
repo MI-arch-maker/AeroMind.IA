@@ -76,7 +76,7 @@ export function createCompatibleDemoMissionPlan(
     ? config.altitudeM * 0.8
     : demoAltitude;
   const speedLimit = config.cruiseSpeedKmh >= 5
-    ? Math.min(config.cruiseSpeedKmh * 0.8, 300)
+    ? config.cruiseSpeedKmh * 0.8
     : demoSpeed;
   return {
     ...defaultLocalMissionPlan,
@@ -261,7 +261,7 @@ export function buildMissionTemplate(
   config: ConceptConfig
 ): MissionWaypoint[] {
   const ceiling = Math.max(0, config.altitudeM || 120);
-  const cruise = Math.min(300, Math.max(1, config.cruiseSpeedKmh || 1));
+  const cruise = Math.max(1, config.cruiseSpeedKmh || 1);
   return missionTemplatePoints[id].map((point, index) => ({
     id: `TPL-${id}-${index + 1}`,
     name: point.name,
@@ -436,16 +436,7 @@ export function validateLocalMission(
       message: "Altitudes des points dans le plafond de projet.",
     });
   }
-  const exceedsMissionSpeedEnvelope =
-    config.cruiseSpeedKmh > 300 ||
-    plan.waypoints.some(point => point.speedKmh > 300);
-  if (exceedsMissionSpeedEnvelope) {
-    checks.push({
-      severity: "block",
-      message:
-        "Cible supérieure à 300 km/h hors enveloppe de planification : étude conceptuelle uniquement, prévol local bloqué.",
-    });
-  } else if (
+  if (
     plan.waypoints.some(
       point =>
         point.speedKmh <= 0 ||

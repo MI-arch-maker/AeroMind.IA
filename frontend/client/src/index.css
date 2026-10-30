@@ -57,10 +57,6 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
-:focus-visible {
-  outline: 2px solid var(--cyan);
-  outline-offset: 2px;
-}
 .aeromind-app {
   min-height: 100vh;
   display: flex;
@@ -412,6 +408,72 @@ button:disabled {
   max-width: 1480px;
   margin: 0 auto;
   padding: 40px 42px 22px;
+}
+/* CAHIER DES CHARGES 2026-10-30 — Vues directes (bypass WorkspaceWindow) :
+   Quand main-content contient une direct-view-container, il passe en mode
+   plein écran sans max-width ni padding, pour que les vues comme Centre
+   Paramétrique et Simulation & Analyses remplissent tout l'espace. */
+.main-content:has(.direct-view-container) {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: calc(100vh - 130px);
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.direct-view-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+.direct-view-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(7, 18, 22, 0.98);
+  border-bottom: 1px solid rgba(117, 226, 220, 0.34);
+  gap: 12px;
+}
+.direct-view-header strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8f2f5;
+}
+.direct-view-header .secondary-button {
+  font-size: 11px;
+  padding: 4px 12px;
+}
+.direct-view-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.direct-view-body > * {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.direct-view-body-scroll {
+  overflow-y: auto;
+  display: block;
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  gap: 16px;
+}
+.direct-view-body-scroll > * {
+  width: 100%;
+  flex: none;
 }
 .hero-row {
   display: flex;
@@ -14473,9 +14535,30 @@ button:disabled {
 }
 .workspace-window-content {
   padding: 0;
+  /* CAHIER DES CHARGES 2026-10-30 — Anomalie affichage :
+     Make this a flex container so children with height:100% resolve correctly.
+     Without this, .workspace-window-inner's flex:1 is ignored and full-height
+     views (ParametricDroneCenter, AeroTestFieldStation, MissionPlannerView)
+     collapse to 0 height. */
+  display: flex;
+  flex-direction: column;
 }
 .workspace-window-inner {
   padding: 22px;
+  flex: 1;
+  min-height: 0;
+}
+/* Flush mode for full-height IDE-like views (no padding, no scroll on inner) */
+.workspace-window-inner.is-flush {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.workspace-window-inner.is-flush > * {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 .workspace-window-inner > .view-stack {
   min-height: 100%;
@@ -14561,28 +14644,21 @@ button:disabled {
   font-size: 11px;
 }
 @media (max-width: 780px) {
+  .workspace-window,
   .workspace-window.is-maximized {
     min-width: 0;
     left: 10px !important;
-    right: 10px !important;
+    right: 10px;
     top: 70px !important;
     width: auto !important;
     height: calc(100vh - 82px) !important;
   }
-  .workspace-window:not(.is-maximized):not(.is-minimized) {
-    min-width: 0;
-    max-width: calc(100vw - 20px);
-    max-height: calc(100vh - 82px);
+  .workspace-window-inner {
+    padding: 14px;
   }
-  .workspace-window.is-minimized {
-    min-width: 0;
-    width: min(320px, calc(100vw - 20px)) !important;
-    height: auto !important;
-    left: 10px !important;
-    right: auto !important;
-    top: 70px !important;
+  .workspace-resize-handle {
+    display: none;
   }
-  .workspace-window-inner { padding: 14px; }
 }
 
 /* AeroMind physical airframe system — rendu matière réel, sans grille ni cadre SVG */
@@ -15577,20 +15653,6 @@ button:disabled {
 .trajectory-camera-label { color: #b6c7bd !important; }
 .trajectory-zoom-readout { min-width: 36px; color: #b4d7ce; font: 700 8px ui-monospace, monospace; text-align: center; }
 .trajectory-camera-scene { transition: transform .32s cubic-bezier(.2,.7,.2,1); }
-@supports (height: 100dvh) {
-  @media (max-width: 780px) {
-    .workspace-window.is-maximized {
-      height: calc(100dvh - 82px) !important;
-    }
-    .workspace-window:not(.is-maximized):not(.is-minimized) {
-      max-height: calc(100dvh - 82px);
-    }
-    .workspace-window-simulation,
-    .workspace-window-live {
-      height: calc(100dvh - 76px) !important;
-    }
-  }
-}
 .trajectory-drone-model { stroke-linejoin: round; stroke-linecap: round; }
 .trajectory-drone-wing { fill: rgba(111, 212, 207, .8); stroke: #c2fff0; stroke-width: .4; }
 .trajectory-drone-body { fill: #e8faf1; stroke: #68e1d4; stroke-width: .42; }

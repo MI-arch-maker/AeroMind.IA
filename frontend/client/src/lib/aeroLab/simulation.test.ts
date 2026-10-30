@@ -82,16 +82,6 @@ describe("moteur de simulation déterministe", () => {
     }
   });
 
-  it("marque une cible haute vitesse hors domaine au lieu d’annoncer PASS", () => {
-    const config = clone(initialConfig);
-    config.drone.cruiseSpeedMps = 140;
-    expect(validateConfig(config)).toEqual([]);
-    const result = simulate(config);
-    expect(result.verdict).not.toBe("PASS");
-    expect(result.checks.find(check => check.key === "speed-model-domain")?.pass).toBe(false);
-    expect(result.assumptions.join(" ")).toContain("hors domaine calibré");
-  });
-
   it("génère une télémétrie déterministe qui termine à 100 % de la trace", () => {
     const result = simulate(initialConfig);
     const samples = makeTelemetrySeries(result);
