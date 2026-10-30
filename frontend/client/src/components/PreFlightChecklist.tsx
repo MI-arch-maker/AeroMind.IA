@@ -37,6 +37,7 @@ export function PreFlightChecklist({ projectId }: Props) {
   const [name, setName] = useState("");
   const [existing, setExisting] = useState<Checklist[]>([]);
   const [lastResult, setLastResult] = useState<{ passed: boolean; failedItems: string[] } | null>(null);
+  const [executionError, setExecutionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Load default template
@@ -75,6 +76,8 @@ export function PreFlightChecklist({ projectId }: Props) {
       return;
     }
     setLoading(true);
+    setLastResult(null);
+    setExecutionError(null);
     try {
       // Create checklist first
       const createResp = await fetch("/api/preflight", {
@@ -84,7 +87,7 @@ export function PreFlightChecklist({ projectId }: Props) {
         body: JSON.stringify({ name: name.trim(), projectId, items }),
       });
       if (!createResp.ok) {
-        alert("Échec création checklist");
+        setExecutionError("Échec de création de la checklist. Vérifiez la connexion puis réessayez.");
         return;
       }
       const created = await createResp.json();
@@ -95,11 +98,19 @@ export function PreFlightChecklist({ projectId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items }),
       });
-      if (execResp.ok) {
-        const result = await execResp.json();
-        setLastResult({ passed: result.passed, failedItems: result.failedItems || [] });
+      if (!execResp.ok) {
+        setExecutionError("La checklist a été créée, mais son exécution a échoué. Le statut reste inconnu; actualisez la liste et réessayez.");
         void refreshExisting();
+        return;
       }
+      const result = await execResp.json();
+      if (typeof result?.passed !== "boolean") {
+        throw new Error("Réponse d’exécution invalide");
+      }
+      setLastResult({ passed: result.passed, failedItems: Array.isArray(result.failedItems) ? result.failedItems : [] });
+      void refreshExisting();
+    } catch {
+      setExecutionError("Erreur réseau pendant la création ou l’exécution de la checklist. Le résultat précédent a été effacé.");
     } finally {
       setLoading(false);
     }
@@ -133,6 +144,8 @@ export function PreFlightChecklist({ projectId }: Props) {
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
+
+      {executionError && <p className="lb-preflight-error" role="alert">{executionError}</p>}
 
       {lastResult && (
         <div className={`lb-preflight-result ${lastResult.passed ? "is-pass" : "is-fail"}`}>

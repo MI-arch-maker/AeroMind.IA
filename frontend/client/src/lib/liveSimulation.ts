@@ -85,7 +85,7 @@ export function normalizeLiveParams(
   // inventer une capacité, un plafond ou une charge que l'opérateur n'a pas
   // saisis. Les seules valeurs de repli concernent la propulsion.
   return {
-    cruiseSpeedKmh: clamp(safe(Number(params?.cruiseSpeedKmh), 0), 0, 220),
+    cruiseSpeedKmh: clamp(safe(Number(params?.cruiseSpeedKmh), 0), 0, 650),
     designAltitudeM: clamp(safe(Number(params?.designAltitudeM), 0), 0, 600),
     batteryWh: clamp(safe(Number(params?.batteryWh), 0), 0, 4000),
     payloadKg: clamp(safe(Number(params?.payloadKg), 0), 0, 30),

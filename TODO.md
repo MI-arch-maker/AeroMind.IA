@@ -7,7 +7,7 @@
 - [x] **Lancer l’essai :** l’action applique la configuration du scénario sélectionné puis déclenche le recalcul global avant la lecture virtuelle.
 - [x] **Paramètres projet :** le vent latéral, la comparaison de résultats, la position de départ, le cap de référence et les options d’affichage restent dans la configuration du projet et sont persistés avec le snapshot.
 - [x] **Limites :** les laboratoires restent virtuels et synthétiques ; aucune commande physique, liaison d’actionneur ou preuve d’essai réel n’est ajoutée.
-- [ ] **Validation finale :** typecheck, tests Vitest et build statique à exécuter sur l’archive modifiée.
+- [x] **Validation finale :** typecheck, 67 fichiers / 324 tests Vitest et build statique exécutés sur l’archive corrigée.
 
 ## Demande — synchronisations et arborescence d’atelier (22 octobre 2026)
 

@@ -21,15 +21,14 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -37,19 +36,36 @@ const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
 
+export function readSidebarWidth(): number {
+  try {
+    const saved = globalThis.localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (saved === null || saved.trim() === "") return DEFAULT_WIDTH;
+    const parsed = Number(saved);
+    if (!Number.isFinite(parsed)) return DEFAULT_WIDTH;
+    return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, parsed));
+  } catch {
+    return DEFAULT_WIDTH;
+  }
+}
+
+export function persistSidebarWidth(width: number): void {
+  try {
+    globalThis.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  } catch {
+    // Storage can be disabled or unavailable; navigation and resizing still work.
+  }
+}
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
-  });
+  const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
   const { loading, user } = useAuth();
 
   useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
+    persistSidebarWidth(sidebarWidth);
   }, [sidebarWidth]);
 
   if (loading) {
@@ -202,7 +218,7 @@ function DashboardLayoutContent({
           <SidebarFooter className="p-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <button aria-label={`Open account menu for ${user?.name || user?.email || "user"}`} className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Avatar className="h-9 w-9 border shrink-0">
                     <AvatarFallback className="text-xs font-medium">
                       {user?.name?.charAt(0).toUpperCase()}
@@ -231,6 +247,9 @@ function DashboardLayoutContent({
           </SidebarFooter>
         </Sidebar>
         <div
+          role="separator"
+          aria-label="Resize sidebar"
+          aria-orientation="vertical"
           className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
           onMouseDown={() => {
             if (isCollapsed) return;

@@ -57,6 +57,10 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
 .aeromind-app {
   min-height: 100vh;
   display: flex;
@@ -14469,23 +14473,9 @@ button:disabled {
 }
 .workspace-window-content {
   padding: 0;
-  /* CAHIER DES CHARGES 2026-10-30 — Fix DÉFINITIF affichage :
-     .workspace-window-content DOIT être un flex container pour que
-     .workspace-window-inner (flex:1) obtienne une hauteur résolue.
-     Sans cela, overflow:auto crée un contexte de scroll où la hauteur
-     des enfants est circulaire → height:100% et position:absolute
-     ne résolvent pas → les composants collapsent à 0. */
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 .workspace-window-inner {
   padding: 22px;
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
 }
 .workspace-window-inner > .view-stack {
   min-height: 100%;
@@ -14571,21 +14561,28 @@ button:disabled {
   font-size: 11px;
 }
 @media (max-width: 780px) {
-  .workspace-window,
   .workspace-window.is-maximized {
     min-width: 0;
     left: 10px !important;
-    right: 10px;
+    right: 10px !important;
     top: 70px !important;
     width: auto !important;
     height: calc(100vh - 82px) !important;
   }
-  .workspace-window-inner {
-    padding: 14px;
+  .workspace-window:not(.is-maximized):not(.is-minimized) {
+    min-width: 0;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100vh - 82px);
   }
-  .workspace-resize-handle {
-    display: none;
+  .workspace-window.is-minimized {
+    min-width: 0;
+    width: min(320px, calc(100vw - 20px)) !important;
+    height: auto !important;
+    left: 10px !important;
+    right: auto !important;
+    top: 70px !important;
   }
+  .workspace-window-inner { padding: 14px; }
 }
 
 /* AeroMind physical airframe system — rendu matière réel, sans grille ni cadre SVG */
@@ -15580,6 +15577,20 @@ button:disabled {
 .trajectory-camera-label { color: #b6c7bd !important; }
 .trajectory-zoom-readout { min-width: 36px; color: #b4d7ce; font: 700 8px ui-monospace, monospace; text-align: center; }
 .trajectory-camera-scene { transition: transform .32s cubic-bezier(.2,.7,.2,1); }
+@supports (height: 100dvh) {
+  @media (max-width: 780px) {
+    .workspace-window.is-maximized {
+      height: calc(100dvh - 82px) !important;
+    }
+    .workspace-window:not(.is-maximized):not(.is-minimized) {
+      max-height: calc(100dvh - 82px);
+    }
+    .workspace-window-simulation,
+    .workspace-window-live {
+      height: calc(100dvh - 76px) !important;
+    }
+  }
+}
 .trajectory-drone-model { stroke-linejoin: round; stroke-linecap: round; }
 .trajectory-drone-wing { fill: rgba(111, 212, 207, .8); stroke: #c2fff0; stroke-width: .4; }
 .trajectory-drone-body { fill: #e8faf1; stroke: #68e1d4; stroke-width: .42; }

@@ -472,6 +472,7 @@
 .lb-preflight-result { display: flex; gap: 10px; align-items: center; padding: 14px; border-radius: 8px; }
 .lb-preflight-result.is-pass { background: rgba(117,215,173,.1); border: 1px solid rgba(117,215,173,.3); color: #8adfb6; }
 .lb-preflight-result.is-fail { background: rgba(249,127,120,.1); border: 1px solid rgba(249,127,120,.3); color: #fa7f78; }
+.lb-preflight-error { margin: 0; padding: 10px 12px; border: 1px solid rgba(249,127,120,.45); border-radius: 6px; background: rgba(249,127,120,.1); color: #ffaaa4; font-size: 12px; line-height: 1.5; }
 .lb-preflight-result strong { display: block; font-size: 13px; }
 .lb-preflight-result small { display: block; font-size: 11px; margin-top: 3px; }
 .lb-preflight-list { display: grid; }

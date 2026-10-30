@@ -6,10 +6,16 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { installLocaleFetch } from "./i18n/requestLocale";
+import { installResizeObserverPolyfill } from "./lib/resizeObserverPolyfill";
 import { bearerHeaders, consumeSessionTokenFromFragment } from "./lib/sessionToken";
 import "./index.css";
 import "./action-center.css";
 import "./aeromind-dynamics.css";
+
+// react-use-measure (utilisé par la scène 3D du centre de simulation) lève
+// une exception au montage si l’API native manque dans un WebView/iframe.
+// Installer le polyfill avant createRoot().render() évite un crash global.
+installResizeObserverPolyfill();
 
 consumeSessionTokenFromFragment();
 installLocaleFetch();
@@ -90,15 +96,14 @@ createRoot(document.getElementById("root")!).render(
   </trpc.Provider>
 );
 
-// P3-05 fix — register the service worker now that sw.js excludes /api/ routes
-// from the cache (network-only with 503 offline fallback, see sw.js:100).
-// Previously the SW was shipped but never registered, making the PWA offline
-// shell and caching strategy dead code. Registration is production-only to
-// avoid interfering with HMR in development.
+// Retire legacy cache-first service workers after a deployment. Do not create
+// a new registration: the current shell and content-hashed assets use HTTP
+// caching only, and re-registering after the worker unregisters would create
+// an install/uninstall cycle on every page load.
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      console.warn("[PWA] Service worker registration failed:", err);
-    });
+    void navigator.serviceWorker.getRegistrations()
+      .then(registrations => Promise.all(registrations.map(registration => registration.update())))
+      .catch(err => console.warn("[PWA] Service worker retirement update failed:", err));
   });
 }

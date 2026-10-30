@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createWorkspaceSnapshot,
+  filterLegacyImplicitProjects,
+  replaceExistingProjectSnapshot,
   validateWorkspace,
 } from "./projectSyncStore";
 
@@ -45,6 +47,30 @@ function validSnapshot() {
 }
 
 describe("projectSyncStore", () => {
+  it("ne crée pas de projet quand l’autosave reçoit un ID actif absent", () => {
+    const projects = [{ id: "project-existing", value: "saved" }];
+    expect(replaceExistingProjectSnapshot(projects, { id: "project-stale", value: "draft" })).toBeNull();
+    expect(projects).toEqual([{ id: "project-existing", value: "saved" }]);
+  });
+
+  it("met à jour une entité existante sans changer son identité", () => {
+    const projects = [{ id: "project-existing", value: "before" }];
+    expect(replaceExistingProjectSnapshot(projects, { id: "project-existing", value: "after" })).toEqual([
+      { id: "project-existing", value: "after" },
+    ]);
+  });
+
+  it("ignore seulement les deux projets automatiques historiques, en conservant les projets utilisateur", () => {
+    const projects = [
+      { id: "project-local-1" },
+      { id: "project-aeromind-inspection-demo" },
+      { id: "project-user-saved" },
+    ];
+    expect(filterLegacyImplicitProjects(projects)).toEqual([{ id: "project-user-saved" }]);
+    // Filtering is read-time only and must not mutate/delete the source data.
+    expect(projects).toHaveLength(3);
+  });
+
   it("valide un snapshot versionné et force la sortie physique à false", () => {
     const result = validateWorkspace(validSnapshot());
     expect(result.ok).toBe(true);

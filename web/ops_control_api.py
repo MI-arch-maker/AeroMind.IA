@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from .app_auth_helpers import current_user_or_401
 from .config import get_settings
@@ -34,6 +34,7 @@ VALID_MODES = {"DEMO", "SIMULATION", "SITL", "HIL", "HARDWARE", "OFFLINE"}
 class ModeChangeRequest(BaseModel):
     mode: str = Field(pattern=r"^(DEMO|SIMULATION|SITL|HIL|HARDWARE|OFFLINE)$")
     reason: str = Field(default="", max_length=500)
+    project_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 def _env_truthy(name: str, default: str = "false") -> bool:
@@ -52,6 +53,27 @@ def _current_mode_status():
     )
 
 
+REQUIRED_HARDWARE_GATES = {
+    "G0_gel", "G1_securite", "G2_fiabilite",
+    "G3_banc", "G4_qualification", "G5_exploitation",
+}
+
+
+def _approved_gates_for_project(project_id: str) -> set[str]:
+    """Return approvals for one project; never convert an unavailable DB into approval."""
+    try:
+        from .canonical_models import GateValidation
+        with SessionLocal() as db:
+            return set(db.scalars(
+                select(GateValidation.gate).where(
+                    GateValidation.project_id == project_id,
+                    GateValidation.state == "approved",
+                )
+            ))
+    except Exception as exc:
+        raise HTTPException(503, "Vérification des gates indisponible; mode HARDWARE refusé.") from exc
+
+
 @router.get("/mode")
 def get_operation_mode(request: Request):
     """Get the current operation mode and available transitions."""
@@ -61,26 +83,18 @@ def get_operation_mode(request: Request):
     for m in ["DEMO", "SIMULATION", "SITL", "HIL"]:
         if m != current.mode.value.upper():
             available_transitions.append(m)
-    # HARDWARE mode only available if all gates are approved
-    try:
-        from .canonical_models import GateValidation
-        with SessionLocal() as db:
-            approved_gates = {row.gate for row in db.scalars(
-                select(GateValidation).where(
-                    GateValidation.state == "approved"
-                )
-            )}
-            required = {"G0_gel", "G1_securite", "G2_fiabilite",
-                        "G3_banc", "G4_qualification", "G5_exploitation"}
-            if required.issubset(approved_gates):
-                available_transitions.append("HARDWARE")
-    except Exception:
-        pass  # Gates table not yet available
+    # Never combine approvals across projects or advertise HARDWARE without a project context.
+    project_id = request.query_params.get("project_id", "").strip()
+    if project_id:
+        approved_gates = _approved_gates_for_project(project_id)
+        if REQUIRED_HARDWARE_GATES.issubset(approved_gates):
+            available_transitions.append("HARDWARE")
     return {
         "current_mode": current.mode.value,
         "hardware_control": _env_truthy("HARDWARE_CONTROL"),
         "available_transitions": available_transitions,
         "all_gates_approved": "HARDWARE" in available_transitions,
+        "gate_project_id": project_id or None,
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
@@ -98,30 +112,18 @@ def set_operation_mode(body: ModeChangeRequest, request: Request):
         raise HTTPException(403, "Réservé au super-admin.")
     if body.mode not in VALID_MODES:
         raise HTTPException(400, f"Mode invalide. Valides: {sorted(VALID_MODES)}")
-    # HARDWARE mode requires gates
+    # HARDWARE mode requires all approvals for the explicitly selected project.
     if body.mode == "HARDWARE":
-        try:
-            from .canonical_models import GateValidation
-            with SessionLocal() as db:
-                approved = {row.gate for row in db.scalars(
-                    select(GateValidation).where(GateValidation.state == "approved")
-                )}
-                required = {"G0_gel", "G1_securite", "G2_fiabilite",
-                            "G3_banc", "G4_qualification", "G5_exploitation"}
-                missing = required - approved
-                if missing:
-                    raise HTTPException(412, f"Gates manquantes pour HARDWARE: {sorted(missing)}")
-        except HTTPException:
-            raise
-        except Exception:
-            pass  # Fail-open if table missing
+        if not body.project_id:
+            raise HTTPException(412, "project_id requis pour vérifier les gates du projet avant HARDWARE.")
+        approved = _approved_gates_for_project(body.project_id)
+        missing = REQUIRED_HARDWARE_GATES - approved
+        if missing:
+            raise HTTPException(412, f"Gates manquantes pour HARDWARE: {sorted(missing)}")
     # Set env vars (works in single-worker mode; for multi-worker use Redis)
     os.environ["AEROMIND_SITL_ACTIVE"] = "true" if body.mode == "SITL" else "false"
     os.environ["AEROMIND_HIL_ACTIVE"] = "true" if body.mode == "HIL" else "false"
-    if body.mode == "HARDWARE":
-        os.environ["HARDWARE_CONTROL"] = "true"
-    elif body.mode in ("DEMO", "SIMULATION", "OFFLINE"):
-        os.environ["HARDWARE_CONTROL"] = "false"
+    os.environ["HARDWARE_CONTROL"] = "true" if body.mode == "HARDWARE" else "false"
     return {
         "mode_set": body.mode,
         "reason": body.reason,
@@ -146,23 +148,24 @@ def get_system_health(request: Request):
             GeofenceRecord, GateValidation, AuditEventExt, EventOutbox,
         )
         with SessionLocal() as db:
-            stats["projects"] = db.scalar(select(Project.id).count()) or 0  # type: ignore
-            stats["drones"] = db.scalar(select(Drone.id).count()) or 0  # type: ignore
-            stats["missions"] = db.scalar(select(Mission.id).count()) or 0  # type: ignore
+            stats["projects"] = db.scalar(select(func.count()).select_from(Project)) or 0
+            stats["drones"] = db.scalar(select(func.count()).select_from(Drone)) or 0
+            stats["missions"] = db.scalar(select(func.count()).select_from(Mission)) or 0
             try:
-                stats["drone_revisions"] = db.scalar(select(DroneRevision.id).count()) or 0  # type: ignore
-                stats["test_runs"] = db.scalar(select(TestRun.id).count()) or 0  # type: ignore
-                stats["measurements"] = db.scalar(select(Measurement.id).count()) or 0  # type: ignore
-                stats["hardware_tokens_issued"] = db.scalar(select(HardwareToken.id).count()) or 0  # type: ignore
-                stats["gate_validations"] = db.scalar(select(GateValidation.id).count()) or 0  # type: ignore
-                stats["audit_events"] = db.scalar(select(AuditEventExt.id).count()) or 0  # type: ignore
+                stats["drone_revisions"] = db.scalar(select(func.count()).select_from(DroneRevision)) or 0
+                stats["test_runs"] = db.scalar(select(func.count()).select_from(TestRun)) or 0
+                stats["measurements"] = db.scalar(select(func.count()).select_from(Measurement)) or 0
+                stats["hardware_tokens_issued"] = db.scalar(select(func.count()).select_from(HardwareToken)) or 0
+                stats["gate_validations"] = db.scalar(select(func.count()).select_from(GateValidation)) or 0
+                stats["audit_events"] = db.scalar(select(func.count()).select_from(AuditEventExt)) or 0
                 stats["pending_outbox_events"] = db.scalar(
-                    select(EventOutbox.id).where(EventOutbox.published_at.is_(None)).count()
-                ) or 0  # type: ignore
+                    select(func.count()).select_from(EventOutbox).where(EventOutbox.published_at.is_(None))
+                ) or 0
             except Exception:
-                pass  # canonical tables not yet created
+                # Optional canonical tables may not exist on older installations.
+                stats["canonical_stats_status"] = "unavailable"
     except Exception:
-        pass
+        stats["core_stats_status"] = "unavailable"
     # Health checks
     health: dict = {
         "status": "healthy",
@@ -175,6 +178,9 @@ def get_system_health(request: Request):
         "stats": stats,
         "timestamp": datetime.now(UTC).isoformat(),
     }
+    if stats.get("core_stats_status") == "unavailable" or stats.get("canonical_stats_status") == "unavailable":
+        health["status"] = "degraded"
+        health["warnings"] = ["Certaines statistiques de base de données sont indisponibles"]
     if not health["oidc_configured"]:
         health["status"] = "degraded"
         warnings = health.get("warnings")

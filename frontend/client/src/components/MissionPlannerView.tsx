@@ -24,9 +24,11 @@ import {
   ShieldCheck, Sparkles, Trash2, Route as RouteIcon, Wand2, Mountain, Wind,
 } from "lucide-react";
 import type { ConceptConfig, MissionWaypoint } from "../lib/aeroEngine";
+import { optimizeMissionRoute } from "../lib/missionRouteOptimizer";
 import { useLanguage } from "../contexts/LanguageContext";
 import { OpenStreetMapView, type MapLayerMode } from "./OpenStreetMapView";
 import { toast } from "sonner";
+import { parseWgs84Coordinates } from "../lib/wgs84Coordinates";
 import "./mission-planner-view.css";
 
 type Props = {
@@ -43,6 +45,7 @@ type MissionItem = {
   alt: number;
   speed?: number;
   detail?: string;
+  action?: MissionWaypoint["action"];
 };
 
 type Tool = "select" | "takeoff" | "waypoint" | "survey" | "land" | "fence" | "rally" | "measure";
@@ -64,9 +67,30 @@ export function MissionPlannerView({ config, setConfig }: Props) {
 
   // ── Mission state ──
   const [tool, setTool] = useState<Tool>("waypoint");
-  const [activeTab, setActiveTab] = useState<"mission" | "fence" | "rally" | "ai">("mission");
-  const [missionItems, setMissionItems] = useState<MissionItem[]>(DEFAULT_MISSION);
-  const [selectedItemId, setSelectedItemId] = useState<string>("survey");
+  const [activeTab, setActiveTab] = useState<"mission" | "fence" | "rally" | "ai" | "gps">("mission");
+  const [gpsLatitude, setGpsLatitude] = useState("");
+  const [gpsLongitude, setGpsLongitude] = useState("");
+  const [gpsWaypointName, setGpsWaypointName] = useState("");
+  const [missionItems, setMissionItems] = useState<MissionItem[]>(() => {
+    const saved = config.missionPlan?.waypoints ?? [];
+    if (!saved.length) return DEFAULT_MISSION;
+    return saved.map((point, index) => ({
+      id: point.id,
+      type: "waypoint" as const,
+      name: point.name || `Waypoint ${index + 1}`,
+      lat: point.latitude ?? Math.max(-85, Math.min(85, 90 - point.y * 1.8)),
+      lng: point.longitude ?? point.x * 3.6 - 180,
+      alt: point.altitudeM,
+      speed: point.speedKmh,
+      detail: `Alt ${point.altitudeM} m · ${point.speedKmh} km/h`,
+      action: point.action,
+    }));
+  });
+  const [selectedItemId, setSelectedItemId] = useState<string>(() => config.missionPlan?.waypoints[0]?.id ?? "survey");
+  const [hasUserEditedMission, setHasUserEditedMission] = useState(false);
+  const [fencePoints, setFencePoints] = useState<Array<{ id: string; name: string; lat: number; lng: number; approximate: boolean }>>([]);
+  const [rallyPoints, setRallyPoints] = useState<Array<{ id: string; name: string; lat: number; lng: number; approximate: boolean }>>([]);
+  const measureStart = useRef<{ lat: number; lng: number } | null>(null);
   const [surveyParams, setSurveyParams] = useState({
     overlapFront: 70, overlapSide: 70, gsd: 2.5, altitude: 232.9,
     triggerDist: 47.5, spacing: 71.3, angle: 0, photoCount: 532,
@@ -81,7 +105,7 @@ export function MissionPlannerView({ config, setConfig }: Props) {
   // ── Modern layer mode (satellite / tactical / AI navigation) ──
   const [plannerLayerMode, setPlannerLayerMode] = useState<PlannerLayerMode>("satellite");
   // ── AI navigation: synthetic radar, suggested waypoints, trajectory optimization ──
-  const [aiSuggestions, setAiSuggestions] = useState<Array<{ lat: number; lng: number; reason: string }>>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<Array<{ lat: number; lng: number; reason: string; originalId?: string }>>([]);
   const [aiOptimized, setAiOptimized] = useState(false);
   const [aiObstacles, setAiObstacles] = useState<Array<{ lat: number; lng: number; radiusM: number; label: string }>>([
     { lat: 48.8572, lng: 2.3530, radiusM: 60, label: "Tour antenne (virtuelle)" },
@@ -97,11 +121,26 @@ export function MissionPlannerView({ config, setConfig }: Props) {
       lat: item.lat,
       lng: item.lng,
     })), [missionItems]);
+  const routeDistanceM = useMemo(() => mapPoints.slice(1).reduce(
+    (distance, point, index) => distance + haversineMeters(
+      mapPoints[index].lat,
+      mapPoints[index].lng,
+      point.lat,
+      point.lng,
+    ),
+    0,
+  ), [mapPoints]);
+  const localCruiseSpeedKmh = Math.min(config.cruiseSpeedKmh || 15, 300);
+  const routeDurationMin = routeDistanceM > 0 && localCruiseSpeedKmh > 0
+    ? Math.round((routeDistanceM / 1000 / localCruiseSpeedKmh) * 60)
+    : 0;
 
   const surveyCornersRef = useRef<Array<{ lat: number; lng: number }>>([]);
 
   // ── Sync mission plan back to ConceptConfig (config.missionPlan.waypoints) ──
   useEffect(() => {
+    // Default demo items stay view-local; only an explicit user edit updates the project.
+    if (!hasUserEditedMission) return;
     const waypoints: MissionWaypoint[] = missionItems
       .filter(item => item.type !== "start")
       .map((item, idx) => ({
@@ -113,7 +152,7 @@ export function MissionPlannerView({ config, setConfig }: Props) {
         longitude: item.lng,
         altitudeM: item.alt,
         speedKmh: item.speed ?? config.cruiseSpeedKmh ?? 15,
-        action: item.type === "land" ? "return" : item.type === "takeoff" ? "turn" : "inspection",
+        action: item.action ?? (item.type === "land" ? "return" : item.type === "takeoff" ? "turn" : "inspection"),
       }));
     setConfig(prev => ({
       ...prev,
@@ -126,11 +165,14 @@ export function MissionPlannerView({ config, setConfig }: Props) {
           homeY: 0,
           waypoints: [],
         }),
-        waypoints,
+        waypoints: waypoints.map((point, index) => {
+          const original = prev.missionPlan?.waypoints.find(saved => saved.id === point.id);
+          return original ? { ...point, x: original.x, y: original.y, action: original.action } : point;
+        }),
       },
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [missionItems]);
+  }, [missionItems, hasUserEditedMission]);
 
   // ── Simulated telemetry tick ──
   useEffect(() => {
@@ -147,6 +189,7 @@ export function MissionPlannerView({ config, setConfig }: Props) {
 
   // ── Waypoint / mission item handlers ──
   const addWaypoint = useCallback((lat: number, lng: number) => {
+    setHasUserEditedMission(true);
     const num = missionItems.filter(i => i.type === "waypoint").length + 2;
     const item: MissionItem = {
       id: `wp-${Date.now()}`,
@@ -154,21 +197,65 @@ export function MissionPlannerView({ config, setConfig }: Props) {
       name: `Waypoint ${num}`,
       lat, lng,
       alt: config.altitudeM || 100,
-      speed: config.cruiseSpeedKmh || 15,
-      detail: `Alt ${config.altitudeM || 100} m · ${config.cruiseSpeedKmh || 15} m/s`,
+      speed: Math.min(config.cruiseSpeedKmh || 15, 300),
+      detail: `Alt ${config.altitudeM || 100} m · ${Math.min(config.cruiseSpeedKmh || 15, 300)} km/h`,
     };
-    setMissionItems(prev => [...prev.slice(0, -1), item, prev[prev.length - 1]]);
+    setMissionItems(prev => { const insertAt = prev.at(-1)?.type === "land" ? prev.length - 1 : prev.length; return [...prev.slice(0, insertAt), item, ...prev.slice(insertAt)]; });
     toast.success(t("Waypoint ajouté"), { description: `${item.name} · ${lat.toFixed(4)}, ${lng.toFixed(4)}` });
   }, [missionItems, config, t]);
 
+  const addGpsWaypoint = () => {
+    const coordinates = parseWgs84Coordinates(gpsLatitude, gpsLongitude);
+    if (!coordinates.valid) {
+      toast.error(t("Coordonnées GPS invalides"), { description: t(coordinates.error) });
+      return;
+    }
+    const { latitude, longitude } = coordinates;
+    const name = gpsWaypointName.trim() || `Waypoint GPS ${missionItems.filter(item => item.type === "waypoint").length + 1}`;
+    const altitudeM = Math.max(0, config.altitudeM || 100);
+    const speedKmh = Math.min(config.cruiseSpeedKmh || 15, 300);
+    const item: MissionItem = {
+      id: `gps-${Date.now()}`,
+      type: "waypoint",
+      name,
+      lat: latitude,
+      lng: longitude,
+      alt: altitudeM,
+      speed: speedKmh,
+      detail: `WGS84 · ${latitude.toFixed(6)}, ${longitude.toFixed(6)} · Alt ${altitudeM} m · ${speedKmh} km/h`,
+    };
+    const baseItems = config.missionPlan?.waypoints?.length || hasUserEditedMission
+      ? missionItems
+      : [];
+    setMissionItems(prev => {
+      const base = baseItems.length ? prev : [];
+      const insertAt = base.at(-1)?.type === "land" ? base.length - 1 : base.length;
+      return [...base.slice(0, insertAt), item, ...base.slice(insertAt)];
+    });
+    setHasUserEditedMission(true);
+    setSelectedItemId(item.id);
+    setCenter({ lat: latitude, lng: longitude });
+    setZoom(18);
+    setAiSuggestions([]);
+    setAiOptimized(false);
+    setGpsLatitude("");
+    setGpsLongitude("");
+    setGpsWaypointName("");
+    toast.success(t("Coordonnée ajoutée au plan local"), {
+      description: `${latitude.toFixed(6)}, ${longitude.toFixed(6)} · WGS84 · aucune transmission au drone`,
+    });
+  };
+
   const addMissionItem = (type: MissionItem["type"], name: string, lat: number, lng: number, alt: number) => {
+    setHasUserEditedMission(true);
     const item: MissionItem = { id: `${type}-${Date.now()}`, type, name, lat, lng, alt, detail: `Alt ${alt} m` };
-    setMissionItems(prev => [...prev.slice(0, -1), item, prev[prev.length - 1]]);
+    setMissionItems(prev => { const insertAt = prev.at(-1)?.type === "land" ? prev.length - 1 : prev.length; return [...prev.slice(0, insertAt), item, ...prev.slice(insertAt)]; });
     toast.success(t(name), { description: `${lat.toFixed(4)}, ${lng.toFixed(4)}` });
   };
 
   const handleMapClick = (coord: { lat: number; lng: number }) => {
     const { lat, lng } = coord;
+    if (tool === "select") return;
     if (tool === "waypoint") addWaypoint(lat, lng);
     else if (tool === "takeoff") addMissionItem("takeoff", "VTOL Takeoff", lat, lng, 20);
     else if (tool === "land") addMissionItem("land", "Land", lat, lng, 0);
@@ -177,76 +264,111 @@ export function MissionPlannerView({ config, setConfig }: Props) {
       const corners = surveyCornersRef.current;
       toast.info(`${t("Coin survey ajouté")} (${corners.length}/4)`);
       if (corners.length >= 4) {
+        setHasUserEditedMission(true);
+        const minLat = Math.min(...corners.map(point => point.lat));
+        const maxLat = Math.max(...corners.map(point => point.lat));
+        const minLng = Math.min(...corners.map(point => point.lng));
+        const maxLng = Math.max(...corners.map(point => point.lng));
+        const areaKm2 = haversineMeters(minLat, minLng, minLat, maxLng) * haversineMeters(minLat, minLng, maxLat, minLng) / 1_000_000;
         const newSurvey: MissionItem = {
           id: `survey-${Date.now()}`,
           type: "survey",
           name: `Survey — Zone ${String.fromCharCode(65 + missionItems.filter(i => i.type === "survey").length)}`,
-          lat: corners.reduce((s, c) => s + c.lat, 0) / corners.length,
-          lng: corners.reduce((s, c) => s + c.lng, 0) / corners.length,
+          lat: corners.reduce((sum, point) => sum + point.lat, 0) / corners.length,
+          lng: corners.reduce((sum, point) => sum + point.lng, 0) / corners.length,
           alt: surveyParams.altitude,
-          detail: `${surveyParams.photoCount} photos · ${((surveyParams.spacing * surveyParams.spacing) / 1e6).toFixed(2)} km²`,
+          detail: `${surveyParams.photoCount} photos · ${areaKm2.toFixed(2)} km² · paramètres de recouvrement ${surveyParams.overlapFront}/${surveyParams.overlapSide}%`,
         };
-        setMissionItems(prev => [...prev.slice(0, -1), newSurvey, prev[prev.length - 1]]);
-        toast.success(t("Survey créé"), { description: t("Polygone et lignes de vol générés.") });
+        setMissionItems(prev => { const insertAt = prev.at(-1)?.type === "land" ? prev.length - 1 : prev.length; return [...prev.slice(0, insertAt), newSurvey, ...prev.slice(insertAt)]; });
+        toast.success(t("Survey enregistré"), { description: t("Emprise estimée depuis quatre coins; les lignes de vol ne sont pas générées par ce prototype.") });
         surveyCornersRef.current = [];
       }
-    } else if (tool === "fence") toast.info(t("Géofence — cliquez pour ajouter un point"));
-    else if (tool === "rally") toast.info(t("Rally point ajouté"));
+    } else if (tool === "fence") {
+      setFencePoints(prev => [...prev, { id: `fence-${Date.now()}`, name: `Limite ${prev.length + 1}`, lat, lng, approximate: false }]);
+      toast.success(t("Point de géofence ajouté"));
+    } else if (tool === "rally") {
+      setRallyPoints(prev => [...prev, { id: `rally-${Date.now()}`, name: `Rally ${prev.length + 1}`, lat, lng, approximate: false }]);
+      toast.success(t("Point de rassemblement ajouté"));
+    } else if (tool === "measure") {
+      if (!measureStart.current) {
+        measureStart.current = { lat, lng };
+        toast.info(t("Point de départ de mesure posé; cliquez le second point."));
+      } else {
+        const distance = haversineMeters(measureStart.current.lat, measureStart.current.lng, lat, lng);
+        measureStart.current = null;
+        toast.success(t("Distance mesurée"), { description: `${distance >= 1000 ? `${(distance / 1000).toFixed(2)} km` : `${Math.round(distance)} m`} · estimation cartographique` });
+      }
+    }
   };
 
-  // ── AI navigation: suggest optimized waypoints avoiding obstacles ──
+  // ── Local deterministic route advice (simulation only; never sends vehicle commands) ──
   const runAiOptimization = useCallback(() => {
     if (mapPoints.length < 2) {
-      toast.error(t("Ajoutez au moins deux waypoints"), { description: t("L'optimisation IA nécessite une trajectoire de base.") });
+      setAiOptimized(false);
+      setAiSuggestions([]);
+      toast.error(t("Ajoutez au moins deux waypoints"), { description: t("L’optimisation locale nécessite une trajectoire de base.") });
       return;
     }
-    toast.info(t("Optimisation IA en cours…"), { description: t("Calcul d'évitement et de trajectoire minimale.") });
-    setTimeout(() => {
-      // Synthetic AI suggestion: detect waypoints within 80m of an obstacle and propose a detour.
-      const suggestions: Array<{ lat: number; lng: number; reason: string }> = [];
-      mapPoints.forEach((point, idx) => {
-        aiObstacles.forEach(obstacle => {
-          const distanceM = haversineMeters(point.lat, point.lng, obstacle.lat, obstacle.lng);
-          if (distanceM < obstacle.radiusM + 80) {
-            // propose detour offset perpendicular to the obstacle direction
-            const angle = Math.atan2(point.lng - obstacle.lng, point.lat - obstacle.lat);
-            const offset = (obstacle.radiusM + 80) / 111000;
-            suggestions.push({
-              lat: obstacle.lat + Math.cos(angle) * offset,
-              lng: obstacle.lng + Math.sin(angle) * offset,
-              reason: `Évitement ${obstacle.label} (${Math.round(distanceM)} m → ${Math.round(obstacle.radiusM + 80)} m)`,
-            });
-          }
-        });
-      });
-      setAiSuggestions(suggestions);
-      setAiOptimized(true);
-      toast.success(t("Optimisation IA terminée"), { description: `${suggestions.length} suggestion(s) · évitement obstacle appliqué.` });
-    }, 800);
+    const result = optimizeMissionRoute(mapPoints, aiObstacles, { clearanceM: 20 });
+    if (!result.feasible) {
+      setAiSuggestions([]);
+      setAiOptimized(false);
+      toast.error(t("Optimisation locale impossible"), { description: result.reason });
+      return;
+    }
+    const suggestions: Array<{ lat: number; lng: number; reason: string; originalId?: string }> = [];
+    let originalIndex = 0;
+    for (const point of result.points) {
+      const original = mapPoints[originalIndex];
+      if (original && Math.abs(point.lat - original.lat) < 1e-9 && Math.abs(point.lng - original.lng) < 1e-9) {
+        suggestions.push({ ...point, reason: "Point original conservé", originalId: original.id });
+        originalIndex++;
+      } else suggestions.push({ ...point, reason: "Détour local calculé" });
+    }
+    if (originalIndex !== mapPoints.length || result.points.length === 0) {
+      setAiSuggestions([]);
+      setAiOptimized(false);
+      toast.error(t("Optimisation locale impossible"), { description: t("Le résultat ne conserve pas tous les points du plan dans leur ordre initial.") });
+      return;
+    }
+    if (result.detourCount === 0) {
+      setAiSuggestions([]);
+      setAiOptimized(false);
+      toast.info(t("Aucun détour requis"), { description: t("La trajectoire ne croise pas les obstacles virtuels configurés; le plan reste inchangé.") });
+      return;
+    }
+    setAiSuggestions(suggestions);
+    setAiOptimized(true);
+    toast.success(t("Aide d’optimisation locale prête"), { description: `${result.detourCount} détour(s) · ${Math.round(result.totalDistanceM)} m · simulation uniquement; rien n’est appliqué.` });
   }, [mapPoints, aiObstacles, t]);
 
   const applyAiSuggestions = () => {
     if (!aiSuggestions.length) return;
-    const newItems: MissionItem[] = aiSuggestions.map((s, idx) => ({
-      id: `ai-${Date.now()}-${idx}`,
-      type: "waypoint",
-      name: `Waypoint IA ${idx + 1}`,
-      lat: s.lat,
-      lng: s.lng,
-      alt: config.altitudeM || 100,
-      speed: config.cruiseSpeedKmh || 15,
-      detail: `IA · ${s.reason}`,
-    }));
-    setMissionItems(prev => [...prev.slice(0, -1), ...newItems, prev[prev.length - 1]]);
+    if (!aiSuggestions.length || !aiSuggestions.some(s => !s.originalId)) return;
+    const source = new Map(missionItems.filter(item => item.type !== "start").map(item => [item.id, item]));
+    if (aiSuggestions.filter(s => s.originalId).some(s => !source.has(s.originalId!))) {
+      toast.error(t("Plan modifié"), { description: t("Recalculez l’aide avant de l’appliquer.") });
+      return;
+    }
+    const newItems: MissionItem[] = aiSuggestions.map((s, idx) => s.originalId
+      ? { ...source.get(s.originalId)!, lat: s.lat, lng: s.lng }
+      : { id: `route-detour-${Date.now()}-${idx}`, type: "waypoint", name: `Détour local ${idx + 1}`, lat: s.lat, lng: s.lng, alt: config.altitudeM || 100, speed: Math.min(config.cruiseSpeedKmh || 15, 300), detail: `Simulation · ${s.reason}` });
+    setHasUserEditedMission(true);
+    setMissionItems(prev => [...prev.filter(item => item.type === "start"), ...newItems]);
     setAiSuggestions([]);
     setAiOptimized(false);
-    toast.success(t("Waypoints IA ajoutés au plan"));
+    toast.success(t("Itinéraire local appliqué au plan"));
   };
 
-  const handleUpload = () => toast.success(t("Mission uploadée"), { description: t("Plan envoyé au véhicule.") });
+  const handleUpload = () => toast.error(t("Téléversement indisponible dans le planificateur local"), { description: t("Le plan reste local; aucune mission n’a été envoyée à un véhicule.") });
   const handleCenter = () => setCenter(PARIS_CENTER);
-  const handleClearSurvey = () => { toast.info(t("Survey effacé")); };
+  const handleClearSurvey = () => {
+    surveyCornersRef.current = [];
+    setMissionItems(prev => prev.filter(item => item.type !== "survey"));
+    toast.success(t("Surveys et coins de survey effacés"));
+  };
   const handleClearMission = () => {
+    setHasUserEditedMission(true);
     setMissionItems([
       { id: "start", type: "start", name: "Mission Start", lat: 48.8566, lng: 2.3522, alt: 0, detail: "Point de départ" },
       { id: "land", type: "land", name: "Land", lat: 48.8566, lng: 2.3522, alt: 0, detail: "RTL" },
@@ -308,8 +430,8 @@ export function MissionPlannerView({ config, setConfig }: Props) {
           <span className="mp-dot pulse" /> {vehicleStatus === "ready" ? t("Ready to fly") : vehicleStatus === "hold" ? "Hold" : t("Disarmed")}
         </div>
         <div className="mp-telem">
-          <div className="mp-telem-item"><span className="label">{t("Distance")}</span><span className="value">7 407 m</span></div>
-          <div className="mp-telem-item"><span className="label">TELEM MAX</span><span className="value">869 m</span></div>
+          <div className="mp-telem-item"><span className="label">{t("Distance estimée")}</span><span className="value">{Math.round(routeDistanceM)} m</span></div>
+          <div className="mp-telem-item"><span className="label">{t("Durée estimée")}</span><span className="value">{routeDurationMin} min</span></div>
           <div className="mp-telem-item"><span className="label">{t("Altitude")}</span><span className="value">{telemetry.alt.toFixed(1)} m</span></div>
           <div className="mp-telem-item"><span className="label">{t("Ground Speed")}</span><span className="value cyan">{telemetry.speed.toFixed(1)} m/s</span></div>
           <div className="mp-telem-item"><span className="label">{t("Batterie")}</span><span className="value green">{telemetry.battery.toFixed(0)}%</span></div>
@@ -317,21 +439,21 @@ export function MissionPlannerView({ config, setConfig }: Props) {
           <div className="mp-telem-item"><span className="label">HDOP</span><span className="value">{telemetry.hdop}</span></div>
         </div>
         <div className="mp-spacer" />
-        <button className="mp-upload-btn" onClick={handleUpload}><Upload size={14} /> {t("Upload Required")}</button>
+        <button className="mp-upload-btn" onClick={handleUpload} title={t("Plan local uniquement; téléversement non disponible")}><Upload size={14} /> {t("Upload Required · indisponible")}</button>
       </div>
 
       {/* Sub-toolbar */}
       <div className="mp-subtoolbar">
         <button className={`mp-tb-btn ${activeTab === "mission" ? "active" : ""}`} onClick={() => setActiveTab("mission")}><Navigation size={14} /> {t("Plan")}</button>
         <button className={`mp-tb-btn ${activeTab === "ai" ? "active" : ""}`} onClick={() => setActiveTab("ai")}><BrainCircuit size={14} /> {t("Navigation IA")}</button>
-        <button className="mp-tb-btn"><Crosshair size={14} /> {t("Fly")}</button>
-        <button className="mp-tb-btn"><Activity size={14} /> {t("Analyse")}</button>
+        <button className="mp-tb-btn" disabled title={t("Contrôle de vol indisponible dans ce planificateur local")}><Crosshair size={14} /> {t("Fly · indisponible")}</button>
+        <button className="mp-tb-btn" disabled title={t("Analyse complète non implémentée dans cette vue")}><Activity size={14} /> {t("Analyse · indisponible")}</button>
         <div className="mp-tb-sep" />
         <span className="mp-coord">LAT <b>{center.lat.toFixed(4)}°N</b> · LON <b>{center.lng.toFixed(4)}°E</b> · ZOOM <b>{zoom}</b></span>
         <div className="mp-spacer" />
         <button className="mp-tb-btn" onClick={handleClearSurvey}><MapPinned size={14} /> {t("Effacer survey")}</button>
         <button className="mp-tb-btn" onClick={handleClearMission}><Spline size={14} /> {t("Effacer mission")}</button>
-        <button className="mp-tb-btn" onClick={() => toast.info(t("Journal de vol"))}><SettingsIcon size={14} /> {t("Journal")}</button>
+        <button className="mp-tb-btn" disabled title={t("Journal de vol non disponible dans cette vue")}><SettingsIcon size={14} /> {t("Journal · indisponible")}</button>
       </div>
 
       {/* Layer mode selector — modern map selection (satellite / tactical / AI) */}
@@ -382,7 +504,7 @@ export function MissionPlannerView({ config, setConfig }: Props) {
             <OpenStreetMapView
               className="mp-open-map"
               center={center}
-              points={[...mapPoints, ...aiOverlayPoints]}
+              points={[...mapPoints, ...aiOverlayPoints, ...fencePoints, ...rallyPoints]}
               zoom={zoom}
               layerMode={mapLayerMode}
               onCenterChange={next => { setCenter(next); }}
@@ -436,7 +558,7 @@ export function MissionPlannerView({ config, setConfig }: Props) {
               <button onClick={handleCenter}><Maximize2 size={14} /></button>
             </div>
             <div className="mp-telem-hud">
-              <div className="mp-th-title">▼ {t("Télémétrie Live")}</div>
+              <div className="mp-th-title">▼ {t("Télémétrie simulée · aucune liaison avion")}</div>
               <div className="mp-th-row"><span>ALT</span><span className="cyan">{telemetry.alt.toFixed(1)} m</span></div>
               <div className="mp-th-row"><span>SPD</span><span>{telemetry.speed.toFixed(1)} m/s</span></div>
               <div className="mp-th-row"><span>HDG</span><span>{Math.round(telemetry.heading)}°</span></div>
@@ -454,18 +576,46 @@ export function MissionPlannerView({ config, setConfig }: Props) {
         <div className="mp-right">
           <div className="mp-rp-tabs">
             <button className={`mp-rp-tab ${activeTab === "mission" ? "active" : ""}`} onClick={() => setActiveTab("mission")}>{t("Mission")} <span className="mp-badge">{missionItems.length}</span></button>
-            <button className={`mp-rp-tab ${activeTab === "fence" ? "active" : ""}`} onClick={() => setActiveTab("fence")}>{t("Fence")} <span className="mp-badge">1</span></button>
-            <button className={`mp-rp-tab ${activeTab === "rally" ? "active" : ""}`} onClick={() => setActiveTab("rally")}>{t("Rally")} <span className="mp-badge">2</span></button>
+            <button className={`mp-rp-tab ${activeTab === "gps" ? "active" : ""}`} onClick={() => setActiveTab("gps")}><MapPinned size={12} /> {t("GPS")}</button>
+            <button className={`mp-rp-tab ${activeTab === "fence" ? "active" : ""}`} onClick={() => setActiveTab("fence")}>{t("Fence")} <span className="mp-badge">{fencePoints.length}</span></button>
+            <button className={`mp-rp-tab ${activeTab === "rally" ? "active" : ""}`} onClick={() => setActiveTab("rally")}>{t("Rally")} <span className="mp-badge">{rallyPoints.length}</span></button>
             <button className={`mp-rp-tab ${activeTab === "ai" ? "active" : ""}`} onClick={() => setActiveTab("ai")}><Sparkles size={12} /> IA <span className="mp-badge">{aiSuggestions.length}</span></button>
           </div>
 
-          {activeTab === "ai" ? (
+          {activeTab === "gps" ? (
+            <form className="mp-gps-panel mp-ai-panel" onSubmit={event => { event.preventDefault(); addGpsWaypoint(); }}>
+              <div className="mp-ai-panel-head">
+                <MapPinned size={18} />
+                <div>
+                  <strong>{t("Saisie d’une position GPS")}</strong>
+                  <small>{t("Coordonnées géographiques WGS84 en degrés décimaux.")}</small>
+                </div>
+              </div>
+              <label className="mp-gps-field">
+                {t("Latitude WGS84 (°)")}
+                <input type="number" inputMode="decimal" step="any" min="-90" max="90" required value={gpsLatitude} onChange={event => setGpsLatitude(event.target.value)} placeholder="48.856613" />
+              </label>
+              <label className="mp-gps-field">
+                {t("Longitude WGS84 (°)")}
+                <input type="number" inputMode="decimal" step="any" min="-180" max="180" required value={gpsLongitude} onChange={event => setGpsLongitude(event.target.value)} placeholder="2.352222" />
+              </label>
+              <label className="mp-gps-field">
+                {t("Nom du point (facultatif)")}
+                <input type="text" maxLength={80} value={gpsWaypointName} onChange={event => setGpsWaypointName(event.target.value)} placeholder={t("Waypoint GPS")} />
+              </label>
+              <p className="mp-gps-altitude">{t("Altitude du point")}: {Math.max(0, config.altitudeM || 100)} m · {t("vitesse de plan locale limitée à 300 km/h")}</p>
+              <div className="mp-ai-actions">
+                <button className="primary-button" type="submit"><MapPin size={13} /> {t("Ajouter au plan local")}</button>
+              </div>
+              <p className="mp-ai-disclaimer" role="note"><ShieldCheck size={11} /> {t("Cette action synchronise le point avec le plan du projet et recentre la carte. Elle n’envoie aucune commande au drone.")}</p>
+            </form>
+          ) : activeTab === "ai" ? (
             <div className="mp-ai-panel">
               <div className="mp-ai-panel-head">
                 <BrainCircuit size={18} />
                 <div>
-                  <strong>{t("Navigation par Intelligence Artificielle")}</strong>
-                  <small>{t("Évitement d'obstacles virtuels · optimisation de trajectoire · suggestions de waypoints")}</small>
+                  <strong>{t("Aide à la navigation · calcul local")}</strong>
+                  <small>{t("Contournement d'obstacles virtuels · optimisation géométrique · suggestions de waypoints")}</small>
                 </div>
               </div>
               <div className="mp-ai-section">
@@ -498,7 +648,7 @@ export function MissionPlannerView({ config, setConfig }: Props) {
               </div>
               <div className="mp-ai-actions">
                 <button className="primary-button" onClick={runAiOptimization} disabled={mapPoints.length < 2}>
-                  <BrainCircuit size={13} /> {t("Lancer l'optimisation IA")}
+                  <BrainCircuit size={13} /> {t("Calculer l’optimisation locale")}
                 </button>
                 <button className="secondary-button" onClick={applyAiSuggestions} disabled={!aiSuggestions.length}>
                   <MapPin size={13} /> {t("Appliquer les suggestions")}
@@ -507,6 +657,22 @@ export function MissionPlannerView({ config, setConfig }: Props) {
               <p className="mp-ai-disclaimer">
                 <ShieldCheck size={11} /> {t("Suggestions locales uniquement · aucune commande transmise · simulation.")}
               </p>
+            </div>
+          ) : activeTab === "fence" ? (
+            <div className="mp-mission-list" aria-label={t("Points de géofence")}> 
+              <p className="mp-empty-state">{t("Cliquez sur la carte avec l’outil Géofence pour ajouter un point.")}</p>
+              {fencePoints.map((point, index) => <button className="mp-mission-item" key={point.id} onClick={() => { setCenter({ lat: point.lat, lng: point.lng }); setZoom(18); }}>
+                <div className="mp-mi-icon waypoint"><ShieldCheck size={16} /></div><div className="mp-mi-info"><div className="mp-mi-name">{point.name}</div><div className="mp-mi-detail">{point.lat.toFixed(5)}, {point.lng.toFixed(5)}</div></div><div className="mp-mi-num">{index + 1}</div>
+              </button>)}
+              <button className="mp-tb-btn" disabled={!fencePoints.length} onClick={() => setFencePoints([])}><Trash2 size={13} /> {t("Effacer la géofence")}</button>
+            </div>
+          ) : activeTab === "rally" ? (
+            <div className="mp-mission-list" aria-label={t("Points Rally")}> 
+              <p className="mp-empty-state">{t("Cliquez sur la carte avec l’outil Rally pour ajouter un point de rassemblement.")}</p>
+              {rallyPoints.map((point, index) => <button className="mp-mission-item" key={point.id} onClick={() => { setCenter({ lat: point.lat, lng: point.lng }); setZoom(18); }}>
+                <div className="mp-mi-icon takeoff"><Flag size={16} /></div><div className="mp-mi-info"><div className="mp-mi-name">{point.name}</div><div className="mp-mi-detail">{point.lat.toFixed(5)}, {point.lng.toFixed(5)}</div></div><div className="mp-mi-num">{index + 1}</div>
+              </button>)}
+              <button className="mp-tb-btn" disabled={!rallyPoints.length} onClick={() => setRallyPoints([])}><Trash2 size={13} /> {t("Effacer les points Rally")}</button>
             </div>
           ) : (
             <>
@@ -542,6 +708,15 @@ export function MissionPlannerView({ config, setConfig }: Props) {
                   <div className="mp-sp-field"><div className="mp-sp-label">{t("Angle lignes")}</div><div className="mp-sp-value">{surveyParams.angle}<span className="mp-sp-unit">°</span></div></div>
                   <div className="mp-sp-field"><div className="mp-sp-label">{t("Nb. photos")}</div><div className="mp-sp-value">{surveyParams.photoCount}</div></div>
                 </div>
+                <label className="mp-sp-control">{t("Altitude survey")} · {surveyParams.altitude} m
+                  <input type="range" min="20" max="1200" step="10" value={surveyParams.altitude} onChange={event => setSurveyParams(prev => ({ ...prev, altitude: Number(event.target.value) }))} />
+                </label>
+                <label className="mp-sp-control">{t("Recouvrement avant")} · {surveyParams.overlapFront}%
+                  <input type="range" min="30" max="90" step="5" value={surveyParams.overlapFront} onChange={event => setSurveyParams(prev => ({ ...prev, overlapFront: Number(event.target.value) }))} />
+                </label>
+                <label className="mp-sp-control">{t("Espacement des lignes")} · {surveyParams.spacing.toFixed(1)} m
+                  <input type="range" min="10" max="200" step="1" value={surveyParams.spacing} onChange={event => setSurveyParams(prev => ({ ...prev, spacing: Number(event.target.value) }))} />
+                </label>
               </div>
             </>
           )}
@@ -550,19 +725,19 @@ export function MissionPlannerView({ config, setConfig }: Props) {
 
       {/* Timeline */}
       <div className="mp-timeline">
-        <div className="mp-tl-item"><span className="dot green" /> {t("Mission prête")}</div>
+        <div className="mp-tl-item"><span className="dot amber" /> {t("Plan local · non transmis")}</div>
         <div className="mp-tl-item"><span className="dot cyan" /> {t("Plan")} <b>{missionItems.length} WP</b></div>
-        <div className="mp-tl-item">{t("Durée")} <b>24 min</b></div>
-        <div className="mp-tl-item">{t("Distance")} <b>7 407 m</b></div>
-        <div className="mp-tl-item">{t("Surface")} <b>2.4 km²</b></div>
+        <div className="mp-tl-item">{t("Durée estimée")} <b>{routeDurationMin} min</b></div>
+        <div className="mp-tl-item">{t("Distance estimée")} <b>{Math.round(routeDistanceM)} m</b></div>
+        <div className="mp-tl-item">{t("Survey")} <b>{missionItems.filter(item => item.type === "survey").length}</b></div>
         {plannerLayerMode === "ai" && (
           <div className="mp-tl-item"><span className="dot cyan" /> {t("IA")} <b>{aiOptimized ? "OPTIMISÉ" : "STANDBY"}</b></div>
         )}
         <div className="mp-spacer" />
-        <div className="mp-tl-item">{t("Vent")} <b>3.2 m/s NW</b></div>
-        <div className="mp-tl-item">{t("Visibilité")} <b>10 km</b></div>
-        <div className="mp-tl-item">{t("Temp")} <b>18°C</b></div>
-        <div className="mp-tl-item" style={{ color: "var(--pdc-green, #10b981)", fontWeight: 700 }}>● {t("Validé")}</div>
+        <div className="mp-tl-item">{t("Vent")} <b>{t("non chargé")}</b></div>
+        <div className="mp-tl-item">{t("Visibilité")} <b>{t("non chargée")}</b></div>
+        <div className="mp-tl-item">{t("Température")} <b>{t("non chargée")}</b></div>
+        <div className="mp-tl-item" style={{ color: "var(--mp-amber)", fontWeight: 700 }}>● {t("Simulation locale — à vérifier")}</div>
       </div>
     </div>
   );

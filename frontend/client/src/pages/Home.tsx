@@ -19,6 +19,8 @@ import {
 } from "../lib/workspaceSync";
 import {
   createWorkspaceSnapshot,
+  filterLegacyImplicitProjects,
+  replaceExistingProjectSnapshot,
   readWorkspaceStorage,
   writeWorkspaceStorage,
 } from "../lib/projectSyncStore";
@@ -724,9 +726,7 @@ const readPersistedState = (): PersistedState => {
   const result = readWorkspaceStorage();
   if (result?.ok) {
     const parsed = result.value as unknown as PersistedState;
-    const userProjects = (parsed.projects ?? []).filter(
-      item => item.id !== "project-local-1" && item.id !== demoProjectId
-    );
+    const userProjects = filterLegacyImplicitProjects(parsed.projects ?? []);
     if (!userProjects.length) return emptyWorkspace;
     if (!parsed.activeProjectId || !userProjects.some(item => item.id === parsed.activeProjectId)) {
       return { ...emptyWorkspace, projects: userProjects };
@@ -1960,7 +1960,7 @@ function Overview({
                       <label>ALTITUDE DE CONCEPTION <input type="number" min="0" max="6000" value={config.altitudeM} onChange={event => onConfigChange({ altitudeM: Number(event.target.value) || 0 })} /> m</label>
                       <label>BATTERIE <input type="number" min="0" max="100000" value={config.batteryWh} onChange={event => onConfigChange({ batteryWh: Number(event.target.value) || 0 })} /> Wh</label>
                       <label>CHARGE UTILE <input type="number" min="0" max="1000" step="0.1" value={config.payloadKg} onChange={event => onConfigChange({ payloadKg: Number(event.target.value) || 0 })} /> kg</label>
-                      <label>VITESSE <input type="number" min="0" max="500" value={config.cruiseSpeedKmh} onChange={event => onConfigChange({ cruiseSpeedKmh: Number(event.target.value) || 0 })} /> km/h</label>
+                      <label>VITESSE CIBLE · SIMULATION <input type="number" min="0" max="650" value={config.cruiseSpeedKmh} onChange={event => onConfigChange({ cruiseSpeedKmh: Number(event.target.value) || 0 })} /> km/h <small>&gt;216 km/h : performance hors calibration.</small></label>
                     </div>
                   </> : <div className="eng-empty-state"><Activity size={22} /><b>Flux verrouillé — aucune source utilisateur</b><span>Sélectionnez une cellule dans la Bibliothèque ou créez un dessin de drone. Aucun flux synthétique n’est affiché avant cette action.</span></div>}</section></main>
         <aside className="eng-rail"><section className="eng-panel eng-disposition"><div className="eng-panel-title"><span>DISPOSITION D’INGÉNIERIE</span><b>03</b></div><div className="eng-disposition-status"><small>DISPOSITION RECOMMANDÉE</small><strong className={configured ? "eng-warn" : "eng-muted"}>{configured ? "PASSAGE EN REVUE HUMAINE" : "HOLD"}</strong><span>{configured ? "Model outputs are preliminary and require evidence review before acceptance." : "Aucune décision ne peut être préparée sans configuration active."}</span></div><div className="eng-decision-metrics"><div><small>READINESS</small><strong>{configured ? "82%" : "—"}</strong></div><div><small>RISQUES OUVERTS</small><strong className={riskCount ? "eng-warn" : "eng-good"}>{configured ? String(riskCount).padStart(2, "0") : "—"}</strong></div><div><small>EXIG. OUVERTES</small><strong>{unresolvedRequirements}</strong></div></div><button className="eng-text-action" onClick={() => onView("simulation")}>Ouvrir les détails d’analyse <ArrowRight size={13} /></button></section><section className="eng-panel"><div className="eng-panel-title"><span>POINT OUVERT PRIORITAIRE</span><b>04</b></div>{openRisk ? <div className="eng-open-item"><span className={`orc-severity severity-${openRisk.severity}`} /><b>{openRisk.label}</b><small>{openRisk.probability} · {openRisk.status.toUpperCase()}</small></div> : <div className="eng-no-item"><CheckCircle2 size={15} /> Aucun risque ouvert dans le calcul courant</div>}<div className="eng-control-note"><Info size={13} /> Aucune commande d’actionneur, transmission de mission ou approbation autonome n’est disponible ici.</div></section></aside>
@@ -4859,11 +4859,11 @@ function ConceptView({
             {activeAssemblyTool === "performance" && (
               <div className="assembly-fields">
                 <ParameterField
-                  label="Vitesse de croisière"
+                  label="Vitesse cible de conception · simulation"
                   value={config.cruiseSpeedKmh}
                   unit="km/h"
-                  min={10}
-                  max={150}
+                  min={5}
+                  max={650}
                   step={1}
                   onChange={value => updateConfig("cruiseSpeedKmh", value)}
                 />
@@ -6458,10 +6458,11 @@ function SimulationView({
             />
           </label>
           <label>
-            <span>Vitesse (km/h)</span>
+            <span>Vitesse cible (km/h · simulation)</span>
             <input
               type="number"
               min="1"
+              max="650"
               step="1"
               value={config.cruiseSpeedKmh}
               onChange={event =>
@@ -9977,12 +9978,12 @@ function MissionOperationsView({
             </small>
           </label>
           <label>
-            Vitesse de croisière (km/h)
+            Vitesse cible de conception · simulation (km/h)
             <input
-              aria-label="Vitesse de croisière de conception en kilomètres par heure"
+              aria-label="Vitesse de conception en kilomètres par heure"
               type="number"
               min="0"
-              max="300"
+              max="650"
               step="1"
               value={config.cruiseSpeedKmh}
               onChange={event =>
@@ -11912,7 +11913,7 @@ function OperationsView({
   const [plan, setPlan] = useState<MissionPlan>(() => ({
     ...defaultMissionPlan,
     maxAltitudeM: config.altitudeM || defaultMissionPlan.maxAltitudeM,
-    maxSpeedKmh: config.cruiseSpeedKmh || defaultMissionPlan.maxSpeedKmh,
+    maxSpeedKmh: Math.min(config.cruiseSpeedKmh || defaultMissionPlan.maxSpeedKmh, 300),
     geofenceRadiusKm:
       config.missionPlan?.radiusKm || defaultMissionPlan.geofenceRadiusKm,
     minimumBatteryPercent: config.reserveFraction
@@ -11960,11 +11961,14 @@ function OperationsView({
     record("Itinéraire manuel effacé · aucun point de passage conservé");
   };
   const updatePlan = (next: MissionPlan) => {
-    setPlan(next);
+    const boundedPlan = {
+      ...next,
+      maxSpeedKmh: Math.min(300, Math.max(1, Number(next.maxSpeedKmh) || 1)),
+    };
+    setPlan(boundedPlan);
     setConfig({
       ...config,
       altitudeM: next.maxAltitudeM,
-      cruiseSpeedKmh: next.maxSpeedKmh,
       reserveFraction: next.minimumBatteryPercent / 100,
       missionPlan: {
         ...defaultLocalMissionPlan,
@@ -11978,7 +11982,6 @@ function OperationsView({
     setPlan(current => ({
       ...current,
       maxAltitudeM: config.altitudeM || current.maxAltitudeM,
-      maxSpeedKmh: config.cruiseSpeedKmh || current.maxSpeedKmh,
       geofenceRadiusKm:
         config.missionPlan?.radiusKm || current.geofenceRadiusKm,
       minimumBatteryPercent: config.reserveFraction
@@ -11988,7 +11991,6 @@ function OperationsView({
     }));
   }, [
     config.altitudeM,
-    config.cruiseSpeedKmh,
     config.missionPlan?.radiusKm,
     config.missionPlan?.lostLinkAction,
     config.reserveFraction,
@@ -12280,9 +12282,11 @@ function OperationsView({
               Vitesse max. (km/h)
               <input
                 type="number"
+                min={1}
+                max={300}
                 value={plan.maxSpeedKmh}
                 onChange={e =>
-                  updatePlan({ ...plan, maxSpeedKmh: Number(e.target.value) })
+                  updatePlan({ ...plan, maxSpeedKmh: Math.min(300, Math.max(1, Number(e.target.value) || 1)) })
                 }
               />
             </label>
@@ -13097,16 +13101,24 @@ export default function Home() {
         suppressSyncBroadcast.current = true;
         const ws = parsed.workspace;
         if (Array.isArray(ws.projects) && typeof ws.activeProjectId === "string") {
-          const hydrated = ws.projects as unknown as ProjectRecord[];
+          // Ignore known auto-generated legacy IDs without deleting or
+          // overwriting the persisted server workspace record.
+          const hydrated = filterLegacyImplicitProjects(
+            ws.projects as unknown as ProjectRecord[]
+          );
+          const selected = hydrated.find(item => item.id === ws.activeProjectId) ?? hydrated[0];
           setProjects(hydrated);
-          setActiveProjectId(ws.activeProjectId);
-          const selected =
-            hydrated.find(item => item.id === ws.activeProjectId) ?? hydrated[0];
+          setActiveProjectId(selected?.id ?? "");
           if (selected) {
             setProject(selected.project);
             setRequirements(selected.requirements as unknown as Requirement[]);
             setConfig(normalizeConcept(selected.config as unknown as ConceptConfig));
             setRunId(selected.runId);
+          } else {
+            setProject(emptyProject);
+            setRequirements([]);
+            setConfig(normalizeConcept(blankConcept));
+            setRunId("SIM-000");
           }
         }
       })
@@ -13177,14 +13189,15 @@ export default function Home() {
         config,
         runId,
       };
-      const nextProjects = projects.map(item =>
-        item.id === activeProjectId ? currentRecord : item
-      );
-      if (!nextProjects.some(item => item.id === activeProjectId))
-        nextProjects.push(currentRecord);
+      const existingProjects = replaceExistingProjectSnapshot(projects, currentRecord);
+      if (!existingProjects) {
+        // Autosave must not turn a stale/transient active ID into an entity.
+        setSaveState("saved");
+        return;
+      }
       const payload = createWorkspaceSnapshot({
         ...currentRecord,
-        projects: nextProjects,
+        projects: existingProjects,
         activeProjectId,
         source: "LOCAL",
         syncStatus: "LOCAL",
@@ -13293,9 +13306,7 @@ export default function Home() {
       try {
         const next = parsed.workspace as unknown as PersistedState;
         suppressSyncBroadcast.current = true;
-        const nextProjects = (next.projects ?? []).filter(
-          item => item.id !== "project-local-1" && item.id !== demoProjectId
-        );
+        const nextProjects = filterLegacyImplicitProjects(next.projects ?? []);
         setProjects(nextProjects);
         setActiveProjectId(
           nextProjects.length
@@ -13328,9 +13339,7 @@ export default function Home() {
       try {
         const next = parsed.workspace as unknown as PersistedState;
         suppressSyncBroadcast.current = true;
-        const nextProjects = (next.projects ?? []).filter(
-          item => item.id !== "project-local-1" && item.id !== demoProjectId
-        );
+        const nextProjects = filterLegacyImplicitProjects(next.projects ?? []);
         setProjects(nextProjects);
         setActiveProjectId(
           nextProjects.length
@@ -14474,8 +14483,8 @@ export default function Home() {
                     )}
                     {activeView === "simulation" && (
                       <>
-                        <AeroTestFieldStation config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
                         <VirtualSimulationCenter
+                          hasProject={Boolean(activeProjectId)}
                           simulation={simulation}
                           requirements={requirements}
                           onRunSimulation={runSimulationNow}
@@ -14486,6 +14495,7 @@ export default function Home() {
                           versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
                           onRestoreVersion={restoreDesignVersion}
                         />
+                        <AeroTestFieldStation hasProject={Boolean(activeProjectId)} config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
                       </>
                     )}
                     {activeView === "command-center" && <HumanCommandCenter />}
@@ -14600,6 +14610,7 @@ export default function Home() {
                       <ParametricDroneCenter
                         config={config}
                         setConfig={setConfig}
+                        hasProject={Boolean(activeProjectId)}
                         onCommit={() => {
                           // Trigger simulation refresh when params are committed
                           void runSimulationNow(config);

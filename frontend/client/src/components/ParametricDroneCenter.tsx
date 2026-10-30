@@ -10,7 +10,7 @@
  * Synchronisé avec le ConceptConfig du projet AeroMind actif : les modifications
  * de variables mettent à jour config.wingspan, config.fuselageLength, etc.
  */
-import { useMemo, useRef, useState, useEffect, type ReactNode } from "react";
+import { Component, useMemo, useRef, useState, useEffect, type ErrorInfo, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -19,6 +19,7 @@ import {
   Ruler, Save, Search, Settings as SettingsIcon, Upload, Wrench,
 } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
+import { calculateParametricMetrics, PARAMETRIC_PREVIEW_DEFAULTS, resolveParametricVariables } from "../lib/engineeringDisplayState";
 import { useLanguage } from "../contexts/LanguageContext";
 import { toast } from "sonner";
 import "./parametric-drone-center.css";
@@ -26,6 +27,7 @@ import "./parametric-drone-center.css";
 type Props = {
   config: ConceptConfig;
   setConfig: (updater: (prev: ConceptConfig) => ConceptConfig) => void;
+  hasProject: boolean;
   onCommit?: () => void;
 };
 
@@ -58,11 +60,11 @@ const DEFAULT_VARIABLES: Variable[] = [
   { id: "sweep", name: "#sweep", value: 60, unit: "°", min: 60, max: 90, step: 1, type: "angle", description: "Flèche de l'aile", appliesTo: "custom" },
   { id: "dihedral", name: "#dihedral", value: 0, unit: "°", min: 0, max: 10, step: 0.5, type: "angle", description: "Dièdre de l'aile", appliesTo: "custom" },
   { id: "max_thickness", name: "#max_thickness", value: 0.3, unit: "m", min: 0.1, max: 0.5, step: 0.01, type: "number", description: "Épaisseur max profil", appliesTo: "custom" },
-  { id: "chord", name: "#chord", value: 3, unit: "m", min: 1, max: 5, step: 0.1, type: "number", description: "Corde racine", appliesTo: "custom" },
+  { id: "chord", name: "#chord", value: 3, unit: "m", min: 1, max: 5, step: 0.1, type: "number", description: "Corde racine", appliesTo: "chord" },
   { id: "thickness_ratio", name: "#thickness_ratio", value: 0.1, unit: "", min: 0.08, max: 0.15, step: 0.01, type: "ratio", description: "Ratio épaisseur/corde", appliesTo: "custom" },
   { id: "winglet_angle", name: "#winglet_angle", value: 45, unit: "°", min: 30, max: 60, step: 1, type: "angle", description: "Angle winglet", appliesTo: "custom" },
   { id: "motor_count", name: "#motor_count", value: 4, unit: "", min: 1, max: 8, step: 1, type: "number", description: "Nombre de moteurs", appliesTo: "motorCount" },
-  { id: "cruise_speed", name: "#cruise_speed", value: 20, unit: "km/h", min: 5, max: 120, step: 1, type: "number", description: "Vitesse de croisière", appliesTo: "cruiseSpeedKmh" },
+  { id: "cruise_speed", name: "#cruise_speed", value: 20, unit: "km/h", min: 5, max: 650, step: 1, type: "number", description: "Vitesse cible de conception (simulation)", appliesTo: "cruiseSpeedKmh" },
   { id: "altitude", name: "#altitude", value: 100, unit: "m", min: 10, max: 6000, step: 5, type: "number", description: "Altitude opération", appliesTo: "altitudeM" },
   { id: "fuse_sec3_top", name: "#fuse_sec3_top", value: 1.7, unit: "m", min: 1, max: 2, step: 0.05, type: "number", description: "Diamètre haut section 3", appliesTo: "custom" },
 ];
@@ -214,31 +216,53 @@ function Scene({ vars }: { vars: Record<string, number> }) {
   );
 }
 
-export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
+function ParametricViewportFallback() {
+  return <div className="pdc-viewport-fallback" role="status" aria-label="Aperçu 3D de secours">
+    <svg viewBox="0 0 480 260" role="img" aria-label="Schéma de drone à voilure fixe">
+      <path d="M240 36 257 109 415 158 415 174 256 151 252 213 286 232 282 243 240 233 198 243 194 232 228 213 224 151 65 174 65 158 223 109Z" fill="#25d0d9" stroke="#b9fffb" strokeWidth="3" />
+      <path d="M240 42v188" stroke="#f5a623" strokeWidth="5" />
+    </svg>
+    <div><strong>APERÇU 3D INDISPONIBLE</strong><span>Le navigateur ne fournit pas de contexte WebGL utilisable. Les paramètres et calculs restent accessibles ci-dessous.</span></div>
+  </div>;
+}
+
+class ParametricViewportBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Échec isolé du viewport 3D paramétrique", error, info.componentStack);
+  }
+  render() { return this.state.hasError ? this.props.fallback : this.props.children; }
+}
+
+export function ParametricDroneCenter({ config, setConfig, hasProject, onCommit }: Props) {
   const { t } = useLanguage();
-  const [vars, setVars] = useState<Record<string, number>>(() => {
-    const init: Record<string, number> = {};
-    for (const v of DEFAULT_VARIABLES) init[v.id] = v.value;
-    return init;
-  });
+  const [vars, setVars] = useState<Record<string, number>>(() => ({ ...PARAMETRIC_PREVIEW_DEFAULTS }));
   const [selectedGroup, setSelectedGroup] = useState<string>("controls");
   const [selectedFeature, setSelectedFeature] = useState<string>("Section 3 — centrale");
   const [activeTab, setActiveTab] = useState<"part" | "variable" | "assembly">("part");
   const [search, setSearch] = useState("");
   const [material, setMaterial] = useState<"carbon" | "aluminum" | "kevlar">("carbon");
   const [sectionType, setSectionType] = useState<"circular" | "elliptical" | "polygonal">("elliptical");
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Sync vars from config on mount
   useEffect(() => {
-    setVars(prev => ({
-      ...prev,
-      length: config.fuselageLength ?? prev.length,
-      wingspan: config.wingspan ?? prev.wingspan,
-      motor_count: config.motorCount ?? prev.motor_count,
-      cruise_speed: config.cruiseSpeedKmh ?? prev.cruise_speed,
-      altitude: config.altitudeM ?? prev.altitude,
-    }));
-  }, [config.fuselageLength, config.wingspan, config.motorCount, config.cruiseSpeedKmh, config.altitudeM]);
+    const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === document.querySelector(".pdc-app"));
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.querySelector<HTMLElement>(".pdc-app")?.requestFullscreen();
+    } catch { toast.error(t("Le plein écran n’est pas disponible dans ce navigateur.")); }
+  };
+
+  // An empty workspace uses a local CAD preview; it must not hydrate blank zeroes as geometry.
+  useEffect(() => {
+    setVars(resolveParametricVariables(config, hasProject));
+  }, [hasProject, config.fuselageLength, config.wingspan, config.chord, config.motorCount, config.cruiseSpeedKmh, config.altitudeM]);
 
   const updateVar = (id: string, value: number) => {
     setVars(prev => ({ ...prev, [id]: value }));
@@ -246,10 +270,18 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
     const v = DEFAULT_VARIABLES.find(x => x.id === id);
     if (!v || v.appliesTo === "custom") return;
     const key = v.appliesTo as keyof ConceptConfig;
-    setConfig(prev => ({ ...prev, [key]: value }));
+    if (hasProject) setConfig(prev => ({ ...prev, [key]: value }));
   };
 
   const handleSave = () => {
+    if (!hasProject) {
+      toast.info(t("Non enregistré"), { description: "Créez manuellement un projet avant de valider ou sauvegarder cette configuration." });
+      return;
+    }
+    if (!hasProjectGeometry) {
+      toast.info(t("Non enregistré"), { description: "Renseignez une envergure, une corde et un fuselage valides avant de valider la configuration." });
+      return;
+    }
     onCommit?.();
     toast.success(t("Configuration sauvegardée"), { description: t("Les variables paramétriques ont été synchronisées avec le projet.") });
   };
@@ -274,8 +306,21 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
       reader.onload = () => {
         try {
           const data = JSON.parse(reader.result as string);
-          if (data.variables) setVars(prev => ({ ...prev, ...data.variables }));
-          toast.success(t("Import réussi"), { description: t("Variables chargées depuis le fichier.") });
+          if (!data || typeof data !== "object" || !data.variables || typeof data.variables !== "object") throw new Error("structure");
+          const imported: Record<string, number> = {};
+          for (const v of DEFAULT_VARIABLES) {
+            const value = Number(data.variables[v.id]);
+            if (Number.isFinite(value) && value >= v.min && value <= v.max) imported[v.id] = value;
+          }
+          setVars(prev => ({ ...prev, ...imported }));
+          if (hasProject) {
+            setConfig(prev => {
+              const next = { ...prev };
+              for (const v of DEFAULT_VARIABLES) if (v.appliesTo !== "custom" && imported[v.id] !== undefined) (next as any)[v.appliesTo] = imported[v.id];
+              return next;
+            });
+          }
+          toast.success(t("Import réussi"), { description: hasProject ? t("Variables valides importées et synchronisées avec le projet.") : "Variables chargées dans l’aperçu local non enregistré." });
         } catch { toast.error(t("Import échoué"), { description: t("Fichier JSON invalide.") }); }
       };
       reader.readAsText(file);
@@ -288,9 +333,8 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
   );
 
   const totalFeatures = FEATURE_GROUPS.reduce((s, g) => s + g.features.length, 0);
-  const wingArea = (vars.wingspan ?? 15) * (vars.chord ?? 3);
-  const aspectRatio = Math.pow(vars.wingspan ?? 15, 2) / wingArea;
-  const emptyMass = 0.5 * (vars.length ?? 10) * (vars.wingspan ?? 15) * (vars.max_thickness ?? 0.3) * 10;
+  const { wingArea, aspectRatio, emptyMassKg: emptyMass } = calculateParametricMetrics(vars);
+  const hasProjectGeometry = hasProject && config.wingspan > 0 && config.chord > 0 && config.fuselageLength > 0;
 
   // CAHIER DES CHARGES 2026-10-30 : capture du poste paramétrique pour le Rapport.
   // On sérialise le canvas Three.js (ou la zone SVG en fallback) en data URL et
@@ -304,8 +348,8 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
         image,
         capturedAt: new Date().toISOString(),
         variables: vars,
-        wingArea: wingArea.toFixed(2),
-        emptyMass: emptyMass.toFixed(1),
+        wingArea: wingArea?.toFixed(2) ?? null,
+        emptyMass: emptyMass?.toFixed(1) ?? null,
       });
       localStorage.setItem("aeromind-parametric-capture", payload);
       window.dispatchEvent(new CustomEvent("aeromind-parametric-capture", { detail: payload }));
@@ -314,7 +358,7 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
   };
 
   return (
-    <div className="pdc-app">
+    <div className={`pdc-app ${isFullscreen ? "pdc-fullscreen" : ""}`}>
       {/* Menubar */}
       <div className="pdc-menubar">
         <div className="pdc-logo">
@@ -331,8 +375,8 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
         <div className="pdc-menu-item">{t("Outils")}</div>
         <div className="pdc-menu-item">{t("Analyse")}</div>
         <div className="pdc-spacer" />
-        <div className="pdc-pill green">{t("Sauvegardé")}</div>
-        <div className="pdc-pill cyan">Part Studio 1</div>
+        <div className={`pdc-pill ${hasProjectGeometry ? "green" : "cyan"}`}>{hasProjectGeometry ? t("Sauvegardé") : t("Non enregistré")}</div>
+        <div className="pdc-pill cyan">{hasProject ? "Part Studio 1" : "Aperçu local"}</div>
       </div>
 
       {/* Toolbar */}
@@ -344,8 +388,8 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
         <button className="pdc-tb-btn" onClick={() => toast.info(t("Extrusion"))}><Layers size={14} /> {t("Extruder")}</button>
         <button className="pdc-tb-btn" onClick={() => toast.info(t("Révolution"))}><Cog size={14} /> {t("Révolution")}</button>
         <div className="pdc-tb-sep" />
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Mesure : ") + wingArea.toFixed(2) + " m²")}><Ruler size={14} /> {t("Mesurer")}</button>
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Masse à vide : ") + emptyMass.toFixed(1) + " kg")}><Activity size={14} /> {t("Masses")}</button>
+        <button className="pdc-tb-btn" onClick={() => toast.info(t("Mesure : ") + (wingArea?.toFixed(2) ?? "—") + " m²")}><Ruler size={14} /> {t("Mesurer")}</button>
+        <button className="pdc-tb-btn" onClick={() => toast.info(t("Masse à vide : ") + (emptyMass?.toFixed(1) ?? "—") + " kg")}><Activity size={14} /> {t("Masses")}</button>
         <div className="pdc-tb-sep" />
         <button className="pdc-tb-btn" onClick={handleImport}><Upload size={14} /> {t("Import")}</button>
         <button className="pdc-tb-btn" onClick={handleExport}><Download size={14} /> {t("Export")}</button>
@@ -414,7 +458,7 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
                   <div className={`pdc-vp-tab ${activeTab === "assembly" ? "active" : ""}`} onClick={() => setActiveTab("assembly")}>Assembly 1</div>
                 </div>
                 <div className="pdc-vp-controls">
-                  <button className="pdc-vp-btn" title={t("Plein écran")} onClick={() => toast.info(t("Plein écran"))}><Maximize2 size={14} /></button>
+                  <button className="pdc-vp-btn" title={isFullscreen ? t("Quitter le plein écran") : t("Plein écran")} aria-label={isFullscreen ? t("Quitter le plein écran") : t("Plein écran")} onClick={() => void toggleFullscreen()}><Maximize2 size={14} /></button>
                   <button className="pdc-vp-btn" title={t("Paramètres")} onClick={() => toast.info(t("Paramètres viewport"))}><SettingsIcon size={14} /></button>
                 </div>
               </div>
@@ -423,15 +467,20 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
                   <span>X: <b>0.000</b></span>
                   <span>Y: <b>0.000</b></span>
                   <span>Z: <b>0.000</b></span>
-                  <span>‖ <b>{wingArea.toFixed(1)} m²</b></span>
-                  <span>V: <b>{(wingArea * (vars.max_thickness ?? 0.3)).toFixed(2)} m³</b></span>
-                  <span>M: <b>{emptyMass.toFixed(1)} kg</b></span>
+                  <span>‖ <b>{wingArea?.toFixed(1) ?? "—"} m²</b></span>
+                  <span>V: <b>{wingArea !== null ? (wingArea * (vars.max_thickness ?? 0.3)).toFixed(2) : "—"} m³</b></span>
+                  <span>M: <b>{emptyMass?.toFixed(1) ?? "—"} kg</b></span>
                 </div>
               </div>
             </div>
-            <Canvas shadows dpr={[1, 2]} camera={{ position: [28, 18, 28], fov: 40, near: 0.1, far: 500 }}>
-              <Scene vars={vars} />
-            </Canvas>
+            <ParametricViewportBoundary fallback={<ParametricViewportFallback />}>
+              {/* Let Three.js try WebGL2 directly: its built-in fallback probe can
+                  misclassify WebGL2-only browsers as unsupported. The local boundary
+                  below still catches a genuine renderer/context failure. */}
+              <Canvas dpr={[1, 1.5]} gl={{ preserveDrawingBuffer: true, antialias: false, powerPreference: "low-power" }} camera={{ position: [28, 18, 28], fov: 40, near: 0.1, far: 500 }}>
+                <Scene vars={vars} />
+              </Canvas>
+            </ParametricViewportBoundary>
           </div>
 
           {/* Variable table */}
@@ -517,12 +566,12 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
             <div className="pdc-section-header">{t("Aérodynamique")} ▾</div>
             <div className="pdc-section-body">
               <div className="pdc-stat-grid">
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Surface alaire")}</div><div className="pdc-value">{wingArea.toFixed(1)}<span className="pdc-unit"> m²</span></div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Allongement")}</div><div className="pdc-value">{aspectRatio.toFixed(1)}</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">Cz max</div><div className="pdc-value">1.42</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">Cd min</div><div className="pdc-value">0.028</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Finesse")}</div><div className="pdc-value">18.6</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">Vstall</div><div className="pdc-value">14.2<span className="pdc-unit"> m/s</span></div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">{t("Surface alaire")}</div><div className="pdc-value">{wingArea?.toFixed(1) ?? "—"}<span className="pdc-unit"> m²</span></div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">{t("Allongement")}</div><div className="pdc-value">{aspectRatio?.toFixed(1) ?? "—"}</div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">Cz max</div><div className="pdc-value">{hasProject ? "1.42" : "—"}</div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">Cd min</div><div className="pdc-value">{hasProject ? "0.028" : "—"}</div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">{t("Finesse")}</div><div className="pdc-value">{hasProject ? "18.6" : "—"}</div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">Vstall</div><div className="pdc-value">{hasProject ? "14.2" : "—"}{hasProject && <span className="pdc-unit"> m/s</span>}</div></div>
               </div>
             </div>
           </div>
@@ -531,10 +580,10 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
             <div className="pdc-section-header">{t("Masse & équilibrage")} ▾</div>
             <div className="pdc-section-body">
               <div className="pdc-stat-grid">
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Masse à vide")}</div><div className="pdc-value">{emptyMass.toFixed(1)}<span className="pdc-unit"> kg</span></div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Charge utile")}</div><div className="pdc-value">5.0<span className="pdc-unit"> kg</span></div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">MTOW</div><div className="pdc-value">{(emptyMass + 5).toFixed(1)}<span className="pdc-unit"> kg</span></div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">CG</div><div className="pdc-value">32<span className="pdc-unit"> %</span></div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">{t("Masse à vide")}</div><div className="pdc-value">{emptyMass?.toFixed(1) ?? "—"}{emptyMass !== null && <span className="pdc-unit"> kg</span>}</div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">{t("Charge utile")}</div><div className="pdc-value">{hasProject && config.payloadKg > 0 ? config.payloadKg.toFixed(1) : "—"}{hasProject && config.payloadKg > 0 && <span className="pdc-unit"> kg</span>}</div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">MTOW</div><div className="pdc-value">{hasProject && config.maxTakeoffKg > 0 ? config.maxTakeoffKg.toFixed(1) : "—"}{hasProject && config.maxTakeoffKg > 0 && <span className="pdc-unit"> kg</span>}</div></div>
+                <div className="pdc-stat-card"><div className="pdc-label">CG</div><div className="pdc-value">—</div></div>
               </div>
             </div>
           </div>
@@ -571,7 +620,7 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
         <span className="pdc-spacer" />
         <span className="pdc-seg">{t("Unités")}: SI (m, kg, s)</span>
         <span className="pdc-seg">{t("Précision")}: 0.01 mm</span>
-        <span className="pdc-seg" style={{ color: "var(--green)" }}>● {t("Validé")}</span>
+        <span className="pdc-seg" style={{ color: hasProjectGeometry ? "var(--pdc-green)" : "var(--pdc-amber)" }}>● {hasProjectGeometry ? t("Validé") : t("Non enregistré")}</span>
       </div>
     </div>
   );

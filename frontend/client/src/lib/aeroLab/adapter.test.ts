@@ -107,4 +107,16 @@ describe("adaptProjectToLab", () => {
     expect(result.conditions.distanceKm).toBeLessThan(100);
     expect(project).toEqual(before);
   });
+
+  it("converts a 550 km/h concept target accurately and keeps the simulation out of PASS", () => {
+    const project = { ...defaultConcept, cruiseSpeedKmh: 550 };
+    const labConfig = adaptProjectToLab(
+      project,
+      baselineSimulation,
+      "Objectif de test.",
+    );
+    expect(labConfig.drone.cruiseSpeedMps).toBeCloseTo(550 / 3.6, 5);
+    expect(validateConfig(labConfig)).toEqual([]);
+    expect(simulate(labConfig).verdict).not.toBe("PASS");
+  });
 });

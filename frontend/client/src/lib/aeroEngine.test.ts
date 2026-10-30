@@ -53,6 +53,19 @@ describe("AeroMind preliminary simulation engine", () => {
     ).toBe(true);
   });
 
+  it("treats targets above 216 km/h as uncalibrated, not as operational performance", () => {
+    const result = runSimulation(
+      { ...defaultConcept, cruiseSpeedKmh: 550 },
+      defaultRequirements,
+      "SIM-HIGH-SPEED"
+    );
+
+    expect(result.metrics.find(metric => metric.id === "speed-domain")?.status).toBe("review");
+    expect(result.metrics.find(metric => metric.id === "energy")?.status).toBe("review");
+    expect(result.confidence).toBe("indicative");
+    expect(result.risks.some(risk => risk.id === "speed-domain-risk" && risk.status === "open")).toBe(true);
+  });
+
   it("flags an overweight configuration", () => {
     const result = runSimulation(
       { ...defaultConcept, payloadKg: 3.6, batteryWh: 1400 },

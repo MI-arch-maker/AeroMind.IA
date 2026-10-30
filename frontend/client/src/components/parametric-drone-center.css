@@ -7,7 +7,7 @@
   --pdc-red: #ef4444; --pdc-violet: #8b5cf6;
   --pdc-mono: "SF Mono", "JetBrains Mono", "Consolas", monospace;
 }
-.pdc-app { display: grid; grid-template-rows: 36px 40px 1fr 28px; position: absolute; inset: 0; background: var(--pdc-bg-0); color: var(--pdc-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; font-size: 12px; user-select: none; }
+.pdc-app { display: grid; grid-template-rows: 36px 40px 1fr 28px; height: 100%; background: var(--pdc-bg-0); color: var(--pdc-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; font-size: 12px; user-select: none; }
 
 /* Menubar */
 .pdc-menubar { display: flex; align-items: center; gap: 0; background: var(--pdc-bg-1); border-bottom: 1px solid var(--pdc-line); padding: 0 8px; }
@@ -127,3 +127,44 @@
 .pdc-item { padding: 0 8px; }
 .pdc-val { color: var(--pdc-text); font-family: var(--pdc-mono); }
 .pdc-seg { display: flex; align-items: center; gap: 4px; padding: 0 8px; border-left: 1px solid var(--pdc-line); height: 100%; }
+
+/* Disposition robuste dans la fenêtre de travail AeroMind et sur écran étroit. */
+.pdc-app { min-width: 0; min-height: 560px; height: min(100%, 100vh); grid-template-rows: 36px 40px minmax(0, 1fr) 28px; overflow: hidden; }
+.pdc-main { min-width: 0; min-height: 0; grid-template-columns: minmax(190px, 240px) minmax(0, 1fr) minmax(230px, 280px); }
+.pdc-center { min-width: 0; min-height: 0; grid-template-rows: minmax(260px, 1fr) minmax(150px, 220px); }
+.pdc-viewport, .pdc-var-studio { min-width: 0; min-height: 0; }
+.pdc-viewport canvas { width: 100% !important; height: 100% !important; }
+.pdc-statusbar, .pdc-toolbar { min-width: 0; overflow-x: auto; }
+.pdc-app:fullscreen { width: 100vw; height: 100vh; min-height: 0; }
+.pdc-fullscreen { position: fixed; inset: 0; z-index: 9999; width: 100vw; height: 100vh; min-height: 0; }
+@media (max-width: 1100px) {
+  .pdc-main { grid-template-columns: minmax(160px, 200px) minmax(0, 1fr); }
+  .pdc-right { display: none; }
+}
+@media (max-width: 720px) {
+  .pdc-app { height: auto; min-height: 100vh; overflow: visible; grid-template-rows: auto auto minmax(650px, 1fr) auto; }
+  .pdc-menubar, .pdc-toolbar { flex-wrap: wrap; min-height: 40px; height: auto; padding-block: 4px; }
+  .pdc-main { display: flex; flex-direction: column; overflow: visible; }
+  .pdc-left { max-height: 180px; border-right: 0; border-bottom: 1px solid var(--pdc-line); }
+  .pdc-center { min-height: 620px; grid-template-rows: minmax(330px, 1fr) 240px; }
+  .pdc-right { display: block; max-height: 440px; border-left: 0; border-top: 1px solid var(--pdc-line); }
+  .pdc-search { width: min(100%, 220px); }
+  .pdc-statusbar { min-height: 32px; }
+}
+
+
+.pdc-viewport-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 20px;
+  background: radial-gradient(ellipse at 50% 45%, #102833, #060b12 72%);
+  color: #9ab5be;
+  text-align: center;
+}
+.pdc-viewport-fallback svg { width: min(70%, 420px); max-height: 55%; filter: drop-shadow(0 0 14px #25d0d955); }
+.pdc-viewport-fallback strong { display: block; color: #25d0d9; font: 700 10px ui-monospace, monospace; letter-spacing: .12em; }
+.pdc-viewport-fallback span { display: block; max-width: 440px; margin-top: 5px; font-size: 11px; line-height: 1.5; }

@@ -22,3 +22,39 @@
 .satnav-demo-card{border:1px solid rgba(87,214,205,.23)!important;background:linear-gradient(145deg,rgba(14,42,46,.72),rgba(16,27,37,.98))!important}.satnav-demo-card .satnav-card-heading{align-items:flex-start}.satnav-demo-progress{height:7px;overflow:hidden;border:1px solid rgba(145,181,191,.18);border-radius:99px;background:#081219}.satnav-demo-progress>span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#30a99d,#8ce5bd);transition:width .35s ease}.satnav-demo-progress-label{display:flex;justify-content:space-between;gap:8px;margin-top:7px;color:#8ba4aa;font-size:9px}.satnav-demo-progress-label strong{color:#c9f2e7;font:600 10px "IBM Plex Mono",monospace}.satnav-demo-actions{display:flex;gap:7px;margin-top:10px}.satnav-demo-actions button{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:1;min-height:32px;border:1px solid var(--sn-line);border-radius:4px;background:#0b141d;color:#b3c9cb;padding:7px 9px;font-size:10px;cursor:pointer}.satnav-demo-actions button.is-primary{border-color:#277d7c;background:#1b5557;color:#d6fffa}.satnav-demo-actions button.is-end{border-color:rgba(208,170,104,.32);color:#e5c78e}.satnav-demo-actions button:focus-visible{outline:2px solid #8ee2c3;outline-offset:2px}.satnav-demo-card>small{display:block;margin-top:9px;color:#80979d;font-size:9px;line-height:1.45}
 .aeromind-open-map-simulated-position{position:absolute;z-index:2;display:grid;width:30px;height:30px;place-items:center;transform:translate(-50%,-50%);border:2px solid #e6fff4;border-radius:50%;background:rgba(28,170,128,.9);box-shadow:0 0 0 6px rgba(75,226,157,.2),0 0 18px rgba(101,255,183,.75);color:#03231a;font:700 8px "IBM Plex Mono",monospace;pointer-events:none}.aeromind-open-map-simulated-position span{letter-spacing:-.04em}
 @media(max-width:900px){.satnav-demo-card{grid-column:1/-1}}@media(max-width:600px){.satnav-demo-actions{flex-direction:column}.satnav-night-caption{right:12px;left:auto;max-width:60%;text-align:right}.satnav-demo-card .satnav-card-heading{flex-direction:column;align-items:flex-start}}
+
+
+/* OpenStreetMapView est utilisé avec plusieurs noms de classe métier ; le root doit
+   toujours être dimensionné indépendamment du nom de la vue qui l’héberge. */
+.aeromind-open-map {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 250px;
+  overflow: hidden;
+  background: #dbe7e5;
+  cursor: grab;
+  touch-action: none;
+}
+.vsc-mc-map-scene > .aeromind-open-map { min-height: 0; }
+.vsc-mc-navmap > .aeromind-open-map { flex: 1 1 220px; min-height: 180px; }
+@media (max-width: 600px) {
+  .vsc-mc-navmap > .aeromind-open-map { min-height: 210px; }
+}
+.pdc-viewport-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 20px;
+  background: radial-gradient(ellipse at 50% 45%, #102833, #060b12 72%);
+  color: #9ab5be;
+  text-align: center;
+}
+.pdc-viewport-fallback svg { width: min(70%, 420px); max-height: 55%; filter: drop-shadow(0 0 14px #25d0d955); }
+.pdc-viewport-fallback strong { display: block; color: #25d0d9; font: 700 10px ui-monospace, monospace; letter-spacing: .12em; }
+.pdc-viewport-fallback span { display: block; max-width: 440px; margin-top: 5px; font-size: 11px; line-height: 1.5; }

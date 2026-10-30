@@ -52,7 +52,7 @@ const conceptConfigSchema = z
     propDiameter: z.number().finite(),
     batteryWh: z.number().finite(),
     payloadKg: z.number().finite(),
-    cruiseSpeedKmh: z.number().finite(),
+    cruiseSpeedKmh: z.number().finite().max(650),
     windSpeedKmh: z.number().finite(),
     reserveFraction: z.number().finite(),
     maxTakeoffKg: z.number().finite(),
@@ -206,6 +206,25 @@ export const projectWorkspaceSchema = z
   .passthrough();
 
 export type ProjectWorkspace = z.infer<typeof projectWorkspaceSchema>;
+
+/** Update a known project in a workspace; persistence/sync must never create one. */
+export function replaceExistingProjectSnapshot<T extends { id: string }>(
+  projects: T[],
+  current: T,
+): T[] | null {
+  if (!projects.some((item) => item.id === current.id)) return null;
+  return projects.map((item) => item.id === current.id ? current : item);
+}
+
+const LEGACY_IMPLICIT_PROJECT_IDS = new Set([
+  "project-local-1",
+  "project-aeromind-inspection-demo",
+]);
+
+/** Ignore only known auto-generated legacy records; never delete their source data. */
+export function filterLegacyImplicitProjects<T extends { id: string }>(projects: T[]): T[] {
+  return projects.filter((item) => !LEGACY_IMPLICIT_PROJECT_IDS.has(item.id));
+}
 
 export type WorkspaceValidation =
   | { ok: true; value: ProjectWorkspace; migrated: boolean }

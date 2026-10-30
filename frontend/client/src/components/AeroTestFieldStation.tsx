@@ -11,6 +11,7 @@ type Environment = "forest" | "urban" | "flatland" | "mountain" | "scrubland" | 
 type LucideIcon = typeof Building2;
 
 type Props = {
+  hasProject: boolean;
   config: ConceptConfig;
   setConfig: Dispatch<SetStateAction<ConceptConfig>>;
   simulation: SimulationResult;
@@ -458,7 +459,7 @@ function TechnicalGrid({ lang }: { lang: string }) {
   );
 }
 
-export function AeroTestFieldStation({ config, setConfig, simulation, isRunning, onRunSimulation, onOpenBuilder }: Props) {
+export function AeroTestFieldStation({ hasProject, config, setConfig, simulation, isRunning, onRunSimulation, onOpenBuilder }: Props) {
   const { t, language } = useLanguage();
   const [routeEditMode, setRouteEditMode] = useState(false);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
@@ -572,7 +573,7 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
         <div>
           <span className="afs-eyebrow">{t("AEROMIND / AEROLAB · SITE EXTÉRIEUR")}</span>
           <h2>{t("Terrain d’essais · vol simulé")}</h2>
-          <p>{t("Le modèle affiché suit la cellule active et son plan de mission partagé.")}</p>
+          <p>{hasActiveUserDesign ? t("Le modèle affiché suit la cellule active et son plan de mission partagé.") : "Aucune cellule active : les données de vol restent indisponibles."}</p>
         </div>
         <div className={`afs-status ${playing ? "is-live" : ""}`}>
           <i />
@@ -624,9 +625,9 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
               <li><span>{t("Cap")}</span><b>{position ? `${Math.round(((position.yaw % 360) + 360) % 360)}°` : "—"}</b></li>
               <li><span>{t("Waypoints")}</span><b>{route.length}</b></li>
               <li><span>{t("Avancement")}</span><b>{Math.round(progress * 100)}%</b></li>
-              <li><span>{t("Envergure")}</span><b>{config.wingspan.toFixed(1)} m</b></li>
-              <li><span>{t("Vitesse croisière")}</span><b>{Math.round(config.cruiseSpeedKmh)} km/h</b></li>
-              <li><span>{t("Moteurs")}</span><b>{Math.max(1, Math.round(config.motorCount ?? 1))}</b></li>
+              <li><span>{t("Envergure")}</span><b>{hasActiveUserDesign && config.wingspan > 0 ? `${config.wingspan.toFixed(1)} m` : "—"}</b></li>
+              <li><span>{t("Vitesse croisière")}</span><b>{hasActiveUserDesign && config.cruiseSpeedKmh > 0 ? `${Math.round(config.cruiseSpeedKmh)} km/h` : "—"}</b></li>
+              <li><span>{t("Moteurs")}</span><b>{hasActiveUserDesign && (config.motorCount ?? 0) > 0 ? Math.round(config.motorCount ?? 0) : "—"}</b></li>
             </ul>
           </div>
           {playing && <div className="afs-live-indicator" role="status" aria-live="polite"><i /><span>{t("INDICATEUR TEMPS RÉEL · VOL EN COURS")}</span></div>}
@@ -718,7 +719,7 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
 
         <aside className="afs-route-card">
           <div className="afs-route-head">
-            <div><span>{t("PLAN DE VOL · PROJET ACTIF")}</span><h3>{t("Itinéraire personnalisable")}</h3><small>{route.length} {t("point(s)")} · {config.missionPlan ? t("lié au plan AeroMind") : t("pas encore enregistré")}</small></div>
+            <div><span>{hasProject ? t("PLAN DE VOL · PROJET ACTIF") : "BROUILLON LOCAL · AUCUN PROJET"}</span><h3>{t("Itinéraire personnalisable")}</h3><small>{route.length} {t("point(s)")} · {hasProject ? (config.missionPlan ? t("lié au plan AeroMind") : t("pas encore enregistré")) : "non enregistré dans un projet"}</small></div>
             <Route size={19} />
           </div>
           <div className="afs-route-actions">
@@ -752,7 +753,7 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
               </div>
             </div>
           )}
-          <div className="afs-route-footer"><span><i />{t("ITINÉRAIRE PARTAGÉ AVEC LE PROJET")}</span><small>{t("Les modifications du plan sont enregistrées localement.")}</small></div>
+          <div className="afs-route-footer"><span><i />{hasProject ? t("ITINÉRAIRE PARTAGÉ AVEC LE PROJET") : "BROUILLON LOCAL · AUCUN PROJET"}</span><small>{hasProject ? t("Les modifications du plan sont enregistrées localement.") : "Les modifications ne sont pas enregistrées dans un projet."}</small></div>
         </aside>
 
         <section className="afs-bottom-bar">
@@ -766,7 +767,7 @@ export function AeroTestFieldStation({ config, setConfig, simulation, isRunning,
             <span><b>{t("SIMULATION RUN ID")}</b><i>{simulation.runId}</i></span>
             <span><b>{t("ENV")}</b><i>{envLabel}</i></span>
             <span><b>{t("WP")}</b><i>{route.length}</i></span>
-            <span><b>{t("TÉLÉMÉTRIE")}</b><i>{t("OK · LOCAL")}</i></span>
+            <span><b>{t("TÉLÉMÉTRIE")}</b><i>{hasActiveUserDesign ? t("SIMULÉ · LOCAL") : "N/D · SOURCE REQUISE"}</i></span>
           </div>
         </section>
       </div>

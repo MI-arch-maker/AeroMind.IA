@@ -256,6 +256,45 @@ def test_no_default_project_at_startup(app_client):
     assert len(projects) == 0, "Fresh user should have zero projects at startup"
 
 
+def test_workspace_visit_restore_and_sync_never_create_project(app_client):
+    """Local workspace hydration/persistence is not project creation."""
+    client, Session, _user_id = app_client
+    workspace_key = "a" * 40
+    headers = {"X-AeroMind-Workspace": workspace_key}
+
+    initial = client.get("/api/local/workspace", headers=headers)
+    assert initial.status_code == 200
+    assert initial.json()["workspace"] is None
+
+    # A legacy automatic record can still exist in the stored workspace. The
+    # client filters it during hydration; this endpoint must not materialize
+    # it as a canonical Project entity or delete the stored workspace.
+    legacy_workspace = {
+        "physicalOutputEnabled": False,
+        "activeProjectId": "project-local-1",
+        "projects": [{"id": "project-local-1", "project": {"name": "Legacy auto"}}],
+    }
+    saved = client.put(
+        "/api/local/workspace",
+        headers=headers,
+        json={"workspace": legacy_workspace},
+    )
+    assert saved.status_code == 200, saved.text
+    restored = client.get("/api/local/workspace", headers=headers)
+    assert restored.status_code == 200
+    assert restored.json()["workspace"] == legacy_workspace
+
+    # Workspace initialization, hydration, and sync are not the explicit
+    # /api/trpc/projects.create action; the account remains project-free.
+    listed = client.get("/api/trpc/projects.list")
+    assert listed.status_code == 200
+    projects_raw = listed.json().get("result", {}).get("data", {})
+    projects = projects_raw.get("json", projects_raw) if isinstance(projects_raw, dict) else projects_raw
+    assert projects == []
+    with Session() as db:
+        assert db.scalar(select(Project)) is None
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Anomaly #3 — LABBENCH session integration
 # ─────────────────────────────────────────────────────────────────────────────
