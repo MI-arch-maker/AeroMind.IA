@@ -349,7 +349,7 @@ def _active_control_mode():
     return 'simulation'
 
 
-@app.get('/api/health')
+@app.api_route('/api/health', methods=['GET', 'HEAD'])
 def health():
     try:
         connected = ping_database()
@@ -1407,7 +1407,10 @@ def legacy_oidc_login():
     return RedirectResponse('/api/auth/oidc/login', status_code=307)
 
 
-@app.get('/', response_class=HTMLResponse)
+# CAHIER DES CHARGES 2026-10-30 — Anomalie 3 : HEAD / retournait 405.
+# Le health check de Render envoie HEAD en premier. On déclare GET+HEAD
+# pour que HEAD renvoie 200 (FastAPI ne retourne que les headers, sans body).
+@app.api_route('/', methods=['GET', 'HEAD'], response_class=HTMLResponse)
 def home():
     if FRONTEND_INDEX.is_file():
         return FileResponse(FRONTEND_INDEX)
@@ -1426,7 +1429,7 @@ def favicon():
     return Response(status_code=204)
 
 
-@app.get('/api/ready')
+@app.api_route('/api/ready', methods=['GET', 'HEAD'])
 def ready():
     try:
         ping_database()
@@ -2157,7 +2160,9 @@ async def prepare_cfd_case(request: Request, aeromind_session: str | None = Cook
     }
 
 
-@app.get('/{path:path}', include_in_schema=False)
+# CAHIER DES CHARGES 2026-10-30 — Anomalie 3 : HEAD sur les routes SPA.
+# Permet aux health checks et probes d'utiliser HEAD sans recevoir 405.
+@app.api_route('/{path:path}', methods=['GET', 'HEAD'], include_in_schema=False)
 def frontend_routes(path: str):
     if path.startswith('api/'):
         raise HTTPException(404, 'Not found')

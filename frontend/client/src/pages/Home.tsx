@@ -12831,6 +12831,23 @@ function requirementsForDroneProfile(
   ];
 }
 
+// CAHIER DES CHARGES 2026-10-30 — Anomalie affichage :
+// Vues "pleine hauteur" qui gèrent leur propre layout interne (grid/flex)
+// et ont un SEUL composant racine avec height:100%. Pour ces vues,
+// workspace-window-inner utilise la classe is-flush (pas de padding,
+// overflow hidden, flex column) afin que les children avec height:100%
+// résolvent correctement. Sans cela, ParametricDroneCenter et MissionPlannerView
+// collapsent à height=0.
+// NB: "simulation" n'est PAS dans cette liste car elle contient deux composants
+// empilés (AeroTestFieldStation + VirtualSimulationCenter) qui doivent scroller
+// normalement avec le padding standard.
+const FULL_HEIGHT_VIEWS = new Set<ViewId>([
+  "parametric-center",
+  "mission-planner",
+  "design-studio",
+  "digital-twin",
+]);
+
 export default function Home() {
   const initialState = useMemo(readPersistedState, []);
   const { language, setLanguage, t, tKey } = useLanguage();
@@ -14409,7 +14426,7 @@ export default function Home() {
                 title={viewTitle}
                 onClose={() => setActiveView("overview")}
               >
-                <div className="workspace-window-inner">
+                <div className={`workspace-window-inner ${FULL_HEIGHT_VIEWS.has(activeView) ? "is-flush" : ""}`}>
                   <>
                     {activeView === "requirements" && (
                       <RequirementsView

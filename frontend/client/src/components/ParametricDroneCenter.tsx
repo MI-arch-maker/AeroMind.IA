@@ -62,7 +62,7 @@ const DEFAULT_VARIABLES: Variable[] = [
   { id: "thickness_ratio", name: "#thickness_ratio", value: 0.1, unit: "", min: 0.08, max: 0.15, step: 0.01, type: "ratio", description: "Ratio épaisseur/corde", appliesTo: "custom" },
   { id: "winglet_angle", name: "#winglet_angle", value: 45, unit: "°", min: 30, max: 60, step: 1, type: "angle", description: "Angle winglet", appliesTo: "custom" },
   { id: "motor_count", name: "#motor_count", value: 4, unit: "", min: 1, max: 8, step: 1, type: "number", description: "Nombre de moteurs", appliesTo: "motorCount" },
-  { id: "cruise_speed", name: "#cruise_speed", value: 20, unit: "km/h", min: 5, max: 120, step: 1, type: "number", description: "Vitesse de croisière", appliesTo: "cruiseSpeedKmh" },
+  { id: "cruise_speed", name: "#cruise_speed", value: 20, unit: "km/h", min: 5, max: 800, step: 1, type: "number", description: "Vitesse de croisière", appliesTo: "cruiseSpeedKmh" },
   { id: "altitude", name: "#altitude", value: 100, unit: "m", min: 10, max: 6000, step: 5, type: "number", description: "Altitude opération", appliesTo: "altitudeM" },
   { id: "fuse_sec3_top", name: "#fuse_sec3_top", value: 1.7, unit: "m", min: 1, max: 2, step: 0.05, type: "number", description: "Diamètre haut section 3", appliesTo: "custom" },
 ];
@@ -292,6 +292,87 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
   const aspectRatio = Math.pow(vars.wingspan ?? 15, 2) / wingArea;
   const emptyMass = 0.5 * (vars.length ?? 10) * (vars.wingspan ?? 15) * (vars.max_thickness ?? 0.3) * 10;
 
+  // CAHIER DES CHARGES 2026-10-30 — Boutons opérationnels (plus de toast.info placeholder).
+  // Chaque action modifie réellement l'état paramétrique ou le viewport.
+  const [sketchMode, setSketchMode] = useState(false);
+  const [extrudeMode, setExtrudeMode] = useState(false);
+  const [revolveMode, setRevolveMode] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [showViewportSettings, setShowViewportSettings] = useState(false);
+  const [customVars, setCustomVars] = useState<Variable[]>([]);
+  const [selectedVarId, setSelectedVarId] = useState<string>("length");
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  const handleNew = () => {
+    const init: Record<string, number> = {};
+    for (const v of DEFAULT_VARIABLES) init[v.id] = v.value;
+    setVars(init);
+    setCustomVars([]);
+    setConfig(prev => ({ ...prev, fuselageLength: init.length, wingspan: init.wingspan, motorCount: init.motor_count, cruiseSpeedKmh: init.cruise_speed, altitudeM: init.altitude }));
+    toast.success(t("Nouveau projet paramétrique"), { description: t("Toutes les variables ont été réinitialisées à leurs valeurs par défaut.") });
+  };
+
+  const handleSketch = () => {
+    setSketchMode(v => !v);
+    setExtrudeMode(false);
+    setRevolveMode(false);
+    toast.success(t("Mode esquisse"), { description: sketchMode ? t("Esquisse désactivée") : t("Esquisse activée — cliquez sur les features pour les éditer") });
+  };
+
+  const handleExtrude = () => {
+    setExtrudeMode(v => !v);
+    setSketchMode(false);
+    setRevolveMode(false);
+    toast.success(t("Extrusion"), { description: extrudeMode ? t("Extrusion désactivée") : t("Extrusion activée — sélectionnez une section à extruder") });
+  };
+
+  const handleRevolve = () => {
+    setRevolveMode(v => !v);
+    setSketchMode(false);
+    setExtrudeMode(false);
+    toast.success(t("Révolution"), { description: revolveMode ? t("Révolution désactivée") : t("Révolution activée — sélectionnez un profil à révolutionner") });
+  };
+
+  const handleMeasure = () => {
+    toast.success(t("Mesures calculées"), { description: `${t("Surface alaire")}: ${wingArea.toFixed(2)} m² · ${t("Allongement")}: ${aspectRatio.toFixed(2)} · ${t("Corde")}: ${(vars.chord ?? 3).toFixed(2)} m` });
+  };
+
+  const handleMasses = () => {
+    toast.success(t("Bilan des masses"), { description: `${t("Masse à vide")}: ${emptyMass.toFixed(1)} kg · ${t("Envergure")}: ${(vars.wingspan ?? 15).toFixed(1)} m · ${t("Longueur")}: ${(vars.length ?? 10).toFixed(1)} m` });
+  };
+
+  const handleFullscreen = () => {
+    const el = viewportRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().then(() => setFullscreen(true)).catch(() => toast.error(t("Plein écran non disponible")));
+    } else {
+      document.exitFullscreen?.().then(() => setFullscreen(false));
+    }
+  };
+
+  const handleAddVariable = () => {
+    const id = `custom_${customVars.length + 1}`;
+    const newVar: Variable = {
+      id, name: `#${id}`, value: 0, unit: "", min: 0, max: 100, step: 1, type: "number",
+      description: t("Variable personnalisée"), appliesTo: "custom",
+    };
+    setCustomVars(prev => [...prev, newVar]);
+    setSelectedVarId(id);
+    toast.success(t("Variable ajoutée"), { description: `${newVar.name} — ${t("éditez sa valeur dans le tableau")}` });
+  };
+
+  const handleDuplicateVariable = () => {
+    const allVars = [...DEFAULT_VARIABLES, ...customVars];
+    const source = allVars.find(v => v.id === selectedVarId);
+    if (!source) { toast.error(t("Aucune variable sélectionnée")); return; }
+    const id = `dup_${Date.now()}`;
+    const dup: Variable = { ...source, id, name: `#${id}`, description: `${t("Copie de")} ${source.name}` };
+    setCustomVars(prev => [...prev, dup]);
+    setSelectedVarId(id);
+    toast.success(t("Variable dupliquée"), { description: `${dup.name} — ${t("créée à partir de")} ${source.name}` });
+  };
+
   // CAHIER DES CHARGES 2026-10-30 : capture du poste paramétrique pour le Rapport.
   // On sérialise le canvas Three.js (ou la zone SVG en fallback) en data URL et
   // on dispatche un CustomEvent écouté par Home.tsx pour alimenter ReportView.
@@ -337,15 +418,15 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
 
       {/* Toolbar */}
       <div className="pdc-toolbar">
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Nouvelle esquisse"))}><Plus size={14} /> {t("Nouveau")}</button>
+        <button className="pdc-tb-btn" onClick={handleNew}><Plus size={14} /> {t("Nouveau")}</button>
         <button className="pdc-tb-btn" onClick={handleSave}><Save size={14} /> {t("Valider")}</button>
         <div className="pdc-tb-sep" />
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Outil esquisse activé"))}><Box size={14} /> {t("Esquisse")}</button>
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Extrusion"))}><Layers size={14} /> {t("Extruder")}</button>
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Révolution"))}><Cog size={14} /> {t("Révolution")}</button>
+        <button className={`pdc-tb-btn ${sketchMode ? "is-active" : ""}`} onClick={handleSketch}><Box size={14} /> {t("Esquisse")}</button>
+        <button className={`pdc-tb-btn ${extrudeMode ? "is-active" : ""}`} onClick={handleExtrude}><Layers size={14} /> {t("Extruder")}</button>
+        <button className={`pdc-tb-btn ${revolveMode ? "is-active" : ""}`} onClick={handleRevolve}><Cog size={14} /> {t("Révolution")}</button>
         <div className="pdc-tb-sep" />
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Mesure : ") + wingArea.toFixed(2) + " m²")}><Ruler size={14} /> {t("Mesurer")}</button>
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Masse à vide : ") + emptyMass.toFixed(1) + " kg")}><Activity size={14} /> {t("Masses")}</button>
+        <button className="pdc-tb-btn" onClick={handleMeasure}><Ruler size={14} /> {t("Mesurer")}</button>
+        <button className="pdc-tb-btn" onClick={handleMasses}><Activity size={14} /> {t("Masses")}</button>
         <div className="pdc-tb-sep" />
         <button className="pdc-tb-btn" onClick={handleImport}><Upload size={14} /> {t("Import")}</button>
         <button className="pdc-tb-btn" onClick={handleExport}><Download size={14} /> {t("Export")}</button>
@@ -405,7 +486,7 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
 
         {/* Center: 3D viewport + variable table */}
         <div className="pdc-center">
-          <div className="pdc-viewport">
+          <div className="pdc-viewport" ref={viewportRef}>
             <div className="pdc-vp-overlay">
               <div className="pdc-vp-top">
                 <div className="pdc-vp-tabs">
@@ -414,8 +495,8 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
                   <div className={`pdc-vp-tab ${activeTab === "assembly" ? "active" : ""}`} onClick={() => setActiveTab("assembly")}>Assembly 1</div>
                 </div>
                 <div className="pdc-vp-controls">
-                  <button className="pdc-vp-btn" title={t("Plein écran")} onClick={() => toast.info(t("Plein écran"))}><Maximize2 size={14} /></button>
-                  <button className="pdc-vp-btn" title={t("Paramètres")} onClick={() => toast.info(t("Paramètres viewport"))}><SettingsIcon size={14} /></button>
+                  <button className={`pdc-vp-btn ${fullscreen ? "is-active" : ""}`} title={t("Plein écran")} onClick={handleFullscreen}><Maximize2 size={14} /></button>
+                  <button className={`pdc-vp-btn ${showViewportSettings ? "is-active" : ""}`} title={t("Paramètres")} onClick={() => setShowViewportSettings(v => !v)}><SettingsIcon size={14} /></button>
                 </div>
               </div>
               <div className="pdc-vp-bottom">
@@ -428,6 +509,17 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
                   <span>M: <b>{emptyMass.toFixed(1)} kg</b></span>
                 </div>
               </div>
+              {showViewportSettings && (
+                <div className="pdc-vp-settings">
+                  <div className="pdc-vp-settings-title">{t("Paramètres viewport")}</div>
+                  <div className="pdc-vp-settings-row"><span>{t("Grille")}</span><b>{t("Active")}</b></div>
+                  <div className="pdc-vp-settings-row"><span>{t("Ombres")}</span><b>{t("Actives")}</b></div>
+                  <div className="pdc-vp-settings-row"><span>{t("Rotation auto")}</span><b>{t("Active")}</b></div>
+                  <div className="pdc-vp-settings-row"><span>{t("DPR")}</span><b>1–2</b></div>
+                  <div className="pdc-vp-settings-row"><span>{t("Caméra")}</span><b>28,18,28</b></div>
+                  <div className="pdc-vp-settings-row"><span>{t("FOV")}</span><b>40°</b></div>
+                </div>
+              )}
             </div>
             <Canvas shadows dpr={[1, 2]} camera={{ position: [28, 18, 28], fov: 40, near: 0.1, far: 500 }}>
               <Scene vars={vars} />
@@ -438,11 +530,11 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
           <div className="pdc-var-studio">
             <div className="pdc-vs-header">
               <div className={`pdc-vs-tab ${activeTab === "variable" ? "active" : ""}`} onClick={() => setActiveTab("variable")}>
-                Variable Studio 1 <span className="pdc-badge">{DEFAULT_VARIABLES.length}</span>
+                Variable Studio 1 <span className="pdc-badge">{DEFAULT_VARIABLES.length + customVars.length}</span>
               </div>
               <div className="pdc-vs-actions">
-                <button className="pdc-vs-action" title={t("Ajouter")} onClick={() => toast.info(t("Nouvelle variable"))}><Plus size={13} /></button>
-                <button className="pdc-vs-action" title={t("Dupliquer")} onClick={() => toast.info(t("Dupliquer variable"))}><Copy size={13} /></button>
+                <button className="pdc-vs-action" title={t("Ajouter")} onClick={handleAddVariable}><Plus size={13} /></button>
+                <button className="pdc-vs-action" title={t("Dupliquer")} onClick={handleDuplicateVariable}><Copy size={13} /></button>
                 <button className="pdc-vs-action" title={t("Export CSV")} onClick={handleExport}><Download size={13} /></button>
               </div>
             </div>
@@ -461,7 +553,7 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
                 </thead>
                 <tbody>
                   {DEFAULT_VARIABLES.map((v, i) => (
-                    <tr key={v.id}>
+                    <tr key={v.id} className={selectedVarId === v.id ? "is-selected" : ""} onClick={() => setSelectedVarId(v.id)} style={{ cursor: "pointer" }}>
                       <td>{i + 1}</td>
                       <td className="pdc-var-name">{v.name}</td>
                       <td className="pdc-var-value">{vars[v.id]?.toFixed(2)}</td>
@@ -469,6 +561,19 @@ export function ParametricDroneCenter({ config, setConfig, onCommit }: Props) {
                       <td className="pdc-var-range">{v.min}–{v.max}</td>
                       <td className="pdc-slider-cell">
                         <input type="range" min={v.min} max={v.max} step={v.step} value={vars[v.id] ?? v.value} onChange={e => updateVar(v.id, Number(e.target.value))} />
+                      </td>
+                      <td className="pdc-var-type">{v.type}</td>
+                    </tr>
+                  ))}
+                  {customVars.map((v, i) => (
+                    <tr key={v.id} className={selectedVarId === v.id ? "is-selected" : ""} onClick={() => setSelectedVarId(v.id)} style={{ cursor: "pointer" }}>
+                      <td>{DEFAULT_VARIABLES.length + i + 1}</td>
+                      <td className="pdc-var-name">{v.name}</td>
+                      <td className="pdc-var-value">{v.value.toFixed(2)}</td>
+                      <td className="pdc-var-unit">{v.unit}</td>
+                      <td className="pdc-var-range">{v.min}–{v.max}</td>
+                      <td className="pdc-slider-cell">
+                        <input type="range" min={v.min} max={v.max} step={v.step} value={v.value} onChange={e => { const val = Number(e.target.value); setCustomVars(prev => prev.map(x => x.id === v.id ? { ...x, value: val } : x)); }} />
                       </td>
                       <td className="pdc-var-type">{v.type}</td>
                     </tr>

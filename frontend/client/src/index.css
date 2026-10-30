@@ -14469,9 +14469,30 @@ button:disabled {
 }
 .workspace-window-content {
   padding: 0;
+  /* CAHIER DES CHARGES 2026-10-30 — Anomalie affichage :
+     Make this a flex container so children with height:100% resolve correctly.
+     Without this, .workspace-window-inner's flex:1 is ignored and full-height
+     views (ParametricDroneCenter, AeroTestFieldStation, MissionPlannerView)
+     collapse to 0 height. */
+  display: flex;
+  flex-direction: column;
 }
 .workspace-window-inner {
   padding: 22px;
+  flex: 1;
+  min-height: 0;
+}
+/* Flush mode for full-height IDE-like views (no padding, no scroll on inner) */
+.workspace-window-inner.is-flush {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.workspace-window-inner.is-flush > * {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 .workspace-window-inner > .view-stack {
   min-height: 100%;
