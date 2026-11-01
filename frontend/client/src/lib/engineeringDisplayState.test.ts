@@ -24,8 +24,14 @@ describe("engineering display state", () => {
     expect(variables).toEqual(PARAMETRIC_PREVIEW_DEFAULTS);
     expect(calculateParametricMetrics(variables)).toEqual({
       wingArea: 45,
+      wingAreaBasis: "rectangular-planform-estimate",
+      wingAreaExplanation: "Estimation du planform rectangulaire span × chord; ne modélise ni effilement, ni flèche, ni découpes.",
       aspectRatio: 5,
+      aspectRatioBasis: "simple-geometric-estimate",
+      aspectRatioExplanation: "Estimation géométrique simple span ÷ chord; ne tient pas compte de la forme réelle de l’aile.",
       emptyMassKg: 225,
+      massBasis: "rough-preview-proxy",
+      massExplanation: "Proxy historique de prévisualisation : 0,5 × length × span × max_thickness × 10. Hypothèse empirique non validée, sans matériaux, équipements ni structure détaillée; valeur non mesurée.",
     });
   });
 
@@ -34,7 +40,31 @@ describe("engineering display state", () => {
     expect(metrics.wingArea).toBeNull();
     expect(metrics.aspectRatio).toBeNull();
     expect(metrics.emptyMassKg).toBeNull();
+    expect(metrics.wingAreaBasis).toBe("unavailable");
+    expect(metrics.aspectRatioBasis).toBe("unavailable");
+    expect(metrics.massBasis).toBe("unavailable");
+    expect(metrics.wingAreaExplanation).toContain("Indisponible");
+    expect(metrics.aspectRatioExplanation).toContain("Indisponible");
+    expect(metrics.massExplanation).toContain("Indisponible");
     expect(JSON.stringify(metrics)).not.toContain("NaN");
+  });
+
+  it("keeps derived values finite and does not imply uncomputed analyses", () => {
+    const metrics = calculateParametricMetrics({
+      wingspan: 1e308,
+      chord: 1e308,
+      length: 1e308,
+      max_thickness: 1e308,
+    });
+    expect(metrics.wingArea).toBeNull();
+    expect(metrics.aspectRatio).toBe(1);
+    expect(metrics.aspectRatioBasis).toBe("simple-geometric-estimate");
+    expect(metrics.emptyMassKg).toBeNull();
+    expect(metrics.massBasis).toBe("unavailable");
+    expect(Object.values(metrics).filter((value): value is number => typeof value === "number")
+      .every(Number.isFinite)).toBe(true);
+    const keys = Object.keys(metrics).join(" ").toLowerCase();
+    expect(keys).not.toMatch(/cg|inertia|cfd/);
   });
 
   it("hydrates only valid, in-range project parameters", () => {

@@ -49,6 +49,9 @@ def _adapt_sqlite(sql: str) -> str:
       - ``ALTER TABLE ... ADD CONSTRAINT FOREIGN KEY`` (SQLite doesn't support
         adding FK constraints via ALTER; FKs are declared inline at CREATE
         TABLE time only). We strip these statements entirely.
+      - PostgreSQL PL/pgSQL functions and DO blocks (SQLite has no procedural
+        language or trigger-function syntax); portable table/index DDL remains
+        exercised, while the PostgreSQL trigger is outside this adapter's scope.
       - ``BEGIN/COMMIT`` are managed implicitly by sqlite3.
     """
     out = sql
@@ -56,6 +59,15 @@ def _adapt_sqlite(sql: str) -> str:
     out = re.sub(r"\bTIMESTAMPTZ\b", "DATETIME", out, flags=re.IGNORECASE)
     # Strip the rollback section (it's commented out anyway)
     out = out.split("-- === ROLLBACK SCRIPT")[0]
+    # Skip PostgreSQL-only PL/pgSQL trigger function and DO block. These have
+    # internal semicolons and must be removed before the statement splitter.
+    out = re.sub(
+        r"CREATE\s+OR\s+REPLACE\s+FUNCTION\b.*?\$\$\s*LANGUAGE\s+\w+\s*;",
+        "",
+        out,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    out = re.sub(r"DO\s+\$\$.*?\$\$\s*;", "", out, flags=re.IGNORECASE | re.DOTALL)
     # Strip standalone BEGIN/COMMIT lines (sqlite3 manages transactions)
     out = re.sub(r"^\s*BEGIN\s*;", "", out, flags=re.MULTILINE | re.IGNORECASE)
     out = re.sub(r"^\s*COMMIT\s*;", "", out, flags=re.MULTILINE | re.IGNORECASE)

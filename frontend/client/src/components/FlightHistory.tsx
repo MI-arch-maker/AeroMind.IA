@@ -56,7 +56,7 @@ export function FlightHistory({ projectId }: Props) {
     }
   };
 
-  useEffect(() => { void refresh(); }, [projectId, minutes]);
+  useEffect(() => { setSamples([]); void refresh(); }, [projectId, minutes]);
 
   const filtered = samples.filter((s) => {
     if (filterArmed && !s.armed) return false;

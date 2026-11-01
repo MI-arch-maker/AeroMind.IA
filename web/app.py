@@ -21,6 +21,7 @@ from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
+from .engineering_connectors_api import router as engineering_connectors_router
 from .admin import activity as admin_activity, clear_audit_logs, create_account, delete_account, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
@@ -56,6 +57,7 @@ from .realtime import router as realtime_router
 # authenticated HTTP. Previously the module existed but was never imported,
 # so every /api/lab/* request 404'd.
 from .labbench_canonical_api import router as labbench_canonical_router
+from .institutional_gates_api import router as institutional_gates_router
 from .database import Base, engine, ping_database, SessionLocal
 from .models import User, Project, Drone, Simulation, Report, AuditEvent, LabSession
 # P0-07 audit_events_ext — ensure AuditEventExt is registered on Base.metadata
@@ -80,6 +82,13 @@ def _engine_status():
         return {'loaded': True, 'profiles': len(engine.compatibility_engine._known_profiles), 'safety': engine.run_safety_check()}
     except Exception as exc:
         return {'loaded': False, 'error': type(exc).__name__}
+
+
+def _should_autostart_sitl(environment: str) -> bool:
+    """SITL is opt-in and never auto-starts in the virtual-only delivery."""
+    if environment != 'development' or mavlink_command_service.virtual_only_mode():
+        return False
+    return os.getenv('AEROMIND_SITL_AUTOSTART', 'false').strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
 @asynccontextmanager
@@ -166,7 +175,7 @@ async def lifespan(_: FastAPI):
     # autopilot binary (ArduPilot/PX4) install. Disabled in production where
     # a real vehicle or a real SITL binary is expected.
     _sitl_emitter = None
-    if settings.environment == 'development' and os.getenv('AEROMIND_SITL_AUTOSTART', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}:
+    if _should_autostart_sitl(settings.environment):
         try:
             import sys as _sys
             _root = str(Path(__file__).resolve().parent.parent)
@@ -271,6 +280,7 @@ app.include_router(engineering_extensions_router)
 app.include_router(workflow_router)
 app.include_router(command_center_router)
 app.include_router(engineering_document_router)
+app.include_router(engineering_connectors_router)
 app.include_router(sitl_router)
 app.include_router(mavlink_telemetry_router)
 app.include_router(fleet_telemetry_router)
@@ -283,6 +293,9 @@ app.include_router(voice_commands_router)
 app.include_router(realtime_router)
 # P0-03 fix — register the canonical /api/lab/* router (EXIGENCE CANON-01).
 app.include_router(labbench_canonical_router)
+# Institutional GATE 01–05 API: simulation workflow and audit only. It has no
+# hardware or MAVLink transport dependency and cannot unlock physical output.
+app.include_router(institutional_gates_router)
 
 
 @app.middleware('http')
@@ -336,7 +349,6 @@ async def security_headers(request: Request, call_next):
         if 'Pragma' in response.headers:
             del response.headers['Pragma']
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'no-referrer'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     if settings.environment == 'production':
@@ -354,7 +366,6 @@ async def security_headers(request: Request, call_next):
         "connect-src 'self' https://login.microsoftonline.com https://api.openai.com "
         "wss://*.onrender.com https://*.openstreetmap.org https://server.arcgisonline.com "
         "https://nominatim.openstreetmap.org; "
-        "frame-ancestors 'none'; "
         "base-uri 'self'"
     )
     return response
@@ -670,7 +681,7 @@ def _trpc_error(status_code: int, code: str, message: str) -> JSONResponse:
 async def trpc_compat(
     request: Request,
     procedure: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Small compatibility bridge for the legacy React query layer.
@@ -1461,11 +1472,24 @@ def ready():
 
 @app.get('/api/capabilities')
 def capabilities():
-    return {'service': 'aeromind-ai', 'version': '2.0.0', 'oidc': bool(settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer'])), 'identity_provider': 'microsoft-entra' if settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']) else None, 'llm': bool(settings.openai_api_key), 'sitl': True, 'hardware_control': False, 'virtual_control': True, 'mission_upload': False, 'telemetry_write': False}
+    return {
+        'service': 'aeromind-ai',
+        'version': '2.0.0',
+        'oidc': bool(settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer'])),
+        'identity_provider': 'microsoft-entra' if settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']) else None,
+        'llm': bool(settings.openai_api_key),
+        'sitl': True,
+        'sitl_supported': True,
+        'sitl_active': os.getenv('AEROMIND_SITL_ACTIVE', '').strip().lower() == 'true',
+        'hardware_control': False,
+        'virtual_control': True,
+        'mission_upload': False,
+        'telemetry_write': False,
+    }
 
 
 @app.get('/api/labbench/gates', include_in_schema=False)
-def labbench_gates_get(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def labbench_gates_get(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """REST mirror of the tRPC `labBench.gateState` procedure for external tools.
 
     The query input may be provided as `?projectId=...`; this endpoint stays
@@ -1482,7 +1506,7 @@ def labbench_gates_get(request: Request, aeromind_session: str | None = Cookie(d
 
 
 @app.post('/api/labbench/gates/hardware-checklist', include_in_schema=False)
-async def labbench_gates_hardware_checklist(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def labbench_gates_hardware_checklist(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     try:
         payload = await request.json()
@@ -1497,7 +1521,7 @@ async def labbench_gates_hardware_checklist(request: Request, aeromind_session: 
 
 
 @app.post('/api/labbench/gates/arm-n3', include_in_schema=False)
-async def labbench_gates_arm_n3(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def labbench_gates_arm_n3(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     try:
         payload = await request.json()
@@ -1512,7 +1536,7 @@ async def labbench_gates_arm_n3(request: Request, aeromind_session: str | None =
 
 
 @app.post('/api/labbench/gates/disarm-n3', include_in_schema=False)
-async def labbench_gates_disarm_n3(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def labbench_gates_disarm_n3(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     try:
         payload = await request.json()
@@ -1527,7 +1551,7 @@ async def labbench_gates_disarm_n3(request: Request, aeromind_session: str | Non
 
 
 @app.post('/api/labbench/gates/sign-off-n4', include_in_schema=False)
-async def labbench_gates_sign_off_n4(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def labbench_gates_sign_off_n4(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     try:
         payload = await request.json()
@@ -1544,7 +1568,7 @@ async def labbench_gates_sign_off_n4(request: Request, aeromind_session: str | N
 # === Multi-drone (fleet) endpoints — LabBench 01 v3 ===
 
 @app.get('/api/labbench/fleet', include_in_schema=False)
-def labbench_fleet_get(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def labbench_fleet_get(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Aggregate gate progressions for every drone in a project's fleet."""
     user = _current_user(aeromind_session, authorization)
     project_id = request.query_params.get('projectId') or request.query_params.get('id') or ''
@@ -1557,7 +1581,7 @@ def labbench_fleet_get(request: Request, aeromind_session: str | None = Cookie(d
 
 
 @app.get('/api/labbench/drones/{drone_id}/gate', include_in_schema=False)
-def labbench_drone_gate_get(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def labbench_drone_gate_get(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     project_id = request.query_params.get('projectId') or request.query_params.get('id') or ''
     try:
@@ -1569,7 +1593,7 @@ def labbench_drone_gate_get(drone_id: str, request: Request, aeromind_session: s
 
 
 @app.post('/api/labbench/drones/{drone_id}/hardware-checklist', include_in_schema=False)
-async def labbench_drone_hardware_checklist(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def labbench_drone_hardware_checklist(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     try:
         payload = await request.json()
@@ -1584,7 +1608,7 @@ async def labbench_drone_hardware_checklist(drone_id: str, request: Request, aer
 
 
 @app.post('/api/labbench/drones/{drone_id}/arm-n3', include_in_schema=False)
-async def labbench_drone_arm_n3(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def labbench_drone_arm_n3(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     try:
         payload = await request.json()
@@ -1599,7 +1623,7 @@ async def labbench_drone_arm_n3(drone_id: str, request: Request, aeromind_sessio
 
 
 @app.post('/api/labbench/drones/{drone_id}/disarm-n3', include_in_schema=False)
-async def labbench_drone_disarm_n3(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def labbench_drone_disarm_n3(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     try:
         payload = await request.json()
@@ -1614,7 +1638,7 @@ async def labbench_drone_disarm_n3(drone_id: str, request: Request, aeromind_ses
 
 
 @app.post('/api/labbench/fleet/run-simulation', include_in_schema=False)
-async def labbench_fleet_run_simulation(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def labbench_fleet_run_simulation(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Run a fleet simulation: one N2 scenario per drone in parallel.
 
     Body: { projectId: string, scenarios: [{ droneId, ...scenarioInputs }] }
@@ -1642,32 +1666,38 @@ async def labbench_fleet_run_simulation(request: Request, aeromind_session: str 
 @app.get('/api/hardware/status', include_in_schema=False)
 def hardware_status():
     """Public status of the hardware subsystem."""
+    virtual_only = mavlink_command_service.virtual_only_mode()
     return {
         'hardwareControlEnabled': mavlink_command_service.hardware_commands_enabled(),
-        'allowedCommands': list(mavlink_command_service.ALLOWED_COMMANDS),
-        'allowedModes': list(mavlink_command_service.ALLOWED_MODES),
+        'virtualOnly': virtual_only,
+        'allowedCommands': [] if virtual_only else list(mavlink_command_service.ALLOWED_COMMANDS),
+        'allowedModes': ['VIRTUAL'] if virtual_only else list(mavlink_command_service.ALLOWED_MODES),
         'maxFleetSize': mavlink_pool_service.MAX_POOL_SIZE,
-        'poolSize': mavlink_pool_service.get_pool().size(),
+        'poolSize': 0 if virtual_only else mavlink_pool_service.get_pool().size(),
         'physicalOutputEnabled': False,
         'physicalCommandsEmitted': False,
     }
 
 
 @app.get('/api/hardware/pool', include_in_schema=False)
-def hardware_pool_list(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def hardware_pool_list(aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """List all drones registered in the MAVLink pool."""
     _user = _current_user(aeromind_session, authorization)
     if not _user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    if mavlink_command_service.virtual_only_mode():
+        return JSONResponse({'drones': [], 'virtualOnly': True}, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
     pool = mavlink_pool_service.get_pool()
-    return JSONResponse({'drones': pool.list()}, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
+    return JSONResponse({'drones': pool.list(owner_id=_user['id'])}, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
 
 
 @app.post('/api/hardware/pool/register', include_in_schema=False)
-async def hardware_pool_register(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def hardware_pool_register(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    if mavlink_command_service.virtual_only_mode():
+        return _trpc_error(403, 'VIRTUAL_ONLY', 'Mode virtual strict: aucune connexion MAVLink matérielle ne peut être ouverte.')
     try:
         payload = await request.json()
     except Exception:
@@ -1678,7 +1708,12 @@ async def hardware_pool_register(request: Request, aeromind_session: str | None 
     project_id = str(payload.get('projectId') or '').strip()
     if not drone_id or not connection_url:
         return _trpc_error(400, 'BAD_REQUEST', 'droneId and connectionUrl are required')
+    if not project_id:
+        return _trpc_error(400, 'BAD_REQUEST', 'projectId is required for owner-scoped registration')
     try:
+        # Validate project ownership before creating an observer or opening a transport.
+        with SessionLocal() as db:
+            _require_project(db, user['id'], project_id)
         pool = mavlink_pool_service.get_pool()
         # P0-03 fix (INSPECT-BACKEND B-CRIT-04): pass owner_id and project_id
         # to satisfy SEC-02 tenant isolation. Without these, MavlinkPool.register
@@ -1709,7 +1744,7 @@ async def hardware_pool_register(request: Request, aeromind_session: str | None 
 
 
 @app.post('/api/hardware/pool/{drone_id}/unregister', include_in_schema=False)
-def hardware_pool_unregister(drone_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def hardware_pool_unregister(drone_id: str, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
@@ -1721,7 +1756,7 @@ def hardware_pool_unregister(drone_id: str, aeromind_session: str | None = Cooki
 
 
 @app.get('/api/hardware/gate', include_in_schema=False)
-def hardware_gate_get(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def hardware_gate_get(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Hardware N4 gate state for a project."""
     user = _current_user(aeromind_session, authorization)
     project_id = request.query_params.get('projectId') or request.query_params.get('id') or ''
@@ -1734,7 +1769,7 @@ def hardware_gate_get(request: Request, aeromind_session: str | None = Cookie(de
 
 
 @app.post('/api/hardware/gate/sign-review', include_in_schema=False)
-async def hardware_gate_sign_review(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def hardware_gate_sign_review(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Sign the independent hardware N4 review (R-01).
 
     P0-03 fix: extract the reviewer's step-up session from the X-Lab-Session
@@ -1744,6 +1779,8 @@ async def hardware_gate_sign_review(request: Request, aeromind_session: str | No
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    if mavlink_command_service.virtual_only_mode():
+        return _trpc_error(403, 'VIRTUAL_ONLY', 'La revue N4 matérielle est indisponible en mode VIRTUAL ONLY.')
     # Extract the reviewer's step-up session (distinct from the operator's primary session)
     try:
         reviewer_session = _verify_lab_session(request)
@@ -1766,9 +1803,13 @@ async def hardware_gate_sign_review(request: Request, aeromind_session: str | No
 
 
 @app.post('/api/hardware/gate/issue-token', include_in_schema=False)
-async def hardware_gate_issue_token(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def hardware_gate_issue_token(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Issue a single-use hardware confirmation token for one physical command."""
     user = _current_user(aeromind_session, authorization)
+    if not user:
+        return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    if mavlink_command_service.virtual_only_mode():
+        return _trpc_error(403, 'VIRTUAL_ONLY', 'Aucun jeton de commande matérielle n’est délivré en mode virtuel strict.')
     try:
         payload = await request.json()
     except Exception:
@@ -1789,7 +1830,7 @@ async def hardware_gate_issue_token(request: Request, aeromind_session: str | No
 
 
 @app.post('/api/hardware/drones/{drone_id}/command', include_in_schema=False)
-async def hardware_drone_command(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def hardware_drone_command(drone_id: str, request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Send ONE physical MAVLink command to a drone. Requires:
       - HARDWARE_CONTROL=true
       - command on the allowlist
@@ -1799,6 +1840,8 @@ async def hardware_drone_command(drone_id: str, request: Request, aeromind_sessi
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+    if mavlink_command_service.virtual_only_mode():
+        return _trpc_error(403, 'VIRTUAL_ONLY', 'Commande matérielle refusée: ce runtime est verrouillé en simulation virtuelle.')
     try:
         payload = await request.json()
     except Exception:
@@ -1809,23 +1852,25 @@ async def hardware_drone_command(drone_id: str, request: Request, aeromind_sessi
     project_id = str(payload.get('projectId') or '').strip()
 
     try:
-        # Consume the token (single-use)
-        confirmation = hardware_gate_service.consume_hardware_confirmation_token(confirmation_token, command)
-        if confirmation.drone_id != drone_id:
-            return _trpc_error(403, 'TOKEN_DRONE_MISMATCH', 'Le jeton ne correspond pas à ce drone')
+        # Token is consumed exactly once by pilot.send_command after all
+        # actor/project/drone/command/parameter bindings are checked.
         # Get the pilot from the pool
         pool = mavlink_pool_service.get_pool()
         # P0-03 fix (INSPECT-BACKEND B-HIGH-01): pass owner_id so pool.pilot
         # enforces SEC-02 tenant isolation — without it any authenticated user
         # could send physical MAVLink commands to another tenant's drone.
-        pilot = pool.pilot(drone_id, owner_id=user['id'])
+        pilot = pool.pilot(drone_id, owner_id=user['id'], project_id=project_id)
         # Geofence validation
-        geofence = geofence_service.get_geofence(project_id) if project_id else None
+        geofence = geofence_service.get_geofence(project_id, owner_id=user['id']) if project_id else None
         receipt = pilot.send_command(
             command,
             parameters=parameters,
             confirmation_token=confirmation_token,
-            geofence_validation=lambda p: geofence_service.validate_command_geofence(p, geofence),
+            geofence_validation=lambda p: (
+                geofence_service.validate_command_geofence(p, geofence)
+                if geofence is not None and len(geofence.polygon) >= 3
+                else {'inside_geofence': False, 'reason': 'Géofence polygonale valide requise (fail-closed)'}
+            ),
             # P0-03 fix (SEC-01): pass Gate 0/4 context so authorize_physical_command
             # can verify project_id/drone_id/actor_id binding (was omitting them,
             # causing CONTEXT_REQUIRED on every HTTP command).
@@ -1874,41 +1919,28 @@ async def hardware_drone_command(drone_id: str, request: Request, aeromind_sessi
 
 
 @app.post('/api/hardware/emergency-stop', include_in_schema=False)
-@_limiter.limit("2/minute")  # P2-12 fix: rate-limit e-stop to prevent coordinated multi-drone abuse
-def hardware_emergency_stop(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
-    """Broadcast NAV_LAND to every drone in the pool. Single-click e-stop."""
+@_limiter.limit("2/minute")
+def hardware_emergency_stop(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
+    """Global broadcast is disabled; use only the targeted voice landing flow."""
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
-    pool = mavlink_pool_service.get_pool()
-    def audit_logger(drone_id: str, event_type: str, payload: dict):
-        with SessionLocal() as db:
-            db.add(AuditEvent(
-                id=str(uuid4()),
-                project_id=None,
-                user_id=user['id'],
-                actor_role=user.get('role', 'user'),
-                event_type=event_type,
-                message=f"E-stop déclenché pour drone {drone_id}",
-                payload_json=_json.dumps(payload, ensure_ascii=False, separators=(',', ':')),
-                occurred_at=datetime.now(UTC),
-            ))
-            db.commit()
-    # P0-03 fix (SEC-02): scope e-stop to the caller's drones only.
-    # Was calling emergency_stop_all without owner_id, which made
-    # pool.list() return ALL drones across all tenants.
-    result = geofence_service.emergency_stop_all(pool, owner_id=user['id'], audit_logger=audit_logger)
-    return JSONResponse(result, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
-
-
+    return _trpc_error(400, 'TARGET_CONTEXT_REQUIRED', 'Diffusion globale désactivée; utilisez un atterrissage NAV_LAND ciblé avec projet et jeton DB.')
 @app.get('/api/hardware/geofence', include_in_schema=False)
-def hardware_geofence_get(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def hardware_geofence_get(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Get the geofence for a project."""
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
-    project_id = request.query_params.get('projectId') or ''
-    geofence = geofence_service.get_geofence(project_id)
+    project_id = (request.query_params.get('projectId') or '').strip()
+    if not project_id:
+        return _trpc_error(400, 'PROJECT_REQUIRED', 'projectId is required')
+    with SessionLocal() as db:
+        try:
+            _require_project(db, user['id'], project_id)
+        except HTTPException:
+            return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+    geofence = geofence_service.get_geofence(project_id, owner_id=user['id'])
     if geofence is None:
         return JSONResponse({'projectId': project_id, 'configured': False})
     return JSONResponse({
@@ -1924,7 +1956,7 @@ def hardware_geofence_get(request: Request, aeromind_session: str | None = Cooki
 
 
 @app.put('/api/hardware/geofence', include_in_schema=False)
-async def hardware_geofence_set(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+async def hardware_geofence_set(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Set the geofence for a project."""
     user = _current_user(aeromind_session, authorization)
     if not user:
@@ -1935,14 +1967,16 @@ async def hardware_geofence_set(request: Request, aeromind_session: str | None =
         payload = {}
     project_id = str(payload.get('projectId') or '').strip()
     polygon = payload.get('polygon') or []
+    if not project_id:
+        return _trpc_error(400, 'BAD_REQUEST', 'projectId is required')
     if not isinstance(polygon, list):
         return _trpc_error(400, 'BAD_REQUEST', 'polygon must be an array of [lat, lon] pairs')
     try:
         polygon_pairs = [(float(p[0]), float(p[1])) for p in polygon if isinstance(p, (list, tuple)) and len(p) == 2]
     except (TypeError, ValueError):
         return _trpc_error(400, 'BAD_REQUEST', 'polygon values must be numeric')
-    if len(polygon_pairs) > 0 and len(polygon_pairs) < 3:
-        return _trpc_error(400, 'BAD_REQUEST', 'polygon must have at least 3 points or be empty')
+    if len(polygon_pairs) < 3:
+        return _trpc_error(400, 'BAD_REQUEST', 'polygon must have at least 3 points for a safe navigation geofence')
     geofence = geofence_service.Geofence(
         project_id=project_id,
         polygon=polygon_pairs,
@@ -1969,6 +2003,8 @@ async def hardware_geofence_set(request: Request, aeromind_session: str | None =
         _hn = float(payload.get('homeLon'))
         if not (-180.0 <= _hn <= 180.0):
             return _trpc_error(400, 'BAD_REQUEST', 'homeLon must be in [-180, 180]')
+    with SessionLocal() as db:
+        _require_project(db, user['id'], project_id)
     geofence_service.set_geofence(geofence, owner_id=user['id'])
     return JSONResponse({'ok': True, 'projectId': project_id, 'polygonSize': len(polygon_pairs)})
 
@@ -1978,7 +2014,7 @@ async def hardware_geofence_set(request: Request, aeromind_session: str | None =
 # ===========================================================================
 
 @app.get('/api/hardware/alerts', include_in_schema=False)
-def hardware_alerts_list(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def hardware_alerts_list(request: Request, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """List recent unacknowledged alerts."""
     user = _current_user(aeromind_session, authorization)
     if not user:
@@ -1988,19 +2024,39 @@ def hardware_alerts_list(request: Request, aeromind_session: str | None = Cookie
     only_unack = request.query_params.get('all') != 'true'
     with SessionLocal() as db:
         from . import alerts as alert_service
-        from .models import AlertEvent
-        alerts = alert_service.list_recent_alerts(db, project_id=project_id, drone_id=drone_id, only_unacknowledged=only_unack, limit=100)
+        if project_id:
+            try:
+                _require_project(db, user['id'], project_id)
+            except HTTPException:
+                return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+            owned_project_ids = [project_id]
+        else:
+            owned_project_ids = list(db.scalars(select(Project.id).where(Project.user_id == user['id'])).all())
+        alerts = []
+        for owned_project_id in owned_project_ids:
+            alerts.extend(alert_service.list_recent_alerts(
+                db, project_id=owned_project_id, drone_id=drone_id,
+                only_unacknowledged=only_unack, limit=max(0, 100 - len(alerts)),
+            ))
     return JSONResponse({'alerts': alerts}, headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'})
 
 
 @app.post('/api/hardware/alerts/{alert_id}/acknowledge', include_in_schema=False)
-def hardware_alerts_acknowledge(alert_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def hardware_alerts_acknowledge(alert_id: str, aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     """Acknowledge an alert (remove from live feed)."""
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
     with SessionLocal() as db:
         from . import alerts as alert_service
+        from .models import AlertEvent
+        alert = db.get(AlertEvent, alert_id)
+        if alert is None or not alert.project_id:
+            return _trpc_error(404, 'NOT_FOUND', 'Alert not found')
+        try:
+            _require_project(db, user['id'], alert.project_id)
+        except HTTPException:
+            return _trpc_error(404, 'NOT_FOUND', 'Alert not found')
         result = alert_service.acknowledge_alert(db, alert_id, user['id'], user.get('email'))
     if result.get('error'):
         return _trpc_error(404, 'NOT_FOUND', result['error'])
@@ -2025,14 +2081,16 @@ def hardware_map_tiles_status():
 @app.get('/api/flights/history', include_in_schema=False)
 def flights_history(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Flight history — list of completed flights (missions uploaded + executed)."""
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
-    project_id = request.query_params.get('projectId')
+    project_id = (request.query_params.get('projectId') or '').strip()
+    if not project_id:
+        return _trpc_error(400, 'PROJECT_REQUIRED', 'projectId is required')
     drone_id = request.query_params.get('droneId')
     minutes = int(request.query_params.get('minutes', '60'))
     if minutes < 1 or minutes > 1440:
@@ -2041,10 +2099,22 @@ def flights_history(
     since = datetime.now(UTC) - timedelta(minutes=minutes)
     with SessionLocal() as db:
         from .models import FleetTelemetrySample
-        stmt = select(FleetTelemetrySample).where(FleetTelemetrySample.sample_time >= since)
+        try:
+            _require_project(db, user['id'], project_id)
+        except HTTPException:
+            return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+        stmt = (
+            select(FleetTelemetrySample)
+            .join(Project, Project.id == FleetTelemetrySample.project_id)
+            .where(
+                FleetTelemetrySample.sample_time >= since,
+                FleetTelemetrySample.project_id == project_id,
+                Project.user_id == user['id'],
+            )
+        )
         if drone_id:
             stmt = stmt.where(FleetTelemetrySample.drone_id == drone_id)
-        elif project_id:
+        if project_id:
             stmt = stmt.where(FleetTelemetrySample.project_id == project_id)
         stmt = stmt.order_by(FleetTelemetrySample.sample_time.asc()).limit(5000)
         rows = db.scalars(stmt).all()
@@ -2073,14 +2143,16 @@ def flights_history(
 @app.get('/api/flights/export.csv', include_in_schema=False)
 def flights_export_csv(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Export telemetry samples as CSV (for offline analysis)."""
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
-    project_id = request.query_params.get('projectId')
+    project_id = (request.query_params.get('projectId') or '').strip()
+    if not project_id:
+        return _trpc_error(400, 'PROJECT_REQUIRED', 'projectId is required')
     drone_id = request.query_params.get('droneId')
     minutes = int(request.query_params.get('minutes', '60'))
     if minutes < 1 or minutes > 1440:
@@ -2089,10 +2161,22 @@ def flights_export_csv(
     since = datetime.now(UTC) - timedelta(minutes=minutes)
     with SessionLocal() as db:
         from .models import FleetTelemetrySample
-        stmt = select(FleetTelemetrySample).where(FleetTelemetrySample.sample_time >= since)
+        try:
+            _require_project(db, user['id'], project_id)
+        except HTTPException:
+            return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+        stmt = (
+            select(FleetTelemetrySample)
+            .join(Project, Project.id == FleetTelemetrySample.project_id)
+            .where(
+                FleetTelemetrySample.sample_time >= since,
+                FleetTelemetrySample.project_id == project_id,
+                Project.user_id == user['id'],
+            )
+        )
         if drone_id:
             stmt = stmt.where(FleetTelemetrySample.drone_id == drone_id)
-        elif project_id:
+        if project_id:
             stmt = stmt.where(FleetTelemetrySample.project_id == project_id)
         stmt = stmt.order_by(FleetTelemetrySample.sample_time.asc()).limit(10000)
         rows = db.scalars(stmt).all()
@@ -2139,14 +2223,14 @@ def _require_project(db, user_id: str, project_id: str) -> Project:
 
 
 @app.get('/api/system/status')
-def system_status(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), authorization: str | None = Header(default=None)):
+def system_status(aeromind_session: str | None = Cookie(default=None), authorization: str | None = Header(default=None)):
     if not _current_user(aeromind_session, authorization):
         raise HTTPException(401, 'OIDC authentication required')
     return _engine_status()
 
 
 @app.get('/api/safety/check')
-def safety_check(aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
+def safety_check(aeromind_session: str | None = Cookie(default=None)):
     if not _current_user(aeromind_session):
         raise HTTPException(401, 'OIDC authentication required')
     result = _engine_status()
@@ -2154,7 +2238,7 @@ def safety_check(aeromind_session: str | None = Cookie(default=None, convert_und
 
 
 @app.post('/api/ops/cfd/prepare')
-async def prepare_cfd_case(request: Request, aeromind_session: str | None = Cookie(default=None, convert_underscores=False)):
+async def prepare_cfd_case(request: Request, aeromind_session: str | None = Cookie(default=None)):
     """Prepare an isolated CFD job; never executes a hardware command."""
     if not _current_user(aeromind_session):
         raise HTTPException(401, 'OIDC authentication required')

@@ -4,7 +4,8 @@
 
 # P1-pgserver fix (INSPECT-TESTS-AUDITS F-04): pgserver was missing,
 # causing 4 tests in test_v6_real_postgresql.py to ERROR in stock CI.
-pgserver>=0.5.0
+# The configured package index currently publishes versions through 0.1.4.
+pgserver>=0.1.4
 
 # Test runners
 pytest>=8.0.0

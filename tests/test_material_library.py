@@ -27,7 +27,7 @@ def test_catalog_has_10_categories():
     assert "payload-non-weaponized" in ids
     assert "safety" in ids
     assert "maintenance" in ids
-    assert "armament-hardware" in ids
+    assert "electrical-arming-hardware" in ids
 
 
 def test_catalog_has_at_least_30_items():
@@ -80,11 +80,11 @@ def test_catalog_includes_safety():
     assert len(safety) >= 3
 
 
-def test_catalog_includes_armament_hardware_non_weaponized():
-    """The 'armament-hardware' category contains ELECTRICAL arming hardware
+def test_catalog_includes_electrical_arming_hardware_non_weaponized():
+    """The electrical-arming-hardware category contains ELECTRICAL components
     (switches, PDB, connectors) — NOT weapons. All items must have
     weaponized=False."""
-    arm_hw = [it for it in ml.MATERIAL_CATALOG if it["category"] == "armament-hardware"]
+    arm_hw = [it for it in ml.MATERIAL_CATALOG if it["category"] == "electrical-arming-hardware"]
     assert len(arm_hw) >= 2
     for item in arm_hw:
         assert item.get("weaponized") is False, f"Item {item['id']} should not be weaponized"
@@ -95,7 +95,7 @@ def test_catalog_includes_armament_hardware_non_weaponized():
     import re
     weapon_terms = ["arme ", "armes ", "munition", "explosif", "balle", "fusil", "missile", "grenade"]
     for term in weapon_terms:
-        assert term not in labels, f"Term '{term}' should not appear in armament-hardware labels (found in: {labels})"
+        assert term not in labels, f"Term '{term}' should not appear in electrical hardware labels (found in: {labels})"
 
 
 def test_all_catalog_items_are_non_weaponized():

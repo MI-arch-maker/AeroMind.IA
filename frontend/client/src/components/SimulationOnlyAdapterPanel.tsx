@@ -6,6 +6,7 @@ import {
   type SimulationChecklistItem,
   type SimulationOutput,
 } from "../lib/simulationOnlyAdapter";
+import { InstitutionalGateWorkflowPanel } from "./InstitutionalGateWorkflowPanel";
 
 const checklistLabels: Record<SimulationChecklistItem, string> = {
   purpose: "Objectif civil ou défensif uniquement; aucun usage offensif.",
@@ -157,6 +158,7 @@ export function SimulationOnlyAdapterPanel() {
           </div>
         )) : <small>{audit.length ? "Aucun événement pour ce filtre." : "Aucun événement; aucune entrée ne sera acceptée avant le consentement humain."}</small>}
       </div>
+      <InstitutionalGateWorkflowPanel />
       {!allChecked && <small className="fom-sim-adapter-note">Le consentement ne pourra être accordé qu’après validation de chaque case.</small>}
     </section>
   );

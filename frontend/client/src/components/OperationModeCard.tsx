@@ -6,6 +6,7 @@ import { bearerHeaders } from "@/lib/sessionToken";
 type ModeInfo = {
   current_mode: string;
   hardware_control: boolean;
+  virtual_only: boolean;
   available_transitions: string[];
   all_gates_approved: boolean;
   gate_project_id?: string | null;
@@ -126,6 +127,10 @@ export function OperationModeCard() {
   };
 
   const currentMode = mode?.current_mode?.toUpperCase() ?? "—";
+  const virtualOnly = mode?.virtual_only !== false;
+  const selectableModes = virtualOnly
+    ? ["DEMO", "SIMULATION", "SITL"]
+    : ["DEMO", "SIMULATION", "SITL", "HIL"];
 
   return (
     <div className="space-y-4">
@@ -161,20 +166,21 @@ export function OperationModeCard() {
           </div>
         </div>
 
-        {/* Gate verification is scoped to one explicit project; approvals are never pooled. */}
-        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <label className="grid gap-1 text-xs font-semibold text-slate-600">
-            Projet à vérifier pour HARDWARE
-            <input value={gateProjectId} onChange={event => setGateProjectId(event.target.value)} placeholder="Identifiant exact du projet" className="rounded-lg border border-slate-300 px-3 py-2 font-normal" aria-label="Identifiant du projet pour vérification des gates" />
-          </label>
-          <button onClick={() => void fetchMode(gateProjectId)} disabled={loading || !gateProjectId.trim()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">Vérifier les gates</button>
-        </div>
+        {!virtualOnly && (
+          <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label className="grid gap-1 text-xs font-semibold text-slate-600">
+              Projet à vérifier pour HARDWARE
+              <input value={gateProjectId} onChange={event => setGateProjectId(event.target.value)} placeholder="Identifiant exact du projet" className="rounded-lg border border-slate-300 px-3 py-2 font-normal" aria-label="Identifiant du projet pour vérification des gates" />
+            </label>
+            <button onClick={() => void fetchMode(gateProjectId)} disabled={loading || !gateProjectId.trim()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">Vérifier les gates</button>
+          </div>
+        )}
 
         {/* Mode selector */}
         <div className="mt-5">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Changer de mode</div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {["DEMO", "SIMULATION", "SITL", "HIL"].map((m) => (
+            {selectableModes.map((m) => (
               <button
                 key={m}
                 onClick={() => void changeMode(m)}
@@ -188,17 +194,24 @@ export function OperationModeCard() {
                 {modeLabels[m] || m}
               </button>
             ))}
-            <button
-              onClick={() => void changeMode("HARDWARE")}
-              disabled={changing || currentMode === "HARDWARE" || !gateProjectId.trim() || mode?.gate_project_id !== gateProjectId.trim() || !mode?.all_gates_approved}
-              className="rounded-lg border-2 border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-              title={!gateProjectId.trim() ? "Saisissez un identifiant de projet" : mode?.gate_project_id !== gateProjectId.trim() ? "Vérifiez les gates pour le projet sélectionné" : !mode?.all_gates_approved ? "G0-G5 requises pour ce projet" : ""}
-            >
-              <Power size={11} className="inline mr-1" />
-              HARDWARE
-            </button>
+            {!virtualOnly && (
+              <button
+                onClick={() => void changeMode("HARDWARE")}
+                disabled={changing || currentMode === "HARDWARE" || !gateProjectId.trim() || mode?.gate_project_id !== gateProjectId.trim() || !mode?.all_gates_approved}
+                className="rounded-lg border-2 border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                title={!gateProjectId.trim() ? "Saisissez un identifiant de projet" : mode?.gate_project_id !== gateProjectId.trim() ? "Vérifiez les gates pour le projet sélectionné" : !mode?.all_gates_approved ? "G0-G5 requises pour ce projet" : ""}
+              >
+                <Power size={11} className="inline mr-1" />
+                HARDWARE
+              </button>
+            )}
           </div>
-          {!mode?.all_gates_approved && (
+          {virtualOnly && (
+            <p className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800" role="status">
+              Runtime VIRTUAL ONLY : SIMULATION/SITL logiciel uniquement. HIL, MAVLink matériel et HARDWARE ne sont pas proposés ni activables.
+            </p>
+          )}
+          {!virtualOnly && !mode?.all_gates_approved && (
             <p className="mt-2 text-xs text-amber-600">
               ⚠ Saisissez un identifiant de projet et vérifiez ses 6 gates G0-G5; les validations d’autres projets ne sont pas prises en compte.
             </p>

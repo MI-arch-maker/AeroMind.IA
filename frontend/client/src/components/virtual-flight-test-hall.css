@@ -334,3 +334,8 @@
   .vfth-flightdeck-status { justify-items: start; min-width: 0; text-align: left; }
   .vfth-flightdeck .vfth-scene { min-height: 370px; }
 }
+
+.vfth-timeline-scale { display: flex; justify-content: space-between; gap: 10px; margin: 10px 0 4px; color: #6f969a; font: 8px ui-monospace, monospace; letter-spacing: .04em; }
+.vfth-timeline-scale span:nth-child(2) { color: #a9d9d2; }
+.vfth-timeline input[type="range"] { width: 100%; accent-color: #6ce9e2; }
+@media (max-width: 540px) { .vfth-timeline-scale { font-size: 7px; } }

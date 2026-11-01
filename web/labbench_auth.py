@@ -54,6 +54,13 @@ ROLES = frozenset({
     "operator",    # Request hardware commands (must be approved)
     "approver",    # Approve hardware commands (must differ from operator)
     "admin",       # Manage project members, geofence, gates
+    # Institutional roles deliberately remain distinct from the generic
+    # hardware approver. GATE 05 belongs only to the Super-Administrator.
+    "gate_01_reviewer",
+    "gate_02_reviewer",
+    "gate_03_reviewer",
+    "gate_04_reviewer",
+    "super_admin",
 })
 ROLE_HIERARCHY = {
     "reader":   1,
@@ -62,6 +69,11 @@ ROLE_HIERARCHY = {
     "operator": 4,
     "approver": 4,    # same level as operator but distinct role
     "admin":    5,
+    "gate_01_reviewer": 4,
+    "gate_02_reviewer": 4,
+    "gate_03_reviewer": 4,
+    "gate_04_reviewer": 4,
+    "super_admin": 6,
 }
 # Per-role action permissions (RBAC matrix — EXIGENCE IAM-04)
 PERMISSIONS = {
@@ -69,13 +81,19 @@ PERMISSIONS = {
     "designer": {"project.read", "drone.read", "drone.write", "sketch.save", "configuration.version",
                  "run.read", "measurement.read"},
     "analyst":  {"project.read", "drone.read", "run.create", "run.read", "run.cancel",
-                 "measurement.read", "telemetry.read"},
+                 "measurement.read", "telemetry.read", "institutional.request.create", "institutional.simulation.execute"},
     "operator": {"project.read", "drone.read", "run.read", "telemetry.read",
-                  "hardware.command.request", "mission.upload.request", "geofence.read"},
+                  "hardware.command.request", "mission.upload.request", "geofence.read",
+                  "institutional.request.create", "institutional.simulation.execute"},
     "approver": {"project.read", "drone.read", "run.read", "telemetry.read",
                  "hardware.command.approve", "mission.upload.approve", "geofence.read"},
     "admin":    {"project.*", "drone.*", "run.*", "measurement.*", "telemetry.*",
                  "member.manage", "geofence.write", "gate.manage"},
+    "gate_01_reviewer": {"project.read", "run.read", "institutional.gate.01.validate"},
+    "gate_02_reviewer": {"project.read", "run.read", "institutional.gate.02.validate"},
+    "gate_03_reviewer": {"project.read", "run.read", "institutional.gate.03.validate"},
+    "gate_04_reviewer": {"project.read", "run.read", "institutional.gate.04.validate", "institutional.transmission.issue"},
+    "super_admin": {"project.read", "run.read", "institutional.transmission.verify", "institutional.gate.05.decide", "institutional.audit.read"},
 }
 
 # Step-up session lifetime — short by design (EXIGENCE IAM-01)
@@ -491,6 +509,7 @@ def consume_hardware_token(
     command: str,
     params: dict,
     actor_id: str,
+    presented_signature: str,
 ) -> bool:
     """Atomically consume a hardware token — verifies signature, expiry, context.
 
@@ -506,9 +525,6 @@ def consume_hardware_token(
 
     params_json = json.dumps(params, sort_keys=True, default=str)
     params_hash = hashlib.sha256(params_json.encode()).hexdigest()
-    sig_payload_template = f"{token_id}|{project_id}|{drone_id}|{command}|{params_hash}|{{exp}}"
-    expected_sig_template = sig_payload_template  # exp filled after lookup
-
     with SessionLocal() as db:
         rec = db.query(HardwareToken).filter(HardwareToken.id == token_id).one_or_none()
         if rec is None:
@@ -523,7 +539,10 @@ def consume_hardware_token(
                            project_id=project_id, drone_id=drone_id,
                            message="Token déjà consommé (rejeu)", payload={"token_id": token_id})
             return False
-        if datetime.now(UTC) >= rec.expires_at:
+        expires_at = rec.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if datetime.now(UTC) >= expires_at:
             audit_decision(actor_id=actor_id, actor_role="operator",
                            action="hardware.token.consume", decision="deny",
                            project_id=project_id, drone_id=drone_id,
@@ -550,9 +569,12 @@ def consume_hardware_token(
                            payload={"token_id": token_id})
             return False
         # Verify HMAC signature
-        sig_payload = f"{token_id}|{project_id}|{drone_id}|{command}|{params_hash}|{rec.expires_at.isoformat()}"
+        sig_payload = f"{token_id}|{project_id}|{drone_id}|{command}|{params_hash}|{expires_at.isoformat()}"
         expected_sig = hmac.new(_hmac_secret(), sig_payload.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(expected_sig, rec.signature):
+        if (not isinstance(presented_signature, str)
+                or not hmac.compare_digest(presented_signature, rec.signature)
+                or not hmac.compare_digest(expected_sig, rec.signature)):
+
             audit_decision(actor_id=actor_id, actor_role="operator",
                            action="hardware.token.consume", decision="deny",
                            project_id=project_id, drone_id=drone_id,
@@ -561,8 +583,19 @@ def consume_hardware_token(
         # Atomic consume (UPDATE WHERE consumed_at IS NULL)
         result = db.execute(
             update(HardwareToken)
-            .where(HardwareToken.id == token_id, HardwareToken.consumed_at.is_(None))
+            .where(
+                HardwareToken.id == token_id,
+                HardwareToken.consumed_at.is_(None),
+                HardwareToken.actor_id == actor_id,
+                HardwareToken.project_id == project_id,
+                HardwareToken.drone_id == drone_id,
+                HardwareToken.command == command,
+                HardwareToken.params_hash == params_hash,
+                HardwareToken.signature == presented_signature,
+                HardwareToken.expires_at > datetime.now(UTC),
+            )
             .values(consumed_at=datetime.now(UTC))
+            .execution_options(synchronize_session=False)
         )
         db.commit()
         if result.rowcount != 1:

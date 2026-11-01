@@ -33,7 +33,7 @@ def list_maintenance_records(
     project_id: str | None = Query(None),
     drone_id: str | None = Query(None),
     upcoming_only: bool = Query(False),
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -70,7 +70,7 @@ def list_maintenance_records(
 @router.post("/records")
 async def create_maintenance_record(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -125,7 +125,7 @@ async def create_maintenance_record(
 @router.delete("/records/{record_id}")
 def delete_maintenance_record(
     record_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -150,7 +150,7 @@ def list_battery_cycles(
     project_id: str | None = Query(None),
     drone_id: str | None = Query(None),
     battery_label: str | None = Query(None),
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -205,7 +205,7 @@ def list_battery_cycles(
 @router.post("/batteries")
 async def record_battery_cycle(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)

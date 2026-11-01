@@ -651,7 +651,7 @@ def catalog_endpoint(
     request: Request,
     category: str | None = Query(None, description="Filter by category"),
     q: str | None = Query(None, description="Search query"),
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Return the static + user catalog. Optional category + free-text filter."""
@@ -703,7 +703,7 @@ def categories_endpoint():
 @router.post("/items")
 async def add_custom_item(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Add a user-defined item. The `weaponized` field is forced to False —
@@ -760,7 +760,7 @@ async def add_custom_item(
 @router.delete("/items/{item_id}")
 def delete_custom_item(
     item_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)

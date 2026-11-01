@@ -87,8 +87,8 @@ export function MissionPlanner({ projectId, geofence }: Props) {
 
   useEffect(() => { void refreshMissions().catch((error) => setActionMessage(`Échec du rafraîchissement des missions: ${error instanceof Error ? error.message : "erreur réseau"}`)); }, [projectId]);
 
-  const homeLat = geofence?.homeLat ?? 38.0;
-  const homeLon = geofence?.homeLon ?? -122.0;
+  const homeLat = geofence?.homeLat ?? activeMission?.waypoints[0]?.latitude ?? 0;
+  const homeLon = geofence?.homeLon ?? activeMission?.waypoints[0]?.longitude ?? 0;
 
   // Bounding box around home + waypoints
   const allLats = [homeLat, ...(activeMission?.waypoints?.map((w) => w.latitude) ?? []), ...(geofence?.polygon?.map((p) => p[0]) ?? [])];

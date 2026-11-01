@@ -113,7 +113,7 @@ def get_online_operators(project_id: str | None = None) -> list[dict[str, Any]]:
 def online_endpoint(
     request: Any = None,
     project_id: str | None = None,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """REST endpoint to list currently connected operators."""
@@ -127,7 +127,7 @@ def online_endpoint(
 async def websocket_endpoint(
     ws: WebSocket,
     project_id: str | None = None,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
 ):
     """WebSocket endpoint for real-time multi-operator collaboration.
 

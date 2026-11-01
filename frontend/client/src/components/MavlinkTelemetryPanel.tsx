@@ -81,7 +81,7 @@ type MavlinkTelemetryPanelProps = {
   mapCenter?: Coordinate;
 };
 
-export function MavlinkTelemetryPanel({ mapCenter = { lat: 48.8566, lng: 2.3522 } }: MavlinkTelemetryPanelProps = {}) {
+export function MavlinkTelemetryPanel({ mapCenter = { lat: 0, lng: 0 } }: MavlinkTelemetryPanelProps = {}) {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState<"real" | "sim">("sim");

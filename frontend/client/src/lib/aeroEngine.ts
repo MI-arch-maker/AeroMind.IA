@@ -268,6 +268,8 @@ export type ConceptConfig = {
   /** Morphologie spécialisée ; elle sélectionne les coefficients du moteur. */
   modelType?: CalculationModelType;
   motorCount?: number;
+  /** Section transversale du fuselage utilisée par le générateur mécanique. */
+  fuselageSectionType?: "circular" | "elliptical" | "polygonal";
   designName?: string;
   /** Rendu aéronautique actif R1 à R6, persisté par projet. */
   renderMode?: "R1" | "R2" | "R3" | "R4" | "R5" | "R6";

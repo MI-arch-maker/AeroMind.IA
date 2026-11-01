@@ -25,29 +25,24 @@ def _approve_all_gates(db_session, project_id, user_id):
     issue_hardware_confirmation_token can succeed. Without this, the new
     gate enforcement (EXIGENCE C-001) raises GATE_NOT_READY.
     """
-    try:
-        from web.canonical_models import GateValidation
-        from datetime import UTC, datetime
-        import uuid as _uuid
-        _required_gates = (
-            "G0_gel", "G1_securite", "G2_fiabilite",
-            "G3_banc", "G4_qualification", "G5_exploitation",
-        )
-        for _g in _required_gates:
-            db_session.add(GateValidation(
-                id=str(_uuid.uuid4()),
-                project_id=project_id,
-                gate=_g,
-                state="approved",
-                reviewer_id=user_id,
-                evidence_json="{}",
-                approved_at=datetime.now(UTC),
-            ))
-        db_session.commit()
-    except Exception:
-        # GateValidation table not yet created (migration not applied).
-        # hardware_gate.py code logs a warning and proceeds fail-open.
-        pass
+    from web.canonical_models import GateValidation
+    from datetime import UTC, datetime
+    import uuid as _uuid
+    _required_gates = (
+        "G0_gel", "G1_securite", "G2_fiabilite",
+        "G3_banc", "G4_qualification", "G5_exploitation",
+    )
+    for _g in _required_gates:
+        db_session.add(GateValidation(
+            id=str(_uuid.uuid4()),
+            project_id=project_id,
+            gate=_g,
+            state="approved",
+            reviewer_id=user_id,
+            evidence_json="{}",
+            approved_at=datetime.now(UTC),
+        ))
+    db_session.commit()
 
 
 from web.database import Base  # noqa: E402
@@ -229,6 +224,22 @@ def test_hardware_control_true_alone_does_not_authorize_transport(monkeypatch):
     assert exc_info.value.code in {"TOKEN_INVALID", "CONFIRMATION_TOKEN_INVALID"}
 
 
+def test_mission_protocol_messages_are_not_command_long_commands(monkeypatch):
+    monkeypatch.setenv("HARDWARE_CONTROL", "true")
+    monkeypatch.delenv("AEROMIND_VIRTUAL_ONLY", raising=False)
+    for command in ("MISSION_COUNT", "MISSION_ITEM_INT"):
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            cmd.authorize_physical_command(
+                command=command,
+                confirmation_token="x" * 64,
+                project_id="project-1",
+                drone_id="drone-1",
+                actor_id="operator-1",
+            )
+        assert exc_info.value.code == "COMMAND_NOT_ALLOWED"
+        assert command not in cmd.MAV_CMD_IDS
+
+
 def test_hardware_control_true_alone_no_geofence_refused(monkeypatch):
     """V3.1 #1 — even with HARDWARE_CONTROL=true + valid token, navigation
     commands WITHOUT a geofence_validator are refused (fail-closed)."""
@@ -245,7 +256,7 @@ def test_hardware_control_true_alone_no_geofence_refused(monkeypatch):
             drone_id="d1",
             actor_id="u1",
         )
-    assert exc_info.value.code == "GEOFENCE_REQUIRED"
+    assert exc_info.value.code == "TOKEN_INVALID"
 
 
 def test_token_project_drone_mismatch_refused(monkeypatch):
@@ -264,7 +275,7 @@ def test_token_project_drone_mismatch_refused(monkeypatch):
             drone_id="d2",  # WRONG drone
             actor_id="u1",
         )
-    assert exc_info.value.code in {"TOKEN_PROJECT_MISMATCH", "TOKEN_DRONE_MISMATCH"}
+    assert exc_info.value.code == "TOKEN_INVALID"
 
 
 def test_token_replay_refused(monkeypatch):
@@ -273,29 +284,16 @@ def test_token_replay_refused(monkeypatch):
     monkeypatch.setenv("HARDWARE_CONTROL", "true")
     pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
     token = _inject_real_token("p1", "d1")
-    # First call consumes the token (geofence accepts, command sent)
-    receipt = pilot.send_command(
-        "NAV_TAKEOFF",
-        parameters=cmd.build_takeoff_params(30),
-        confirmation_token=token,
-        geofence_validation=_ok_geofence,
-        project_id="p1",
-        drone_id="d1",
-        actor_id="u1",
-    )
-    assert receipt.accepted is True
-    # Second call with the SAME token MUST fail (single-use)
+    # In-memory confirmations are not a DB-backed authorization and must never
+    # reach the mocked transport, even on the first attempt.
     with pytest.raises(cmd.HardwareCommandError) as exc_info:
         pilot.send_command(
-            "NAV_TAKEOFF",
-            parameters=cmd.build_takeoff_params(30),
-            confirmation_token=token,
-            geofence_validation=_ok_geofence,
-            project_id="p1",
-            drone_id="d1",
-            actor_id="u1",
+            "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+            confirmation_token=token, geofence_validation=_ok_geofence,
+            project_id="p1", drone_id="d1", actor_id="u1",
         )
-    assert exc_info.value.code == "TOKEN_ALREADY_USED"
+    assert exc_info.value.code == "TOKEN_INVALID"
+    assert pilot._connection is None
 
 
 def test_pilot_refuses_command_not_on_allowlist(hardware_enabled):
@@ -339,49 +337,38 @@ def test_pilot_refuses_mode_not_on_allowlist(hardware_enabled):
             drone_id="d1",
             actor_id="u1",
         )
-    assert exc_info.value.code == "MODE_NOT_ALLOWED"
+    assert exc_info.value.code == "TOKEN_INVALID"
 
 
-def test_pilot_sends_takeoff_when_everything_ok(hardware_enabled):
+def test_pilot_rejects_legacy_memory_token_without_transport(hardware_enabled):
     fake = FakeConnection()
     pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: fake)
     token = _inject_real_token("p1", "d1")
-    receipt = pilot.send_command(
-        "NAV_TAKEOFF",
-        parameters=cmd.build_takeoff_params(30),
-        confirmation_token=token,
-        geofence_validation=_ok_geofence,
-        project_id="p1",
-        drone_id="d1",
-        actor_id="u1",
+    with pytest.raises(cmd.HardwareCommandError) as exc_info:
+        pilot.send_command(
+            "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+            confirmation_token=token, geofence_validation=_ok_geofence,
+            project_id="p1", drone_id="d1", actor_id="u1",
+        )
+    assert exc_info.value.code == "TOKEN_INVALID"
+    assert fake.sent == []
+
+
+def test_pilot_does_not_open_connection_for_legacy_token(hardware_enabled):
+    opened = []
+    pilot = cmd.MavlinkCommandPilot(
+        "udpout:127.0.0.1:14550",
+        connection_factory=lambda url: opened.append(url) or FakeConnection(),
     )
-    assert receipt.accepted is True
-    assert receipt.sent_to_hardware is True
-    assert receipt.command == "NAV_TAKEOFF"
-    assert len(fake.sent) == 1
-    # Check that the command id is 22 (NAV_TAKEOFF)
-    assert fake.sent[0][2] == 22
-
-
-def test_pilot_handles_transport_failure_gracefully(hardware_enabled):
-    class BrokenConnection:
-        def command_long_send(self, *args, **kwargs):
-            raise OSError("Connection lost")
-        def close(self): pass
-    pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: BrokenConnection())
     token = _inject_real_token("p1", "d1")
-    receipt = pilot.send_command(
-        "NAV_TAKEOFF",
-        parameters=cmd.build_takeoff_params(30),
-        confirmation_token=token,
-        geofence_validation=_ok_geofence,
-        project_id="p1",
-        drone_id="d1",
-        actor_id="u1",
-    )
-    assert receipt.accepted is False
-    assert receipt.sent_to_hardware is False
-    assert "Échec d'envoi MAVLink" in receipt.reason
+    with pytest.raises(cmd.HardwareCommandError) as exc_info:
+        pilot.send_command(
+            "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+            confirmation_token=token, geofence_validation=_ok_geofence,
+            project_id="p1", drone_id="d1", actor_id="u1",
+        )
+    assert exc_info.value.code == "TOKEN_INVALID"
+    assert opened == []
 
 
 def test_takeoff_altitude_bounds():
@@ -518,34 +505,37 @@ def test_geofence_storage_roundtrip():
     assert geo.get_geofence("test-1") is None
 
 
-def test_emergency_stop_no_op_when_hardware_disabled(monkeypatch):
-    monkeypatch.delenv("HARDWARE_CONTROL", raising=False)
-    pool = pool_mod.MavlinkPool()
-    result = geo.emergency_stop_all(pool)
-    assert result["stopped"] is False
-    assert "HARDWARE_CONTROL" in result["reason"]
+def test_geofence_primitives_reject_empty_project_or_owner():
+    assert geo.get_geofence("", owner_id="owner-a") is None
+    with pytest.raises(ValueError, match="project_id and authenticated owner_id"):
+        geo.set_geofence(geo.Geofence(project_id=""), owner_id="owner-a")
+    with pytest.raises(ValueError, match="project_id and authenticated owner_id"):
+        geo.set_geofence(geo.Geofence(project_id="p1"), owner_id=" ")
 
 
-def test_emergency_stop_sends_land_to_each_drone(hardware_enabled):
-    fake_conns = []
-    def fake_factory(url):
-        conn = FakeConnection()
-        fake_conns.append(conn)
-        return conn
-    pool = pool_mod.MavlinkPool(
-        pilot_factory=lambda url: cmd.MavlinkCommandPilot(url, connection_factory=fake_factory),
-        observer_factory=lambda url: type("O", (), {"close": lambda self: None})(),
-    )
-    pool.register("drone-1", "Drone 1", "udpout:127.0.0.1:14550", owner_id="u1", project_id="p1")
-    pool.register("drone-2", "Drone 2", "udpout:127.0.0.1:14551", owner_id="u1", project_id="p1")
-    # V3.1 #4 — e-stop is owner-scoped so a tenant only lands its own drones
-    result = geo.emergency_stop_all(pool, owner_id="u1", project_id="p1")
-    assert result["stopped"] is True
-    assert len(result["results"]) == 2
-    # Each drone received a NAV_LAND (cmd_id 21)
-    for conn in fake_conns:
-        assert len(conn.sent) == 1
-        assert conn.sent[0][2] == 21
+def test_geofence_cache_isolated_by_owner():
+    geo.clear_geofence_cache_for_testing()
+    geofence = geo.Geofence(project_id="shared-project", polygon=[(48.0, 2.0), (48.1, 2.0), (48.1, 2.1)])
+    geo.set_geofence_for_testing(geofence, owner_id="owner-a")
+
+    assert geo.get_geofence("shared-project", owner_id="owner-a") is geofence
+    assert geo.get_geofence("shared-project", owner_id="owner-b") is None
+    assert geo.get_geofence("shared-project") is None
+    assert geo.list_cached_geofences(owner_id="owner-a") == {"shared-project": geofence}
+    assert geo.list_cached_geofences(owner_id="owner-b") == {}
+    geo.clear_geofence_cache_for_testing()
+
+
+def test_emergency_landing_requires_target_before_pool_access():
+    class ForbiddenPool:
+        def list(self, **kwargs):
+            raise AssertionError("global pool listing must not occur")
+        def pilot(self, *args, **kwargs):
+            raise AssertionError("pool access must not occur without target context")
+
+    result = geo.emergency_stop_all(ForbiddenPool())
+    assert result["landed"] is False
+    assert result["results"] == []
 
 
 # ===========================================================================
@@ -559,6 +549,45 @@ def test_hardware_gate_starts_with_all_conditions_false(db_session):
     assert state["conditions"]["hardware_review_signed"] is False
     assert state["conditions"]["drone_registered_in_pool"] is False
     assert state["physicalOutputEnabled"] is False
+
+
+@pytest.mark.parametrize("environment", ["development", "staging", "production"])
+def test_g0_g5_database_error_fails_closed_in_every_environment(monkeypatch, environment):
+    class BrokenGateDatabase:
+        def scalars(self, _statement):
+            raise RuntimeError("gate table unavailable")
+
+    monkeypatch.setenv("AEROMIND_ENV", environment)
+    with pytest.raises(lb.LabBenchError) as exc_info:
+        hw_gate._require_g0_g5_approved(BrokenGateDatabase(), "project-1")
+    assert exc_info.value.code == "GATE_CHECK_FAILED"
+
+
+def test_n3_hardware_gate_tracks_disarm_and_rearm(db_session):
+    user, project_id, drones = _make_user_project_drones(db_session, n_drones=1)
+    drone_id = drones[0].id
+    lb.seed_registry(db_session, user, project_id)
+    lb.run_fleet_simulation(db_session, user, project_id, {
+        "scenarios": [{"droneId": drone_id, "ambientC": 20, "heaterPowerW": 4,
+                       "dutyCycle": 0.4, "thermalResistanceCPerW": 3.2,
+                       "durationSeconds": 60, "positionSetpointDeg": 45}],
+    })
+    lb.complete_hardware_checklist_drone(db_session, user, project_id, drone_id, {
+        "deviceIdentified": True, "driverValidated": True, "calibrationSimulated": True,
+    })
+    arm_payload = {
+        "humanConfirmed": True,
+        "safetyConfirmed": True,
+        "secondOperatorCode": "second-operator-code",
+    }
+    lb.arm_n3_gate_drone(db_session, user, project_id, drone_id, arm_payload)
+    assert hw_gate.hardware_gate_state(db_session, user, project_id)["conditions"]["virtual_n3_armed"] is True
+
+    lb.disarm_n3_gate_drone(db_session, user, project_id, drone_id)
+    assert hw_gate.hardware_gate_state(db_session, user, project_id)["conditions"]["virtual_n3_armed"] is False
+
+    lb.arm_n3_gate_drone(db_session, user, project_id, drone_id, arm_payload)
+    assert hw_gate.hardware_gate_state(db_session, user, project_id)["conditions"]["virtual_n3_armed"] is True
 
 
 def test_hardware_review_requires_virtual_n3_armed(db_session):
@@ -771,15 +800,15 @@ def test_issue_and_consume_token(db_session):
     assert issued["reviewerId"] == "reviewer-001"
     assert issued["singleUse"] is True
     # Consume it.
-    confirmation = hw_gate.consume_hardware_confirmation_token(issued["token"], "NAV_TAKEOFF")
+    confirmation = hw_gate.consume_hardware_confirmation_token(issued["token"], "NAV_TAKEOFF", actor_id=user["id"], project_id=project_id, drone_id=drones[0].id, params={"p7": 30.0})
     assert confirmation.consumed is True
     assert confirmation.command == "NAV_TAKEOFF"
     assert confirmation.project_id == project_id
     assert confirmation.drone_id == drones[0].id
     # Second use fails (single-use enforcement at DB level).
     with pytest.raises(lb.LabBenchError) as exc_info:
-        hw_gate.consume_hardware_confirmation_token(issued["token"], "NAV_TAKEOFF")
-    assert exc_info.value.code == "TOKEN_ALREADY_USED"
+        hw_gate.consume_hardware_confirmation_token(issued["token"], "NAV_TAKEOFF", actor_id=user["id"], project_id=project_id, drone_id=drones[0].id, params={"p7": 30.0})
+    assert exc_info.value.code == "TOKEN_INVALID"
 
 
 def test_token_signature_tampering_rejected(db_session):
@@ -819,8 +848,8 @@ def test_token_signature_tampering_rejected(db_session):
     tampered_sig = ("0" if signature[0] != "0" else "1") + signature[1:]
     tampered_token = f"{token_id}.{tampered_sig}"
     with pytest.raises(lb.LabBenchError) as exc_info:
-        hw_gate.consume_hardware_confirmation_token(tampered_token, "NAV_TAKEOFF")
-    assert exc_info.value.code == "TOKEN_SIGNATURE_INVALID"
+        hw_gate.consume_hardware_confirmation_token(tampered_token, "NAV_TAKEOFF", actor_id=user["id"], project_id=project_id, drone_id=drones[0].id, params={"p7": 30.0})
+    assert exc_info.value.code == "TOKEN_INVALID"
 
 
 def test_token_wrong_command_rejected(db_session):
@@ -857,13 +886,13 @@ def test_token_wrong_command_rejected(db_session):
     )
     # Try to consume with a DIFFERENT command — must be rejected.
     with pytest.raises(lb.LabBenchError) as exc_info:
-        hw_gate.consume_hardware_confirmation_token(issued["token"], "NAV_LAND")
-    assert exc_info.value.code == "TOKEN_COMMAND_MISMATCH"
+        hw_gate.consume_hardware_confirmation_token(issued["token"], "NAV_LAND", actor_id=user["id"], project_id=project_id, drone_id=drones[0].id, params={"p7": 30.0})
+    assert exc_info.value.code == "TOKEN_INVALID"
 
 
 def test_consume_invalid_token_raises():
     with pytest.raises(lb.LabBenchError) as exc_info:
-        hw_gate.consume_hardware_confirmation_token("invalid-token", "NAV_TAKEOFF")
+        hw_gate.consume_hardware_confirmation_token("invalid-token", "NAV_TAKEOFF", actor_id="actor", project_id="project", drone_id="drone", params={})
     assert exc_info.value.code == "TOKEN_INVALID"
 
 
@@ -871,3 +900,145 @@ def _require_project_owner_helper(db, user, project_id):
     """Helper — pull the project record."""
     record = db.scalar(select(Project).where(Project.id == project_id, Project.user_id == user["id"]))
     return record
+
+
+
+def test_capabilities_separate_sitl_support_from_active_state(monkeypatch):
+    """Capability metadata must not imply that a SITL instance is running."""
+    monkeypatch.setenv("AEROMIND_SITL_ACTIVE", "false")
+    from web.app import capabilities
+
+    result = capabilities()
+    assert result["sitl"] is True
+    assert result["sitl_supported"] is True
+    assert result["sitl_active"] is False
+    assert result["hardware_control"] is False
+    assert result["mission_upload"] is False
+    assert result["telemetry_write"] is False
+
+
+def test_virtual_only_mode_overrides_hardware_control(monkeypatch):
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "true")
+    monkeypatch.setenv("HARDWARE_CONTROL", "true")
+
+    assert cmd.virtual_only_mode() is True
+    assert cmd.hardware_commands_enabled() is False
+
+
+def test_ops_control_rejects_hardware_mode_when_virtual_only(monkeypatch):
+    from fastapi import HTTPException
+    from starlette.requests import Request
+    from web import ops_control_api
+
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "true")
+    monkeypatch.setenv("HARDWARE_CONTROL", "false")
+    monkeypatch.setattr(
+        ops_control_api,
+        "current_user_or_401",
+        lambda _request: {"id": "admin", "role": "super_admin"},
+    )
+
+    scope = {
+        "type": "http", "http_version": "1.1", "method": "POST",
+        "scheme": "http", "path": "/api/ops/mode", "raw_path": b"/api/ops/mode",
+        "query_string": b"", "root_path": "", "headers": [],
+        "client": ("127.0.0.1", 1234), "server": ("testserver", 80),
+    }
+    with pytest.raises(HTTPException) as exc:
+        ops_control_api.set_operation_mode(
+            ops_control_api.ModeChangeRequest(mode="HARDWARE", project_id="project-1"),
+            request=Request(scope),
+        )
+    assert exc.value.status_code == 409
+    assert "AEROMIND_VIRTUAL_ONLY" in exc.value.detail
+
+
+
+def test_ops_health_and_capabilities_are_virtual_only_honest(monkeypatch):
+    from starlette.requests import Request
+    from web import ops_control_api
+
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "true")
+    monkeypatch.setenv("HARDWARE_CONTROL", "true")
+    monkeypatch.setenv("AEROMIND_SITL_ACTIVE", "true")
+    monkeypatch.setattr(ops_control_api, "current_user_or_401", lambda _request: {"id": "admin", "role": "super_admin"})
+
+    class UnavailableSession:
+        def __enter__(self):
+            raise RuntimeError("isolated health test")
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(ops_control_api, "SessionLocal", lambda: UnavailableSession())
+    request = Request({
+        "type": "http", "http_version": "1.1", "method": "GET",
+        "scheme": "http", "path": "/api/ops/health", "raw_path": b"/api/ops/health",
+        "query_string": b"", "root_path": "", "headers": [],
+        "client": ("127.0.0.1", 1234), "server": ("testserver", 80),
+    })
+
+    health = ops_control_api.get_system_health(request)
+    capabilities = ops_control_api.get_capabilities(request)
+    mode = ops_control_api.get_operation_mode(request)
+    endpoints = {
+        item["path"]: item
+        for group in capabilities["capabilities"]
+        for item in group["endpoints"]
+    }
+
+    assert health["virtual_only"] is True
+    assert health["hardware_control"] is False
+    assert health["physical_output_enabled"] is False
+    assert mode["hardware_control"] is False
+    assert mode["current_mode"] != "SITL"
+    assert "SITL" not in mode["available_transitions"]
+    assert endpoints["/api/hardware/pool/register"]["available"] is False
+    assert endpoints["/api/hardware/drones/{id}/command"]["available"] is False
+    assert endpoints["/api/telemetry/mavlink/status"]["available"] is False
+
+
+def test_virtual_only_rejects_sitl_transition_and_autostart(monkeypatch):
+    from fastapi import HTTPException
+    from starlette.requests import Request
+    from web import app as app_module, ops_control_api
+
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "true")
+    monkeypatch.setenv("HARDWARE_CONTROL", "true")
+    monkeypatch.setenv("AEROMIND_SITL_AUTOSTART", "true")
+    monkeypatch.setattr(ops_control_api, "current_user_or_401", lambda _request: {"id": "admin", "role": "super_admin"})
+    scope = {
+        "type": "http", "http_version": "1.1", "method": "POST",
+        "scheme": "http", "path": "/api/ops/mode", "raw_path": b"/api/ops/mode",
+        "query_string": b"", "root_path": "", "headers": [],
+        "client": ("127.0.0.1", 1234), "server": ("testserver", 80),
+    }
+    with pytest.raises(HTTPException) as exc:
+        ops_control_api.set_operation_mode(
+            ops_control_api.ModeChangeRequest(mode="SITL"), request=Request(scope)
+        )
+    assert exc.value.status_code == 409
+    assert app_module._should_autostart_sitl("development") is False
+
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "false")
+    assert app_module._should_autostart_sitl("development") is True
+    monkeypatch.delenv("AEROMIND_SITL_AUTOSTART")
+    assert app_module._should_autostart_sitl("development") is False
+
+
+def test_preflight_mavlink_check_does_not_poll_in_virtual_only(monkeypatch):
+    from web import mavlink_pool, preflight
+
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "true")
+    monkeypatch.setattr(
+        mavlink_pool,
+        "get_pool",
+        lambda: pytest.fail("virtual-only preflight must not access the MAVLink pool"),
+    )
+
+    result = preflight._run_auto_check(
+        "mavlink_gps", "drone-1", "project-1", owner_id="owner-1"
+    )
+
+    assert result["auto_checked"] is False
+    assert "VIRTUAL ONLY" in result["value"]
+    assert result["source"] == "AEROMIND_VIRTUAL_ONLY"

@@ -704,15 +704,13 @@ def test_T13_mission_upload_without_ack_fails():
     print("✓ T13 PASS — upload sans ACK complet → state='failed', jamais 'uploaded' (FUNC-05)")
 
 
-def test_T13b_mission_upload_protocol_marks_failed_on_command_not_allowed():
-    """P0-04 — Real protocol test: upload endpoint marks state=failed when
-    the autopilot refuses a command (COMMAND_NOT_ALLOWED / HARDWARE_DISABLED /
-    DRONE_NOT_REGISTERED).
+def test_T13b_software_only_upload_is_rejected_without_mutating_mission(monkeypatch):
+    """SEC-01 — Virtual-only upload is rejected before state or hardware access.
 
-    Verifies that:
-      1. The Mission.upload_state field is populated ('failed' on refusal).
-      2. The HTTP response is 4xx/5xx, NEVER 200 with state=uploaded.
-      3. The Mission.uploaded_at field stays NULL on failure.
+    Even HARDWARE_CONTROL=true must not override AEROMIND_VIRTUAL_ONLY. The
+    request returns HARDWARE_DISABLED before token consumption, pool lookup,
+    connection creation or mission-state mutation; a pending mission remains
+    pending because no upload attempt was started.
     """
     import os
     import tempfile
@@ -726,6 +724,9 @@ def test_T13b_mission_upload_protocol_marks_failed_on_command_not_allowed():
     from web.models import Mission, Waypoint, User, Project, Drone
     import uuid as _uuid
 
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "true")
+    monkeypatch.setenv("HARDWARE_CONTROL", "true")
+
     # Build an isolated FILE-BASED SQLite DB so all sessions share the same
     # underlying database (``:memory:`` opens a fresh empty DB per connection
     # which would defeat the purpose of this test).
@@ -735,27 +736,24 @@ def test_T13b_mission_upload_protocol_marks_failed_on_command_not_allowed():
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
-    # Patch the mission_planner.SessionLocal to use our test engine
+    # Patch the route to use our isolated DB and an authenticated test actor.
     import web.mission_planner as mp
-    original_session = mp.SessionLocal
-    mp.SessionLocal = Session
-
-    # Patch current_user so requests are authenticated
+    monkeypatch.setattr(mp, "SessionLocal", Session)
     user_id = f"u-{_uuid.uuid4()}"
     test_user = {"id": user_id, "role": "user", "email": "tester@example.test"}
-    original_cu = mp.current_user
-    mp.current_user = lambda session, auth: test_user
+    monkeypatch.setattr(mp, "current_user", lambda session, auth: test_user)
 
-    # Patch the hardware token consumer to bypass the token-issuance flow —
-    # we're testing the upload STATE MACHINE, not the token lifecycle (that's
-    # already covered by test_issue_and_consume_token in test_hardware_phases).
-    from web import hardware_gate as hw_gate
-    original_consume = hw_gate.consume_hardware_confirmation_token
-    class _StubConfirmation:
-        consumed = True
-        drone_id = "d1"
-        command = "MISSION_UPLOAD"
-    hw_gate.consume_hardware_confirmation_token = lambda token, cmd: _StubConfirmation()
+    # The virtual-only gate must return before consuming a token or touching
+    # the MAVLink pool. Fail the test if either forbidden path is reached.
+    from web import hardware_gate as hw_gate, mavlink_pool
+    monkeypatch.setattr(
+        hw_gate, "consume_hardware_confirmation_token",
+        lambda *args, **kwargs: pytest.fail("token must not be consumed in virtual-only mode"),
+    )
+    monkeypatch.setattr(
+        mavlink_pool, "get_pool",
+        lambda *args, **kwargs: pytest.fail("MAVLink pool must not be accessed in virtual-only mode"),
+    )
 
     # Set up the data: a user, project, drone, mission, waypoint
     with Session() as db:
@@ -773,33 +771,26 @@ def test_T13b_mission_upload_protocol_marks_failed_on_command_not_allowed():
     app.include_router(mission_router)
     try:
         with TestClient(app) as c:
-            # HARDWARE_CONTROL is not set → the pilot refuses HARDWARE_DISABLED.
-            # Even more: the drone is not registered in the pool, so pool.pilot
-            # raises DRONE_NOT_REGISTERED before any MAVLink call is attempted.
-            # The upload endpoint MUST return 4xx/5xx and persist state=failed.
+            # Virtual-only must prevail even though HARDWARE_CONTROL=true.
+            # The route must reject before any token consumption or pool access.
             r = c.post("/api/missions/m1/upload",
                        json={"droneId": "d1", "confirmationToken": "x" * 32, "projectId": "p1"})
-            assert r.status_code >= 400, f"upload must NOT return 200 (got {r.status_code})"
-            body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-            # state must NOT be 'uploaded'
-            assert body.get("uploadState") != "uploaded", "upload must not announce 'uploaded' on failure"
-            # Persisted state in DB must be 'failed', uploaded_at must be NULL
+            assert r.status_code == 403, f"virtual-only upload must be rejected (got {r.status_code})"
+            body = r.json()
+            assert body.get("error", {}).get("code") == "HARDWARE_DISABLED"
             with Session() as db:
                 m_after = db.get(Mission, "m1")
-                assert m_after.upload_state == "failed", \
-                    f"Persisted state must be 'failed' (got {m_after.upload_state!r})"
-                assert m_after.uploaded_at is None, "uploaded_at must remain NULL on failure"
-                assert m_after.upload_error is not None, "upload_error must be populated"
+                assert m_after.upload_state == "pending", \
+                    f"A blocked request must not start upload (got {m_after.upload_state!r})"
+                assert m_after.uploaded_at is None, "uploaded_at must remain NULL"
+                assert m_after.upload_error is None, "no upload attempt occurred; upload_error must stay NULL"
     finally:
-        # Restore patched values
-        mp.SessionLocal = original_session
-        mp.current_user = original_cu
-        hw_gate.consume_hardware_confirmation_token = original_consume
+        # Restore the temporary database file; monkeypatch restores route dependencies.
         try:
             os.unlink(db_path)
         except OSError:
             pass
-    print("✓ T13b PASS — upload refusé → state='failed' persisté, jamais 'uploaded' (P0-04)")
+    print("✓ T13b PASS — mode virtual-only → refus avant accès matériel, état mission inchangé (SEC-01)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

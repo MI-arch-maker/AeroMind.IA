@@ -53,12 +53,20 @@ export function AdvancedReplay({ projectId }: Props) {
   const [scale, setScale] = useState(200);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  useEffect(() => {
+    setAllSamples({});
+    setDroneIds([]);
+    setActiveDrone(null);
+    setIndex(0);
+    setPlaying(false);
+  }, [projectId]);
+
   const loadHistory = async () => {
     if (!projectId) return;
     setLoading(true);
     try {
       const r = await fetch(
-        `/api/hardware/fleet/telemetry/history/range?project_id=${encodeURIComponent(projectId)}&minutes=${minutes}`,
+        `/api/hardware/fleet/telemetry/history/range?projectId=${encodeURIComponent(projectId)}&minutes=${minutes}`,
         { credentials: "include" },
       );
       if (r.ok) {

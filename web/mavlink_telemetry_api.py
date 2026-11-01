@@ -32,8 +32,14 @@ _observer: MavlinkObserver | None = None
 _observer_lock = Lock()
 
 
+def virtual_only_mode() -> bool:
+    return os.getenv("AEROMIND_VIRTUAL_ONLY", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def get_observer() -> MavlinkObserver:
     global _observer
+    if virtual_only_mode():
+        raise RuntimeError("MAVLink observer unavailable in virtual-only mode")
     with _observer_lock:
         if _observer is None:
             _observer = MavlinkObserver(
@@ -313,6 +319,11 @@ def status(
     end-to-end without manual steps. Both auto-actions are audited;
     production keeps the strict explicit gates.
     """
+    if virtual_only_mode():
+        raise HTTPException(
+            http_status.HTTP_403_FORBIDDEN,
+            detail="Observation MAVLink désactivée en mode VIRTUAL ONLY; aucune liaison matérielle n’est ouverte.",
+        )
     session = _resolve_session(request)
     # SEC-07 fix — auth + consent required
     # P0-07 fix: consent is now DB-backed (was per-process dict). The check
@@ -388,6 +399,11 @@ def grant_consent_endpoint(session: StepUpSession = Depends(verify_lab_session))
     Must be called BEFORE GET /api/telemetry/mavlink/status.
     Consent is automatically revoked when the session expires or is revoked.
     """
+    if virtual_only_mode():
+        raise HTTPException(
+            http_status.HTTP_403_FORBIDDEN,
+            detail="Consentement MAVLink indisponible en mode VIRTUAL ONLY.",
+        )
     # P0-07 fix: persist consent to DB so it survives worker restarts and is
     # shared across workers. Keyed by (user_id, drone_id) — see grant_consent().
     grant_consent(session.user_id, session.drone_id or "", list(session.scope))

@@ -5,11 +5,11 @@
  * environments (forest, urban, flatland, mountain, scrubland, snow, hot, sea)
  * has its own procedural terrain mesh, lighting, fog, and animated 3D objects
  * (swaying trees, flickering windows, falling snow, waving water, drifting
- * camera). Replaces the static SVG scenes in AeroTestFieldStation.
+ * camera). Replaces the static SVG scenes in the outdoor test center.
  */
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Instances, Instance } from "@react-three/drei";
-import { useMemo, useRef, type ReactNode } from "react";
+import { Component, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 
 export type Environment3D =
@@ -510,18 +510,51 @@ function Scene({ environment, dronePosition }: { environment: Environment3D; dro
   );
 }
 
+class WebGLTerrainBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.warn("AeroMind terrain 3D indisponible, rendu de secours activé.", error.message);
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function TerrainFallback({ environment }: { environment: Environment3D }) {
+  const labels: Record<Environment3D, string> = {
+    forest: "FORÊT", urban: "ZONE URBAINE", flatland: "TERRE PLATE", mountain: "MONTAGNE",
+    scrubland: "BROUSSE", snow: "NEIGE", hot: "TEMPS CHAUD", sea: "MER",
+  };
+  return (
+    <div className={`afs-terrain-2d-fallback afs-terrain-2d-fallback--${environment}`} role="img" aria-label={`Terrain de simulation ${labels[environment]}`}>
+      <div className="afs-terrain-2d-grid" aria-hidden="true" />
+      <div className="afs-terrain-2d-horizon" aria-hidden="true" />
+      <div className="afs-terrain-2d-copy"><strong>{labels[environment]} · MODE COMPATIBILITÉ</strong><span>WebGL indisponible dans cet environnement de prévisualisation.</span><small>La trajectoire, les waypoints et les analyses restent accessibles.</small></div>
+    </div>
+  );
+}
+
 export function PhotorealisticTerrain3D({ environment, dronePosition, className }: Props) {
+  const fallback = <TerrainFallback environment={environment} />;
   return (
     <div className={className} style={{ width: "100%", height: "100%", minHeight: "400px", background: "#000" }}>
-      <Canvas
-        shadows
-        dpr={[1, 2]}
-        camera={{ position: [50, 40, 80], fov: 45, near: 0.1, far: 1000 }}
-        gl={{ antialias: true, alpha: false }}
-        style={{ width: "100%", height: "100%", display: "block" }}
-      >
-        <Scene environment={environment} dronePosition={dronePosition} />
-      </Canvas>
+      <WebGLTerrainBoundary fallback={fallback}>
+        <Canvas
+          shadows
+          dpr={[1, 2]}
+          camera={{ position: [50, 40, 80], fov: 45, near: 0.1, far: 1000 }}
+          gl={{ antialias: true, alpha: false }}
+          style={{ width: "100%", height: "100%", display: "block" }}
+        >
+          <Scene environment={environment} dronePosition={dronePosition} />
+        </Canvas>
+      </WebGLTerrainBoundary>
     </div>
   );
 }

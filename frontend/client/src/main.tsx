@@ -98,12 +98,21 @@ createRoot(document.getElementById("root")!).render(
 
 // Retire legacy cache-first service workers after a deployment. Do not create
 // a new registration: the current shell and content-hashed assets use HTTP
-// caching only, and re-registering after the worker unregisters would create
-// an install/uninstall cycle on every page load.
+// caching only. Unregister and purge directly instead of merely calling
+// update(), because an old worker can keep serving a stale index.html while
+// the current deployment has already removed its hashed chunks.
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.getRegistrations()
-      .then(registrations => Promise.all(registrations.map(registration => registration.update())))
-      .catch(err => console.warn("[PWA] Service worker retirement update failed:", err));
+    void Promise.all([
+      navigator.serviceWorker.getRegistrations()
+        .then(registrations => Promise.all(registrations.map(registration => registration.unregister()))),
+      "caches" in window
+        ? caches.keys().then(names => Promise.all(
+            names
+              .filter(name => name.startsWith("aeromind-v") || name.startsWith("aeromind-"))
+              .map(name => caches.delete(name)),
+          ))
+        : Promise.resolve(),
+    ]).catch(err => console.warn("[PWA] Legacy cache purge failed:", err));
   });
 }

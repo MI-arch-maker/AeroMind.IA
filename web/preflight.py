@@ -56,7 +56,13 @@ DEFAULT_CHECKLIST_ITEMS = [
 ]
 
 
-def _run_auto_check(check_id: str, drone_id: str | None, project_id: str | None) -> dict:
+def _run_auto_check(
+    check_id: str,
+    drone_id: str | None,
+    project_id: str | None,
+    *,
+    owner_id: str | None = None,
+) -> dict:
     """P1-09 fix — run automated MAVLink/DB checks for verifiable items.
 
     Returns {"auto_checked": True, "passed": bool, "value": str, "source": str}.
@@ -69,18 +75,33 @@ def _run_auto_check(check_id: str, drone_id: str | None, project_id: str | None)
     try:
         if check_id == "geofence_db":
             from . import geofence_validator as geo
-            gf = geo.get_geofence(project_id or "", owner_id=None) if project_id else None
+            gf = (
+                geo.get_geofence(project_id, owner_id=owner_id)
+                if project_id and owner_id else None
+            )
             if gf is not None:
                 return {"auto_checked": True, "passed": True,
                         "value": f"polygone {len(gf.polygon)} pts, alt max {gf.max_altitude_m}m",
                         "source": "geofence_validator.get_geofence"}
             return {"auto_checked": True, "passed": False,
                     "value": "aucune géofence en DB", "source": "geofence_validator.get_geofence"}
-        # MAVLink-based checks require an observer connected to the drone
+        # MAVLink-based checks require an observer connected to the drone and
+        # an explicit owner/project scope.
+        if not owner_id or not project_id:
+            return result
+        from .mavlink_command_api import virtual_only_mode
+        if virtual_only_mode():
+            return {
+                "auto_checked": False,
+                "value": "MAVLink indisponible — runtime VIRTUAL ONLY, aucun lien matériel ouvert",
+                "source": "AEROMIND_VIRTUAL_ONLY",
+            }
         from . import mavlink_pool as pool_mod
         pool = pool_mod.get_pool()
         try:
-            observer = pool.observer(drone_id)
+            observer = pool.observer(
+                drone_id, owner_id=owner_id, project_id=project_id
+            )
         except Exception:
             return result  # no observer available
         snapshot = observer.poll() if hasattr(observer, "poll") else None
@@ -120,7 +141,7 @@ def list_checklists(
     request: Request,
     project_id: str | None = Query(None),
     drone_id: str | None = Query(None),
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -153,7 +174,7 @@ def list_checklists(
 @router.post("")
 async def create_checklist(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -186,7 +207,7 @@ async def create_checklist(
 async def execute_checklist(
     checklist_id: str,
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Execute a checklist — body contains the items with `checked` flags."""
@@ -240,7 +261,7 @@ async def execute_checklist(
 @router.delete("/{checklist_id}")
 def delete_checklist(
     checklist_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)

@@ -395,6 +395,26 @@
     monospace;
   letter-spacing: 0.15em;
 }
+.mt-preview-tag {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  gap: 3px;
+  padding: 6px 9px;
+  border: 1px solid #d99b46;
+  border-radius: 4px;
+  transform: translateX(-50%);
+  color: #ffe6a8;
+  background: #3c2a16cc;
+  box-shadow: 0 0 16px #d99b4633;
+  font: 7px ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  text-align: center;
+}
+.mt-preview-tag b { color: #fff4d0; font-size: 8px; }
 .mt-axis {
   position: absolute;
   right: 18px;

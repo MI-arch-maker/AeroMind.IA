@@ -68,7 +68,7 @@ def get_project(db, user_id, project_id):
 
 @router.get("/projects")
 def list_projects(
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)
+    aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)
 ):
     user_id = owner(aeromind_session, db)
     return [
@@ -82,7 +82,7 @@ def list_projects(
 @router.post("/projects", status_code=201)
 def create_project(
     body: RecordIn,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -124,7 +124,7 @@ def create_project(
 @router.get("/projects/{project_id}")
 def read_project(
     project_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     return dump(get_project(db, owner(aeromind_session, db), project_id))
@@ -135,7 +135,7 @@ def read_project(
 def update_project(
     project_id: str,
     body: RecordIn,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db)
@@ -166,7 +166,7 @@ def update_project(
 @router.delete("/projects/{project_id}", status_code=204)
 def delete_project(
     project_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     project = get_project(db, owner(aeromind_session, db), project_id)
@@ -178,7 +178,7 @@ def delete_project(
 @router.get("/projects/{project_id}/drone")
 def active_drone(
     project_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db)
@@ -193,7 +193,7 @@ def active_drone(
 def set_drone(
     project_id: str,
     body: RecordIn,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db)
@@ -225,7 +225,7 @@ def set_drone(
 @router.get("/projects/{project_id}/drones")
 def list_drones(
     project_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     """List all drones attached to a project (fleet view)."""
@@ -249,7 +249,7 @@ def list_drones(
 def create_drone(
     project_id: str,
     body: RecordIn,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     """Add a new drone to the project's fleet."""
@@ -282,7 +282,7 @@ def create_drone(
 def read_drone(
     project_id: str,
     drone_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db)
@@ -300,7 +300,7 @@ def update_drone(
     project_id: str,
     drone_id: str,
     body: RecordIn,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db)
@@ -323,7 +323,7 @@ def update_drone(
 def activate_drone(
     project_id: str,
     drone_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     """Mark a drone as the project's primary active drone."""
@@ -343,7 +343,7 @@ def activate_drone(
 def delete_drone(
     project_id: str,
     drone_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db)
@@ -376,7 +376,7 @@ for route, model in [
     def make_list(m):
         def endpoint(
             project_id: str,
-            aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+            aeromind_session: str | None = Cookie(default=None),
             db: Session = Depends(get_db),
         ):
             uid = owner(aeromind_session, db)
@@ -396,7 +396,7 @@ for route, model in [
         def endpoint(
             project_id: str,
             body: RecordIn,
-            aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+            aeromind_session: str | None = Cookie(default=None),
             db: Session = Depends(get_db),
         ):
             uid = owner(aeromind_session, db)
@@ -425,7 +425,7 @@ for route, model in [
         def endpoint(
             project_id: str,
             item_id: str,
-            aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+            aeromind_session: str | None = Cookie(default=None),
             db: Session = Depends(get_db),
         ):
             uid = owner(aeromind_session, db)
@@ -450,7 +450,7 @@ for route, model in [
             project_id: str,
             item_id: str,
             body: RecordIn | None = None,
-            aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+            aeromind_session: str | None = Cookie(default=None),
             db: Session = Depends(get_db),
         ):
             uid = owner(aeromind_session, db)
@@ -486,7 +486,7 @@ for route, model in [
 
 @router.get("/settings")
 def get_settings(
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)
+    aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)
 ):
     uid = owner(aeromind_session, db)
     return {
@@ -498,7 +498,7 @@ def get_settings(
 @router.put("/settings")
 def put_setting(
     body: SettingIn,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     uid = owner(aeromind_session, db)

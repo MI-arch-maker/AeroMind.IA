@@ -49,8 +49,9 @@ def test_service_worker_retires_old_cache_first_strategy():
     assert "respondWith" not in source
 
 
-def test_client_updates_existing_worker_without_registering_a_new_one():
+def test_client_unregisters_legacy_worker_without_registering_a_new_one():
     source = Path("frontend/client/src/main.tsx").read_text()
     assert "getRegistrations()" in source
-    assert "registration.update()" in source
+    assert "registration.unregister()" in source
+    assert "caches.delete(name)" in source
     assert "serviceWorker.register(" not in source

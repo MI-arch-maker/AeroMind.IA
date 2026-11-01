@@ -47,7 +47,10 @@ export function TelemetryCharts({ projectId, droneId }: Props) {
   const [loading, setLoading] = useState(false);
 
   const refresh = async () => {
-    if (!projectId && !droneId) return;
+    if (!projectId) {
+      setSamples([]);
+      return;
+    }
     setLoading(true);
     try {
       const url = new URL("/api/flights/history", window.location.origin);
@@ -64,7 +67,7 @@ export function TelemetryCharts({ projectId, droneId }: Props) {
     }
   };
 
-  useEffect(() => { void refresh(); }, [projectId, droneId, minutes]);
+  useEffect(() => { setSamples([]); void refresh(); }, [projectId, droneId, minutes]);
 
   // Format data for charts — group by drone, take latest 200 samples per chart
   const chartData = useMemo(() => {

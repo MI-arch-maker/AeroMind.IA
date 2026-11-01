@@ -62,6 +62,7 @@ button:disabled {
   outline-offset: 2px;
 }
 .aeromind-app {
+  --aeromind-sidebar-width: 248px;
   min-height: 100vh;
   display: flex;
   background:
@@ -11515,6 +11516,197 @@ button:disabled {
   padding: 12px 0 0;
   color: var(--amber);
 }
+.lab-preparation-checklist {
+  margin-top: 16px;
+  border: 1px solid rgba(237, 189, 115, 0.23);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(237, 189, 115, 0.045), rgba(4, 15, 20, 0.74));
+}
+.lab-checklist-safety-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 15px;
+  border-bottom: 1px solid rgba(237, 189, 115, 0.18);
+  color: #f0c783;
+}
+.lab-checklist-safety-banner > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.lab-checklist-safety-banner strong,
+.lab-checklist-summary-copy strong {
+  display: block;
+  font-size: 13px;
+}
+.lab-checklist-safety-banner p {
+  margin: 4px 0 0;
+  color: rgba(244, 224, 190, 0.76);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.lab-checklist-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 55px;
+  padding: 10px 15px;
+  cursor: pointer;
+  list-style: none;
+}
+.lab-checklist-details > summary::-webkit-details-marker {
+  display: none;
+}
+.lab-checklist-summary-icon {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(117, 226, 220, 0.2);
+  border-radius: 7px;
+  color: var(--cyan);
+  background: rgba(117, 226, 220, 0.06);
+}
+.lab-checklist-summary-copy {
+  min-width: 0;
+  flex: 1;
+}
+.lab-checklist-summary-copy small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(198, 219, 220, 0.65);
+  font-size: 10px;
+}
+.lab-checklist-chevron {
+  flex: 0 0 auto;
+  color: rgba(117, 226, 220, 0.72);
+  transition: transform 0.16s ease;
+}
+.lab-checklist-details[open] .lab-checklist-chevron {
+  transform: rotate(180deg);
+}
+.lab-checklist-details > summary:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -3px;
+}
+.lab-checklist-intro {
+  margin: 0 15px 13px;
+  padding: 10px 12px;
+  border-left: 2px solid rgba(117, 226, 220, 0.45);
+  color: rgba(208, 225, 225, 0.75);
+  background: rgba(117, 226, 220, 0.035);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.lab-checklist-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 15px 13px;
+}
+.lab-checklist-group,
+.lab-checklist-sources {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(117, 226, 220, 0.12);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.lab-checklist-group h4,
+.lab-checklist-sources h4 {
+  margin: 0 0 9px;
+  color: rgba(117, 226, 220, 0.9);
+  font-size: 11px;
+  letter-spacing: 0.025em;
+}
+.lab-checklist-group ul,
+.lab-checklist-sources ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lab-checklist-group li {
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.lab-checklist-marker {
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border: 1px solid rgba(237, 189, 115, 0.75);
+  border-radius: 2px;
+}
+.lab-checklist-group li strong {
+  display: block;
+  color: rgba(236, 244, 242, 0.92);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.lab-checklist-group li p {
+  margin: 3px 0 0;
+  color: rgba(190, 207, 208, 0.72);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.lab-checklist-sources {
+  margin: 0 15px 15px;
+}
+.lab-checklist-sources ul {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 12px;
+}
+.lab-checklist-sources a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: rgba(180, 226, 225, 0.82);
+  font-size: 10px;
+  line-height: 1.45;
+  text-decoration: underline;
+  text-decoration-color: rgba(117, 226, 220, 0.35);
+  text-underline-offset: 2px;
+}
+.lab-checklist-sources a:hover {
+  color: #b5f3ee;
+}
+.flight-virtual-panel {
+  margin-top: 16px;
+  padding: 0 14px 14px;
+  border: 1px solid rgba(117, 226, 220, 0.2);
+  border-radius: 10px;
+  background: rgba(4, 15, 20, 0.62);
+}
+.flight-virtual-panel > summary {
+  display: grid;
+  gap: 3px;
+  padding: 13px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.flight-virtual-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.flight-virtual-panel > summary strong {
+  color: rgba(117, 226, 220, 0.94);
+  font-size: 12px;
+}
+.flight-virtual-panel > summary small,
+.flight-virtual-panel > p {
+  color: rgba(190, 207, 208, 0.72);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.flight-virtual-panel > p {
+  margin: 0 0 12px;
+  padding: 9px 10px;
+  border-left: 2px solid rgba(117, 226, 220, 0.42);
+  background: rgba(117, 226, 220, 0.035);
+}
 
 /* Onglet Simulation — laboratoire de décision, avec lecture immédiate des signaux. */
 .simulation-meta {
@@ -14408,7 +14600,7 @@ button:disabled {
 }
 .workspace-window.is-maximized {
   position: fixed;
-  inset: 76px 18px 18px 18px;
+  inset: 76px 18px 18px calc(var(--aeromind-sidebar-width, 248px) + 18px);
   width: auto !important;
   height: auto !important;
 }
@@ -15592,6 +15784,15 @@ button:disabled {
   }
 }
 .trajectory-drone-model { stroke-linejoin: round; stroke-linecap: round; }
+.trajectory-drone-model.is-reference { opacity: .72; filter: saturate(.65); }
+.trajectory-drone-arrow-body { fill: #78d9d1; stroke: #d8fff2; stroke-width: .42; }
+.trajectory-drone-arrow-tip { fill: #ff5b3d; stroke: #ffd0a8; stroke-width: .38; }
+.trajectory-drone-arrow-spine { stroke: #effff6; stroke-width: .38; opacity: .8; }
+.trajectory-drone-arrow.is-reference .trajectory-drone-arrow-tip { fill: #ff704d; }
+.trajectory-drone-delta-body { fill: #67d8d0; stroke: #d9fff2; stroke-width: .42; }
+.trajectory-drone-delta-tip { fill: #ff5b3d; stroke: #ffd0a8; stroke-width: .38; }
+.trajectory-drone-delta-spine { stroke: #effff6; stroke-width: .38; opacity: .82; }
+.trajectory-drone-delta.is-reference .trajectory-drone-delta-tip { fill: #ff704d; }
 .trajectory-drone-wing { fill: rgba(111, 212, 207, .8); stroke: #c2fff0; stroke-width: .4; }
 .trajectory-drone-body { fill: #e8faf1; stroke: #68e1d4; stroke-width: .42; }
 .trajectory-drone-canopy { fill: #66d9d1; stroke: #f0fffa; stroke-width: .25; }
@@ -15990,3 +16191,281 @@ button:disabled {
 .studio-tool-capture:hover {
   background: rgba(37,208,217,0.18) !important;
 }
+
+/* AeroMind brand system: shared watermark and closing signature across every route. */
+.aeromind-app-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+}
+.aeromind-watermark {
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  inset: 0;
+  background: url('/aeromind-logo.svg') center 54% / min(46vw, var(--aeromind-watermark-size, 520px)) auto no-repeat;
+  opacity: 0.045;
+}
+.aeromind-brand-footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 16px 34px;
+  color: #8ba2ac;
+  background: linear-gradient(180deg, transparent, rgba(8, 25, 32, 0.08));
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+}
+.aeromind-brand-footer img {
+  display: block;
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+}
+.aeromind-brand-footer small {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-align: center;
+}
+@media (max-width: 640px) {
+  .aeromind-watermark {
+    background-size: min(74vw, var(--aeromind-watermark-size, 520px)) auto;
+    background-position: center 52%;
+    opacity: 0.035;
+  }
+  .aeromind-brand-footer { min-height: 160px; }
+  .aeromind-brand-footer img { width: 68px; height: 68px; }
+}
+
+
+/* Project selector: clear status row, readable project copy, and a dedicated action rail. */
+.project-selector-rich {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 32px;
+  grid-template-rows: auto 1fr;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 5px;
+  min-height: 146px;
+  padding: 14px 12px;
+}
+.project-selector-rich::after {
+  content: none;
+}
+.project-selector-rich > .project-mark {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 46px;
+  height: 46px;
+  font-size: 27px;
+}
+.project-selector-status {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(117, 226, 220, 0.78);
+  font: 700 7px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-selector-status::before {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #51e6a4;
+  box-shadow: 0 0 8px rgba(81, 230, 164, 0.55);
+  content: "";
+  vertical-align: 1px;
+}
+.project-selector-status[data-state="draft"] {
+  color: rgba(230, 185, 105, 0.82);
+}
+.project-selector-status[data-state="draft"]::before {
+  background: #e6b969;
+  box-shadow: 0 0 8px rgba(230, 185, 105, 0.45);
+}
+.project-selector-rich .project-selector-copy {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+}
+.project-selector-rich .project-selector-label {
+  margin: 0;
+  color: var(--cyan);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+.project-selector-rich .project-selector-copy strong,
+.project-selector-rich .project-selector-copy select {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.25;
+}
+.project-selector-rich .project-selector-copy strong {
+  white-space: normal;
+}
+.project-selector-rich .project-selector-copy small {
+  display: block;
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.project-selector-actions {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.project-selector-rich .project-selector-actions .ghost-icon-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+.project-selector-rich .project-selector-actions .ghost-icon-button:hover {
+  border-color: rgba(117, 226, 220, 0.2);
+  background: rgba(117, 226, 220, 0.08);
+  color: var(--cyan);
+}
+
+@media (max-width: 860px) {
+  .project-selector-rich {
+    grid-template-columns: 48px;
+    grid-template-rows: 48px;
+    justify-items: center;
+    min-height: 64px;
+    padding: 7px 0;
+    row-gap: 0;
+  }
+  .project-selector-rich > .project-mark {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .project-selector-rich .project-selector-status,
+  .project-selector-rich .project-selector-copy,
+  .project-selector-rich .project-selector-actions {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .sidebar.mobile-open .project-selector-rich {
+    grid-template-columns: 46px minmax(0, 1fr) 32px;
+    grid-template-rows: auto 1fr;
+    justify-items: stretch;
+    column-gap: 10px;
+    row-gap: 5px;
+    min-height: 138px;
+    padding: 12px;
+  }
+  .sidebar.mobile-open .project-selector-rich > .project-mark {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .sidebar.mobile-open .project-selector-rich .project-selector-status {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .sidebar.mobile-open .project-selector-rich .project-selector-copy {
+    display: grid;
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .sidebar.mobile-open .project-selector-rich .project-selector-actions {
+    display: flex;
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
+
+/* Let the status breathe across the information/action columns on narrow desktop sidebars. */
+.project-selector-status {
+  grid-column: 2 / 4;
+}
+.project-selector-actions {
+  grid-row: 2;
+  align-self: center;
+}
+.project-selector-rich .project-selector-copy strong,
+.project-selector-rich .project-selector-copy select {
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    width: min(100vw, 460px);
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+  .sidebar.mobile-open .project-selector-rich .project-selector-actions {
+    grid-row: 1 / span 2;
+  }
+  .sidebar.mobile-open .project-selector-rich .project-selector-copy strong,
+  .sidebar.mobile-open .project-selector-rich .project-selector-copy select {
+    font-size: 16px;
+  }
+  .sidebar.mobile-open .project-selector-rich .project-selector-copy small {
+    font-size: 12px;
+  }
+}
+
+
+.project-selector-rich > .project-mark {
+  grid-row: 2;
+  align-self: center;
+}
+@media (max-width: 860px) {
+  .project-selector-rich > .project-mark {
+    grid-row: 1;
+  }
+}
+@media (max-width: 760px) {
+  .sidebar.mobile-open .project-selector-rich > .project-mark {
+    grid-row: 2;
+  }
+}
+
+
+/* Keep maximized workspace views beside the AeroMind rail on desktop. */
+@media (max-width: 900px) and (min-width: 761px) {
+  .aeromind-app { --aeromind-sidebar-width: 238px; }
+}
+@media (max-width: 760px) {
+  .aeromind-app { --aeromind-sidebar-width: 0px; }
+}
+.scenario-long-timeline { margin-top: 10px; padding: 12px; border: 1px solid rgba(117,226,220,.18); border-radius: 6px; background: linear-gradient(180deg, rgba(7,28,35,.92), rgba(4,17,23,.94)); }
+.scenario-long-timeline-head, .scenario-long-timeline-scale, .scenario-long-timeline-phases { display: flex; justify-content: space-between; gap: 8px; color: #759a9d; font: 8px ui-monospace, monospace; letter-spacing: .04em; }
+.scenario-long-timeline-head strong { color: #77ded3; }.scenario-long-timeline-head b { color: #dbf8f0; font-weight: 600; }
+.scenario-long-timeline-scale { margin: 10px 0 3px; color: #66888d; }.scenario-long-timeline-scale span:nth-child(3) { color: #a7cfca; }
+.scenario-long-timeline input { display: block; width: 100%; accent-color: #6ce9e2; }
+.scenario-long-timeline-phases { margin-top: 8px; }.scenario-long-timeline-phases .is-done { color: #83e4b0; }
+@media (max-width: 580px) { .scenario-long-timeline-head { align-items: flex-start; flex-direction: column; }.scenario-long-timeline-phases { flex-wrap: wrap; font-size: 7px; } }

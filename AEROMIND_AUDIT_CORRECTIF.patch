@@ -1,0 +1,296 @@
+--- web/hardware_gate.py.orig
++++ web/hardware_gate.py
+@@ -106,6 +106,16 @@
+     return row, data, True
+ 
+ 
++def _current_active_n3_arm_event(arm_events: Any) -> dict[str, Any] | None:
++    """Return the latest N3 arm event only when its current state is active."""
++    if not isinstance(arm_events, list):
++        return None
++    for event in reversed(arm_events):
++        if isinstance(event, dict) and event.get("action") == "arm":
++            return event if event.get("active") is True else None
++    return None
++
++
+ def _evaluate_hardware_conditions(
+     db: Session,
+     project: Project,
+@@ -121,12 +131,8 @@
+     from .labbench import PER_DRONE_GATE_KIND, _per_drone_gate_rows
+     virtual_n3_armed = False
+     for _row, _data, _drone_id in _per_drone_gate_rows(db, project.id, user["id"]):
+-        arm_events = _data.get("armEvents", [])
+-        if isinstance(arm_events, list):
+-            for ev in arm_events:
+-                if isinstance(ev, dict) and ev.get("action") == "arm" and ev.get("active") is True:
+-                    virtual_n3_armed = True
+-                    break
++        if _current_active_n3_arm_event(_data.get("armEvents", [])) is not None:
++            virtual_n3_armed = True
+         if virtual_n3_armed:
+             break
+     conditions["virtual_n3_armed"] = virtual_n3_armed
+@@ -258,14 +264,13 @@
+     # Cross-check reviewer_id != operator who armed N3
+     from .labbench import PER_DRONE_GATE_KIND, _per_drone_gate_rows
+     for _row, _data, _drone_id in _per_drone_gate_rows(db, project.id, user["id"]):
+-        for ev in _data.get("armEvents", []):
+-            if isinstance(ev, dict) and ev.get("action") == "arm" and ev.get("active") is True:
+-                if reviewer_id == ev.get("actorId"):
+-                    raise LabBenchError(
+-                        403,
+-                        "REVIEWER_MUST_DIFFER",
+-                        "Le reviewer hardware doit être différent de l'opérateur qui a armé le N3 virtuel (revue indépendante)",
+-                    )
++        active_arm_event = _current_active_n3_arm_event(_data.get("armEvents", []))
++        if active_arm_event is not None and reviewer_id == active_arm_event.get("actorId"):
++            raise LabBenchError(
++                403,
++                "REVIEWER_MUST_DIFFER",
++                "Le reviewer hardware doit être différent de l'opérateur qui a armé le N3 virtuel (revue indépendante)",
++            )
+ 
+     review_token_audit_hash = hashlib.sha256(
+         str(payload.get("reviewToken") or "").encode("utf-8")
+@@ -316,6 +321,41 @@
+     }
+ 
+ 
++def _require_g0_g5_approved(db: Session, project_id: str) -> None:
++    """Require all validation gates; inability to read them is a refusal."""
++    try:
++        from .canonical_models import GateValidation
++        from sqlalchemy import select as _select
++
++        required_gates = {
++            "G0_gel", "G1_securite", "G2_fiabilite",
++            "G3_banc", "G4_qualification", "G5_exploitation",
++        }
++        approved = {
++            row.gate for row in db.scalars(
++                _select(GateValidation).where(
++                    GateValidation.project_id == project_id,
++                    GateValidation.state == "approved",
++                )
++            )
++        }
++        missing = required_gates - approved
++        if missing:
++            raise LabBenchError(
++                412, "GATE_NOT_READY",
++                f"Gates requises non approuvées pour ce projet: {sorted(missing)}. "
++                "EXIGENCE C-001 du cahier des charges.",
++            )
++    except LabBenchError:
++        raise
++    except Exception as exc:
++        raise LabBenchError(
++            412, "GATE_CHECK_FAILED",
++            f"Vérification G0-G5 impossible: {exc}. "
++            "Assurez-vous que les migrations de validation sont appliquées.",
++        ) from exc
++
++
+ def issue_hardware_confirmation_token(
+     db: Session,
+     user: dict[str, Any] | None,
+@@ -366,49 +406,7 @@
+     # validation G0 à G5"). The previous code checked only N3+review+pool,
+     # which is a subset smaller than G0-G5. We now also require all 6 gates
+     # to be in state='approved' for the project.
+-    try:
+-        from .canonical_models import GateValidation
+-        from sqlalchemy import select as _select
+-        required_gates = {
+-            "G0_gel", "G1_securite", "G2_fiabilite",
+-            "G3_banc", "G4_qualification", "G5_exploitation",
+-        }
+-        approved = {
+-            row.gate for row in db.scalars(
+-                _select(GateValidation).where(
+-                    GateValidation.project_id == project.id,
+-                    GateValidation.state == "approved",
+-                )
+-            )
+-        }
+-        missing = required_gates - approved
+-        if missing:
+-            raise LabBenchError(
+-                412, "GATE_NOT_READY",
+-                f"Gates requises non approuvées pour ce projet: {sorted(missing)}. "
+-                f"EXIGENCE C-001 du cahier des charges.",
+-            )
+-    except LabBenchError:
+-        raise  # Re-raise our own gate errors verbatim
+-    except Exception as e:
+-        # P1-06 fix: fail-CLOSED in production (was fail-open).
+-        # If GateValidation table is missing (migration not run), we still
+-        # raise in production — the operator MUST run migrations before any
+-        # hardware token can be issued. In development only, log and continue.
+-        import os as _os
+-        import logging
+-        _env = _os.environ.get("AEROMIND_ENV", "development")
+-        if _env == "production":
+-            raise LabBenchError(
+-                412, "GATE_CHECK_FAILED",
+-                f"Vérification G0-G5 impossible en production: {e}. "
+-                "Assurez-vous que migrations/2026-10-25_canonical_labbench_schema.sql est appliquée.",
+-            ) from e
+-        logging.getLogger(__name__).warning(
+-            "P0-08: Could not verify G0-G5 gates for project %s: %s (dev mode — fail-open). "
+-            "Ensure migrations/2026-10-25_canonical_labbench_schema.sql is applied.",
+-            project.id, e,
+-        )
++    _require_g0_g5_approved(db, project.id)
+ 
+     # V5 — extract the authenticated reviewer_id from the latest reviewEvent.
+     # The sign_hardware_review function stores reviewerId (authenticated
+--- web/mavlink_command_api.py.orig
++++ web/mavlink_command_api.py
+@@ -41,15 +41,6 @@
+     "NAV_LAND",              # land at current position
+     "NAV_RETURN_TO_LAUNCH",  # RTL
+     "DO_SET_MODE",           # switch flight mode (limited to MANUAL/STABILIZE/AUTO)
+-    # P0-04 fix — EXIGENCE FUNC-05 / R10: mission upload protocol commands.
+-    # MISSION_COUNT + MISSION_ITEM_INT form the canonical GCS→autopilot
+-    # mission upload sequence (ArduPilot / PX4). The earlier allowlist
+-    # omitted them so the upload endpoint always returned
+-    # COMMAND_NOT_ALLOWED, then the code below marked the upload as
+-    # ``failed`` without distinguishing "command refused" from "transport
+-    # error" — the frontend had no way to tell the user *why* it failed.
+-    "MISSION_COUNT",         # announce number of waypoints (cmd id 43)
+-    "MISSION_ITEM_INT",      # upload one waypoint item (cmd id 52)
+ )
+ 
+ # Sub-allowlist for flight modes accepted by DO_SET_MODE.
+@@ -71,9 +62,6 @@
+     "NAV_LAND": 21,
+     "NAV_RETURN_TO_LAUNCH": 20,
+     "DO_SET_MODE": 176,
+-    # P0-04 fix — mission upload protocol command ids (ArduPilot/PX4).
+-    "MISSION_COUNT": 43,
+-    "MISSION_ITEM_INT": 52,
+ }
+ 
+ 
+--- tests/test_hardware_phases.py.orig
++++ tests/test_hardware_phases.py
+@@ -25,29 +25,24 @@
+     issue_hardware_confirmation_token can succeed. Without this, the new
+     gate enforcement (EXIGENCE C-001) raises GATE_NOT_READY.
+     """
+-    try:
+-        from web.canonical_models import GateValidation
+-        from datetime import UTC, datetime
+-        import uuid as _uuid
+-        _required_gates = (
+-            "G0_gel", "G1_securite", "G2_fiabilite",
+-            "G3_banc", "G4_qualification", "G5_exploitation",
+-        )
+-        for _g in _required_gates:
+-            db_session.add(GateValidation(
+-                id=str(_uuid.uuid4()),
+-                project_id=project_id,
+-                gate=_g,
+-                state="approved",
+-                reviewer_id=user_id,
+-                evidence_json="{}",
+-                approved_at=datetime.now(UTC),
+-            ))
+-        db_session.commit()
+-    except Exception:
+-        # GateValidation table not yet created (migration not applied).
+-        # hardware_gate.py code logs a warning and proceeds fail-open.
+-        pass
++    from web.canonical_models import GateValidation
++    from datetime import UTC, datetime
++    import uuid as _uuid
++    _required_gates = (
++        "G0_gel", "G1_securite", "G2_fiabilite",
++        "G3_banc", "G4_qualification", "G5_exploitation",
++    )
++    for _g in _required_gates:
++        db_session.add(GateValidation(
++            id=str(_uuid.uuid4()),
++            project_id=project_id,
++            gate=_g,
++            state="approved",
++            reviewer_id=user_id,
++            evidence_json="{}",
++            approved_at=datetime.now(UTC),
++        ))
++    db_session.commit()
+ 
+ 
+ from web.database import Base  # noqa: E402
+@@ -229,6 +224,22 @@
+     assert exc_info.value.code in {"TOKEN_INVALID", "CONFIRMATION_TOKEN_INVALID"}
+ 
+ 
++def test_mission_protocol_messages_are_not_command_long_commands(monkeypatch):
++    monkeypatch.setenv("HARDWARE_CONTROL", "true")
++    monkeypatch.delenv("AEROMIND_VIRTUAL_ONLY", raising=False)
++    for command in ("MISSION_COUNT", "MISSION_ITEM_INT"):
++        with pytest.raises(cmd.HardwareCommandError) as exc_info:
++            cmd.authorize_physical_command(
++                command=command,
++                confirmation_token="x" * 64,
++                project_id="project-1",
++                drone_id="drone-1",
++                actor_id="operator-1",
++            )
++        assert exc_info.value.code == "COMMAND_NOT_ALLOWED"
++        assert command not in cmd.MAV_CMD_IDS
++
++
+ def test_hardware_control_true_alone_no_geofence_refused(monkeypatch):
+     """V3.1 #1 — even with HARDWARE_CONTROL=true + valid token, navigation
+     commands WITHOUT a geofence_validator are refused (fail-closed)."""
+@@ -540,6 +551,45 @@
+     assert state["physicalOutputEnabled"] is False
+ 
+ 
++@pytest.mark.parametrize("environment", ["development", "staging", "production"])
++def test_g0_g5_database_error_fails_closed_in_every_environment(monkeypatch, environment):
++    class BrokenGateDatabase:
++        def scalars(self, _statement):
++            raise RuntimeError("gate table unavailable")
++
++    monkeypatch.setenv("AEROMIND_ENV", environment)
++    with pytest.raises(lb.LabBenchError) as exc_info:
++        hw_gate._require_g0_g5_approved(BrokenGateDatabase(), "project-1")
++    assert exc_info.value.code == "GATE_CHECK_FAILED"
++
++
++def test_n3_hardware_gate_tracks_disarm_and_rearm(db_session):
++    user, project_id, drones = _make_user_project_drones(db_session, n_drones=1)
++    drone_id = drones[0].id
++    lb.seed_registry(db_session, user, project_id)
++    lb.run_fleet_simulation(db_session, user, project_id, {
++        "scenarios": [{"droneId": drone_id, "ambientC": 20, "heaterPowerW": 4,
++                       "dutyCycle": 0.4, "thermalResistanceCPerW": 3.2,
++                       "durationSeconds": 60, "positionSetpointDeg": 45}],
++    })
++    lb.complete_hardware_checklist_drone(db_session, user, project_id, drone_id, {
++        "deviceIdentified": True, "driverValidated": True, "calibrationSimulated": True,
++    })
++    arm_payload = {
++        "humanConfirmed": True,
++        "safetyConfirmed": True,
++        "secondOperatorCode": "second-operator-code",
++    }
++    lb.arm_n3_gate_drone(db_session, user, project_id, drone_id, arm_payload)
++    assert hw_gate.hardware_gate_state(db_session, user, project_id)["conditions"]["virtual_n3_armed"] is True
++
++    lb.disarm_n3_gate_drone(db_session, user, project_id, drone_id)
++    assert hw_gate.hardware_gate_state(db_session, user, project_id)["conditions"]["virtual_n3_armed"] is False
++
++    lb.arm_n3_gate_drone(db_session, user, project_id, drone_id, arm_payload)
++    assert hw_gate.hardware_gate_state(db_session, user, project_id)["conditions"]["virtual_n3_armed"] is True
++
++
+ def test_hardware_review_requires_virtual_n3_armed(db_session):
+     user, project_id, drones = _make_user_project_drones(db_session, n_drones=1)
+     # V5 — sign_hardware_review now requires an authenticated reviewer_session.

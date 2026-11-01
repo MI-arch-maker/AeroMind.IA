@@ -158,6 +158,14 @@ export function HardwareControlPanel() {
     return current;
   };
 
+  const serverStateReady = () => {
+    if (!serverStateLoaded) {
+      setMessage("État VIRTUAL non chargé : aucune mutation serveur n’est autorisée avant sa lecture.");
+      return false;
+    }
+    return true;
+  };
+
   const loadServerState = async () => {
     if (sourceRef.current !== "server") return;
     const epoch = requestEpoch.current + 1;
@@ -191,6 +199,8 @@ export function HardwareControlPanel() {
 
   const useLocalSimulation = () => {
     invalidatePendingResponse();
+    inFlightEpoch.current = null;
+    setBusy(false);
     setServerStateLoaded(false);
     setSource("local");
     setFirst(false);
@@ -201,7 +211,6 @@ export function HardwareControlPanel() {
 
   const updateSetpoint = (key: keyof typeof initialSetpoint, value: string) => {
     // La confirmation par commande est d'usage unique et est invalidée par tout changement de paramètre.
-    invalidatePendingResponse();
     setSetpoint(current => ({ ...current, [key]: value }));
     setCommandConfirmed(false);
   };
@@ -223,6 +232,7 @@ export function HardwareControlPanel() {
       setMessage("Le service VIRTUAL n’est pas annoncé par ce serveur. Choisissez la simulation locale, qui n’est pas enregistrée.");
       return;
     }
+    if (!serverStateReady()) return;
     const epoch = beginServerRequest();
     if (epoch === null) {
       setMessage("Une demande VIRTUAL est déjà en cours; seul l’arrêt d’urgence peut l’interrompre.");
@@ -256,7 +266,20 @@ export function HardwareControlPanel() {
       setMessage("Retour à SIMULATION locale : modèle virtuel désarmé.");
       return;
     }
-    const result = await controlRequest("/api/control/mode", { mode: "SIMULATION", confirm_operator: false, confirm_safety: false });
+    if (!serverAvailable || !serverStateReady()) return;
+    const epoch = beginServerRequest();
+    if (epoch === null) {
+      setMessage("Une demande VIRTUAL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
+      return;
+    }
+    const result = await controlRequest("/api/control/mode", {
+      mode: "SIMULATION",
+      confirm_operator: false,
+      confirm_safety: false,
+      action_id: newVirtualActionId(),
+      expected_revision: serverState.revision,
+    });
+    if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
         ? "Session non authentifiée : choisissez la simulation locale, non enregistrée, pour continuer."
@@ -280,7 +303,20 @@ export function HardwareControlPanel() {
       setMessage(transition.error ?? "Modèle VIRTUAL local armé. Chaque setpoint doit être confirmé séparément.");
       return;
     }
-    const result = await controlRequest("/api/control/arm", { mode: "VIRTUAL", confirm_operator: first, confirm_safety: second });
+    if (!serverAvailable || !serverStateReady()) return;
+    const epoch = beginServerRequest();
+    if (epoch === null) {
+      setMessage("Une demande VIRTUAL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
+      return;
+    }
+    const result = await controlRequest("/api/control/arm", {
+      mode: "VIRTUAL",
+      confirm_operator: first,
+      confirm_safety: second,
+      action_id: newVirtualActionId(),
+      expected_revision: serverState.revision,
+    });
+    if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
         ? "Session non authentifiée : aucun armement serveur n’est possible. La simulation locale reste disponible."
@@ -312,8 +348,19 @@ export function HardwareControlPanel() {
       setMessage(transition.error ?? `Setpoint ${command} appliqué au modèle local uniquement; confirmation consommée.`);
       return;
     }
-    const result = await controlRequest("/api/control/command", input);
+    if (!serverAvailable || !serverStateReady()) return;
+    const epoch = beginServerRequest();
+    if (epoch === null) {
+      setMessage("Une demande VIRTUAL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
+      return;
+    }
     setCommandConfirmed(false);
+    const result = await controlRequest("/api/control/command", {
+      ...input,
+      action_id: newVirtualActionId(),
+      expected_revision: serverState.revision,
+    });
+    if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
         ? "Session non authentifiée : aucun setpoint ne peut être enregistré. La simulation locale reste disponible."
@@ -333,7 +380,15 @@ export function HardwareControlPanel() {
       setMessage("Arrêt d’urgence local : file purgée et modèle désarmé. Aucune reprise automatique n’est possible.");
       return;
     }
-    const result = await controlRequest("/api/control/emergency-stop");
+    if (!serverAvailable || !serverStateReady()) return;
+    const priorRequestPending = inFlightEpoch.current !== null;
+    const epoch = beginServerRequest(true);
+    if (epoch === null) return;
+    const result = await controlRequest("/api/control/emergency-stop", {
+      action_id: newVirtualActionId(),
+      expected_revision: serverState.revision,
+    });
+    if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body) || !isEmergencyStop(result.body)) {
       setMessage(result.status === 401
         ? "Session non authentifiée : le serveur ne peut pas confirmer l’arrêt. Utilisez la simulation locale seulement si aucun enregistrement serveur n’est requis."
@@ -341,13 +396,14 @@ export function HardwareControlPanel() {
       return;
     }
     applyServerResponse(result.body);
-    setMessage(`Arrêt d’urgence VIRTUAL confirmé : file purgée (${result.body.queue_purged ?? 0}), modèle désarmé, aucune reprise automatique.`);
+    setMessage(`Arrêt d’urgence VIRTUAL confirmé : file purgée (${result.body.queue_purged ?? 0}), modèle désarmé, aucune reprise automatique.${priorRequestPending ? " La demande précédente a été invalidée dans l’interface; elle peut déjà avoir été traitée par le serveur et n’a pas été annulée." : ""}`);
   };
 
   const visibleReceipts = useMemo(
     () => source === "local" ? [...localState.journal] : receipts,
     [localState.journal, receipts, source],
   );
+  const serverMutationDisabled = source === "server" && (!serverAvailable || !serverStateLoaded || busy);
 
   return (
     <section className="lb-panel lb-vctrl-panel" aria-label="Contrôle VIRTUAL encadré">
@@ -366,14 +422,14 @@ export function HardwareControlPanel() {
       <div className="lb-config-section lb-vctrl-section lb-vctrl-activation">
         <h3>Activation puis armement séparés</h3>
         <div className="lb-vctrl-confirmations">
-          <label><input type="checkbox" checked={first} onChange={event => setFirst(event.target.checked)} disabled={activeState.armed} /><span>Intention d’activer ou d’armer VIRTUAL</span></label>
-          <label><input type="checkbox" checked={second} onChange={event => setSecond(event.target.checked)} disabled={activeState.armed} /><span>Setpoint vérifié · modèle virtuel uniquement</span></label>
+          <label><input type="checkbox" checked={first} onChange={event => setFirst(event.target.checked)} disabled={activeState.armed || serverMutationDisabled} /><span>Intention d’activer ou d’armer VIRTUAL</span></label>
+          <label><input type="checkbox" checked={second} onChange={event => setSecond(event.target.checked)} disabled={activeState.armed || serverMutationDisabled} /><span>Setpoint vérifié · modèle virtuel uniquement</span></label>
         </div>
         <div className="lb-config-actions lb-vctrl-actions">
-          <button className="lb-primary" disabled={!confirmationsReady || isVirtualActive} onClick={() => void activate()}>Activer VIRTUAL (2 confirmations)</button>
-          <button className="lb-secondary" disabled={!confirmationsReady || !isVirtualActive || activeState.armed} onClick={() => void arm()}>Armer VIRTUAL (nouvelles confirmations)</button>
-          <button className="lb-secondary" disabled={!isVirtualActive && mode === "SIMULATION"} onClick={() => void selectSimulation()}>Revenir en SIMULATION</button>
-          <button className="lb-secondary" onClick={() => void emergency()}>Arrêt d’urgence — un clic</button>
+          <button className="lb-primary" disabled={!confirmationsReady || isVirtualActive || serverMutationDisabled} onClick={() => void activate()}>Activer VIRTUAL (2 confirmations)</button>
+          <button className="lb-secondary" disabled={!confirmationsReady || !isVirtualActive || activeState.armed || serverMutationDisabled} onClick={() => void arm()}>Armer VIRTUAL (nouvelles confirmations)</button>
+          <button className="lb-secondary" disabled={(!isVirtualActive && mode === "SIMULATION") || serverMutationDisabled} onClick={() => void selectSimulation()}>Revenir en SIMULATION</button>
+          <button className="lb-secondary" disabled={source === "server" && (!serverAvailable || !serverStateLoaded)} onClick={() => void emergency()}>Arrêt d’urgence — un clic</button>
         </div>
       </div>
 
@@ -386,10 +442,10 @@ export function HardwareControlPanel() {
           <label>Altitude VIRTUAL (m)<input type="number" min={0} max={120} value={setpoint.altitude_m} onChange={event => updateSetpoint("altitude_m", event.target.value)} /></label>
           <label>Cap VIRTUAL (°)<input type="number" min={0} max={360} value={setpoint.heading_deg} onChange={event => updateSetpoint("heading_deg", event.target.value)} /></label>
         </div>
-        <label className="lb-vctrl-command-confirm"><input type="checkbox" checked={commandConfirmed} onChange={event => setCommandConfirmed(event.target.checked)} disabled={!activeState.armed} /><span>Setpoint courant confirmé</span></label>
+        <label className="lb-vctrl-command-confirm"><input type="checkbox" checked={commandConfirmed} onChange={event => setCommandConfirmed(event.target.checked)} disabled={!activeState.armed || serverMutationDisabled} /><span>Setpoint courant confirmé</span></label>
         <div className="lb-config-actions lb-vctrl-actions">
-          <button className="lb-primary" disabled={!activeState.armed || !commandConfirmed} onClick={() => void sendCommand("position")}>Appliquer position VIRTUAL</button>
-          <button className="lb-secondary" disabled={!activeState.armed || !commandConfirmed} onClick={() => void sendCommand("heading")}>Appliquer cap VIRTUAL</button>
+          <button className="lb-primary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("position")}>Appliquer position VIRTUAL</button>
+          <button className="lb-secondary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("heading")}>Appliquer cap VIRTUAL</button>
         </div>
       </div>
 

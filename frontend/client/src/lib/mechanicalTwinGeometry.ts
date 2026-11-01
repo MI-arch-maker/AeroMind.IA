@@ -9,6 +9,7 @@ export type Vec3 = [number, number, number];
 export type MechanicalPartEdit = {
   name?: string;
   color?: string;
+  materialId?: "carbon" | "aluminum" | "kevlar";
   hidden?: boolean;
   /** Translation additionnelle en mètres. */
   offset?: Vec3;
@@ -30,8 +31,54 @@ export type MechanicalExtraPart = {
   indices?: number[];
 };
 
+export type ParametricFeatureKind = "conversion" | "sketch" | "extrusion" | "revolution" | "boolean" | "loft" | "fillet" | "chamfer" | "cut";
+
+export type ParametricFeature = {
+  id: string;
+  kind: ParametricFeatureKind;
+  name: string;
+  status: "applied" | "unsupported";
+  createdAt?: string;
+  date?: string;
+  /** Références vers les features sources, pour reconstruire le graphe sans index implicite. */
+  dependsOn?: string[];
+  targetPartId?: string;
+  parameters: Record<string, number | string>;
+};
+
+export type ParametricVariableDefinition = {
+  id: string;
+  name: string;
+  value: number;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+  type: string;
+  description: string;
+  appliesTo: string;
+  expression?: string;
+};
+
+export type ParametricSketchProfile = {
+  id: string;
+  name: string;
+  kind: "rectangle" | "ellipse";
+  width: number;
+  height: number;
+  modifiedAt: string;
+};
+
+export type ControlDeflections = {
+  aileron: number;
+  flap: number;
+  elevator: number;
+  rudder: number;
+};
+
 export type MechanicalTwinConfig = {
   designId: string;
+  fuselageSectionType?: "circular" | "elliptical" | "polygonal";
   fuselageWidth?: number;
   fuselageHeight?: number;
   sweepDeg?: number;
@@ -41,6 +88,11 @@ export type MechanicalTwinConfig = {
   finish?: "titanium" | "carbon" | "ceramic";
   edits?: Record<string, MechanicalPartEdit>;
   extraParts?: MechanicalExtraPart[];
+  featureHistory?: ParametricFeature[];
+  customVariables?: ParametricVariableDefinition[];
+  controlDeflections?: ControlDeflections;
+  sketchProfiles?: ParametricSketchProfile[];
+  activeMaterialId?: "carbon" | "aluminum" | "kevlar";
 };
 
 export type MechanicalPart = {
@@ -354,6 +406,7 @@ export function mechanicalSettings(design: DroneCatalogDesign, config: ConceptCo
   const defaultWidth = clamp(chord * 0.72, 0.13, Math.max(0.16, span * 0.2));
   const defaults: MechanicalTwinConfig = {
     designId: design.id,
+    fuselageSectionType: config.fuselageSectionType ?? "elliptical",
     fuselageWidth: defaultWidth,
     fuselageHeight: clamp(defaultWidth * 0.7, 0.1, 0.75),
     sweepDeg: ["aile-volante", "stealth-wing", "blended-pusher"].includes(design.modelType ?? "") ? 24 : 9,
@@ -368,6 +421,7 @@ export function mechanicalSettings(design: DroneCatalogDesign, config: ConceptCo
   const finish = candidate.finish === "titanium" || candidate.finish === "ceramic" || candidate.finish === "carbon" ? candidate.finish : defaults.finish;
   return {
     ...defaults,
+    fuselageSectionType: candidate.fuselageSectionType === "circular" || candidate.fuselageSectionType === "elliptical" || candidate.fuselageSectionType === "polygonal" ? candidate.fuselageSectionType : defaults.fuselageSectionType,
     fuselageWidth: positive(candidate.fuselageWidth, defaults.fuselageWidth!),
     fuselageHeight: positive(candidate.fuselageHeight, defaults.fuselageHeight!),
     sweepDeg: finite(candidate.sweepDeg, defaults.sweepDeg!),
@@ -377,6 +431,7 @@ export function mechanicalSettings(design: DroneCatalogDesign, config: ConceptCo
     finish,
     edits: isRecord(candidate.edits) ? (candidate.edits as Record<string, MechanicalPartEdit>) : undefined,
     extraParts: Array.isArray(candidate.extraParts) ? (candidate.extraParts as MechanicalExtraPart[]) : undefined,
+    featureHistory: Array.isArray(candidate.featureHistory) ? (candidate.featureHistory as ParametricFeature[]) : undefined,
   };
 }
 
@@ -465,17 +520,26 @@ function addFuselage(a: Assembly, d: Dimensions, widthFactor = 1, lengthFactor =
   const width = d.width * widthFactor;
   const height = d.height * widthFactor;
   const length = d.length * lengthFactor;
+  const sectionType = a.settings.fuselageSectionType ?? "elliptical";
+  const sides = sectionType === "circular" ? 16 : sectionType === "polygonal" ? 6 : 16;
+  const ring = (radiusX: number, radiusY: number): [number, number] => {
+    if (sectionType === "circular") {
+      const radius = Math.sqrt(Math.max(radiusX * radiusY, EPSILON));
+      return [radius, radius];
+    }
+    return [radiusX, radiusY];
+  };
   a.add(
     id,
     "Coque fuselage facettée",
     "airframe",
     loftZ([
-      [-length * 0.5, width * 0.08, height * 0.12],
-      [-length * 0.38, width * 0.62, height * 0.63],
-      [-length * 0.04, width * 0.5, height * 0.72],
-      [length * 0.29, width * 0.4, height * 0.51],
-      [length * 0.5, width * 0.1, height * 0.14],
-    ]),
+      [-length * 0.5, ...ring(width * 0.08, height * 0.12)],
+      [-length * 0.38, ...ring(width * 0.62, height * 0.63)],
+      [-length * 0.04, ...ring(width * 0.5, height * 0.72)],
+      [length * 0.29, ...ring(width * 0.4, height * 0.51)],
+      [length * 0.5, ...ring(width * 0.1, height * 0.14)],
+    ], sides),
     { color: a.palette.shell }
   );
   return { width, height, length };

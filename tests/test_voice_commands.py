@@ -120,3 +120,24 @@ def test_parse_arm_not_disarm():
     result = parse_voice_command("désarme le drone")
     assert result is not None
     assert result["parameters"]["p1"] == 0.0  # disarm, not arm
+
+
+def test_emergency_voice_preview_does_not_claim_motor_cutoff():
+    result = parse_voice_command("emergency stop")
+    assert result is not None
+    assert "NAV_LAND" in result["preview"]
+    assert "ne coupe pas les moteurs" in result["preview"]
+
+
+def test_emergency_helper_refuses_missing_target_before_pool_access():
+    from web.geofence_validator import emergency_stop_all
+
+    class ForbiddenPool:
+        def list(self, **kwargs):
+            raise AssertionError("pool must not be accessed")
+        def pilot(self, *args, **kwargs):
+            raise AssertionError("pool must not be accessed")
+
+    result = emergency_stop_all(ForbiddenPool())
+    assert result["landed"] is False
+    assert result["results"] == []

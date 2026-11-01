@@ -33,7 +33,7 @@ def test_hardware_command_endpoint_rejects_without_auth(client):
         "projectId": "test-project",
     })
     # Should get 401 or a trpc error, NOT 200
-    assert resp.status_code in (401, 200), f"Unexpected status: {resp.status_code}"
+    assert resp.status_code in (400, 401, 403, 200), f"Unexpected status: {resp.status_code}"
     if resp.status_code == 200:
         body = resp.json()
         # If the body contains an error code, it's still rejecting correctly
@@ -51,7 +51,7 @@ def test_hardware_command_endpoint_rejects_without_lab_session(client):
         "reviewer": "test-reviewer",
         "reviewToken": "test-token",
     })
-    assert resp.status_code in (401, 200)
+    assert resp.status_code in (400, 401, 403, 200)
     if resp.status_code == 200:
         body = resp.json()
         assert body.get("code") in ("UNAUTHORIZED", "REVIEWER_SESSION_REQUIRED") or "error" in body, \
@@ -61,7 +61,7 @@ def test_hardware_command_endpoint_rejects_without_lab_session(client):
 def test_hardware_emergency_stop_rejects_without_auth(client):
     """P1-19: e-stop must require authentication (was cross-tenant before P0-03)."""
     resp = client.post("/api/hardware/emergency-stop")
-    assert resp.status_code in (401, 200)
+    assert resp.status_code in (400, 401, 403, 200)
     if resp.status_code == 200:
         body = resp.json()
         assert body.get("code") == "UNAUTHORIZED" or "error" in body, \
@@ -75,7 +75,7 @@ def test_hardware_issue_token_rejects_without_auth(client):
         "droneId": "test-drone",
         "command": "NAV_TAKEOFF",
     })
-    assert resp.status_code in (401, 200)
+    assert resp.status_code in (400, 401, 403, 200)
     if resp.status_code == 200:
         body = resp.json()
         assert body.get("code") == "UNAUTHORIZED" or "error" in body, \
@@ -84,13 +84,13 @@ def test_hardware_issue_token_rejects_without_auth(client):
 
 def test_lab_sessions_step_up_requires_csrf(client):
     """P0-02/P1-19: /api/lab/sessions/revoke must require CSRF token."""
-    # Without X-CSRF-Token header, the CSRF dependency should reject with 403.
+    # Without X-CSRF-Token header, the CSRF middleware should reject the request (400/403) before route logic.
     # This test verifies the CSRF dependency is actually wired (was missing before P0-02).
     # We need a valid session to get past verify_lab_session first, but since we
     # don't have one, the 401 from verify_lab_session takes precedence.
     # The test still confirms the endpoint is reachable and has the CSRF dependency.
     resp = client.post("/api/lab/sessions/revoke")
-    assert resp.status_code in (401, 403), f"Expected 401/403, got {resp.status_code}"
+    assert resp.status_code in (400, 401, 403), f"Expected 401/403, got {resp.status_code}"
 
 
 def test_lab_gates_approve_requires_csrf_and_session(client):
@@ -98,4 +98,4 @@ def test_lab_gates_approve_requires_csrf_and_session(client):
     resp = client.post("/api/lab/gates/test-project/G0_gel/approve", json={
         "evidence": {"note": "test"},
     })
-    assert resp.status_code in (401, 403), f"Expected 401/403, got {resp.status_code}"
+    assert resp.status_code in (400, 401, 403), f"Expected 401/403, got {resp.status_code}"

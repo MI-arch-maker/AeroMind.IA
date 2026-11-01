@@ -24,6 +24,7 @@ import {
   ShieldCheck, Sparkles, Trash2, Route as RouteIcon, Wand2, Mountain, Wind,
 } from "lucide-react";
 import type { ConceptConfig, MissionWaypoint } from "../lib/aeroEngine";
+import type { DroneCatalogDesign } from "../lib/droneCatalog";
 import { optimizeMissionRoute } from "../lib/missionRouteOptimizer";
 import { useLanguage } from "../contexts/LanguageContext";
 import { OpenStreetMapView, type MapLayerMode } from "./OpenStreetMapView";
@@ -34,6 +35,8 @@ import "./mission-planner-view.css";
 type Props = {
   config: ConceptConfig;
   setConfig: (updater: (prev: ConceptConfig) => ConceptConfig) => void;
+  activeProfile?: DroneCatalogDesign;
+  activeDroneLabel?: string;
 };
 
 type MissionItem = {
@@ -51,18 +54,26 @@ type MissionItem = {
 type Tool = "select" | "takeoff" | "waypoint" | "survey" | "land" | "fence" | "rally" | "measure";
 type PlannerLayerMode = MapLayerMode | "ai";
 
-const PARIS_CENTER = { lat: 48.8566, lng: 2.3522 };
+export function buildMissionPlannerSnapshot(
+  config: ConceptConfig,
+  missionItems: MissionItem[],
+  fencePoints: Array<{ id: string; name: string; lat: number; lng: number; approximate: boolean }>,
+  rallyPoints: Array<{ id: string; name: string; lat: number; lng: number; approximate: boolean }>,
+  surveyParams: Record<string, number>,
+) {
+  return {
+    format: "aeromind-mission-planner/local-v1",
+    exportedAt: new Date().toISOString(),
+    activeDrone: config.designName || config.platformProfile || "Aucun drone sélectionné",
+    missionPlan: config.missionPlan ?? null,
+    missionItems: missionItems.map(({ id, type, name, lat, lng, alt, speed, action }) => ({ id, type, name, latitude: lat, longitude: lng, altitudeM: alt, speedKmh: speed, action })),
+    geofence: fencePoints,
+    rallyPoints,
+    surveyParams,
+  };
+}
 
-const DEFAULT_MISSION: MissionItem[] = [
-  { id: "start", type: "start", name: "Mission Start", lat: 48.8566, lng: 2.3522, alt: 0, detail: "Point de départ" },
-  { id: "takeoff", type: "takeoff", name: "VTOL Takeoff", lat: 48.8566, lng: 2.3522, alt: 20, detail: "Alt 20 m · Transition" },
-  { id: "wp2", type: "waypoint", name: "Waypoint 2", lat: 48.8580, lng: 2.3550, alt: 232.9, speed: 15, detail: "Alt 232.9 m · 15 m/s" },
-  { id: "survey", type: "survey", name: "Survey — Zone A", lat: 48.8570, lng: 2.3540, alt: 232.9, detail: "47 lignes · 2.4 km²" },
-  { id: "wp48", type: "waypoint", name: "Waypoint 48", lat: 48.8550, lng: 2.3500, alt: 232.9, speed: 15, detail: "Alt 232.9 m · Retour" },
-  { id: "land", type: "land", name: "Land", lat: 48.8566, lng: 2.3522, alt: 0, detail: "RTL · Point de départ" },
-];
-
-export function MissionPlannerView({ config, setConfig }: Props) {
+export function MissionPlannerView({ config, setConfig, activeProfile, activeDroneLabel = "Aucun drone sélectionné" }: Props) {
   const { t } = useLanguage();
 
   // ── Mission state ──
@@ -73,7 +84,7 @@ export function MissionPlannerView({ config, setConfig }: Props) {
   const [gpsWaypointName, setGpsWaypointName] = useState("");
   const [missionItems, setMissionItems] = useState<MissionItem[]>(() => {
     const saved = config.missionPlan?.waypoints ?? [];
-    if (!saved.length) return DEFAULT_MISSION;
+    if (!saved.length) return [];
     return saved.map((point, index) => ({
       id: point.id,
       type: "waypoint" as const,
@@ -86,7 +97,7 @@ export function MissionPlannerView({ config, setConfig }: Props) {
       action: point.action,
     }));
   });
-  const [selectedItemId, setSelectedItemId] = useState<string>(() => config.missionPlan?.waypoints[0]?.id ?? "survey");
+  const [selectedItemId, setSelectedItemId] = useState<string>(() => config.missionPlan?.waypoints[0]?.id ?? "");
   const [hasUserEditedMission, setHasUserEditedMission] = useState(false);
   const [fencePoints, setFencePoints] = useState<Array<{ id: string; name: string; lat: number; lng: number; approximate: boolean }>>([]);
   const [rallyPoints, setRallyPoints] = useState<Array<{ id: string; name: string; lat: number; lng: number; approximate: boolean }>>([]);
@@ -98,19 +109,20 @@ export function MissionPlannerView({ config, setConfig }: Props) {
   const [telemetry, setTelemetry] = useState({
     alt: 232.9, speed: 0, heading: 0, battery: 100, voltage: 22.4, gps: 14, hdop: 0.8, rssi: -52,
   });
-  const [vehicleStatus] = useState<"ready" | "hold" | "disarmed">("disarmed");
+  const [flightPreviewRunning, setFlightPreviewRunning] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState("");
   const [zoom, setZoom] = useState(17);
-  const [center, setCenter] = useState(PARIS_CENTER);
+  const [center, setCenter] = useState(() => {
+    const first = config.missionPlan?.waypoints[0];
+    return first?.latitude != null && first.longitude != null ? { lat: first.latitude, lng: first.longitude } : { lat: 0, lng: 0 };
+  });
 
   // ── Modern layer mode (satellite / tactical / AI navigation) ──
   const [plannerLayerMode, setPlannerLayerMode] = useState<PlannerLayerMode>("satellite");
   // ── AI navigation: synthetic radar, suggested waypoints, trajectory optimization ──
   const [aiSuggestions, setAiSuggestions] = useState<Array<{ lat: number; lng: number; reason: string; originalId?: string }>>([]);
   const [aiOptimized, setAiOptimized] = useState(false);
-  const [aiObstacles, setAiObstacles] = useState<Array<{ lat: number; lng: number; radiusM: number; label: string }>>([
-    { lat: 48.8572, lng: 2.3530, radiusM: 60, label: "Tour antenne (virtuelle)" },
-    { lat: 48.8560, lng: 2.3548, radiusM: 40, label: "Ligne HT (virtuelle)" },
-  ]);
+  const [aiObstacles, setAiObstacles] = useState<Array<{ lat: number; lng: number; radiusM: number; label: string }>>([]);
 
   // ── Convert MissionItems to OpenStreetMapView route points ──
   const mapPoints = useMemo(() => missionItems
@@ -180,12 +192,13 @@ export function MissionPlannerView({ config, setConfig }: Props) {
       setTelemetry(prev => ({
         ...prev,
         alt: 232.9 + Math.sin(Date.now() / 3000) * 2,
-        heading: (prev.heading + 0.5) % 360,
-        battery: Math.max(0, prev.battery - 0.001),
+        speed: flightPreviewRunning ? Math.min(localCruiseSpeedKmh / 3.6, 80) : 0,
+        heading: flightPreviewRunning ? (prev.heading + 0.5) % 360 : prev.heading,
+        battery: flightPreviewRunning ? Math.max(0, prev.battery - 0.01) : prev.battery,
       }));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [flightPreviewRunning, localCruiseSpeedKmh]);
 
   // ── Waypoint / mission item handlers ──
   const addWaypoint = useCallback((lat: number, lng: number) => {
@@ -360,8 +373,45 @@ export function MissionPlannerView({ config, setConfig }: Props) {
     toast.success(t("Itinéraire local appliqué au plan"));
   };
 
-  const handleUpload = () => toast.error(t("Téléversement indisponible dans le planificateur local"), { description: t("Le plan reste local; aucune mission n’a été envoyée à un véhicule.") });
-  const handleCenter = () => setCenter(PARIS_CENTER);
+  const downloadJson = (filename: string, payload: unknown) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+  const handleUpload = () => {
+    downloadJson("aeromind-mission-plan.json", buildMissionPlannerSnapshot(config, missionItems, fencePoints, rallyPoints, surveyParams));
+    toast.success(t("Plan local exporté"), { description: t("Le fichier JSON a été téléchargé; aucune mission n’a été envoyée à un véhicule.") });
+  };
+  const handleFlightPreview = () => {
+    setFlightPreviewRunning(value => !value);
+    toast.info(flightPreviewRunning ? t("Aperçu de vol arrêté") : t("Aperçu de vol local démarré"), { description: t("Télémétrie synthétique uniquement; aucune commande matérielle.") });
+  };
+  const handleLocalAnalysis = () => {
+    const surveyCount = missionItems.filter(item => item.type === "survey").length;
+    const summary = `${missionItems.length} waypoint(s) · ${Math.round(routeDistanceM)} m · ${surveyCount} survey · ${fencePoints.length} limite(s) · ${rallyPoints.length} rally`;
+    setAnalysisStatus(summary);
+    toast.success(t("Analyse locale terminée"), { description: summary });
+  };
+  const handleFlightLog = () => {
+    downloadJson("aeromind-flight-log.json", {
+      format: "aeromind-flight-log/local-v1",
+      exportedAt: new Date().toISOString(),
+      previewRunning: flightPreviewRunning,
+      telemetry,
+      analysis: analysisStatus || "Aucune analyse lancée",
+      routeDistanceM,
+      routeDurationMin,
+    });
+    toast.success(t("Journal local exporté"), { description: t("Le journal de télémétrie synthétique a été téléchargé.") });
+  };
+  const handleCenter = () => {
+    const first = missionItems.find(item => item.lat !== 0 || item.lng !== 0);
+    setCenter(first ? { lat: first.lat, lng: first.lng } : { lat: 0, lng: 0 });
+  };
   const handleClearSurvey = () => {
     surveyCornersRef.current = [];
     setMissionItems(prev => prev.filter(item => item.type !== "survey"));
@@ -369,10 +419,8 @@ export function MissionPlannerView({ config, setConfig }: Props) {
   };
   const handleClearMission = () => {
     setHasUserEditedMission(true);
-    setMissionItems([
-      { id: "start", type: "start", name: "Mission Start", lat: 48.8566, lng: 2.3522, alt: 0, detail: "Point de départ" },
-      { id: "land", type: "land", name: "Land", lat: 48.8566, lng: 2.3522, alt: 0, detail: "RTL" },
-    ]);
+    setMissionItems([]);
+    setCenter({ lat: 0, lng: 0 });
     setAiSuggestions([]);
     setAiOptimized(false);
     toast.success(t("Mission réinitialisée"));
@@ -422,12 +470,12 @@ export function MissionPlannerView({ config, setConfig }: Props) {
         <div className="mp-vehicle">
           <div className="mp-v-icon"><Plane size={16} /></div>
           <div className="mp-v-info">
-            <div className="mp-v-name">Vehicle 1</div>
-            <div className="mp-v-type">{t("Multirotor")}</div>
+            <div className="mp-v-name" title={activeProfile?.mission}>{activeDroneLabel}</div>
+            <div className="mp-v-type">{activeProfile?.modelType ?? config.airframe ?? t("Architecture en attente")}</div>
           </div>
         </div>
-        <div className={`mp-pill ${vehicleStatus === "ready" ? "green" : vehicleStatus === "hold" ? "amber" : "gray"}`}>
-          <span className="mp-dot pulse" /> {vehicleStatus === "ready" ? t("Ready to fly") : vehicleStatus === "hold" ? "Hold" : t("Disarmed")}
+        <div className={`mp-pill ${flightPreviewRunning ? "green" : "gray"}`}>
+          <span className="mp-dot pulse" /> {flightPreviewRunning ? t("Aperçu en cours") : t("Aperçu arrêté")}
         </div>
         <div className="mp-telem">
           <div className="mp-telem-item"><span className="label">{t("Distance")}</span><span className="value">7 407 m</span></div>
@@ -439,21 +487,21 @@ export function MissionPlannerView({ config, setConfig }: Props) {
           <div className="mp-telem-item"><span className="label">HDOP</span><span className="value">{telemetry.hdop}</span></div>
         </div>
         <div className="mp-spacer" />
-        <button className="mp-upload-btn" onClick={handleUpload} title={t("Plan local uniquement; téléversement non disponible")}><Upload size={14} /> {t("Upload Required · indisponible")}</button>
+        <button className="mp-upload-btn" onClick={handleUpload} title={t("Exporter le plan local au format JSON")}><Upload size={14} /> {t("Exporter le plan")}</button>
       </div>
 
       {/* Sub-toolbar */}
       <div className="mp-subtoolbar">
         <button className={`mp-tb-btn ${activeTab === "mission" ? "active" : ""}`} onClick={() => setActiveTab("mission")}><Navigation size={14} /> {t("Plan")}</button>
         <button className={`mp-tb-btn ${activeTab === "ai" ? "active" : ""}`} onClick={() => setActiveTab("ai")}><BrainCircuit size={14} /> {t("Navigation IA")}</button>
-        <button className="mp-tb-btn" disabled title={t("Contrôle de vol indisponible dans ce planificateur local")}><Crosshair size={14} /> {t("Fly · indisponible")}</button>
-        <button className="mp-tb-btn" disabled title={t("Analyse complète non implémentée dans cette vue")}><Activity size={14} /> {t("Analyse · indisponible")}</button>
+        <button className={`mp-tb-btn ${flightPreviewRunning ? "active" : ""}`} onClick={handleFlightPreview} title={t("Aperçu de vol simulé localement")}><Crosshair size={14} /> {flightPreviewRunning ? t("Arrêter l’aperçu") : t("Aperçu de vol")}</button>
+        <button className="mp-tb-btn" onClick={handleLocalAnalysis} title={t("Analyse locale du plan")}><Activity size={14} /> {t("Analyser")}</button>
         <div className="mp-tb-sep" />
         <span className="mp-coord">LAT <b>{center.lat.toFixed(4)}°N</b> · LON <b>{center.lng.toFixed(4)}°E</b> · ZOOM <b>{zoom}</b></span>
         <div className="mp-spacer" />
         <button className="mp-tb-btn" onClick={handleClearSurvey}><MapPinned size={14} /> {t("Effacer survey")}</button>
         <button className="mp-tb-btn" onClick={handleClearMission}><Spline size={14} /> {t("Effacer mission")}</button>
-        <button className="mp-tb-btn" disabled title={t("Journal de vol non disponible dans cette vue")}><SettingsIcon size={14} /> {t("Journal · indisponible")}</button>
+        <button className="mp-tb-btn" onClick={handleFlightLog} title={t("Exporter le journal local")}><SettingsIcon size={14} /> {t("Exporter journal")}</button>
       </div>
 
       {/* Layer mode selector — modern map selection (satellite / tactical / AI) */}

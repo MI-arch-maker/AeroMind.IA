@@ -202,7 +202,7 @@ def _review_transition(db: Session, row: CommandRequestRecord, actor: dict, expe
 
 
 @router.get("/requests")
-def list_requests(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def list_requests(aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     rows = db.scalars(select(CommandRequestRecord).where(
         CommandRequestRecord.user_id == actor["id"]
@@ -213,7 +213,7 @@ def list_requests(aeromind_session: str | None = Cookie(default=None, convert_un
 
 
 @router.get("/approvals")
-def list_second_approval_requests(aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def list_second_approval_requests(aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     if actor.get("role") not in REVIEWER_ROLES:
         raise HTTPException(403, "A verified AeroMind reviewer role is required for the second approval")
@@ -228,7 +228,7 @@ def list_second_approval_requests(aeromind_session: str | None = Cookie(default=
 
 
 @router.post("/requests", status_code=201)
-def prepare_request(body: PrepareRequest, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def prepare_request(body: PrepareRequest, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     if body.command not in COMMANDS:
         raise HTTPException(422, "Only declared simulation-only commands are accepted")
@@ -258,7 +258,7 @@ def prepare_request(body: PrepareRequest, aeromind_session: str | None = Cookie(
 
 
 @router.post("/requests/{request_id}/present")
-def present_request(request_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def present_request(request_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     row = _owned(db, actor["id"], request_id)
     _expire_if_needed(db, row, actor)
@@ -274,7 +274,7 @@ def present_request(request_id: str, aeromind_session: str | None = Cookie(defau
 
 
 @router.post("/requests/{request_id}/approve")
-def approve_request(request_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def approve_request(request_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     row = _owned(db, actor["id"], request_id)
     _expire_if_needed(db, row, actor)
@@ -291,7 +291,7 @@ def approve_request(request_id: str, aeromind_session: str | None = Cookie(defau
 
 
 @router.post("/requests/{request_id}/approve-second")
-def approve_second_request(request_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def approve_second_request(request_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     if actor.get("role") not in REVIEWER_ROLES:
         raise HTTPException(403, "A verified AeroMind reviewer role is required for the second approval")
@@ -321,7 +321,7 @@ def approve_second_request(request_id: str, aeromind_session: str | None = Cooki
 
 
 @router.post("/requests/{request_id}/reject-second")
-def reject_second_request(request_id: str, body: DecisionInput, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def reject_second_request(request_id: str, body: DecisionInput, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     if actor.get("role") not in REVIEWER_ROLES:
         raise HTTPException(403, "A verified AeroMind reviewer role is required for the second decision")
@@ -340,7 +340,7 @@ def reject_second_request(request_id: str, body: DecisionInput, aeromind_session
 
 
 @router.post("/requests/{request_id}/reject")
-def reject_request(request_id: str, body: DecisionInput, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def reject_request(request_id: str, body: DecisionInput, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     row = _owned(db, actor["id"], request_id)
     _expire_if_needed(db, row, actor)
@@ -352,7 +352,7 @@ def reject_request(request_id: str, body: DecisionInput, aeromind_session: str |
 
 
 @router.post("/requests/{request_id}/cancel")
-def cancel_request(request_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def cancel_request(request_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     row = _owned(db, actor["id"], request_id)
     _expire_if_needed(db, row, actor)
@@ -363,7 +363,7 @@ def cancel_request(request_id: str, aeromind_session: str | None = Cookie(defaul
 
 
 @router.post("/requests/{request_id}/execute-simulation")
-def execute_simulation(request_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def execute_simulation(request_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     row = _owned(db, actor["id"], request_id)
     _expire_if_needed(db, row, actor)
@@ -390,7 +390,7 @@ def execute_simulation(request_id: str, aeromind_session: str | None = Cookie(de
 
 
 @router.get("/requests/{request_id}")
-def read_request(request_id: str, aeromind_session: str | None = Cookie(default=None, convert_underscores=False), db: Session = Depends(get_db)):
+def read_request(request_id: str, aeromind_session: str | None = Cookie(default=None), db: Session = Depends(get_db)):
     actor = _user(aeromind_session, db)
     row = _owned(db, actor["id"], request_id)
     _expire_if_needed(db, row, actor)

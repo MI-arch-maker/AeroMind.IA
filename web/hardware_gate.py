@@ -106,6 +106,16 @@ def _ensure_hardware_gate_state(
     return row, data, True
 
 
+def _current_active_n3_arm_event(arm_events: Any) -> dict[str, Any] | None:
+    """Return the latest N3 arm event only when its current state is active."""
+    if not isinstance(arm_events, list):
+        return None
+    for event in reversed(arm_events):
+        if isinstance(event, dict) and event.get("action") == "arm":
+            return event if event.get("active") is True else None
+    return None
+
+
 def _evaluate_hardware_conditions(
     db: Session,
     project: Project,
@@ -121,12 +131,8 @@ def _evaluate_hardware_conditions(
     from .labbench import PER_DRONE_GATE_KIND, _per_drone_gate_rows
     virtual_n3_armed = False
     for _row, _data, _drone_id in _per_drone_gate_rows(db, project.id, user["id"]):
-        arm_events = _data.get("armEvents", [])
-        if isinstance(arm_events, list):
-            for ev in arm_events:
-                if isinstance(ev, dict) and ev.get("action") == "arm" and ev.get("active") is True:
-                    virtual_n3_armed = True
-                    break
+        if _current_active_n3_arm_event(_data.get("armEvents", [])) is not None:
+            virtual_n3_armed = True
         if virtual_n3_armed:
             break
     conditions["virtual_n3_armed"] = virtual_n3_armed
@@ -258,14 +264,13 @@ def sign_hardware_review(
     # Cross-check reviewer_id != operator who armed N3
     from .labbench import PER_DRONE_GATE_KIND, _per_drone_gate_rows
     for _row, _data, _drone_id in _per_drone_gate_rows(db, project.id, user["id"]):
-        for ev in _data.get("armEvents", []):
-            if isinstance(ev, dict) and ev.get("action") == "arm" and ev.get("active") is True:
-                if reviewer_id == ev.get("actorId"):
-                    raise LabBenchError(
-                        403,
-                        "REVIEWER_MUST_DIFFER",
-                        "Le reviewer hardware doit être différent de l'opérateur qui a armé le N3 virtuel (revue indépendante)",
-                    )
+        active_arm_event = _current_active_n3_arm_event(_data.get("armEvents", []))
+        if active_arm_event is not None and reviewer_id == active_arm_event.get("actorId"):
+            raise LabBenchError(
+                403,
+                "REVIEWER_MUST_DIFFER",
+                "Le reviewer hardware doit être différent de l'opérateur qui a armé le N3 virtuel (revue indépendante)",
+            )
 
     review_token_audit_hash = hashlib.sha256(
         str(payload.get("reviewToken") or "").encode("utf-8")
@@ -314,6 +319,41 @@ def sign_hardware_review(
         "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
+
+
+def _require_g0_g5_approved(db: Session, project_id: str) -> None:
+    """Require all validation gates; inability to read them is a refusal."""
+    try:
+        from .canonical_models import GateValidation
+        from sqlalchemy import select as _select
+
+        required_gates = {
+            "G0_gel", "G1_securite", "G2_fiabilite",
+            "G3_banc", "G4_qualification", "G5_exploitation",
+        }
+        approved = {
+            row.gate for row in db.scalars(
+                _select(GateValidation).where(
+                    GateValidation.project_id == project_id,
+                    GateValidation.state == "approved",
+                )
+            )
+        }
+        missing = required_gates - approved
+        if missing:
+            raise LabBenchError(
+                412, "GATE_NOT_READY",
+                f"Gates requises non approuvées pour ce projet: {sorted(missing)}. "
+                "EXIGENCE C-001 du cahier des charges.",
+            )
+    except LabBenchError:
+        raise
+    except Exception as exc:
+        raise LabBenchError(
+            412, "GATE_CHECK_FAILED",
+            f"Vérification G0-G5 impossible: {exc}. "
+            "Assurez-vous que les migrations de validation sont appliquées.",
+        ) from exc
 
 
 def issue_hardware_confirmation_token(
@@ -366,49 +406,7 @@ def issue_hardware_confirmation_token(
     # validation G0 à G5"). The previous code checked only N3+review+pool,
     # which is a subset smaller than G0-G5. We now also require all 6 gates
     # to be in state='approved' for the project.
-    try:
-        from .canonical_models import GateValidation
-        from sqlalchemy import select as _select
-        required_gates = {
-            "G0_gel", "G1_securite", "G2_fiabilite",
-            "G3_banc", "G4_qualification", "G5_exploitation",
-        }
-        approved = {
-            row.gate for row in db.scalars(
-                _select(GateValidation).where(
-                    GateValidation.project_id == project.id,
-                    GateValidation.state == "approved",
-                )
-            )
-        }
-        missing = required_gates - approved
-        if missing:
-            raise LabBenchError(
-                412, "GATE_NOT_READY",
-                f"Gates requises non approuvées pour ce projet: {sorted(missing)}. "
-                f"EXIGENCE C-001 du cahier des charges.",
-            )
-    except LabBenchError:
-        raise  # Re-raise our own gate errors verbatim
-    except Exception as e:
-        # P1-06 fix: fail-CLOSED in production (was fail-open).
-        # If GateValidation table is missing (migration not run), we still
-        # raise in production — the operator MUST run migrations before any
-        # hardware token can be issued. In development only, log and continue.
-        import os as _os
-        import logging
-        _env = _os.environ.get("AEROMIND_ENV", "development")
-        if _env == "production":
-            raise LabBenchError(
-                412, "GATE_CHECK_FAILED",
-                f"Vérification G0-G5 impossible en production: {e}. "
-                "Assurez-vous que migrations/2026-10-25_canonical_labbench_schema.sql est appliquée.",
-            ) from e
-        logging.getLogger(__name__).warning(
-            "P0-08: Could not verify G0-G5 gates for project %s: %s (dev mode — fail-open). "
-            "Ensure migrations/2026-10-25_canonical_labbench_schema.sql is applied.",
-            project.id, e,
-        )
+    _require_g0_g5_approved(db, project.id)
 
     # V5 — extract the authenticated reviewer_id from the latest reviewEvent.
     # The sign_hardware_review function stores reviewerId (authenticated
@@ -477,134 +475,48 @@ def issue_hardware_confirmation_token(
     }
 
 
-def consume_hardware_confirmation_token(token: str, command: str) -> HardwareConfirmation:
-    """Atomically consume a hardware confirmation token (V5 R-02).
+def consume_hardware_confirmation_token(
+    token: str,
+    command: str,
+    *,
+    actor_id: str,
+    project_id: str,
+    drone_id: str,
+    params: dict[str, Any],
+) -> HardwareConfirmation:
+    """Consume only a canonical DB token after binding every request field.
 
-    V5 — the token is split into (token_id, signature) and the canonical
-    :func:`labbench_auth.consume_hardware_token` is invoked. That function
-    performs an atomic UPDATE WHERE consumed_at IS NULL, verifies the HMAC
-    signature, expiry, project/drone/command/params binding, and audit-logs
-    the decision. The in-memory ``_tokens`` dict is consulted ONLY as a
-    fallback for backwards compatibility with the V3.1 e-stop path that
-    injected tokens directly.
-
-    Raises LabBenchError(TOKEN_INVALID / TOKEN_ALREADY_USED / TOKEN_EXPIRED /
-    TOKEN_CONTEXT_MISMATCH) on any failure.
+    Context is mandatory: legacy/in-memory confirmations cannot authorize a
+    physical command. The canonical consumer compares the presented signature,
+    expiry, actor, project, drone, exact command and parameter hash before its
+    atomic single-use update.
     """
-    # V5 canonical path: split operator_token into (token_id, signature)
-    if "." in token:
+    from .labbench_auth import consume_hardware_token
+
+    if not all((actor_id, project_id, drone_id, command)) or not isinstance(params, dict):
+        raise LabBenchError(400, "TOKEN_CONTEXT_REQUIRED", "Contexte acteur/projet/drone/commande/paramètres requis")
+    try:
         token_id, signature = token.split(".", 1)
-        # We need actor_id/project_id/drone_id for context verification, but
-        # the caller (authorize_physical_command) only passes (token, command).
-        # The canonical consume_hardware_token reads the DB row to recover
-        # context, so we pass empty strings for the context fields and let
-        # the DB lookup drive the verification. The signature is verified
-        # against the DB row's stored signature.
-        from .database import SessionLocal
-        from .canonical_models import HardwareToken as _HT
-        from sqlalchemy import select, update
-        import hmac as _hmac
-        import hashlib as _hashlib
-        from .labbench_auth import _hmac_secret
-        with SessionLocal() as db:
-            rec = db.scalar(select(_HT).where(_HT.id == token_id))
-            if rec is None:
-                raise LabBenchError(401, "TOKEN_INVALID", "Jeton hardware introuvable en DB")
-            if rec.consumed_at is not None:
-                raise LabBenchError(409, "TOKEN_ALREADY_USED", "Jeton déjà consommé (rejeu refusé)")
-            # SQLite returns naive datetimes; normalize to UTC for comparison.
-            expires_at = rec.expires_at
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=UTC)
-            if datetime.now(UTC) >= expires_at:
-                raise LabBenchError(401, "TOKEN_EXPIRED", "Jeton expiré")
-            # Verify HMAC signature — the signature was computed at issuance
-            # time using rec.command (the stored command), NOT the requested
-            # command. So we sign with rec.command here. The requested command
-            # is checked against rec.command BELOW (TOKEN_COMMAND_MISMATCH).
-            sig_payload = f"{token_id}|{rec.project_id}|{rec.drone_id}|{rec.command}|{rec.params_hash}|{expires_at.isoformat()}"
-            expected_sig = _hmac.new(_hmac_secret(), sig_payload.encode(), _hashlib.sha256).hexdigest()
-            if not _hmac.compare_digest(expected_sig, signature):
-                raise LabBenchError(401, "TOKEN_SIGNATURE_INVALID", "Signature HMAC invalide")
-            # Now verify the requested command matches the stored command.
-            if rec.command != command:
-                raise LabBenchError(403, "TOKEN_COMMAND_MISMATCH", "Jeton lié à une autre commande")
-            # Atomic consumption: UPDATE WHERE consumed_at IS NULL
-            rowcount = db.execute(
-                update(_HT)
-                .where(_HT.id == token_id, _HT.consumed_at.is_(None))
-                .values(consumed_at=datetime.now(UTC))
-            ).rowcount
-            db.commit()
-            if rowcount == 0:
-                # Lost the race — another worker consumed it first.
-                raise LabBenchError(409, "TOKEN_ALREADY_USED", "Jeton consommé par un autre worker (race)")
-            issued_at = rec.issued_at
-            if issued_at.tzinfo is None:
-                issued_at = issued_at.replace(tzinfo=UTC)
-            return HardwareConfirmation(
-                token=token,
-                project_id=rec.project_id,
-                drone_id=rec.drone_id,
-                reviewer=rec.reviewer_id,
-                issued_at=issued_at.isoformat() if issued_at else "",
-                consumed=True,
-                consumed_at=datetime.now(UTC).isoformat(),
-                command=command,
-            )
-    # Backwards-compat: in-memory path (V3.1 e-stop injected tokens)
-    with _tokens_lock:
-        confirmation = _tokens.get(token)
-        if confirmation is None:
-            raise LabBenchError(401, "TOKEN_INVALID", "Jeton hardware invalide")
-        if confirmation.consumed:
-            raise LabBenchError(409, "TOKEN_ALREADY_USED", "Jeton hardware déjà consommé (single-use)")
-        # CAHIER DES CHARGES — "pas de signature erronées":
-        # Verify the requested command matches the token's bound command.
-        # Previously the in-memory path OVERWROTE confirmation.command without
-        # checking — accepting a token issued for NAV_LAND to send NAV_TAKEOFF.
-        if confirmation.command and confirmation.command != command:
-            raise LabBenchError(403, "TOKEN_COMMAND_MISMATCH",
-                f"Jeton in-memory lié à '{confirmation.command}', requis '{command}' — mismatch (CAHIER DES CHARGES: pas de signature erronées)")
-        confirmation.consumed = True
-        confirmation.consumed_at = datetime.now(UTC).isoformat()
-        confirmation.command = command
-        return confirmation
+    except (AttributeError, ValueError):
+        raise LabBenchError(401, "TOKEN_INVALID", "Jeton matériel DB invalide")
+    if not token_id or not signature:
+        raise LabBenchError(401, "TOKEN_INVALID", "Jeton matériel DB invalide")
+    if not consume_hardware_token(
+        token_id=token_id, presented_signature=signature, project_id=project_id,
+        drone_id=drone_id, actor_id=actor_id, command=command, params=params,
+    ):
+        raise LabBenchError(401, "TOKEN_INVALID", "Jeton invalide ou contexte non autorisé")
+    # Metadata only; authorization has already been decided atomically by DB.
+    return HardwareConfirmation(
+        token=token, project_id=project_id, drone_id=drone_id,
+        reviewer="db-confirmed", issued_at="", consumed=True,
+        consumed_at=datetime.now(UTC).isoformat(), command=command,
+    )
 
 
 def unconsume_hardware_confirmation_token(token: str) -> bool:
-    """P0-09 fix — release a consumed token if the MAVLink send failed.
-
-    The token consumption (Gate 3b) happens BEFORE the MAVLink frame is sent.
-    If the send fails (network timeout, connection refused), the operator
-    would lose the token with no replay path — forcing a full G0-G5
-    re-approval for an emergency NAV_LAND.
-
-    This function clears ``consumed_at`` so the token can be replayed within
-    its remaining TTL. It is called by :meth:`MavlinkCommandPilot.send_command`
-    when the MAVLink transport fails.
-
-    Returns True if the token was successfully un-consumed, False otherwise.
-    Only works for DB-backed tokens (the canonical V5 path).
-    """
-    if "." not in token:
-        # In-memory token — cannot un-consume (no persistence)
-        return False
-    token_id, _ = token.split(".", 1)
-    try:
-        from .database import SessionLocal
-        from .canonical_models import HardwareToken as _HT
-        from sqlalchemy import update
-        with SessionLocal() as db:
-            rowcount = db.execute(
-                update(_HT)
-                .where(_HT.id == token_id, _HT.consumed_at.is_not(None))
-                .values(consumed_at=None)
-            ).rowcount
-            db.commit()
-            return rowcount > 0
-    except Exception:
-        return False
+    """Tokens are immutable single-use authorizations; they are never reopened."""
+    return False
 
 
 def mark_pool_drone_registered(project_id: str, registered: bool) -> None:

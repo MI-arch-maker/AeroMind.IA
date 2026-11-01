@@ -138,9 +138,12 @@ class Settings(BaseSettings):
             issuer = self.oidc_issuer.strip().strip('"\'')
             if not issuer.startswith(('http://', 'https://')):
                 issuer = f'https://{issuer}'
-            return {'issuer': issuer.rstrip('/'), 'client_id': self.oidc_client_id, 'client_secret': self.oidc_client_secret, 'redirect_uri': self.oidc_redirect_uri}
+            issuer = issuer.rstrip('/')
+            tenant_id = self.entra_tenant_id or issuer.split('/login.microsoftonline.com/', 1)[-1].split('/', 1)[0]
+            return {'issuer': issuer, 'client_id': self.oidc_client_id, 'client_secret': self.oidc_client_secret, 'redirect_uri': self.oidc_redirect_uri, 'tenant_id': tenant_id}
         if self.entra_tenant_id and self.entra_client_id and self.entra_client_secret and self.entra_redirect_uri:
-            return {'issuer': f'https://login.microsoftonline.com/{self.entra_tenant_id}/v2.0', 'client_id': self.entra_client_id, 'client_secret': self.entra_client_secret, 'redirect_uri': self.entra_redirect_uri}
+            tenant_id = self.entra_tenant_id.strip()
+            return {'issuer': f'https://login.microsoftonline.com/{tenant_id}/v2.0', 'client_id': self.entra_client_id, 'client_secret': self.entra_client_secret, 'redirect_uri': self.entra_redirect_uri, 'tenant_id': tenant_id}
         return None
 
 

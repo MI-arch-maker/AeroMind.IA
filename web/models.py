@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
@@ -419,4 +419,122 @@ class AnonymousWorkspace(Base):
     origin_ip: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     __table_args__ = (
         Index("ix_anonymous_workspaces_expires", "expires_at"),
+    )
+
+
+class EngineeringArtifact(Base):
+    """Owner-scoped immutable source file metadata; bytes live outside webroot."""
+    __tablename__ = "engineering_artifacts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    cell_id: Mapped[str | None] = mapped_column(ForeignKey("drones.id", ondelete="SET NULL"), nullable=True, index=True)
+    profile_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    declared_mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    storage_key: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="quarantined", index=True)
+    scan_status: Mapped[str] = mapped_column(String(40), nullable=False, default="not_scanned")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EngineeringJob(Base):
+    """Persistent, idempotent import/export job with a server-generated report."""
+    __tablename__ = "engineering_jobs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    artifact_id: Mapped[str] = mapped_column(ForeignKey("engineering_artifacts.id", ondelete="CASCADE"), index=True)
+    source_job_id: Mapped[str | None] = mapped_column(ForeignKey("engineering_jobs.id", ondelete="SET NULL"), nullable=True, index=True)
+    job_type: Mapped[str] = mapped_column(String(32), nullable=False, default="import")
+    profile_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="queued", index=True)
+    phase: Mapped[str] = mapped_column(String(60), nullable=False, default="quarantine")
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    options_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    report_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    normalized_storage_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    output_storage_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        UniqueConstraint("user_id", "project_id", "idempotency_key", name="uq_engineering_job_idempotency"),
+        Index("ix_engineering_jobs_status_created", "status", "created_at"),
+        Index("ix_engineering_jobs_project_status", "project_id", "status"),
+    )
+
+
+class EngineeringSimulationRun(Base):
+    """Owner-scoped record for a deterministic, non-flight propulsion model run."""
+    __tablename__ = "engineering_simulation_runs"
+    __table_args__ = (
+        UniqueConstraint("user_id", "project_id", "idempotency_key", name="uq_engineering_simulation_idempotency"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    scenario_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    mode: Mapped[str] = mapped_column(String(32), nullable=False, default="internal")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="completed")
+    evidence_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    report_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+
+
+class InstitutionalCommandRequest(Base):
+    """A simulation-only command request progressing through GATE 01–05.
+
+    This record deliberately has no hardware token, transport URL or physical
+    output field. GATE 05 remains an institutional decision, not a transport
+    authorization or safety/regulatory certification.
+    """
+    __tablename__ = "institutional_command_requests"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    requester_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    virtual_command: Mapped[str] = mapped_column(String(80), nullable=False)
+    parameters_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    intent_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True, default="gate_01_pending")
+    simulation_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    transmission_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    transmission_signature: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    transmission_issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    gate_05_decided_by: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    gate_05_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    simulation_executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+    __table_args__ = (
+        Index("ix_institutional_request_project_status", "project_id", "status"),
+    )
+
+
+class InstitutionalGateEvent(Base):
+    """Append-only event stream for every institutional action and decision."""
+    __tablename__ = "institutional_gate_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    request_id: Mapped[str] = mapped_column(ForeignKey("institutional_command_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    gate: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    decision: Mapped[str] = mapped_column(String(12), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    actor_role: Mapped[str] = mapped_column(String(40), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    correlation_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
+    __table_args__ = (
+        Index("ix_institutional_events_request_time", "request_id", "occurred_at"),
+        Index("ix_institutional_events_project_time", "project_id", "occurred_at"),
     )

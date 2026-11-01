@@ -49,6 +49,7 @@ import {
 } from "../lib/droneParts";
 import { manufacturerPartCatalog } from "../lib/manufacturerParts";
 import { materialCatalog, materialLibrarySummary } from "../lib/materialLibrary";
+import EngineeringHub from "../modules/engineering-hub/EngineeringHub";
 import { ParametricDronePreview } from "../components/ParametricDronePreview";
 import { PhysicalDroneModel } from "../components/PhysicalDroneModel";
 import { EngineeringDronePlate } from "../components/EngineeringDronePlate";
@@ -56,7 +57,7 @@ import { DroneBehaviorPanel } from "../components/DroneBehaviorPanel";
 import { DroneSketchProWorkbench } from "../components/DroneSketchProWorkbench";
 import { VirtualAssemblyWorkshop } from "../components/VirtualAssemblyWorkshop";
 import { VirtualSimulationCenter } from "../components/VirtualSimulationCenter";
-import { AeroTestFieldStation } from "../components/AeroTestFieldStation";
+import { AeroMindOutdoorTestCenter } from "../components/AeroMindOutdoorTestCenter";
 import type { MissionTelemetryFrame } from "../lib/missionBridge";
 import {
   authorizeControlCommand,
@@ -80,7 +81,7 @@ import {
   calculateFlightPreview,
   createCompatibleDemoMissionPlan,
   defaultFlightControls,
-  defaultLocalMissionPlan,
+  emptyLocalMissionPlan,
   estimateLocalMissionDistanceKm,
   validateLocalMission,
   type MissionTemplateId,
@@ -130,6 +131,7 @@ import { FlightCommandDeck } from "../components/FlightCommandDeck";
 import { EngineeringStreamArchitecture } from "../components/EngineeringStreamArchitecture";
 import { EngineeringSyncStatus } from "../components/EngineeringSyncStatus";
 import { evaluateEngineeringSync } from "../lib/engineeringSyncHealth";
+import { resolveInitialHomeView } from "../lib/homeViewRouting";
 import {
   createWorkflowReport,
   demoScenario,
@@ -380,6 +382,7 @@ function downloadLocalFile(filename: string, content: string, type: string) {
 
 type ViewId =
   | "overview"
+  | "engineering-hub"
   | "requirements"
   | "concept"
   | "tools"
@@ -521,6 +524,14 @@ const navItems: Array<{
     primary: true,
   },
   {
+    id: "engineering-hub",
+    label: "AEROMIND HUB",
+    meta: "HUB",
+    icon: Orbit,
+    group: "CONCEVOIR",
+    primary: true,
+  },
+  {
     id: "design-studio",
     label: "Studio IDDS",
     meta: "CAD",
@@ -626,6 +637,7 @@ const navItems: Array<{
 const engineeringNavOrder: ViewId[] = [
   "overview",
   "requirements",
+  "engineering-hub",
   "catalog",
   "digital-twin",
   "design-studio",
@@ -708,7 +720,7 @@ const demoProject: ProjectRecord = {
     aeronauticalRole: "observation",
     integratedEquipmentIds: ["eo-gimbal", "rtk", "parachute"],
     flightControls: { ...defaultFlightControls },
-    missionPlan: { ...defaultLocalMissionPlan },
+    missionPlan: { ...emptyLocalMissionPlan },
   }),
   runId: "SIM-000",
 };
@@ -1571,6 +1583,13 @@ function ProjectSelector({
       <div className="project-mark">
         <span>A</span>
       </div>
+      <span
+        className="project-selector-status"
+        data-state={projects.length ? "synced" : "draft"}
+        aria-label={projects.length ? "Espace de travail synchronisé" : "Espace de travail local non synchronisé"}
+      >
+        {projects.length ? "ACTIVE WORKSPACE / SYNCED" : "WORKSPACE / LOCAL DRAFT"}
+      </span>
       <div className="project-selector-copy">
         <span className="project-selector-label">PROJET ACTIF</span>
         {projects.length ? (
@@ -1594,24 +1613,26 @@ function ProjectSelector({
             : "Créez votre espace de travail"}
         </small>
       </div>
-      <button
-        className="ghost-icon-button"
-        aria-label="Créer un nouveau projet"
-        title="Nouveau projet"
-        onClick={onCreate}
-      >
-        <Plus size={15} />
-      </button>
-      {projects.length > 0 && (
+      <div className="project-selector-actions">
         <button
           className="ghost-icon-button"
-          aria-label="Supprimer le projet actif"
-          title="Supprimer le projet actif"
-          onClick={onDelete}
+          aria-label="Créer un nouveau projet"
+          title="Nouveau projet"
+          onClick={onCreate}
         >
-          <Trash2 size={15} />
+          <Plus size={19} />
         </button>
-      )}
+        {projects.length > 0 && (
+          <button
+            className="ghost-icon-button"
+            aria-label="Supprimer le projet actif"
+            title="Supprimer le projet actif"
+            onClick={onDelete}
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -3343,10 +3364,10 @@ function ConceptView({
     ...config.flightControls,
   };
   const missionPlan: LocalMissionPlan = {
-    ...defaultLocalMissionPlan,
+    ...emptyLocalMissionPlan,
     ...config.missionPlan,
     waypoints:
-      config.missionPlan?.waypoints ?? defaultLocalMissionPlan.waypoints,
+      config.missionPlan?.waypoints ?? emptyLocalMissionPlan.waypoints,
   };
   const flightResponse = calculateFlightPreview(config, flightControls);
   const missionChecks = validateLocalMission(config, missionPlan);
@@ -7987,6 +8008,8 @@ function LiveSimulationView({
       config.altitudeM >= 5 &&
       config.cruiseSpeedKmh >= 5
   );
+  const TEST_DURATION_SECONDS = 90 * 60;
+  const formatLongClock = (seconds: number) => `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:${String(Math.floor(seconds) % 60).padStart(2, "0")}`;
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [mode, setMode] = useState<"manual" | "supervised" | "safe-return">(
@@ -8055,7 +8078,7 @@ function LiveSimulationView({
     setTestEvents(["Scénario réinitialisé · banc prêt"]);
   };
   const stepTest = () => {
-    setElapsed(value => Math.min(59.95, value + 1));
+    setElapsed(value => Math.min(TEST_DURATION_SECONDS, value + 1));
     setTestStep(value => value + 1);
     recordTest("Pas de simulation exécuté · télémétrie recalculée");
   };
@@ -8076,12 +8099,12 @@ function LiveSimulationView({
   useEffect(() => {
     if (!playing) return;
     const timer = window.setInterval(
-      () => setElapsed(value => (value + 0.05) % 60),
+      () => setElapsed(value => Math.min(TEST_DURATION_SECONDS, value + 0.05)),
       50
     );
     return () => window.clearInterval(timer);
   }, [playing]);
-  const phase = (elapsed / 60) * Math.PI * 2;
+  const phase = (elapsed / TEST_DURATION_SECONDS) * Math.PI * 2;
   const controlAuthority =
     mode === "manual" ? 1 : mode === "supervised" ? 0.35 : 0;
   const rollInput = stickRoll * controlAuthority;
@@ -8109,7 +8132,7 @@ function LiveSimulationView({
   );
   const battery = Math.max(
     0,
-    Math.round(100 - (elapsed / 60) * (100 - config.reserveFraction * 100))
+    Math.max(0, Math.round(100 - (elapsed / TEST_DURATION_SECONDS) * (100 - config.reserveFraction * 100)))
   );
   const heading =
     Math.round(((phase * 57.3 + 180 + rollInput * 0.45) % 360) + 360) % 360;
@@ -8353,18 +8376,11 @@ function LiveSimulationView({
                 {showOrbit && <circle cx="50" cy="50" r="31" fill="none" stroke="rgba(117,226,220,.25)" strokeDasharray="1 2" />}
                 {showOrbit && <path d="M22 52 C30 20 72 18 82 46 S68 79 45 72 S22 52 22 52" fill="none" stroke="#75e2dc" strokeWidth=".7" opacity=".55" />}
                 {showOrbit && <circle cx="50" cy="50" r="2" fill="#86d5a5" />}
-                {droneDesign && <g className={`trajectory-drone-model ${isWingedDrone ? "is-winged" : "is-multirotor"} ${isVtolDrone ? "is-vtol" : ""}`} filter="url(#droneGlow)" transform={`translate(${x} ${y}) rotate(${heading})`} aria-label={`Maquette ${droneLabel}`}>
-                  {isWingedDrone ? <g>
-                    <path className="trajectory-drone-wing" d="M0 -5.7L-7.6 -2.1L-7.4 -.8L-1.5 -.1L-4.2 3.6L-3.3 4.5L0 2.7L3.3 4.5L4.2 3.6L1.5 -.1L7.4 -.8L7.6 -2.1Z" />
-                    <path className="trajectory-drone-body" d="M0 -7.2L.9 -2.3L.9 3.2L0 6.5L-.9 3.2L-.9 -2.3Z" />
-                    <path className="trajectory-drone-canopy" d="M0 -3.5L.55 -1.1L0 -.4L-.55 -1.1Z" />
-                    {isVtolDrone && Array.from({ length: droneMotorCount }, (_, index) => { const angle = -Math.PI / 2 + index / droneMotorCount * Math.PI * 2; const mx = Math.cos(angle) * 5.6; const my = Math.sin(angle) * 3.8; return <circle key={index} className="trajectory-drone-rotor" cx={mx} cy={my} r="1" />; })}
-                  </g> : <g>
-                    {Array.from({ length: droneMotorCount }, (_, index) => { const angle = -Math.PI / 2 + index / droneMotorCount * Math.PI * 2; const mx = Math.cos(angle) * 5.8; const my = Math.sin(angle) * 4.2; return <g key={index}><line className="trajectory-drone-arm" x1="0" y1="0" x2={mx} y2={my} /><circle className="trajectory-drone-rotor" cx={mx} cy={my} r="1.35" /></g>; })}
-                    <path className="trajectory-drone-body" d="M0 -2.3L1.8 0L0 2.3L-1.8 0Z" />
-                    <circle className="trajectory-drone-canopy" cx="0" cy="-.6" r=".55" />
-                  </g>}
-                  <circle className="trajectory-drone-beacon" cx="0" cy="0" r=".62" />
+                {(droneDesign || !configured) && <g className={`trajectory-drone-model trajectory-drone-delta ${!droneDesign ? "is-reference" : ""}`} filter="url(#droneGlow)" transform={`translate(${x} ${y}) rotate(${heading}) scale(.28)`} aria-label={droneDesign ? `Silhouette delta de trajectoire ${droneLabel}` : "Silhouette delta de trajectoire de référence"}>
+                  <path className="trajectory-drone-delta-body" d="M0 -9.2 L7.1 5.7 L2.2 4.1 L0 7.8 L-2.2 4.1 L-7.1 5.7 Z" />
+                  <path className="trajectory-drone-delta-tip" d="M0 -12.3 L2.5 -6.6 L0 -3.4 L-2.5 -6.6 Z" />
+                  <path className="trajectory-drone-delta-spine" d="M0 -5.6 L0 5.2" />
+                  <circle className="trajectory-drone-beacon" cx="0" cy="5.8" r=".62" />
                 </g>}
               </g>
               <text x="4" y="8" fill="#829a9b" fontSize="3">
@@ -8380,6 +8396,12 @@ function LiveSimulationView({
               <span><b>ALT</b> {configured ? `${altitude} m` : "—"}</span>
               <span><b>SPD</b> {configured ? `${speed} km/h` : "—"}</span>
             </div>}
+          </div>
+          <div className="scenario-long-timeline" aria-label="Timeline de simulation de 90 minutes">
+            <div className="scenario-long-timeline-head"><span><strong>TIMELINE DE SCÉNARIO</strong> · durée longue</span><b>T+{formatLongClock(elapsed)} / 1:30:00</b></div>
+            <div className="scenario-long-timeline-scale"><span>0 min</span><span>30 min</span><span>60 min</span><span>90 min</span></div>
+            <input type="range" min="0" max={TEST_DURATION_SECONDS} step="1" value={elapsed} onChange={event => setElapsed(Number(event.target.value))} aria-label="Position dans la timeline de 90 minutes" />
+            <div className="scenario-long-timeline-phases"><span className={elapsed > TEST_DURATION_SECONDS * .12 ? "is-done" : ""}>PRÉVOL</span><span className={elapsed > TEST_DURATION_SECONDS * .22 ? "is-done" : ""}>DÉCOLLAGE</span><span className={elapsed > TEST_DURATION_SECONDS * .45 ? "is-done" : ""}>CROISIÈRE</span><span className={elapsed > TEST_DURATION_SECONDS * .78 ? "is-done" : ""}>RETOUR</span><span className={elapsed >= TEST_DURATION_SECONDS ? "is-done" : ""}>FIN</span></div>
           </div>
         </section>
         <aside className="live-metrics">
@@ -9010,6 +9032,7 @@ function MissionOperationsView({
   const [telemetryError, setTelemetryError] = useState("");
   const [mavlinkObserverStatus, setMavlinkObserverStatus] = useState("INACTIF");
   const [telemetry, setTelemetry] = useState<MissionTelemetry | null>(null);
+  const [virtualOnly, setVirtualOnly] = useState(true);
   const [telemetrySource, setTelemetrySource] = useState<
     "none" | "synthetic" | "wss" | "mavlink"
   >("none");
@@ -9018,6 +9041,26 @@ function MissionOperationsView({
     () => TELEMETRY_ACTIVATION_PROTOCOL.map(() => false)
   );
   const telemetryProtocolReady = areAllProtocolChecksAcknowledged(telemetryProtocolChecks);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/hardware/status", { credentials: "include", cache: "no-store" })
+      .then(async response => {
+        if (!response.ok) throw new Error("Hardware status unavailable");
+        return response.json();
+      })
+      .then(status => {
+        if (!active) return;
+        const isVirtualOnly = status?.virtualOnly !== false;
+        setVirtualOnly(isVirtualOnly);
+        setMavlinkObserverStatus(isVirtualOnly ? "DÉSACTIVÉ (VIRTUAL ONLY)" : "INACTIF");
+      })
+      .catch(() => {
+        if (!active) return;
+        setVirtualOnly(true);
+        setMavlinkObserverStatus("DÉSACTIVÉ (VIRTUAL ONLY)");
+      });
+    return () => { active = false; };
+  }, []);
   const [demoState, setDemoState] = useState<
     | "ready"
     | "running"
@@ -9109,7 +9152,7 @@ function MissionOperationsView({
     );
   };
   const missionPlan: LocalMissionPlan = {
-    ...defaultLocalMissionPlan,
+    ...emptyLocalMissionPlan,
     ...config.missionPlan,
     waypoints: config.missionPlan?.waypoints ?? [],
   };
@@ -9524,6 +9567,12 @@ function MissionOperationsView({
   };
 
   const connectMavlinkObserver = () => {
+    if (virtualOnly) {
+      setTelemetryState("error");
+      setTelemetryError("MAVLink est désactivé en mode VIRTUAL ONLY; aucune liaison physique ou observation distante n’est ouverte.");
+      setMavlinkObserverStatus("DÉSACTIVÉ (VIRTUAL ONLY)");
+      return;
+    }
     if (!telemetryProtocolReady || !telemetryConsent) {
       setTelemetryState("error");
       setTelemetryError("Connexion refusée : complétez le protocole humain et confirmez l’observation en lecture seule.");
@@ -9573,6 +9622,11 @@ function MissionOperationsView({
   };
 
   const connectTelemetry = () => {
+    if (virtualOnly) {
+      setTelemetryState("error");
+      setTelemetryError("Les connexions WSS externes sont désactivées en mode VIRTUAL ONLY; utilisez les flux synthétiques locaux.");
+      return;
+    }
     if (!telemetryProtocolReady || !telemetryConsent) {
       setTelemetryState("error");
       setTelemetryError("Connexion refusée : complétez le protocole humain et confirmez la réception en lecture seule.");
@@ -9877,7 +9931,7 @@ function MissionOperationsView({
       <SectionHeading
         eyebrow="OPS / OBSERVATION EXTERNE · TÉLÉMÉTRIE CONNECTABLE"
         title="Poste de commande de vol"
-        description="L’écran d’observation reçoit une source vidéo indépendante et pilote le scénario SITL à partir du plan de mission actif. Les commandes locales modifient réellement l’état virtuel, sans sortie vers un aéronef physique."
+        description="L’écran d’observation reçoit une source vidéo indépendante. Il ne modifie qu’un scénario de démonstration local fondé sur le plan de mission actif; les commandes locales mettent à jour l’état virtuel et le journal, sans connexion à un autopilote ni sortie vers un aéronef physique."
         action={
           <div className="mission-header-status">
           <span className="calculated-badge">DRONE ACTIF · {flightDesign?.label ?? config.designName ?? "À configurer"}</span>
@@ -10060,9 +10114,9 @@ function MissionOperationsView({
         <div>
           <strong>Frontière de contrôle {CONTROL_BOUNDARY.version}</strong>
           <span>
-            Mode actif : simulation / HIL lecture seule · armement, actionneurs,
-            téléversement et télémétrie sortante rejetés par contrat.
-          </span>
+            Mode actif : simulation logicielle VIRTUAL ONLY · HIL, sorties matérielles,
+            MAVLink physique et télémétrie externe désactivés par contrat.
+            </span>
         </div>
       </div>
       <div className="mission-live-grid">
@@ -10840,10 +10894,16 @@ function MissionOperationsView({
             </div>
             <Radio size={16} className="muted-icon" />
           </div>
+          {virtualOnly && (
+            <p className="mission-inline-error" role="status">
+              Mode VIRTUAL ONLY : les connexions MAVLink et WSS externes sont désactivées. Seules les données synthétiques locales sont disponibles.
+            </p>
+          )}
           <label className="mission-input-label">
             WebSocket sécurisé de télémétrie
             <input
               value={telemetryUrl}
+              disabled={virtualOnly}
               onChange={event => {
                 setTelemetryUrl(event.target.value);
                 setTelemetryConsent(false);
@@ -10854,7 +10914,7 @@ function MissionOperationsView({
               aria-label="URL de télémétrie WSS"
             />
           </label>
-          <fieldset className="mission-activation-protocol telemetry-activation-protocol">
+          <fieldset className="mission-activation-protocol telemetry-activation-protocol" disabled={virtualOnly}>
             <legend>Protocole humain d’activation · télémétrie entrante</legend>
             {TELEMETRY_ACTIVATION_PROTOCOL.map((item, index) => (
               <label className="mission-protocol-check" key={item.id}>
@@ -10880,7 +10940,7 @@ function MissionOperationsView({
             <input
               type="checkbox"
               checked={telemetryConsent}
-              disabled={!telemetryProtocolReady}
+              disabled={virtualOnly || !telemetryProtocolReady}
               onChange={event => setTelemetryConsent(telemetryProtocolReady && event.target.checked)}
             />
             <span>
@@ -10892,19 +10952,19 @@ function MissionOperationsView({
             <button
               className="secondary-button"
               onClick={connectMavlinkObserver}
-              disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title="Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule"
+              disabled={virtualOnly || !telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
+              title={virtualOnly ? "Désactivé en mode VIRTUAL ONLY" : "Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule"}
             >
-              <Radio size={14} /> Observer MAVLink
+              <Radio size={14} /> {virtualOnly ? "MAVLink désactivé" : "Observer MAVLink"}
             </button>
             <button
               className="secondary-button"
               onClick={connectTelemetry}
-              disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={!telemetryProtocolReady || !telemetryConsent ? "Checklist et autorisation humaine requises avant la réception WSS" : "Connecter en lecture seule"}
+              disabled={virtualOnly || !telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
+              title={virtualOnly ? "Désactivé en mode VIRTUAL ONLY" : !telemetryProtocolReady || !telemetryConsent ? "Checklist et autorisation humaine requises avant la réception WSS" : "Connecter en lecture seule"}
             >
               <Radio size={14} />{" "}
-              {telemetryState === "connecting"
+              {virtualOnly ? "WSS désactivé" : telemetryState === "connecting"
                 ? "Connexion…"
                 : "Connecter télémétrie"}
             </button>
@@ -11521,12 +11581,12 @@ function MissionOperationsView({
         <Info size={15} />
         <span>
           Un flux HLS, MP4/WebM ou WSS réel nécessite l’URL et les droits
-          d’accès de votre caméra/passerelle. Le poste pilote ici le plan de
-          mission SITL local : démarrage, pause, reprise, point suivant,
-          maintien, retour et atterrissage modifient l’état virtuel et le
-          journal. Aucune commande n’est envoyée à un aéronef physique.
-          Quitter cet onglet ferme la passerelle et arrête le flux ou la caméra
-          locale.
+          d’accès de votre caméra/passerelle. Seul un scénario de démonstration
+          local basé sur le plan de mission actif peut être exécuté ici :
+          démarrage, pause, reprise, point suivant, maintien, retour et
+          atterrissage modifient l’état virtuel et le journal. Aucune commande
+          n’est envoyée à un autopilote ni à un aéronef physique. Quitter cet
+          onglet ferme la passerelle et arrête le flux ou la caméra locale.
         </span>
       </div>
     </div>
@@ -11925,7 +11985,7 @@ function OperationsView({
   }));
   const [mode, setMode] = useState<AutonomyMode>("manual");
   const missionRoute = {
-    ...defaultLocalMissionPlan,
+    ...emptyLocalMissionPlan,
     ...config.missionPlan,
     waypoints: config.missionPlan?.waypoints ?? [],
   };
@@ -11971,7 +12031,7 @@ function OperationsView({
       altitudeM: next.maxAltitudeM,
       reserveFraction: next.minimumBatteryPercent / 100,
       missionPlan: {
-        ...defaultLocalMissionPlan,
+        ...emptyLocalMissionPlan,
         ...config.missionPlan,
         radiusKm: next.geofenceRadiusKm,
         lostLinkAction: next.returnOnLinkLoss ? "return" : "hold",
@@ -12995,17 +13055,9 @@ export default function Home() {
   const [runId, setRunId] = useState(initialState.runId);
   const [workflowRun, setWorkflowRun] = useState<WorkflowRun | null>(null);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
-  const [activeView, setActiveView] = useState<ViewId>(() => {
-    const requestedView = new URLSearchParams(window.location.search).get("view");
-    if (requestedView === "materials") return "materials";
-    if (requestedView === "satellite-nav") return "satellite-nav";
-    if (requestedView === "digital-twin" || requestedView === "tools" || requestedView === "inspector") return "digital-twin";
-    if (requestedView === "live") return "live";
-    if (requestedView === "simulation") return "simulation";
-    if (requestedView === "mission-center") return "mission-center";
-    if (requestedView === "labbench" || window.location.pathname === "/labbench") return "labbench";
-    return "overview";
-  });
+  const [activeView, setActiveView] = useState<ViewId>(() =>
+    resolveInitialHomeView(window.location.search, window.location.pathname) as ViewId,
+  );
   const [selectedComponent, setSelectedComponent] = useState("fuselage");
   const [rotation, setRotation] = useState(0);
   const [rotationX, setRotationX] = useState(52);
@@ -14041,8 +14093,8 @@ export default function Home() {
         ),
         flightControls: { ...defaultFlightControls },
         missionPlan: {
-          ...defaultLocalMissionPlan,
-          waypoints: defaultLocalMissionPlan.waypoints.map(item => ({ ...item })),
+          ...emptyLocalMissionPlan,
+          waypoints: emptyLocalMissionPlan.waypoints.map(item => ({ ...item })),
         },
       });
       if (hasActiveCell(current) || Number.isFinite(design.configuration.maxTakeoffKg)) return next;
@@ -14084,8 +14136,10 @@ export default function Home() {
       : config.engineeringSelection?.droneLabel ?? (config.platformProfile || config.airframe
         ? config.designName ?? config.platformProfile ?? config.airframe ?? "Drone actif"
         : "Aucun drone sélectionné");
-  const viewTitle = activeView === "overview"
-    ? tKey("home.screen.title")
+  const viewTitle = activeView === "engineering-hub"
+    ? "AEROMIND AEROSPACE ENGINEERING HUB"
+    : activeView === "overview"
+      ? tKey("home.screen.title")
     : activeView === "tools" || activeView === "inspector"
       ? "Digital Twin Explorer"
       : t(navItems.find(item => item.id === activeView)?.label ?? "Contrôle de configuration");
@@ -14420,6 +14474,17 @@ export default function Home() {
               >
                 <div className="workspace-window-inner">
                   <>
+                    {activeView === "engineering-hub" && (
+                      <EngineeringHub
+                        projectId={activeProjectId || undefined}
+                        projectName={project.name}
+                        cellName={cellIntegratedThisSession ? activeDroneLabel : "Aucun drone sélectionné"}
+                        runId={runId === "SIM-000" ? "Aucun run" : runId}
+                        serverPersisted={Boolean(authenticatedUser && serverProjectsQuery.isSuccess && !serverProjectsQuery.isFetching && projects.some(record => record.id === activeProjectId))}
+                        t={t}
+                        onOpen={navigateToView}
+                      />
+                    )}
                     {activeView === "requirements" && (
                       <RequirementsView
                         requirements={requirements}
@@ -14495,7 +14560,7 @@ export default function Home() {
                           versions={(serverVersionsQuery.data ?? []) as Array<{ id: number; version: string; createdAt: Date }>}
                           onRestoreVersion={restoreDesignVersion}
                         />
-                        <AeroTestFieldStation hasProject={Boolean(activeProjectId)} config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
+                        <AeroMindOutdoorTestCenter hasProject={Boolean(activeProjectId)} config={config} setConfig={setConfig} simulation={simulation} isRunning={isRunning} onRunSimulation={runSimulationNow} onOpenBuilder={() => setActiveView("design-studio")} />
                       </>
                     )}
                     {activeView === "command-center" && <HumanCommandCenter />}
@@ -14611,9 +14676,59 @@ export default function Home() {
                         config={config}
                         setConfig={setConfig}
                         hasProject={Boolean(activeProjectId)}
-                        onCommit={() => {
-                          // Trigger simulation refresh when params are committed
-                          void runSimulationNow(config);
+                        activeProfile={activeLibraryDesign}
+                        activeDroneLabel={activeDroneLabel}
+                        onCommit={async () => {
+                          if (!activeProjectId) throw new Error("Aucun projet actif à enregistrer.");
+                          const currentRecord: ProjectRecord = { id: activeProjectId, project, requirements, config, runId };
+                          const existingProjects = replaceExistingProjectSnapshot(projects, currentRecord);
+                          if (!existingProjects) throw new Error("Le projet actif n’existe plus dans le workspace; enregistrement refusé.");
+                          const payload = createWorkspaceSnapshot({
+                            ...currentRecord,
+                            projects: existingProjects,
+                            activeProjectId,
+                            source: "LOCAL",
+                            syncStatus: "LOCAL",
+                          });
+                          const generation = ++workspaceSaveGeneration.current;
+                          lastWorkspaceUpdatedAt.current = payload.updatedAt;
+                          setSyncNotice("");
+                          writeWorkspaceStorage(payload);
+                          if (suppressSyncBroadcast.current) suppressSyncBroadcast.current = false;
+                          else publishWorkspaceMessage(syncChannelRef.current, { type: "workspace", payload });
+
+                          if (!authenticatedUser && localServerHydrated.current) {
+                            const headers = anonymousWorkspaceHeaders();
+                            if (!headers) throw new Error("L’identifiant du workspace local est indisponible.");
+                            await workspaceSaveQueue(async () => {
+                              if (generation !== workspaceSaveGeneration.current) throw new Error("Une version plus récente du workspace a remplacé ce snapshot.");
+                              const response = await fetch("/api/local/workspace", {
+                                method: "PUT",
+                                headers: { "content-type": "application/json", ...headers },
+                                body: JSON.stringify({ workspace: payload }),
+                                credentials: "include",
+                              });
+                              if (!response.ok) {
+                                const body = await response.json().catch(() => null);
+                                throw new Error(body?.error?.message ?? body?.message ?? `Échec API workspace (${response.status}).`);
+                              }
+                            });
+                            setSaveState("saved");
+                            return { scope: "SERVER-ACK" as const };
+                          }
+
+                          if (authenticatedUser && serverProjectsQuery.isSuccess && !activeProjectId.startsWith("project-")) {
+                            await workspaceSaveQueue(async () => {
+                              if (generation !== workspaceSaveGeneration.current) throw new Error("Une version plus récente du workspace a remplacé ce snapshot.");
+                              await saveSnapshotMutation.mutateAsync({ id: activeProjectId, project, requirements, config, runId });
+                            });
+                            setSaveState("saved");
+                            void serverVersionsQuery.refetch();
+                            return { scope: "SERVER-ACK" as const };
+                          }
+
+                          setSaveState("saved");
+                          return { scope: "LOCAL" as const };
                         }}
                       />
                     )}
@@ -14621,6 +14736,8 @@ export default function Home() {
                       <MissionPlannerView
                         config={config}
                         setConfig={setConfig}
+                        activeProfile={activeLibraryDesign}
+                        activeDroneLabel={activeDroneLabel}
                       />
                     )}
                   </>

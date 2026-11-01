@@ -44,6 +44,12 @@ services:
       # multi-worker startup and to keep schema ownership in migrations.
       - key: AEROMIND_AUTO_CREATE_SCHEMA
         value: "false"
+      # Imports/exports remain fail-closed until a separate isolated worker and
+      # durable shared storage are provisioned; Render web disk is not assumed shared.
+      - key: AEROMIND_ENGINEERING_WORKER_ENABLED
+        value: "false"
+      - key: AEROMIND_ENGINEERING_INLINE_WORKER
+        value: "false"
       - key: PORT
         value: "10000"
       - key: DATABASE_URL

@@ -22,7 +22,8 @@ type RoutePoint = Coordinate & { id: string; name: string };
 type SavedRoute = { center: Coordinate; points: RoutePoint[] };
 type DemoStatus = "ready" | "running" | "paused" | "completed";
 
-const DEFAULT_CENTER = { lat: 48.8566, lng: 2.3522 };
+// Neutral renderer center only; it is never stored or treated as a mission destination.
+const DEFAULT_CENTER = { lat: 0, lng: 0 };
 const MAX_MERCATOR_LATITUDE = 85.05112878;
 const legacyKeyFor = (id: string) => `aeromind-satellite-planner-v2:${encodeURIComponent(id || "no-cell")}`;
 const keyFor = (userIdentity: string, id: string) => {
@@ -64,8 +65,8 @@ export function SatelliteNavigationView({ activeProfile, userIdentity = "local" 
   const [initial] = useState(() => readRoute(storageKey, userIdentity === "local" ? legacyKeyFor(designId) : undefined));
   const [center, setCenter] = useState<Coordinate>(initial.center);
   const [points, setPoints] = useState<RoutePoint[]>(initial.points);
-  const [latitude, setLatitude] = useState(String(initial.center.lat));
-  const [longitude, setLongitude] = useState(String(initial.center.lng));
+  const [latitude, setLatitude] = useState(initial.points.length ? String(initial.center.lat) : "");
+  const [longitude, setLongitude] = useState(initial.points.length ? String(initial.center.lng) : "");
   const [mapError, setMapError] = useState("");
   const [layerMode, setLayerMode] = useState<MapLayerMode>(() => new URLSearchParams(window.location.search).get("layer") === "satellite" ? "satellite" : "tactical");
   const [nightDisplay, setNightDisplay] = useState(false);
@@ -77,8 +78,8 @@ export function SatelliteNavigationView({ activeProfile, userIdentity = "local" 
     const saved = readRoute(storageKey, userIdentity === "local" ? legacyKeyFor(designId) : undefined);
     setCenter(saved.center);
     setPoints(saved.points);
-    setLatitude(String(saved.center.lat));
-    setLongitude(String(saved.center.lng));
+    setLatitude(saved.points.length ? String(saved.center.lat) : "");
+    setLongitude(saved.points.length ? String(saved.center.lng) : "");
     setMapError("");
     setDemoStatus("ready");
     setDemoProgress(0);
@@ -138,7 +139,7 @@ export function SatelliteNavigationView({ activeProfile, userIdentity = "local" 
   };
   const coordinateControls = (satelliteMode: boolean) => <section className={`satnav-coordinate-card ${satelliteMode ? "satnav-satellite-coordinate-card" : ""}`}>
     <div className="satnav-card-heading"><span>{satelliteMode ? "CENTRER L’IMAGERIE SATELLITE" : "CENTRE / AJOUT MANUEL"}</span><span>WGS 84</span></div>
-    <div className="satnav-coordinate-fields"><label>Latitude (°)<input type="text" inputMode="decimal" placeholder="48.8566" value={latitude} onChange={event => setLatitude(event.target.value)} aria-label="Latitude WGS84 en degrés décimaux" /></label><label>Longitude (°)<input type="text" inputMode="decimal" placeholder="2.3522" value={longitude} onChange={event => setLongitude(event.target.value)} aria-label="Longitude WGS84 en degrés décimaux" /></label></div>
+    <div className="satnav-coordinate-fields"><label>Latitude (°)<input type="text" inputMode="decimal" placeholder="Latitude WGS84" value={latitude} onChange={event => setLatitude(event.target.value)} aria-label="Latitude WGS84 en degrés décimaux" /></label><label>Longitude (°)<input type="text" inputMode="decimal" placeholder="Longitude WGS84" value={longitude} onChange={event => setLongitude(event.target.value)} aria-label="Longitude WGS84 en degrés décimaux" /></label></div>
     <div className="satnav-coordinate-actions"><button type="button" onClick={applyCenter}><Crosshair size={13} /> {satelliteMode ? "Centrer l’imagerie" : "Centrer"}</button><button type="button" className="is-primary" onClick={addTypedWaypoint} disabled={routeLocked}><MapPin size={13} /> Ajouter point</button></div>
     <small className="satnav-coordinate-note">Degrés décimaux WGS84 · position mémorisée par utilisateur et par cellule dans ce navigateur.</small>
   </section>;

@@ -6,7 +6,7 @@ import {
   Timer, TriangleAlert, Wind, Zap, Plus, Minus, Pencil, Moon,
 } from "lucide-react";
 import { runSimulation, type ConceptConfig, type MissionWaypoint, type Requirement, type SimulationResult } from "../lib/aeroEngine";
-import { defaultLocalMissionPlan } from "../lib/flightEngineering";
+import { emptyLocalMissionPlan } from "../lib/flightEngineering";
 import { hasSimulationSource } from "../lib/engineeringDisplayState";
 import { OpenStreetMapView } from "./OpenStreetMapView";
 import "./satellite-navigation.css";
@@ -54,7 +54,7 @@ export function VirtualSimulationCenter({ hasProject, simulation, requirements, 
     return points.length ? {
       lat: points.reduce((sum, point) => sum + (point.latitude ?? 90 - point.y * 1.8), 0) / points.length,
       lng: points.reduce((sum, point) => sum + (point.longitude ?? point.x * 3.6 - 180), 0) / points.length,
-    } : { lat: 48.8566, lng: 2.3522 };
+    } : { lat: 0, lng: 0 };
   });
   const [routeEditMode, setRouteEditMode] = useState(false);
   const [routeFeedback, setRouteFeedback] = useState("Sélectionnez un point ou activez AJOUT RAPIDE");
@@ -92,8 +92,21 @@ export function VirtualSimulationCenter({ hasProject, simulation, requirements, 
   const speed = config.cruiseSpeedKmh;
   const battery = config.batteryWh > 0 ? Math.round(clamp(simulation.energyUsableWh / config.batteryWh * 100, 0, 100)) : 0;
   // Les commandes de ce centre pilotent uniquement la simulation locale.
-  // Elles restent donc interactives même lorsqu’une cellule matérielle n’est pas chargée.
-  const canRunSimulation = hasSimulationSource(config, hasProject);
+  // Un projet serveur n’est pas requis : une configuration complète peut être
+  // calculée localement et reste explicitement séparée de tout matériel réel.
+  const hasLocalSimulationSource = [
+    config.wingspan,
+    config.chord,
+    config.fuselageLength,
+    config.propDiameter,
+    config.batteryWh,
+    config.payloadKg,
+    config.cruiseSpeedKmh,
+    config.windSpeedKmh,
+    config.maxTakeoffKg,
+    config.altitudeM,
+  ].every(value => Number.isFinite(value) && value > 0) && (config.motorCount ?? 0) > 0;
+  const canRunSimulation = hasSimulationSource(config, hasProject) || hasLocalSimulationSource;
   const stability = canRunSimulation ? Math.round(simulation.windMarginPercent) : 0;
   const failedMetrics = canRunSimulation ? simulation.metrics.filter(metric => metric.status === "fail") : [];
   const openHighRisks = canRunSimulation ? simulation.risks.filter(risk => risk.status === "open" && risk.severity === "high") : [];
@@ -159,9 +172,9 @@ export function VirtualSimulationCenter({ hasProject, simulation, requirements, 
     setSimTime(0);
   };
   const makeEditablePlan = () => ({
-    ...defaultLocalMissionPlan,
+    ...emptyLocalMissionPlan,
     operationName: config.missionPlan?.operationName ?? "Mission personnalisée",
-    waypoints: defaultLocalMissionPlan.waypoints.map(point => ({ ...point })),
+    waypoints: emptyLocalMissionPlan.waypoints.map(point => ({ ...point })),
   });
   const enableRouteEditing = () => {
     const plan = config.missionPlan ?? makeEditablePlan();

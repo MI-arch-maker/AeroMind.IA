@@ -42,8 +42,14 @@ export function resolveParametricVariables(config: ConceptConfig, hasProject: bo
 
 export function calculateParametricMetrics(vars: ParametricVariables): {
   wingArea: number | null;
+  wingAreaBasis: "rectangular-planform-estimate" | "unavailable";
+  wingAreaExplanation: string;
   aspectRatio: number | null;
+  aspectRatioBasis: "simple-geometric-estimate" | "unavailable";
+  aspectRatioExplanation: string;
   emptyMassKg: number | null;
+  massBasis: "rough-preview-proxy" | "unavailable";
+  massExplanation: string;
 } {
   const positive = (value: number | undefined) =>
     typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
@@ -51,14 +57,32 @@ export function calculateParametricMetrics(vars: ParametricVariables): {
   const chord = positive(vars.chord);
   const length = positive(vars.length);
   const thickness = positive(vars.max_thickness);
-  const wingArea = span !== null && chord !== null ? span * chord : null;
-  const aspectRatio = span !== null && wingArea !== null && wingArea > 0
-    ? (span * span) / wingArea
-    : null;
-  const emptyMassKg = span !== null && length !== null && thickness !== null
+  const rawWingArea = span !== null && chord !== null ? span * chord : null;
+  const wingArea = rawWingArea !== null && Number.isFinite(rawWingArea) ? rawWingArea : null;
+  const rawAspectRatio = span !== null && chord !== null ? span / chord : null;
+  const aspectRatio = rawAspectRatio !== null && Number.isFinite(rawAspectRatio) ? rawAspectRatio : null;
+  const rawEmptyMassKg = span !== null && length !== null && thickness !== null
     ? 0.5 * length * span * thickness * 10
     : null;
-  return { wingArea, aspectRatio, emptyMassKg };
+  const emptyMassKg = rawEmptyMassKg !== null && Number.isFinite(rawEmptyMassKg) ? rawEmptyMassKg : null;
+
+  return {
+    wingArea,
+    wingAreaBasis: wingArea === null ? "unavailable" : "rectangular-planform-estimate",
+    wingAreaExplanation: wingArea === null
+      ? "Indisponible : span et chord doivent produire une valeur finie positive."
+      : "Estimation du planform rectangulaire span × chord; ne modélise ni effilement, ni flèche, ni découpes.",
+    aspectRatio,
+    aspectRatioBasis: aspectRatio === null ? "unavailable" : "simple-geometric-estimate",
+    aspectRatioExplanation: aspectRatio === null
+      ? "Indisponible : span et chord doivent produire un rapport fini."
+      : "Estimation géométrique simple span ÷ chord; ne tient pas compte de la forme réelle de l’aile.",
+    emptyMassKg,
+    massBasis: emptyMassKg === null ? "unavailable" : "rough-preview-proxy",
+    massExplanation: emptyMassKg === null
+      ? "Indisponible : length, span et max_thickness doivent produire une valeur finie positive."
+      : "Proxy historique de prévisualisation : 0,5 × length × span × max_thickness × 10. Hypothèse empirique non validée, sans matériaux, équipements ni structure détaillée; valeur non mesurée.",
+  };
 }
 
 /** A simulation result is available only for a selected project with a defined cell and energy source. */

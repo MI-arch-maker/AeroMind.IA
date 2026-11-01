@@ -17,6 +17,9 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     AEROMIND_ENV=production \
+    AEROMIND_VIRTUAL_ONLY=true \
+    HARDWARE_CONTROL=false \
+    AEROMIND_SITL_AUTOSTART=false \
     PORT=3000 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -36,9 +39,9 @@ COPY .env.example ./.env.example
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
 # Dossiers runtime + permissions.
-RUN mkdir -p data logs && chown -R aeromind:aeromind /app
+RUN mkdir -p data/engineering_files logs && chown -R aeromind:aeromind /app
 USER aeromind
-EXPOSE 10000
+EXPOSE 3000
 
 # Render utilise /api/ready comme health check ; le port est défini par PORT.
 # HEALTHCHECK explicite pour les déploiements hors-Render (docker-compose, k8s,
@@ -49,4 +52,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 # CMD en forme exec (pas shell form) : permet à uvicorn de recevoir SIGTERM
 # directement pour un graceful shutdown. Workers/timings alignés avec les
 # recommandations Render starter (2 vCPU).
-CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "10000", "--workers", "2", "--limit-concurrency", "100", "--timeout-keep-alive", "30", "--timeout-graceful-shutdown", "5"]
+CMD ["sh", "-c", "exec uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-3000} --workers 2 --limit-concurrency 100 --timeout-keep-alive 30 --timeout-graceful-shutdown 5"]

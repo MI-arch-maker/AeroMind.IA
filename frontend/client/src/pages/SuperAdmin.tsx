@@ -617,9 +617,62 @@ export default function SuperAdmin() {
 
 function AuthShell({ children }: { children: React.ReactNode }) { return <main className="grid min-h-screen place-items-center bg-[#f5f7fa] p-5 text-[#10243a]"><div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl"><Link href="/" className="mb-8 flex items-center gap-3"><span className="grid h-9 w-9 skew-x-[-8deg] place-items-center border border-blue-600 text-2xl italic text-blue-600">A</span><strong className="tracking-[.18em]">AEROMIND</strong></Link>{children}</div></main>; }
 
+
+function WatermarkSettings({ t }: { t: (text: string) => string }) {
+  const [enabled, setEnabled] = useState(true);
+  const [opacity, setOpacity] = useState(0.045);
+  const [size, setSize] = useState(520);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("aeromind-watermark-settings") || "{}");
+      if (typeof saved.enabled === "boolean") setEnabled(saved.enabled);
+      if (Number.isFinite(Number(saved.opacity)) && saved.opacity !== undefined) setOpacity(Math.min(0.15, Math.max(0.01, Number(saved.opacity))));
+      if (Number.isFinite(Number(saved.size)) && saved.size !== undefined) setSize(Math.min(900, Math.max(180, Number(saved.size))));
+    } catch { /* Use defaults if storage is unavailable or malformed. */ }
+  }, []);
+  const persist = (next: { enabled: boolean; opacity: number; size: number }) => {
+    setEnabled(next.enabled); setOpacity(next.opacity); setSize(next.size);
+    try {
+      localStorage.setItem("aeromind-watermark-settings", JSON.stringify(next));
+      window.dispatchEvent(new Event("aeromind-watermark-settings-changed"));
+    } catch { toast.error(t("Impossible d’enregistrer les préférences de filigrane dans ce navigateur.")); }
+  };
+  return <WorkspaceCard title={t("Identité visuelle — filigrane")} subtitle={t("Personnalisez immédiatement le filigrane AeroMind sur les interfaces de cette session navigateur.")} t={t}>
+    <div className="space-y-5">
+      <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">
+        <span><strong className="block text-sm">{t("Afficher le filigrane")}</strong><small className="text-xs text-slate-500">{t("Appliqué aux pages AeroMind et à la console Super-Admin.")}</small></span>
+        <input type="checkbox" checked={enabled} onChange={e => persist({ enabled: e.target.checked, opacity, size })} className="h-5 w-5 accent-blue-600" aria-label={t("Afficher le filigrane")} />
+      </label>
+      <label className="block rounded-xl border border-slate-200 p-4">
+        <span className="flex items-center justify-between gap-3 text-sm font-semibold"><span>{t("Opacité")}</span><output>{Math.round(opacity * 100)}%</output></span>
+        <input type="range" min="1" max="15" value={Math.round(opacity * 100)} onChange={e => persist({ enabled, opacity: Number(e.target.value) / 100, size })} className="mt-3 w-full accent-blue-600" aria-label={t("Opacité du filigrane")} />
+        <small className="text-xs text-slate-500">{t("Réglage de 1 % à 15 %.")}</small>
+      </label>
+      <label className="block rounded-xl border border-slate-200 p-4">
+        <span className="flex items-center justify-between gap-3 text-sm font-semibold"><span>{t("Taille du filigrane")}</span><output>{size} px</output></span>
+        <input type="range" min="180" max="900" step="20" value={size} onChange={e => persist({ enabled, opacity, size: Number(e.target.value) })} className="mt-3 w-full accent-blue-600" aria-label={t("Taille du filigrane")} />
+        <small className="text-xs text-slate-500">{t("Largeur maximale sur écran large ; adaptation automatique sur mobile.")}</small>
+      </label>
+      <button type="button" onClick={() => persist({ enabled: true, opacity: 0.045, size: 520 })} className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{t("Rétablir les valeurs par défaut")}</button>
+      <p role="status" className="text-xs text-emerald-700">{t("Les changements sont enregistrés dans ce navigateur et appliqués sans rechargement.")}</p>
+    </div>
+  </WorkspaceCard>;
+}
+
 function SectionPanel({ section, totals, activity, reports, reportsLoading, onCreate, onReports, onApprove, onProjectAction, invalidate, t }: { section: Section; totals: any; activity: any; reports?: any[]; reportsLoading: boolean; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
   if (section === "accounts") return null;
   if (section === "approvals") return null;
+  if (section === "settings") return <>
+    <WorkspaceCard title={t("Paramètres")} subtitle={t("État opérationnel de la console Super-Admin.")} t={t}>
+      <div className="grid gap-3 md:grid-cols-3">
+        <Info label={t("Comptes actifs")} value={String(totals.actifs ?? 0)} t={t} />
+        <Info label={t("Décisions journalisées")} value={String(totals.decisions ?? 0)} t={t} />
+        <Info label={t("Session")} value={t("OIDC sécurisée")} t={t} />
+      </div>
+      <p className="mt-5 rounded-lg bg-slate-50 p-4 text-xs leading-5 text-slate-500">{t("Les paramètres sensibles de déploiement et de fournisseur OIDC restent protégés côté serveur.")}</p>
+    </WorkspaceCard>
+    <WatermarkSettings t={t} />
+  </>;
   if (section === "overview") return <section className="mb-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-widest text-blue-600">{t("Vue d'ensemble active")}</p><h2 className="mt-2 text-2xl font-bold">{t("Bienvenue dans la gouvernance AeroMind")}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{t("Utilisez le menu de gauche pour ouvrir chaque espace. Les compteurs sont lus depuis le backend, tandis que les décisions sont journalisées.")}</p><div className="mt-5 flex flex-wrap gap-3"><button onClick={onCreate} className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-bold text-white">{t("Créer un compte")}</button><button onClick={onReports} className="rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700">{t("Ouvrir les rapports")}</button></div></section>;
   if (section === "projects") return <WorkspaceCard title={t("Projets")} subtitle={t("Vue globale des projets AeroMind persistés. Chaque action est contrôlée et journalisée.")} t={t}><div className="space-y-3">{(activity?.projects || []).length ? (activity.projects as any[]).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{p.name || t("Projet sans nom")}</strong><small className="text-xs text-slate-400">{t("Propriétaire")} : {p.userId} · {t("créé")} {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "—"}</small></div><div className="flex flex-wrap items-center gap-2"><Pill tone={p.controlStatus === "observed" ? "amber" : p.controlStatus === "saved" ? "blue" : "green"}>{p.controlStatus === "observed" ? t("Observation") : p.controlStatus === "saved" ? t("Sauvegardé") : t("Actif")}</Pill><button onClick={() => onProjectAction(String(p.id), "save")} className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-700"><Save size={13} /> {t("Sauvegarder")}</button><button onClick={() => onProjectAction(String(p.id), "observe")} className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1.5 text-[11px] font-semibold text-amber-700"><Eye size={13} /> {t("Observer")}</button><button onClick={() => onProjectAction(String(p.id), "delete")} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600"><Trash2 size={13} /> {t("Supprimer")}</button></div></div>) : <Empty title={t("Aucun projet persistant")} text={t("Les projets créés par les utilisateurs apparaîtront ici.")} />}</div></WorkspaceCard>;
   if (section === "reports") return <WorkspaceCard title={t("Rapports à valider")} subtitle={t("Les rapports suivent le circuit surveillant puis approbation Super-Admin.")} t={t}><div className="space-y-3">{reportsLoading ? <p className="text-sm text-slate-400">{t("Chargement des rapports…")}</p> : (reports || []).filter((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)).map((r: any) => <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{t("Rapport")} {String(r.id).slice(0, 8)}</strong><span className="text-xs text-slate-500">{t("Statut")} : {r.status}</span></div>{r.status === "reviewed_by_supervisor" ? <button onClick={() => onApprove(String(r.id))} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">{t("Approuver définitivement")}</button> : <Pill tone="amber">{t("En attente du surveillant")}</Pill>}</div>)}{!reportsLoading && !(reports || []).some((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)) && <Empty title={t("Aucun rapport en attente")} text={t("Les rapports soumis apparaîtront ici après contrôle.")} />}</div></WorkspaceCard>;

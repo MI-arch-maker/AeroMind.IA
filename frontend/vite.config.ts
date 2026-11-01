@@ -22,13 +22,23 @@ export default defineConfig({
     host: "0.0.0.0",
     port: Number(process.env.PORT ?? 5173),
     strictPort: false,
+    proxy: {
+      "/api": {
+        target: process.env.AEROMIND_API_TARGET ?? "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+    },
     allowedHosts: [
       "localhost",
       "127.0.0.1",
       "0.0.0.0",
-      // Render preview host pattern (used only in dev/preview; the production
+      ".manus.computer",
+      "3000-igm2gk7228hpjz9ylpgzi-f654c4ed.us3.manus.computer",
+      "3000-isxjadql64jdfr4nkhrpp-a32a466a.sg2.manus.computer",
+      // Render and cloud preview hosts (used only in dev/preview; the production
       // build is served by FastAPI, not by Vite preview).
       "*.onrender.com",
+      "3000-i8i62ttkcfx5t1pkjtpdk-e90eb79c.us3.manus.computer",
     ],
   },
   preview: {
@@ -37,8 +47,12 @@ export default defineConfig({
     allowedHosts: [
       "localhost",
       "127.0.0.1",
-      // P1-cleanup (INSPECT-FRONTEND F-HIGH-24): removed stale manus.computer preview host.
+      ".manus.computer",
+      "3000-igm2gk7228hpjz9ylpgzi-f654c4ed.us3.manus.computer",
+      "3000-isxjadql64jdfr4nkhrpp-a32a466a.sg2.manus.computer",
+      // The domain-prefix entry above covers temporary cloud preview subdomains.
       "*.onrender.com",
+      "3000-i8i62ttkcfx5t1pkjtpdk-e90eb79c.us3.manus.computer",
     ],
   },
   build: {

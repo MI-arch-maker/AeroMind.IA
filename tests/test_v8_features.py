@@ -40,12 +40,14 @@ def db_session():
 # Preflight
 # ===========================================================================
 
-def test_preflight_default_template_has_10_items():
-    assert len(pf.DEFAULT_CHECKLIST_ITEMS) == 10
+def test_preflight_default_template_has_15_required_items():
+    assert len(pf.DEFAULT_CHECKLIST_ITEMS) == 15
     ids = [i["id"] for i in pf.DEFAULT_CHECKLIST_ITEMS]
+    assert len(ids) == len(set(ids))
     assert "battery" in ids
     assert "geofence" in ids
     assert "estop" in ids
+    assert {"rc_link", "weather", "airspace", "zone", "payload_secured", "non_weaponized", "briefing"} <= set(ids)
     assert all(i.get("required") is True for i in pf.DEFAULT_CHECKLIST_ITEMS)
 
 

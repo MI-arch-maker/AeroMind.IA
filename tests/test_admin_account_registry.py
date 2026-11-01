@@ -49,19 +49,21 @@ class AdminAccountRegistryTest(unittest.TestCase):
         from web.local_auth import Enrollment, Confirmation, Login, _totp, confirm_enrollment, enroll, login
         from web.oidc import me
         from web.admin import reset_local_auth
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"}, "http_version": "1.1", "method": "POST", "scheme": "http", "path": "/api/auth/local/enroll", "raw_path": b"/api/auth/local/enroll", "query_string": b"", "root_path": "", "headers": [], "client": ("127.0.0.1", 1234), "server": ("testserver", 80)}
+        request = Request(scope)
         from http.cookies import SimpleCookie
         email = f"local-{uuid4()}@example.test"
         actor = {"id": "admin-test", "email": "admin@example.test", "role": "super_admin"}
         created = create_account(actor, email, "Local MFA", "user", "L1")
         password = "Une phrase de passe unique 2026!"
-        setup = enroll(Enrollment(email=email, enrollment_code=created["localEnrollmentCode"], password=password))
-        activated = confirm_enrollment(Confirmation(email=email, otp=_totp(setup["secret"])))
+        setup = enroll(Enrollment(email=email, enrollment_code=created["localEnrollmentCode"], password=password), request)
+        activated = confirm_enrollment(Confirmation(email=email, otp=_totp(setup["secret"])), request)
         self.assertEqual(activated.status_code, 200)
         self.assertIn("aeromind_session", activated.headers.get("set-cookie", ""))
         cookie = SimpleCookie(); cookie.load(activated.headers["set-cookie"])
         local_token = cookie["aeromind_session"].value
         self.assertTrue(me(aeromind_session=local_token, authorization=None)["authenticated"])
-        scope = {"type": "http", "client": ("127.0.0.1", 1234), "headers": []}
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"}, "http_version": "1.1", "method": "POST", "scheme": "http", "path": "/api/auth/local/login", "raw_path": b"/api/auth/local/login", "query_string": b"", "root_path": "", "headers": [], "client": ("127.0.0.1", 1234), "server": ("testserver", 80)}
         import time
         from unittest.mock import patch
         with patch("web.local_auth.time.time", return_value=time.time() + 30):
@@ -85,13 +87,16 @@ class AdminAccountRegistryTest(unittest.TestCase):
         from web.admin import _primary_account
         from web.local_auth import Confirmation, Enrollment, _b64, _totp, confirm_enrollment, enroll, issue_superadmin_invite
         from web.oidc import me
+        from starlette.requests import Request
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"}, "http_version": "1.1", "method": "POST", "scheme": "http", "path": "/api/auth/local/enroll", "raw_path": b"/api/auth/local/enroll", "query_string": b"", "root_path": "", "headers": [], "client": ("127.0.0.1", 1234), "server": ("testserver", 80)}
+        request = Request(scope)
         primary = _primary_account()
         self.assertIsNotNone(primary)
         email = primary["email"]
         payload = _b64(f"entra-bootstrap|{email}".encode())
         invite = issue_superadmin_invite(payload)
-        setup = enroll(Enrollment(email=email, enrollment_code=invite["localEnrollmentCode"], password="Administrateur principal MFA 2026!"))
-        activated = confirm_enrollment(Confirmation(email=email, otp=_totp(setup["secret"])))
+        setup = enroll(Enrollment(email=email, enrollment_code=invite["localEnrollmentCode"], password="Administrateur principal MFA 2026!"), request)
+        activated = confirm_enrollment(Confirmation(email=email, otp=_totp(setup["secret"])), request)
         cookie = SimpleCookie(); cookie.load(activated.headers["set-cookie"])
         old_token = cookie["aeromind_session"].value
         self.assertEqual(me(aeromind_session=old_token, authorization=None)["role"], "super_admin")

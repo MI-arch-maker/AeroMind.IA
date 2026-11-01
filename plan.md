@@ -1,112 +1,52 @@
-# Plan de mise à jour — Twin Construction, CAO et Compositing
+# Plan de livraison — modernisation AeroMind
 
-## Décision approuvée
+## Décisions de portée
 
-L’utilisateur a choisi la combinaison **C + A + B** :
+- Conserver l’archive AeroMind fournie, ses modules d’ingénierie, de simulation, d’administration, de LabBench et son identité visuelle. Éviter toute reconstruction ou suppression de modules historiques.
+- Achever la modernisation du Centre Parametric sur les contrats, variables, persistance, sélection, opérations réellement prises en charge, échanges et présentation honnête des limites relevées par les audits/backlog CPV2.
+- Rendre le Poste de commande de vol strictement virtuel dans cette distribution. Aucun SITL ne démarre automatiquement; aucune connexion réelle, commande MAVLink sortante ou activation HIL/HARDWARE n’est autorisée par les scripts et le runtime de démonstration.
+- Ajouter au Poste de commande le panneau `VIRTUAL` et la checklist bilingue de préparation laboratoire/EASA. Celle-ci est un aide-mémoire, pas une autorisation ni une certification.
+- Corriger les surfaces API sensibles pour imposer identité authentifiée, propriétaire et projet explicites, notamment géofences, préflight, flotte et historique télémétrique.
+- Livrer les sources complètes en ZIP et une Preview WebDev active. Ne pas publier en production ni migrer une base externe.
 
-- **C — Assembly & Materials Twin** : nomenclature, matériaux, séquence d’assemblage, inspection et traçabilité locale ;
-- **A — AeroCAD Parametric** : arborescence, cotations, mesures, coupes et variantes ;
-- **B — Twin Compositing Studio** : calques manuels, annotations, visibilité/verrouillage et états de revue.
+## Architecture et approche d’implémentation
 
-## Périmètre d’implémentation
+Le frontend reste l’application React/TypeScript/Vite existante, intégrée à `Home.tsx` et au système de fenêtres AeroMind. Le résolveur `homeViewRouting.ts` permet l’accès direct `/?view=<id>` aux vues du workspace; `App.tsx` reste propriétaire des routes SPA et des pages d’administration/audit. Le manifeste `frontend/client/public/manus-routes.json` déclare les routes réellement présentes et leurs paramètres de vue.
 
-Réutiliser `MechanicalTwinEditor`, `MechanicalTwinViewport`, le modèle de géométrie paramétrique et `ConceptConfig`. Ajouter un dock intégré au Mechanical Twin avec trois espaces de travail liés au même modèle :
+Les contrats du Centre Parametric restent côté frontend dans les modèles existants, avec schémas Zod versionnés pour les snapshots Mechanical Twin, variables, esquisses, features, maillages et historique. Les services de workspace/persistance et le graphe paramétrique gardent une frontière explicite avec l’interface. Les opérations de géométrie réutilisent le moteur de maillage/CSG livré; tout calcul non couvert est désactivé ou présenté comme approximatif, sans prétention B-Rep industrielle.
 
-1. **Assembler** : nomenclature générée depuis les pièces du modèle, statut local par pièce, matériau associé, progression et vérifications visibles ;
-2. **CAO / Revue** : mesures dérivées de la géométrie, référence de cote, tolérance indicative, coupe X-ray et variantes locales ;
-3. **Calques / Compositing** : calques manuels persistants, visibilité, verrouillage, couleur d’accent, affectation de la pièce sélectionnée et journal d’état.
+Le backend conserve FastAPI, SQLAlchemy et les modules existants dans `web/`. Les gardes d’accès vérifient l’utilisateur et le propriétaire du projet avant toute lecture/écriture, et échouent fermement si l’identité ou le projet manque. Le runtime de démo utilise seulement SQLite locale isolée; la Preview ne provisionne pas de base managée. Les snapshots, historiques, alarmes et géofences sont toujours filtrés par propriétaire/projet explicites.
 
-Les données de travail sont rattachées à l’identifiant de la cellule et stockées dans la configuration existante quand elles sont partagées ; les préférences d’onglet, de caméra et les brouillons de revue restent locaux. Les valeurs sont présentées comme indicatives/conceptuelles.
+La séparation de sécurité s’appuie sur `AEROMIND_VIRTUAL_ONLY=true`, `HARDWARE_CONTROL=false` et `AEROMIND_SITL_AUTOSTART=false` dans les scripts `start.sh`, `start_framework.sh`, les scripts npm/pnpm de démarrage et les valeurs par défaut du conteneur. Les services de commande refusent le mode matériel lorsque le verrou virtuel est posé. Les fonctions de simulation restent distinguées des commandes physiques; aucune action de code ne doit ouvrir de transport matériel dans cette livraison.
 
-## Design
+## Structure du projet
 
-- **Mouvement** : poste d’ingénierie aérospatiale sombre, croisé avec un studio de création technique ;
-- **Principes** : même source géométrique, opérations réversibles, séparation claire entre maillage procédural et nomenclature, limites toujours visibles ;
-- **Couleur** : graphite/carbone pour la scène, cyan pour la géométrie, ambre pour la fabrication, violet discret pour les calques ;
-- **Disposition** : viewport central existant, dock inférieur à onglets pour éviter de diluer l’inspecteur mécanique ;
-- **Signature** : sélecteur `ASSEMBLER / CAO / CALQUES`, barre de complétude, statuts de pièces et indicateur `CONCEPTUEL / NON CERTIFIÉ` ;
-- **Interaction** : chaque opération met à jour le même modèle, sans création automatique de pièces ou de calques cachés ;
-- **Typographie** : conserver Inter et les labels monospace techniques existants.
+- `frontend/client/src/pages/Home.tsx` : coque de workspace et montage des vues AeroMind.
+- `frontend/client/src/lib/homeViewRouting.ts` : résolution pure des vues directes et alias.
+- `frontend/client/src/components/` : Centre Parametric, fenêtres, Poste de commande de vol, contrôle VIRTUAL et checklist labo.
+- `frontend/client/src/lib/` : contrats Zod/TypeScript, modèles géométriques, variables, échanges et traductions FR/EN.
+- `frontend/client/public/manus-routes.json` : déclaration statique des routes Preview.
+- `web/` : API FastAPI, authentification, isolation propriétaire/projet, géofences, préflight, télémétrie et gardes matériel/virtuel.
+- `tests/` : suites Vitest/TypeScript et pytest couvrant les modèles UI, l’isolation multi-tenant et les protections de mode virtuel.
+- `CHECKLIST_LABORATOIRE_AEROMIND_EASA.md`, `PLAN_INTEGRATION_SECURITE_AEROMIND_2026-11-01.md` : documentation des limites et des points de vigilance laboratoire.
 
-## Structure concernée
+## Identité et design conservés
 
-- `frontend/client/src/components/MechanicalTwinIntegrationDock.tsx` : dock C+A+B ;
-- `frontend/client/src/components/MechanicalTwinEditor.tsx` : branchement du dock au modèle et à la pièce sélectionnée ;
-- `frontend/client/src/components/mechanical-twin.css` : styles du dock, des états et du responsive ;
-- `frontend/client/src/lib/aeroEngine.ts` : réutilisation des champs de configuration existants `installedMaterials`, `studioLayers`, `studioLayerSettings`, `activeStudioLayer` ;
-- `TODO.md` : critères d’acceptation et validation.
+- **Mouvement :** poste d’ingénierie aérospatiale sombre, croisé avec un studio technique de conception; prolonger le langage AeroMind au lieu de redessiner la marque.
+- **Principes :** source géométrique partagée; séparation claire entre workspace, calcul et persistance; retours visibles; limites et provenance toujours honnêtes.
+- **Couleur :** graphite/carbone pour la scène, cyan AeroMind pour géométrie et actions primaires, ambre pour alertes/fabrication, couleurs secondaires mesurées pour les calques et statuts.
+- **Disposition :** navigation conservée, viewport de conception au centre, inspecteur contextuel et fenêtres de workspace déplaçables; maximisation qui n’empiète pas sur la sidebar.
+- **Signatures :** sélecteur `Part Studio / Variable Studio / Assembly`, arbre relié aux IDs de pièces, badges `VIRTUAL / SIMULATION / NON CERTIFIÉ`.
+- **Interaction :** opérations réversibles lorsque le modèle le permet; action non prise en charge désactivée ou décrite comme aperçu; aucune réussite fictive ni écriture métier cachée.
+- **Animation :** mouvements brefs et fonctionnels pour ouverture, sélection et changement d’onglet; aucune animation ne doit suggérer un mouvement réel d’aéronef ou une activation matérielle.
+- **Typographie :** conserver Inter et les libellés monospace techniques déjà utilisés par AeroMind.
+- **Voix :** microcopie opérationnelle, précise et sans promesse industrielle. Exemples : « Aperçu seulement — la géométrie source reste inchangée. » et « VIRTUAL — aucune sortie vers un aéronef. »
+- **Essence de marque :** environnement AeroMind d’ingénierie et de simulation pour équipes aéronautiques; technique, lisible, prudent.
 
-## Limites conservées
+## Contraintes de données et capacités
 
-Le Twin reste un modèle mécanique conceptuel paramétrique. Cette tranche ne crée pas de noyau B-Rep, STEP/IGES, CFD/FEA, tolérancement industriel certifié, validation de fabrication ou commande physique. Les couples, matériaux, masses et statuts de construction sont indicatifs ou saisis par l’utilisateur.
+CSV/JSON sont traités comme formats de variables/configuration et d’historique selon leur contrat; OBJ/STL restent les formats de maillage réellement pris en charge. STEP, IGES, DXF, 3MF ou GLB ne sont pas revendiqués sans encodeur/décodeur vérifié. Les analyses de masses, centre de gravité, inertie, structure et aérodynamique exigent des données et équations traçables; sinon elles restent « proxy », indicatives ou indisponibles. Le projet ne revendique pas de B-Rep, solveur général de contraintes, CFD/FEA, certification ou validation industrielle.
 
+## Développement et Preview
 
-## Extension — rendus personnalisés Studio IDDS
-
-- La barre de rendus remplace l’indication « Aperçu 2D » par cinq modes : assemblage complet, détails internes, cinématique, simulation paramétrique et variantes paramétriques. Le viewport et l’inspecteur restent liés aux pièces de la même cellule active.
-- Le mode cinématique expose la lecture/pause visuelle ; le mode simulation fait varier interactivement l’envergure, la longueur et le nombre de motorisations du document actif ; le générateur crée des alternatives de ces paramètres et leur sélection applique la variante au même document.
-- Les vues et données existantes sont conceptuelles ; aucune commande matérielle, qualification, ni validité d’ingénierie certifiée n’est ajoutée. Les variantes générées sont conservées dans l’état de la session du Studio, tandis que les paramètres actifs suivent la synchronisation `ConceptConfig`.
-
-
-## Extension — atelier de conception approfondi IDDS
-
-- **Architecture** : faire évoluer uniquement `IDDSTwinAssemblyEditor`; garder `DigitalTwinExplorer`/`MechanicalTwinEditor` séparés. Les deux partagent seulement le générateur mécanique et le viewport 3D bas niveau.
-- **Interaction CAO** : barre de commandes organisée par sélection, translation, rotation, échelle et mesure; édition numérique XYZ, pas d’accrochage, copie/suppression de pièces utilisateur, ajout de formes paramétriques et historique annuler/rétablir, tous reliés à `ConceptConfig`.
-- **Calques/compositing** : créer, affecter, masquer, verrouiller et régler l’opacité/couleur des calques; importer une image de référence locale et régler sa visibilité, son opacité, son échelle et sa rotation comme guide visuel sans la confondre avec une géométrie certifiée.
-- **Assemblage/paramètres** : afficher les dimensions principales, régler les paramètres structuraux avancés et la finition, exporter le maillage conceptuel en OBJ/STL, manipuler vues/projections, coupe X-ray, éclatement et cinématique depuis la barre IDDS.
-- **Design** : conserver l’esthétique d’atelier aérospatial sombre/cyan, mais enrichir la hiérarchie comme un logiciel de compositing/CAO : commandes groupées, rail d’outils, arbre de scène, zone de travail centrale et inspecteur contextuel; actions réversibles, statut conceptuel explicite et mise en page responsive.
-- **Limites** : l’image importée reste locale au navigateur; ces outils éditent une maquette paramétrique conceptuelle et n’ajoutent ni noyau B-Rep, solveur CFD/FEA, certification ni commande matérielle.
-
-
-## Extension — navigation cartographique et démonstration civile locale
-
-L’écran satellitaire conserve les couches cartographiques et les brouillons WGS84 enregistrés localement. Les points deviennent des points d’inspection renommables. Un filtre visuel nocturne transforme uniquement les couleurs des tuiles et ne représente pas une donnée de capteur. Un lecteur local, exigeant au moins deux points, anime un marqueur synthétique avec pause/reprise/fin/réinitialisation et barre de progression; il ne produit aucune sortie réseau de pilotage.
-
-La télémétrie MAVLink demeure en lecture seule. Aucun armement, ciblage, poursuite, commande physique, GNSS embarqué, téléversement de mission ou changement de protocole ne fait partie du périmètre. Les fichiers concernés sont `SatelliteNavigationView.tsx`, `OpenStreetMapView.tsx`, les styles cartographiques et les tests d’interpolation.
-
-
-## Extension — journal de validation persistant et synchronisé
-
-Le journal détaillé remplace le flux de session généré périodiquement par des actions explicites de revue humaine et des instantanés de checklist. Le client stocke chaque entrée dans une file locale cloisonnée par projet; dès qu’une session authentifiée et le projet serveur sont disponibles, il envoie les éléments un par un avec un identifiant stable, puis les retire uniquement après confirmation de l’API. L’écran sépare les événements serveur confirmés, les éléments locaux en attente, les erreurs et les contrôles détaillés dépliables.
-
-Le backend limite les événements aux types `validation.action` et `validation.checkpoint`, exige les marqueurs `scope=local-simulation-only` et `physicalOutputEnabled=false`, vérifie le propriétaire du projet et rend le rejeu idempotent. Le journal ne pilote pas d’appareil et n’atteste pas d’essai physique. La lecture tRPC GET décode les enveloppes SuperJSON attendues par le client. Les tests couvrent le cloisonnement, l’authentification, la persistance, l’idempotence, l’entrée GET et le rejet des événements non simulés.
-
-La table est ajoutée à `TIDB_SCHEMA.sql`; les installations TiDB déjà existantes doivent appliquer `migrations/2026-10-21_validation_audit_events.sql` avant le déploiement. La livraison modifie uniquement le code et les documents de travail : aucune base externe n’a été migrée et aucun service distant n’a été déployé.
-
-## Extension — itinéraire WGS84 et carte géographique dans Simulation & analyses
-
-- Unifier les modes Monde, Terrain, Satellite, Nuit et Grille sur la carte interactive OpenStreetMapView, basée sur les fonds cartographiques existants; conserver déplacement/zoom, attribution des tuiles et clic cartographique dans chaque mode.
-- Persister latitude/longitude WGS84 facultatives sur les waypoints sans casser les plans historiques X/Y; permettre l’ajout par clic, l’édition coordonnée, la suppression, le nommage et la recherche d’adresse/rue/lieu via OpenStreetMap Nominatim. Les requêtes de recherche sont espacées localement et les anciens points restent explicitement signalés comme approximatifs jusqu’à leur repositionnement.
-- Faire progresser le marqueur uniquement le long des points géographiques de la mission pendant la lecture virtuelle; afficher une élévation visuelle depuis l’altitude interpolée et conserver les indicateurs cinématiques/d’attitude synthétiques. Aucun contrôle réel, GNSS, téléversement ou routage routier Waze n’est ajouté.
-- Les tuiles et le géocodeur exigent une connexion; les images satellite ne garantissent pas une couverture au niveau d’un appartement. L’affichage Mercator des tuiles est borné aux hautes latitudes; la saisie WGS84 permet d’enregistrer latitude/longitude jusqu’aux pôles mais l’image sera rabattue au bord de la projection.
-
-## Extension — laboratoire d’ingénierie intégré à Simulation
-
-L’écran `activeView === "simulation"` de `frontend/client/src/pages/Home.tsx` présente le `VirtualFlightTestHall` existant en premier, puis `VirtualSimulationCenter` (Mission Control). Les deux reçoivent le même `config`, les exigences et les sorties du moteur; le laboratoire reçoit aussi le workflow d’essai existant. Son action « Mission Control » fait défiler la page vers le centre de commande inférieur au lieu de quitter Simulation. Il réutilise le moteur et les scénarios de test existants, sans prétendre à un banc physique, à du calcul CFD ni à une sortie matérielle.
-
-Les commandes cartographiques conservent leurs boutons dans une couche supérieure stable; le libellé flottant superposé est supprimé, le feedback d’édition reste dans la barre d’état de route sous la carte.
-
-## Extension — double validation humaine du centre de commande
-Le workflow des commandes de démonstration locales exige désormais deux approbations successives avant exécution simulée : (1) approbation explicite de la demande exacte par son propriétaire authentifié; (2) approbation par un autre compte OIDC vérifié disposant du rôle AeroMind `surveillant`, `admin` ou `super_admin`. La seconde étape est bloquée si l’identité OIDC ou l’adresse vérifiée correspond à la première. Les deux validations sont horodatées dans l’audit, liées à l’empreinte SHA-256 immuable et limitées par la durée d’expiration de la demande. L’absence de seconde validation bloque l’API d’exécution côté serveur. Cela n’autorise que la simulation locale : l’API refuse toujours les transports HIL et les commandes/actionneurs physiques; aucun lien de commande ni adaptateur matériel n’est activé.
-
-## Extension — remise en état LABBENCH 01 et contrôle virtuel supervisé
-
-L’archive fournie reste la base de travail, sans reconstruction ni modification du déploiement distant. Compléter le pont FastAPI/tRPC pour le statut et le référentiel LABBENCH, les calculs thermiques et les écritures de simulation associées au propriétaire. Stabiliser l’écran et le profil local face aux réponses incomplètes, valeurs anciennes et stockage navigateur indisponible. Le panneau de contrôle distingue explicitement `VIRTUAL` de `HARDWARE` : seules les actions synthétiques et bornées sont ouvertes après confirmations humaines distinctes. `hardware_control=false`, aucune importation d’adaptateur, aucune sortie physique et aucun changement du workflow existant de double approbation inter-comptes du centre de commande.
-
-Conserver les styles sombres/cyan et l’architecture React/FastAPI. `web/labbench.py` centralise les contrats et calculs LABBENCH ; `web/hardware_api.py` et le service virtuel maintiennent l’état de contrôle synthétique ; `frontend/client/src/lib/labBench.ts` centralise la validation, la normalisation et le calcul local ; les trois composants LABBENCH restent intégrés à la page existante. Les tests s’exécutent avec une base SQLite temporaire, jamais contre une base externe.
-
-## Extension — arborescence d’atelier et vérité des synchronisations
-
-- Structurer le diagnostic suivant l’arbre : **Projet → Cellule/configuration → Exigences → Conception/version prototype → Vérification (simulation/essais) → Rapports/audit**. Chaque branche expose son état réel `LIÉ`, `PARTIEL` ou `EN ATTENTE`.
-- L’état global ne peut être `READY` que si toutes les liaisons attendues sont `linked` et qu’aucun avertissement ne subsiste; toute branche partielle ou en attente donne `PARTIAL`, une erreur bloquante donne `BLOCKED`.
-- Conserver la distinction entre workspace local inter-onglets, snapshot API projet-scopé et preuve versionnée `PrototypeVersion → WorkflowRun → Report`, sans transformer une sauvegarde cockpit automatique en version immuable.
-- Le stockage snapshot actuel ne fournit pas de révision serveur compare-and-swap pour arbitrer deux clients concurrents; afficher cette limite et traiter `SERVER-ACK` comme une confirmation d’écriture, non une garantie de fusion multi-utilisateur.
-
-## Extension — intégration native définitive de LABBENCH 01
-
-- **Navigation unique** : `Home` reste la coque et la source de vérité ; LABBENCH est rendu au même niveau que les autres onglets principaux. L’ancienne URL `/labbench` ne monte plus une application autonome et ouvre le même écran Home intégré.
-- **Pont de données** : Home transmet au composant intégré l’identifiant de projet, le nom du projet, la cellule active et le `ConceptConfig` courant. LABBENCH ne reconstruit plus une configuration concurrente et expose la provenance de la donnée affichée.
-- **Provenance stricte** : aucune valeur historique de localStorage, donnée d’émulateur, scénario par défaut, service de repli ou résultat d’aperçu ne peut devenir une donnée de travail. Une cellule sélectionnée/importée ou une saisie utilisateur explicite est nécessaire avant calcul.
-- **État vide honnête** : sans donnée utilisateur, LABBENCH affiche un état vide actionnable et aucun chiffre, verdict, télémétrie, identité device ou scénario n’est affiché comme réel. Les calculs locaux restent explicitement virtuels et non persistants.
-- **Traçabilité** : les runs, audits et commandes affichent distinctement les entrées utilisateur, les calculs dérivés et les contrôles virtuels ; les sorties physiques restent verrouillées.
-- **Structure concernée** : `frontend/client/src/pages/Home.tsx`, `frontend/client/src/pages/LabBench.tsx`, `frontend/client/src/App.tsx`, `frontend/client/public/manus-routes.json`, `TODO.md`.
+Le build frontend s’effectue avec pnpm 10.18.0 depuis `frontend/`; le backend Python utilise les dépendances du projet et sélectionne `.venv/bin/python` lorsqu’il est présent, sinon `python3`. La build Vite génère `frontend/dist`. En Preview WebDev, Vite écoute sur le port configuré 3000 et relaie les requêtes `/api` vers FastAPI sur le port interne 8000; le proxy de prévisualisation expose ainsi le frontend et l’API sous le même origin. Le script `start.sh` peut également lancer FastAPI et servir le build compilé sur `PORT` (3000 par défaut), en SQLite locale isolée et en mode virtuel strict. Le fichier `/manus-routes.json` doit être servi comme JSON réel, et non comme fallback HTML. La sauvegarde concerne le dépôt de travail et le ZIP; aucune publication de production, connexion matérielle ou migration d’une base distante n’est comprise dans cette livraison.

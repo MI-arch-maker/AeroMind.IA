@@ -41,15 +41,6 @@ ALLOWED_COMMANDS: tuple[str, ...] = (
     "NAV_LAND",              # land at current position
     "NAV_RETURN_TO_LAUNCH",  # RTL
     "DO_SET_MODE",           # switch flight mode (limited to MANUAL/STABILIZE/AUTO)
-    # P0-04 fix — EXIGENCE FUNC-05 / R10: mission upload protocol commands.
-    # MISSION_COUNT + MISSION_ITEM_INT form the canonical GCS→autopilot
-    # mission upload sequence (ArduPilot / PX4). The earlier allowlist
-    # omitted them so the upload endpoint always returned
-    # COMMAND_NOT_ALLOWED, then the code below marked the upload as
-    # ``failed`` without distinguishing "command refused" from "transport
-    # error" — the frontend had no way to tell the user *why* it failed.
-    "MISSION_COUNT",         # announce number of waypoints (cmd id 43)
-    "MISSION_ITEM_INT",      # upload one waypoint item (cmd id 52)
 )
 
 # Sub-allowlist for flight modes accepted by DO_SET_MODE.
@@ -71,9 +62,6 @@ MAV_CMD_IDS: dict[str, int] = {
     "NAV_LAND": 21,
     "NAV_RETURN_TO_LAUNCH": 20,
     "DO_SET_MODE": 176,
-    # P0-04 fix — mission upload protocol command ids (ArduPilot/PX4).
-    "MISSION_COUNT": 43,
-    "MISSION_ITEM_INT": 52,
 }
 
 
@@ -85,6 +73,11 @@ class HardwareCommandError(ValueError):
         self.status_code = status_code
         self.code = code
         self.message = message
+
+
+def virtual_only_mode() -> bool:
+    """Return True when this runtime is configured to restrict output to simulation."""
+    return os.getenv("AEROMIND_VIRTUAL_ONLY", "").strip().lower() == "true"
 
 
 def hardware_commands_enabled() -> bool:
@@ -104,6 +97,8 @@ def hardware_commands_enabled() -> bool:
       4. The G0–G5 gate state (virtual N3 armed + hardware review signed +
          drone registered in pool) — verified at token-issue time.
     """
+    if virtual_only_mode():
+        return False
     value = os.getenv("HARDWARE_CONTROL", "").strip().lower()
     return value == "true"
 
@@ -184,7 +179,8 @@ def authorize_physical_command(
     try:
         from . import hardware_gate
         confirmation = hardware_gate.consume_hardware_confirmation_token(
-            confirmation_token, command,
+            confirmation_token, command, actor_id=actor_id, project_id=project_id,
+            drone_id=drone_id, params=dict(parameters or {}),
         )
     except Exception as exc:
         # Translate labbench errors into HardwareCommandError so the caller
@@ -455,15 +451,8 @@ class MavlinkCommandPilot:
         except Exception as exc:
             sent = False
             reason = f"Échec d'envoi MAVLink: {exc}"
-            # P0-09 fix: if the MAVLink send failed, un-consume the token so
-            # the operator can replay within the token's remaining TTL.
-            # Without this, a network timeout would force a full G0-G5
-            # re-approval just to retry the same command.
-            try:
-                from .hardware_gate import unconsume_hardware_confirmation_token
-                unconsume_hardware_confirmation_token(confirmation_token)
-            except Exception:
-                pass  # best-effort — do not mask the original MAVLink error
+            # Keep the DB token consumed after any transport outcome. Reopening
+            # it would violate the single-use authorization invariant.
 
         return CommandReceipt(
             command=command,

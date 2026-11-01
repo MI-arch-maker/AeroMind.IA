@@ -66,6 +66,17 @@ export const defaultLocalMissionPlan: LocalMissionPlan = {
   ],
 };
 
+/** Empty user mission. Reference routes are only loaded by an explicit action. */
+export const emptyLocalMissionPlan: LocalMissionPlan = {
+  operationName: "Mission non définie",
+  radiusKm: 0,
+  returnAltitudeM: 0,
+  lostLinkAction: "return",
+  homeX: 0,
+  homeY: 0,
+  waypoints: [],
+};
+
 /** Build an explicitly local demo route inside the active platform envelope. */
 export function createCompatibleDemoMissionPlan(
   config: ConceptConfig

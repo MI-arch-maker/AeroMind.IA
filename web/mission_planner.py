@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -80,6 +80,20 @@ from .models import Mission, Waypoint, AuditEvent, Project
 
 router = APIRouter(prefix="/api/missions", tags=["mission-planner"])
 
+# A mission upload requires a recently reviewed geofence. No timestamp or
+# malformed timestamp is treated as stale (fail-closed).
+GEOFENCE_MAX_AGE = timedelta(hours=24)
+
+def _geofence_is_fresh(geofence: Any, *, now: datetime | None = None) -> bool:
+    try:
+        stamp = datetime.fromisoformat(str(geofence.updated_at).replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=UTC)
+        current = now or datetime.now(UTC)
+        return timedelta(0) <= current - stamp <= GEOFENCE_MAX_AGE
+    except (AttributeError, TypeError, ValueError):
+        return False
+
 
 # ===========================================================================
 # Missions CRUD
@@ -89,7 +103,7 @@ router = APIRouter(prefix="/api/missions", tags=["mission-planner"])
 def list_missions(
     request: Request,
     project_id: str | None = Query(None),
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """List missions for a project (or all owner's missions)."""
@@ -137,7 +151,7 @@ def list_missions(
 @router.post("")
 async def create_mission(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -202,7 +216,7 @@ async def create_mission(
 async def update_mission(
     mission_id: str,
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -247,7 +261,7 @@ async def update_mission(
 @router.delete("/{mission_id}")
 def delete_mission(
     mission_id: str,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     user = current_user(aeromind_session, authorization)
@@ -272,7 +286,7 @@ def delete_mission(
 async def upload_mission_to_drone(
     mission_id: str,
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Upload a mission to a drone's flight controller via MAVLink.
@@ -289,6 +303,9 @@ async def upload_mission_to_drone(
     user = current_user(aeromind_session, authorization)
     if not user:
         return JSONResponse(status_code=401, content={"error": {"code": "UNAUTHORIZED", "message": "OIDC authentication required"}})
+    # Refuse before token use, pool access, or connection creation.
+    if not cmd_api.hardware_commands_enabled():
+        return JSONResponse(status_code=403, content={"error": {"code": "HARDWARE_DISABLED", "message": "Upload matériel refusé (fail-closed)"}})
     body = await request.json()
     drone_id = str(body.get("droneId") or "").strip()
     confirmation_token = str(body.get("confirmationToken") or "").strip()
@@ -300,28 +317,31 @@ async def upload_mission_to_drone(
     if not drone_id or not confirmation_token:
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "droneId and confirmationToken required"}})
 
-    # Consume the token (single-use)
-    try:
-        confirmation = hw_gate.consume_hardware_confirmation_token(confirmation_token, "MISSION_UPLOAD")
-        if confirmation.drone_id != drone_id:
-            return JSONResponse(status_code=403, content={"error": {"code": "TOKEN_DRONE_MISMATCH", "message": "Token does not match this drone"}})
-    except Exception as exc:
-        code = getattr(exc, "code", "TOKEN_INVALID")
-        return JSONResponse(status_code=getattr(exc, "status_code", 401), content={"error": {"code": code, "message": str(exc)}})
-
     # Load the mission
     with SessionLocal() as db:
         m = db.get(Mission, mission_id)
         if m is None or m.user_id != user["id"]:
             return JSONResponse(status_code=404, content={"error": {"code": "NOT_FOUND", "message": "Mission not found"}})
+        if not project_id or not m.project_id or m.project_id != project_id:
+            return JSONResponse(status_code=403, content={"error": {"code": "PROJECT_MISMATCH", "message": "projectId requis et doit correspondre à la mission"}})
+        project = db.get(Project, project_id)
+        if project is None or project.user_id != user["id"]:
+            return JSONResponse(status_code=403, content={"error": {"code": "PROJECT_FORBIDDEN", "message": "Projet absent ou non détenu par l’acteur"}})
         waypoints = db.scalars(select(Waypoint).where(Waypoint.mission_id == mission_id).order_by(Waypoint.sequence)).all()
         if not waypoints:
             return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "Mission has no waypoints"}})
 
         _validate_upload_waypoint_commands(waypoints)
 
-        # Geofence check on each waypoint that has lat/lon
-        geofence = geo.get_geofence(project_id) if project_id else None
+        # Geofence ownership, project binding, structure, and freshness are
+        # checked before consuming the token or accessing the pool.
+        geofence = geo.get_geofence(project_id, owner_id=user["id"])
+        try:
+            geo.assert_geofence_valid_for_command(geofence, project_id)
+        except Exception as exc:
+            return JSONResponse(status_code=403, content={"error": {"code": getattr(exc, "code", "GEOFENCE_INVALID"), "message": str(exc)}})
+        if geofence.project_id != project_id or not _geofence_is_fresh(geofence):
+            return JSONResponse(status_code=403, content={"error": {"code": "GEOFENCE_STALE_OR_MISMATCH", "message": "Géofence absente, périmée ou liée à un autre projet"}})
 
         # CAHIER DES CHARGES — "pas de fausses écritures":
         # Reject waypoints with null latitude/longitude BEFORE upload.
@@ -335,12 +355,23 @@ async def upload_mission_to_drone(
             except HTTPException as exc:
                 return JSONResponse(status_code=400, content={"error": {"code": "WAYPOINT_INVALID_COORDINATES", "message": str(exc.detail)}})
 
-        if geofence and geofence.polygon:
+        if geofence.polygon:
             for i, w in enumerate(waypoints):
                 if not geo._point_in_polygon((w.latitude, w.longitude), geofence.polygon):
                     return JSONResponse(status_code=409, content={"error": {"code": "WAYPOINT_OUTSIDE_GEOFENCE", "message": f"Waypoint #{i + 1} ({w.latitude:.5f}, {w.longitude:.5f}) outside geofence"}})
                 if w.altitude_m is not None and w.altitude_m > geofence.max_altitude_m:
                     return JSONResponse(status_code=409, content={"error": {"code": "WAYPOINT_ALTITUDE_BREACH", "message": f"Waypoint #{i + 1} altitude {w.altitude_m}m > max {geofence.max_altitude_m}m"}})
+
+        # Consume only after every cheap/context/geofence check and immediately
+        # before pool access. MISSION_UPLOAD issuance is bound to empty params.
+        try:
+            hw_gate.consume_hardware_confirmation_token(
+                confirmation_token, "MISSION_UPLOAD", actor_id=user["id"],
+                project_id=project_id, drone_id=drone_id, params={},
+            )
+        except Exception as exc:
+            code = getattr(exc, "code", "TOKEN_INVALID")
+            return JSONResponse(status_code=getattr(exc, "status_code", 401), content={"error": {"code": code, "message": str(exc)}})
 
         # === FUNC-05 fix: implement a real MAVLink mission upload protocol ===
         # Previously: send_command was called N times with DO_SET_MODE in a loop,

@@ -7,11 +7,11 @@ from urllib.parse import quote, urlencode, urlparse
 
 import httpx
 import jwt
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .config import get_settings
-from .admin import account_for_email, account_for_identity
+from .admin import account_for_email, account_for_identity, bind_entra_identity
 from .primary_session_store import (
     register_primary_session,
     is_primary_session_active,
@@ -79,7 +79,7 @@ def _session_token(aeromind_session: str | None, authorization: str | None) -> s
 
 
 def require_session(
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ) -> str:
     token = _session_token(aeromind_session, authorization)
@@ -108,7 +108,25 @@ def _settings():
 
 def _is_microsoft_entra_issuer(issuer: str) -> bool:
     host = (urlparse(issuer).hostname or '').lower().rstrip('.')
-    return host in {'login.microsoftonline.com', 'login.microsoftonline.us', 'login.microsoftonline.de', 'login.chinacloudapi.cn'}
+    path_parts = [part for part in urlparse(issuer).path.split('/') if part]
+    return (
+        host in {'login.microsoftonline.com', 'login.microsoftonline.us', 'login.microsoftonline.de', 'login.chinacloudapi.cn'}
+        and len(path_parts) >= 2
+        and path_parts[-1].lower() == 'v2.0'
+        and path_parts[-2].lower() not in {'common', 'organizations', 'consumers'}
+    )
+
+
+def _validate_tenant_claim(claims: dict, cfg: dict[str, str]) -> None:
+    expected = str(cfg.get('tenant_id', '')).strip().casefold()
+    actual = str(claims.get('tid', '')).strip().casefold()
+    if not expected or not actual or not hmac.compare_digest(actual, expected):
+        raise HTTPException(403, 'Tenant Microsoft Entra non autorisé')
+    if claims.get('ver') not in {None, '2.0'}:
+        raise HTTPException(403, 'Version de jeton Entra non supportée')
+    azp = claims.get('azp')
+    if azp is not None and azp != cfg['client_id']:
+        raise HTTPException(403, 'Client OIDC inattendu')
 
 
 def _identity_email(claims: dict) -> str | None:
@@ -128,10 +146,11 @@ def _identity_email_candidates(claims: dict) -> list[str]:
     return candidates
 
 
-def _cookie_security() -> dict[str, object]:
+def _cookie_security(request: Request | None = None) -> dict[str, object]:
     # Le Preview public est HTTPS et embarqué dans un iframe cross-site.
     # Le développement local reste compatible HTTP.
-    secure = get_settings().environment != 'development'
+    forwarded_proto = request.headers.get('x-forwarded-proto', '').split(',', 1)[0].strip().lower() if request else ''
+    secure = get_settings().environment != 'development' or forwarded_proto == 'https'
     return {'httponly': True, 'secure': secure, 'samesite': 'none' if secure else 'lax', 'path': '/'}
 
 
@@ -144,7 +163,7 @@ def status():
 
 @router.get('/me')
 def me(
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     token = _session_token(aeromind_session, authorization)
@@ -183,7 +202,7 @@ def me(
 
 @router.api_route('/logout', methods=['GET', 'POST'])
 def logout(
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """P2-03 fix — server-side session revocation.
@@ -207,7 +226,7 @@ def logout(
 
 
 @router.get('/login')
-async def login(return_to: str = '/'):
+async def login(request: Request, return_to: str = '/', reauth: bool = False):
     cfg = _settings()
     async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
         metadata = (await client.get(f"{cfg['issuer']}/.well-known/openid-configuration")).raise_for_status()
@@ -220,14 +239,17 @@ async def login(return_to: str = '/'):
     return_token = _b64(safe_return_to.encode())
     payload = f'{state}.{nonce}.{verifier}.{int(time.time())}.{return_token}'
     token = _signed(_b64(payload.encode()))
-    query = urlencode({'client_id': cfg['client_id'], 'redirect_uri': cfg['redirect_uri'], 'response_type': 'code', 'scope': 'openid profile email', 'state': state, 'nonce': nonce, 'code_challenge': challenge, 'code_challenge_method': 'S256'})
+    auth_params = {'client_id': cfg['client_id'], 'redirect_uri': cfg['redirect_uri'], 'response_type': 'code', 'scope': 'openid profile email', 'state': state, 'nonce': nonce, 'code_challenge': challenge, 'code_challenge_method': 'S256'}
+    if reauth:
+        auth_params.update({'prompt': 'login', 'max_age': '0'})
+    query = urlencode(auth_params)
     response = RedirectResponse(f"{discovery['authorization_endpoint']}?{query}")
-    response.set_cookie('aeromind_oidc_state', token, max_age=600, **_cookie_security())
+    response.set_cookie('aeromind_oidc_state', token, max_age=600, **_cookie_security(request))
     return response
 
 
 @router.get('/callback')
-async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cookie(default=None, convert_underscores=False)):
+async def callback(request: Request, code: str, state: str, aeromind_oidc_state: str | None = Cookie(default=None)):
     cfg = _settings()
     if not aeromind_oidc_state:
         raise HTTPException(400, 'Missing OIDC state')
@@ -239,19 +261,27 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
             raise ValueError
     except (ValueError, TypeError):
         raise HTTPException(403, 'Invalid or expired OIDC state')
-    async with httpx.AsyncClient(timeout=10) as client:
-        discovery = (await client.get(f"{cfg['issuer']}/.well-known/openid-configuration")).raise_for_status().json()
-        token_response = await client.post(discovery['token_endpoint'], data={'grant_type': 'authorization_code', 'code': code, 'client_id': cfg['client_id'], 'client_secret': cfg['client_secret'], 'redirect_uri': cfg['redirect_uri'], 'code_verifier': verifier})
-        token_response.raise_for_status()
-        tokens = token_response.json()
-        signing_key = jwt.PyJWKClient(discovery['jwks_uri']).get_signing_key_from_jwt(tokens['id_token']).key
-        claims = jwt.decode(tokens['id_token'], signing_key, algorithms=['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512'], audience=cfg['client_id'], issuer=cfg['issuer'])
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            discovery = (await client.get(f"{cfg['issuer']}/.well-known/openid-configuration")).raise_for_status().json()
+            token_response = await client.post(discovery['token_endpoint'], data={'grant_type': 'authorization_code', 'code': code, 'client_id': cfg['client_id'], 'client_secret': cfg['client_secret'], 'redirect_uri': cfg['redirect_uri'], 'code_verifier': verifier})
+            token_response.raise_for_status()
+            tokens = token_response.json()
+            signing_key = jwt.PyJWKClient(discovery['jwks_uri']).get_signing_key_from_jwt(tokens['id_token']).key
+            claims = jwt.decode(
+                tokens['id_token'], signing_key, algorithms=['RS256'],
+                audience=cfg['client_id'], issuer=cfg['issuer'],
+                options={'require': ['exp', 'iat', 'sub', 'iss', 'aud']},
+            )
+    except (httpx.HTTPError, KeyError, jwt.PyJWTError) as exc:
+        raise HTTPException(403, 'OIDC identity validation failed') from exc
     email_candidates = _identity_email_candidates(claims)
-    if claims.get('nonce') != nonce or not email_candidates:
+    _validate_tenant_claim(claims, cfg)
+    if not secrets.compare_digest(str(claims.get('nonce', '')), nonce) or not email_candidates or not isinstance(claims.get('sub'), str):
         raise HTTPException(403, 'OIDC identity validation failed')
     identity_email = next((candidate for candidate in email_candidates
                            if account_for_identity(candidate, str(claims.get('sub'))) is not None), None)
-    if identity_email is None:
+    if identity_email is None or bind_entra_identity(identity_email, str(claims['sub']), str(claims['tid'])) is None:
         raise HTTPException(403, 'Compte Microsoft Entra préexistant requis et adresse non autorisée dans le registre AeroMind')
     session = _signed(_b64(f"{claims.get('sub')}|{identity_email}".encode()))
     # P2-02/P2-03 fix: register the session in the server-side allowlist so
@@ -266,5 +296,5 @@ async def callback(code: str, state: str, aeromind_oidc_state: str | None = Cook
     separator = '&' if '?' in return_to else '?'
     response = RedirectResponse(f"{return_to}#aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')
-    response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security())
+    response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security(request))
     return response

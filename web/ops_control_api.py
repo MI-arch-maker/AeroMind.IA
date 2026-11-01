@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from .app_auth_helpers import current_user_or_401
 from .config import get_settings
 from .database import SessionLocal
+from .mavlink_command_api import virtual_only_mode
 
 router = APIRouter(prefix="/api/ops", tags=["operational control"])
 
@@ -46,9 +47,9 @@ def _current_mode_status():
     from .operation_mode import determine_mode
     return determine_mode(
         api_reachable=True,
-        hardware_control_flag=_env_truthy("HARDWARE_CONTROL"),
-        sitl_active=_env_truthy("AEROMIND_SITL_ACTIVE"),
-        hil_active=_env_truthy("AEROMIND_HIL_ACTIVE"),
+        hardware_control_flag=(not virtual_only_mode() and _env_truthy("HARDWARE_CONTROL")),
+        sitl_active=(not virtual_only_mode() and _env_truthy("AEROMIND_SITL_ACTIVE")),
+        hil_active=(not virtual_only_mode() and _env_truthy("AEROMIND_HIL_ACTIVE")),
         gate_progress=(),
     )
 
@@ -80,18 +81,20 @@ def get_operation_mode(request: Request):
     user = current_user_or_401(request)
     current = _current_mode_status()
     available_transitions: list[str] = []
-    for m in ["DEMO", "SIMULATION", "SITL", "HIL"]:
+    allowed_modes = ["DEMO", "SIMULATION"] if virtual_only_mode() else ["DEMO", "SIMULATION", "SITL", "HIL"]
+    for m in allowed_modes:
         if m != current.mode.value.upper():
             available_transitions.append(m)
     # Never combine approvals across projects or advertise HARDWARE without a project context.
     project_id = request.query_params.get("project_id", "").strip()
-    if project_id:
+    if project_id and not virtual_only_mode():
         approved_gates = _approved_gates_for_project(project_id)
         if REQUIRED_HARDWARE_GATES.issubset(approved_gates):
             available_transitions.append("HARDWARE")
     return {
         "current_mode": current.mode.value,
-        "hardware_control": _env_truthy("HARDWARE_CONTROL"),
+        "hardware_control": (not virtual_only_mode() and _env_truthy("HARDWARE_CONTROL")),
+        "virtual_only": virtual_only_mode(),
         "available_transitions": available_transitions,
         "all_gates_approved": "HARDWARE" in available_transitions,
         "gate_project_id": project_id or None,
@@ -112,6 +115,8 @@ def set_operation_mode(body: ModeChangeRequest, request: Request):
         raise HTTPException(403, "Réservé au super-admin.")
     if body.mode not in VALID_MODES:
         raise HTTPException(400, f"Mode invalide. Valides: {sorted(VALID_MODES)}")
+    if virtual_only_mode() and body.mode in {"SITL", "HIL", "HARDWARE"}:
+        raise HTTPException(409, "Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.")
     # HARDWARE mode requires all approvals for the explicitly selected project.
     if body.mode == "HARDWARE":
         if not body.project_id:
@@ -171,7 +176,9 @@ def get_system_health(request: Request):
         "status": "healthy",
         "mode": mode.mode.value,
         "environment": settings.environment,
-        "hardware_control": _env_truthy("HARDWARE_CONTROL"),
+        "virtual_only": virtual_only_mode(),
+        "hardware_control": (not virtual_only_mode() and _env_truthy("HARDWARE_CONTROL")),
+        "physical_output_enabled": False if virtual_only_mode() else _env_truthy("HARDWARE_CONTROL"),
         "database_url_configured": bool(os.getenv("DATABASE_URL")),
         "oidc_configured": bool(settings.entra_tenant_id and settings.entra_client_id),
         "sentry_configured": bool(os.getenv("SENTRY_DSN")),
@@ -195,7 +202,8 @@ def get_system_health(request: Request):
 def get_capabilities(request: Request):
     """List all operational endpoints and their availability."""
     user = current_user_or_401(request)
-    hardware_on = _env_truthy("HARDWARE_CONTROL")
+    virtual_only = virtual_only_mode()
+    hardware_on = (not virtual_only and _env_truthy("HARDWARE_CONTROL"))
     capabilities = [
         {"category": "Authentification", "endpoints": [
             {"path": "/api/auth/oidc/login", "method": "GET", "available": True, "description": "Connexion Microsoft Entra"},
@@ -210,10 +218,10 @@ def get_capabilities(request: Request):
             {"path": "/api/lab/mode/{project_id}", "method": "GET", "available": True, "description": "Mode opération projet"},
         ]},
         {"category": "Matériel & MAVLink", "endpoints": [
-            {"path": "/api/hardware/pool/register", "method": "POST", "available": True, "description": "Enregistrer drone dans le pool"},
-            {"path": "/api/hardware/drones/{id}/command", "method": "POST", "available": hardware_on, "description": "Commande MAVLink (requires HARDWARE_CONTROL=true + G0-G5)"},
+            {"path": "/api/hardware/pool/register", "method": "POST", "available": not virtual_only, "description": "Enregistrer drone dans le pool" if not virtual_only else "Désactivé par AEROMIND_VIRTUAL_ONLY"},
+            {"path": "/api/hardware/drones/{id}/command", "method": "POST", "available": hardware_on, "description": "Commande MAVLink (requires HARDWARE_CONTROL=true + G0-G5)" if not virtual_only else "Refusé par AEROMIND_VIRTUAL_ONLY"},
             {"path": "/api/hardware/geofence", "method": "PUT", "available": True, "description": "Configurer géofence"},
-            {"path": "/api/telemetry/mavlink/status", "method": "GET", "available": True, "description": "Statut télémétrie MAVLink"},
+            {"path": "/api/telemetry/mavlink/status", "method": "GET", "available": not virtual_only, "description": "Statut télémétrie MAVLink" if not virtual_only else "Observation MAVLink désactivée par AEROMIND_VIRTUAL_ONLY"},
         ]},
         {"category": "Opérations", "endpoints": [
             {"path": "/api/ops/mode", "method": "GET", "available": True, "description": "Mode opération courant"},

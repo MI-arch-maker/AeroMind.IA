@@ -136,28 +136,32 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # ---------------------------------------------------------------------------
 
 # In-memory cache remains for tests, but the canonical store is the DB.
-# ``_geofences`` is the canonical name (single dict instance, mutated in-place
-# by ``set_geofence`` / ``clear_geofence`` / test fixtures). The public read
-# accessor is :func:`list_cached_geofences`; new callers MUST use it instead
-# of touching ``_geofences`` directly so the storage backend can be swapped
-# (DB / Redis / shared multi-worker) without breaking consumers.
-_geofences: dict[str, "Geofence"] = {}
+# ``_geofences`` uses composite keys to prevent cross-tenant cache poisoning.
+# The public read accessor is :func:`list_cached_geofences`; new callers MUST
+# use it instead of touching ``_geofences`` directly so the storage backend
+# can be swapped (DB / Redis / shared multi-worker) without breaking consumers.
+_geofences: dict[tuple[str, str | None], "Geofence"] = {}
 _geofence_lock = RLock()
 
 # Public stable read interface — EXIGENCE P0-01
-def list_cached_geofences() -> dict[str, "Geofence"]:
-    """Return a snapshot of the in-memory geofence cache keyed by project_id.
+def list_cached_geofences(*, owner_id: str | None = None) -> dict[str, "Geofence"]:
+    """Return cached geofences for exactly one owner scope.
 
     Stable public read accessor — P0-01 fix.
     Returns a *copy* so callers cannot mutate the live cache via this API.
-    The cache is the hot path; the canonical store remains the database
-    (GeofenceRecord) and is queried on cache miss by ``get_geofence``.
+    With ``owner_id=None``, only unowned development/test fixtures are visible.
     """
     with _geofence_lock:
-        return dict(_geofences)
+        return {
+            project_id: geofence
+            for (project_id, cached_owner_id), geofence in _geofences.items()
+            if cached_owner_id == owner_id
+        }
 
 
-def set_geofence_for_testing(geofence: Geofence) -> Geofence:
+def set_geofence_for_testing(
+    geofence: Geofence, *, owner_id: str | None = None
+) -> Geofence:
     """Inject a geofence directly into the cache for tests / dev only.
 
     This bypasses DB persistence on purpose so unit tests that don't carry
@@ -170,7 +174,7 @@ def set_geofence_for_testing(geofence: Geofence) -> Geofence:
             "set_geofence_for_testing is forbidden outside dev/test environments"
         )
     with _geofence_lock:
-        _geofences[geofence.project_id] = geofence
+        _geofences[(geofence.project_id, owner_id)] = geofence
     return geofence
 
 
@@ -208,12 +212,23 @@ def get_geofence(project_id: str, *, owner_id: str | None = None) -> Geofence | 
     P1-07 fix — cache key is now (project_id, owner_id) to prevent cross-tenant
     cache poisoning (was keyed by project_id only, leaking geofence polygons).
     """
+    if not isinstance(project_id, str) or not project_id.strip():
+        return None
+    project_id = project_id.strip()
+    if owner_id is not None:
+        owner_id = owner_id.strip() or None
+
     # Try cache first (hot path) — P1-07: key includes owner_id
-    cache_key = (project_id, owner_id) if owner_id else (project_id, None)
+    cache_key = (project_id, owner_id)
     with _geofence_lock:
         cached = _geofences.get(cache_key)
         if cached is not None:
             return cached
+
+    # Only explicit development/test fixtures may be read without an owner.
+    # Owner-bound database records are never accessible through an unscoped call.
+    if owner_id is None:
+        return None
 
     # Fall back to DB (canonical)
     try:
@@ -243,6 +258,8 @@ def set_geofence(geofence: Geofence, *, owner_id: str) -> Geofence:
     SEC-04 fix — owner_id is REQUIRED, no anonymous geofence allowed.
     The cache is updated atomically.
     """
+    if not geofence.project_id.strip() or not owner_id.strip():
+        raise ValueError("project_id and authenticated owner_id are required")
     import json
     from .database import SessionLocal
     from .canonical_models import GeofenceRecord
@@ -273,7 +290,7 @@ def set_geofence(geofence: Geofence, *, owner_id: str) -> Geofence:
             existing.min_altitude_m = min_alt
         db.commit()
     with _geofence_lock:
-        _geofences[geofence.project_id] = geofence
+            _geofences[(geofence.project_id, owner_id)] = geofence
     return geofence
 
 
@@ -292,7 +309,7 @@ def clear_geofence(project_id: str, *, owner_id: str) -> bool:
         db.delete(rec)
         db.commit()
     with _geofence_lock:
-        _geofences.pop(project_id, None)
+        _geofences.pop((project_id, owner_id), None)
     return True
 
 
@@ -321,122 +338,52 @@ def assert_geofence_valid_for_command(geofence: Geofence | None, project_id: str
 
 
 # ---------------------------------------------------------------------------
-# Emergency stop — broadcast NAV_LAND to every drone in the pool.
+# Emergency landing — one authenticated NAV_LAND target, never a broadcast.
 # ---------------------------------------------------------------------------
-
-def _inject_estop_token(*, project_id: str, drone_id: str, estop_event_id: str) -> str:
-    """Inject a real single-use token into hardware_gate._tokens for the e-stop path.
-
-    V3.1 #1 — the e-stop MUST NOT bypass the multi-gate authorization; it must
-    still go through ``authorize_physical_command`` with a real signed token.
-    The token is bound to (project_id, drone_id) so it cannot be replayed on
-    another drone, and is consumed atomically (single-use).
-    """
-    from . import hardware_gate
-    from .hardware_gate import HardwareConfirmation
-    token = f"ESTOP-{estop_event_id}-{drone_id}-{str(uuid4())}"
-    confirmation = HardwareConfirmation(
-        token=token,
-        project_id=project_id,
-        drone_id=drone_id,
-        reviewer=f"estop-{estop_event_id}",
-        issued_at=datetime.now(UTC).isoformat(),
-    )
-    with hardware_gate._tokens_lock:
-        hardware_gate._tokens[token] = confirmation
-    return token
-
-
 def emergency_stop_all(
-    pool,
-    *,
-    owner_id: str | None = None,
-    project_id: str | None = None,
+    pool, *, owner_id: str | None = None, project_id: str | None = None,
+    drone_id: str | None = None, actor_id: str | None = None,
+    confirmation_token: str | None = None,
     audit_logger: Callable[[str, str, dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    """Broadcast NAV_LAND to every registered drone (owner-scoped).
+    """Request one owner/project-scoped emergency landing, not a motor cut-off.
 
-    V3.1 #4 — the e-stop is scoped by ``owner_id`` and/or ``project_id`` so a
-    tenant can only land its own drones. Without scoping, the e-stop would
-    operate across tenants which violates SEC-02 isolation.
-
-    V3.1 #1 — the e-stop goes through the full ``authorize_physical_command``
-    flow with a real per-drone token. The geofence gate is bypassed via
-    ``e_stop_override=True`` (audit-logged) because NAV_LAND lands in place
-    and the e-stop is the safety fallback. The function NEVER raises on a
-    single drone failure — it records the error in the per-drone result.
+    Missing target/auth/project/token is rejected before any pool method.
     """
+    if (
+        owner_id is None or not owner_id.strip()
+        or project_id is None or not project_id.strip()
+        or drone_id is None or not drone_id.strip()
+        or actor_id is None or not actor_id.strip()
+        or confirmation_token is None or not confirmation_token.strip()
+        or actor_id != owner_id
+    ):
+        return {"landed": False, "reason": "Contexte ciblé/authentifié requis; aucune action effectuée.", "results": []}
     if not hardware_commands_enabled():
-        return {
-            "stopped": False,
-            "reason": "HARDWARE_CONTROL n'est pas 'true'; e-stop reste sans effet physique (fail-closed).",
-            "results": [],
-        }
-    results: list[dict[str, Any]] = []
-    estop_event_id = str(uuid4())
+        return {"landed": False, "reason": "HARDWARE_CONTROL n'est pas 'true'; atterrissage refusé (fail-closed).", "results": []}
+    event_id = str(uuid4())
     triggered_at = datetime.now(UTC).isoformat()
-    # V3.1 #4 — emergency stop MUST be owner-scoped so a tenant cannot
-    # land another tenant's drones. Caller passes owner_id+project_id;
-    # pool.list filters accordingly.
-    entries = pool.list(owner_id=owner_id, project_id=project_id) if (owner_id or project_id) else pool.list()
-    for entry in entries:
-        drone_id = entry["droneId"]
-        try:
-            pilot = pool.pilot(drone_id, owner_id=owner_id, project_id=project_id)
-            # V3.1 #1 — inject a real per-drone e-stop token into the
-            # hardware_gate._tokens store so authorize_physical_command
-            # accepts it. The token is bound to (project_id, drone_id)
-            # and is single-use (one e-stop per drone per event).
-            estop_token = _inject_estop_token(
-                project_id=entry.get("projectId") or project_id or "",
-                drone_id=drone_id,
-                estop_event_id=estop_event_id,
-            )
-            # P0-05 fix: use send_emergency_land() instead of send_command
-            # with e_stop_override=True. This is the ONLY public path that
-            # bypasses the geofence, and it only supports NAV_LAND.
-            receipt = pilot.send_emergency_land(
-                confirmation_token=estop_token,
-                project_id=entry.get("projectId") or project_id,
-                drone_id=drone_id,
-                actor_id=owner_id or "estop-actor",
-                parameters=build_land_params(),
-            )
-            results.append({
-                "droneId": drone_id,
-                "droneName": entry.get("droneName"),
-                "sent": receipt.sent_to_hardware,
-                "reason": receipt.reason,
-                "receiptId": receipt.receipt_id,
+    try:
+        pilot = pool.pilot(drone_id, owner_id=owner_id, project_id=project_id)
+        receipt = pilot.send_emergency_land(
+            confirmation_token=confirmation_token, project_id=project_id,
+            drone_id=drone_id, actor_id=actor_id, parameters=build_land_params(),
+        )
+        result = {"droneId": drone_id, "sent": receipt.sent_to_hardware,
+                  "reason": receipt.reason, "receiptId": receipt.receipt_id}
+        if audit_logger is not None:
+            audit_logger(drone_id, "labbench.hardware.emergency_landing", {
+                "scope": "hardware-emergency-landing", "droneId": drone_id,
+                "projectId": project_id, "actorId": actor_id,
+                "physicalOutputEnabled": receipt.sent_to_hardware,
+                "physicalCommandsEmitted": receipt.sent_to_hardware,
+                "eventId": event_id, "triggeredAt": triggered_at,
+                "command": "NAV_LAND", "reason": receipt.reason,
             })
-            if audit_logger is not None:
-                audit_logger(drone_id, "labbench.hardware.estop", {
-                    "scope": "hardware-estop",
-                    "droneId": drone_id,
-                    "droneName": entry.get("droneName"),
-                    "physicalOutputEnabled": receipt.sent_to_hardware,
-                    "physicalCommandsEmitted": receipt.sent_to_hardware,
-                    "estopEventId": estop_event_id,
-                    "triggeredAt": triggered_at,
-                    "reason": receipt.reason,
-                })
-        except HardwareCommandError as exc:
-            results.append({
-                "droneId": drone_id,
-                "droneName": entry.get("droneName"),
-                "sent": False,
-                "reason": f"{exc.code}: {exc.message}",
-            })
-        except Exception as exc:
-            results.append({
-                "droneId": drone_id,
-                "droneName": entry.get("droneName"),
-                "sent": False,
-                "reason": f"unexpected: {type(exc).__name__}: {exc}",
-            })
-    return {
-        "stopped": True,
-        "estopEventId": estop_event_id,
-        "triggeredAt": triggered_at,
-        "results": results,
-    }
+        return {"landed": receipt.sent_to_hardware, "eventId": event_id,
+                "triggeredAt": triggered_at, "command": "NAV_LAND",
+                "meaning": "Atterrissage; pas une coupure moteurs.", "results": [result]}
+    except Exception as exc:
+        return {"landed": False, "eventId": event_id, "triggeredAt": triggered_at,
+                "command": "NAV_LAND", "results": [{"droneId": drone_id,
+                "sent": False, "reason": f"{getattr(exc, 'code', type(exc).__name__)}: {exc}"}]}

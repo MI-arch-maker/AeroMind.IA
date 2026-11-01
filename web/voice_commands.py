@@ -118,7 +118,7 @@ def parse_voice_command(text: str) -> dict[str, Any] | None:
         return {
             "command": "EMERGENCY_STOP",
             "parameters": {},
-            "preview": "ARRÊT D'URGENCE — broadcast NAV_LAND",
+            "preview": "Atterrissage d'urgence NAV_LAND — ne coupe pas les moteurs",
             "raw": text,
             "is_estop": True,
         }
@@ -129,7 +129,7 @@ def parse_voice_command(text: str) -> dict[str, Any] | None:
 @router.post("/parse")
 async def parse_endpoint(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Parse a voice command into a structured preview (no execution).
@@ -194,7 +194,7 @@ async def parse_endpoint(
 @router.post("/execute")
 async def execute_endpoint(
     request: Request,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
     authorization: str | None = Header(default=None),
 ):
     """Execute a previously-parsed voice command. Requires token + geofence.
@@ -217,10 +217,18 @@ async def execute_endpoint(
     project_id = str(body.get("projectId") or "").strip() or None
     is_estop = body.get("isEstop") is True
 
-    # E-stop is special — broadcast, no token needed
+    # Emergency voice command is one authenticated, owned target only.
+    # Require all target/context/token fields before even obtaining the pool.
     if is_estop or command == "EMERGENCY_STOP":
+        if not drone_id or not project_id or not confirmation_token:
+            return JSONResponse(status_code=400, content={"error": {"code": "CONTEXT_REQUIRED", "message": "droneId, projectId et confirmationToken requis pour un atterrissage d'urgence ciblé"}})
+        if not hardware_commands_enabled():
+            return JSONResponse(status_code=403, content={"error": {"code": "HARDWARE_DISABLED", "message": "Atterrissage matériel refusé (fail-closed)"}})
         pool = pool_mod.get_pool()
-        result = geo.emergency_stop_all(pool, audit_logger=None)
+        result = geo.emergency_stop_all(
+            pool, owner_id=user["id"], project_id=project_id, drone_id=drone_id,
+            actor_id=user["id"], confirmation_token=confirmation_token,
+        )
         try:
             with SessionLocal() as db:
                 db.add(AuditEvent(
@@ -228,8 +236,8 @@ async def execute_endpoint(
                     project_id=project_id,
                     user_id=user["id"],
                     actor_role=user.get("role", "user"),
-                    event_type="labbench.voice.estop",
-                    message="E-stop vocal déclenché",
+                    event_type="labbench.voice.emergency_landing",
+                    message="Atterrissage vocal NAV_LAND; pas une coupure moteurs",
                     payload_json=json.dumps({"scope": "voice", "results": result.get("results", [])}, ensure_ascii=False),
                     occurred_at=datetime.now(UTC),
                 ))
@@ -239,22 +247,20 @@ async def execute_endpoint(
         return JSONResponse(result, headers={"Cache-Control": "no-store", "Vary": "Cookie"})
 
     # Normal command — full gate
-    if not drone_id or not confirmation_token:
-        return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "droneId and confirmationToken required"}})
+    if not drone_id or not project_id or not confirmation_token:
+        return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "droneId, projectId and confirmationToken required"}})
     if command not in ALLOWED_COMMANDS:
         return JSONResponse(status_code=403, content={"error": {"code": "COMMAND_NOT_ALLOWED", "message": f"Command {command} not on allowlist"}})
     try:
-        confirmation = hw_gate.consume_hardware_confirmation_token(confirmation_token, command)
-        if confirmation.drone_id != drone_id:
-            return JSONResponse(status_code=403, content={"error": {"code": "TOKEN_DRONE_MISMATCH", "message": "Token does not match this drone"}})
         pool = pool_mod.get_pool()
-        pilot = pool.pilot(drone_id)
-        geofence = geo.get_geofence(project_id) if project_id else None
+        pilot = pool.pilot(drone_id, owner_id=user["id"], project_id=project_id)
+        geofence = geo.get_geofence(project_id, owner_id=user["id"])
         receipt = pilot.send_command(
             command,
             parameters=parameters,
             confirmation_token=confirmation_token,
             geofence_validation=lambda p: geo.validate_command_geofence(p, geofence),
+            project_id=project_id, drone_id=drone_id, actor_id=user["id"],
         )
         try:
             with SessionLocal() as db:
@@ -307,7 +313,7 @@ def examples_endpoint():
             {"text": "arm", "preview": "Armement", "command": "COMPONENT_ARM_DISARM"},
             {"text": "désarme", "preview": "Désarmement", "command": "COMPONENT_ARM_DISARM"},
             {"text": "disarm", "preview": "Désarmement", "command": "COMPONENT_ARM_DISARM"},
-            {"text": "arrêt d'urgence", "preview": "E-STOP", "command": "EMERGENCY_STOP"},
-            {"text": "emergency stop", "preview": "E-STOP", "command": "EMERGENCY_STOP"},
+            {"text": "arrêt d'urgence", "preview": "Atterrissage NAV_LAND (pas une coupure moteurs)", "command": "EMERGENCY_STOP"},
+            {"text": "emergency stop", "preview": "Atterrissage NAV_LAND (pas une coupure moteurs)", "command": "EMERGENCY_STOP"},
         ],
     }

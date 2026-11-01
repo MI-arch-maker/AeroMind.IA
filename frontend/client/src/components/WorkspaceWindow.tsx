@@ -50,6 +50,7 @@ const FULL_WORKSPACE_VIEWS = new Set([
   "parametric-center",
   "simulation",
   "mission-planner",
+  "mission-center",
   "report",
 ]);
 const VIEW_LAYOUTS: Record<string, Partial<WindowLayout>> = {
@@ -69,15 +70,17 @@ function loadLayouts(): Record<string, WindowLayout> {
 }
 
 function clampLayout(layout: WindowLayout): WindowLayout {
-  const maxWidth = Math.max(MIN_WIDTH, window.innerWidth - 24);
+  const sidebarWidth = window.innerWidth > 900 ? 248 : window.innerWidth > 760 ? 238 : 0;
+  const minX = sidebarWidth ? sidebarWidth + 18 : 12;
+  const maxWidth = Math.max(MIN_WIDTH, window.innerWidth - minX - 12);
   const maxHeight = Math.max(MIN_HEIGHT, window.innerHeight - 100);
   return {
     ...layout,
     width: Math.min(Math.max(layout.width, MIN_WIDTH), maxWidth),
     height: Math.min(Math.max(layout.height, MIN_HEIGHT), maxHeight),
     x: Math.max(
-      12,
-      Math.min(layout.x, Math.max(12, window.innerWidth - layout.width - 12))
+      minX,
+      Math.min(layout.x, Math.max(minX, window.innerWidth - layout.width - 12))
     ),
     y: Math.max(
       76,
@@ -105,6 +108,7 @@ export function WorkspaceWindow({
       ...preset,
       ...saved,
       ...(upgradeLegacyLiveSize ? { width: preset.width, height: preset.height } : {}),
+      minimized: forceMaximized ? false : (saved?.minimized ?? false),
       maximized: forceMaximized || (saved?.maximized ?? false),
       zIndex: 10,
     });
@@ -204,7 +208,13 @@ export function WorkspaceWindow({
       maximized: !current.maximized,
       minimized: false,
     }));
-  const reset = () => setLayout(clampLayout({ ...DEFAULT_LAYOUT, ...(VIEW_LAYOUTS[viewId] ?? {}), zIndex: 10 }));
+  const reset = () => setLayout(clampLayout({
+    ...DEFAULT_LAYOUT,
+    ...(VIEW_LAYOUTS[viewId] ?? {}),
+    minimized: false,
+    maximized: FULL_WORKSPACE_VIEWS.has(viewId),
+    zIndex: 10,
+  }));
 
   return (
     <section

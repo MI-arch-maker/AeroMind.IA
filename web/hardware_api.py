@@ -99,7 +99,7 @@ class CommandInput(BaseModel):
 @router.post("/mode")
 def set_control_mode(
     body: ModeInput,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
 ):
     user = _require_user(aeromind_session)
     if body.mode == "HARDWARE":
@@ -121,7 +121,7 @@ def set_control_mode(
 @router.post("/arm")
 def arm(
     body: ModeInput,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
 ):
     user = _require_user(aeromind_session)
     if body.mode == "HARDWARE":
@@ -142,7 +142,7 @@ def arm(
 @router.post("/command")
 def send_command(
     body: CommandInput,
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
 ):
     user = _require_user(aeromind_session)
     if body.latitude is not None or body.longitude is not None:
@@ -176,7 +176,7 @@ def send_command(
 
 @router.post("/emergency-stop")
 def emergency_stop(
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
 ):
     user = _require_user(aeromind_session)
     # Un clic crée au besoin une session vierge, puis purge/désarme exclusivement
@@ -186,7 +186,7 @@ def emergency_stop(
 
 @router.get("/state")
 def get_virtual_state(
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
 ):
     """État courant de la session VIRTUAL, révision comprise, sans effet de bord."""
     user = _require_user(aeromind_session)
@@ -196,7 +196,7 @@ def get_virtual_state(
 @router.get("/logs")
 def list_virtual_logs(
     limit: int = Query(default=50, ge=1, le=100),
-    aeromind_session: str | None = Cookie(default=None, convert_underscores=False),
+    aeromind_session: str | None = Cookie(default=None),
 ):
     user = _require_user(aeromind_session)
     return controller_for(user["id"]).logs(limit)

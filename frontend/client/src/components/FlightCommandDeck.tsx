@@ -18,8 +18,11 @@ import {
 import type { DroneCatalogDesign } from "../lib/droneCatalog";
 import type { LocalMissionPlan, MissionEnvironment } from "../lib/aeroEngine";
 import type { MissionTelemetryFrame } from "../lib/missionBridge";
+import { useLanguage } from "../contexts/LanguageContext";
 import { ParametricDronePreview } from "./ParametricDronePreview";
 import { FlightOperationsModules } from "./FlightOperationsModules";
+import { HardwareControlPanel } from "./HardwareControlPanel";
+import { LabPreparationChecklist } from "./LabPreparationChecklist";
 
 type DeckCommand =
   | "start"
@@ -75,6 +78,7 @@ export function FlightCommandDeck({
   onMissionPlanChange: (plan: LocalMissionPlan) => void;
   onEnvironmentChange: (environment: MissionEnvironment) => void;
 }) {
+  const { t } = useLanguage();
   const blocking = missionChecks.filter(check => check.severity === "block").length;
   const review = missionChecks.filter(check => check.severity === "review").length;
   const currentWaypoint = waypoints[activeWaypoint];
@@ -153,6 +157,15 @@ export function FlightCommandDeck({
       </div>
 
       <FlightOperationsModules demoState={demoState} activeWaypoint={activeWaypoint} waypoints={waypoints} missionPlan={missionPlan} environment={environment} enduranceH={enduranceH} batteryWh={batteryWh} telemetryState={telemetryState} telemetry={telemetry} telemetrySource={telemetrySource} onMissionPlanChange={onMissionPlanChange} onEnvironmentChange={onEnvironmentChange} />
+      <details className="flight-virtual-panel">
+        <summary>
+          <strong>{t("VIRTUAL control panel — SIMULATION only")}</strong>
+          <small>{t("Virtual-model controls only · no physical output or test")}</small>
+        </summary>
+        <p>{t("This panel is restricted to SIMULATION/VIRTUAL software models. It does not activate an aircraft, hardware control, or tests.")}</p>
+        <HardwareControlPanel />
+      </details>
+      <LabPreparationChecklist />
       <div className="flight-deck-disclaimer"><AlertTriangle size={14} /> Toute action et toute donnée générée ci-dessus restent bornées à la simulation locale ou à l’observation lecture seule. L’armement, les actionneurs, le téléversement de mission et les commandes réelles sont structurellement rejetés.</div>
     </section>
   );

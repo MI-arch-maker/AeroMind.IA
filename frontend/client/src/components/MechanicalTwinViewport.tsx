@@ -35,6 +35,8 @@ type Props = {
   xrayOpacity: XrayLayerState;
   xrayIsolatedLayer?: string;
   kinematicsPlaying?: boolean;
+  previewPartId?: string;
+  previewEnabled?: boolean;
 };
 const directions: Record<MechanicalView, [number, number, number]> = {
   iso: [1.2, 0.85, 1.45],
@@ -88,6 +90,8 @@ function MechanicalMesh({
   xrayOpacity,
   xrayIsolatedLayer,
   kinematicsPlaying = false,
+  previewPartId,
+  previewEnabled = false,
 }: {
   part: MechanicalPart;
   selected: boolean;
@@ -98,8 +102,11 @@ function MechanicalMesh({
   xrayOpacity: XrayLayerState;
   xrayIsolatedLayer?: string;
   kinematicsPlaying?: boolean;
+  previewPartId?: string;
+  previewEnabled?: boolean;
 }) {
   const pivotRef = useRef<THREE.Group>(null);
+  const isPreview = previewEnabled && previewPartId === part.id;
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute(
@@ -157,24 +164,24 @@ function MechanicalMesh({
         }}
       >
         <meshStandardMaterial
-          color={selected ? "#79eadb" : part.color}
+          color={isPreview ? "#ffcf70" : selected ? "#79eadb" : part.color}
           metalness={part.metalness}
           roughness={part.roughness}
-          emissive={selected ? "#145b59" : "#000000"}
-          emissiveIntensity={selected ? 0.2 : 0}
+          emissive={isPreview ? "#9a5a16" : selected ? "#145b59" : "#000000"}
+          emissiveIntensity={isPreview ? 0.55 : selected ? 0.2 : 0}
           wireframe={mode === "wireframe"}
-          transparent={mode === "xray"}
-          opacity={(mode === "xray" ? 0.25 * layerOpacity : 1) * (part.opacity ?? 1)}
-          depthWrite={mode !== "xray" && (part.opacity ?? 1) >= 0.99}
+          transparent={isPreview || mode === "xray"}
+          opacity={isPreview ? 0.48 : (mode === "xray" ? 0.25 * layerOpacity : 1) * (part.opacity ?? 1)}
+          depthWrite={!isPreview && mode !== "xray" && (part.opacity ?? 1) >= 0.99}
           side={THREE.DoubleSide}
         />
       </mesh>
       {mode !== "wireframe" && (
         <lineSegments geometry={edges}>
           <lineBasicMaterial
-            color={selected ? "#c8fff2" : "#647c88"}
+            color={isPreview ? "#ffe6a8" : selected ? "#c8fff2" : "#647c88"}
             transparent
-            opacity={selected ? 0.8 : 0.22}
+            opacity={isPreview ? 1 : selected ? 0.8 : 0.22}
           />
         </lineSegments>
       )}
@@ -208,6 +215,8 @@ export function MechanicalVectorView({
   xrayCut,
   xrayOpacity,
   xrayIsolatedLayer,
+  previewPartId,
+  previewEnabled,
 }: Omit<Props, "resetKey">) {
   const [orbit, setOrbit] = useState<[number, number]>([0, 0]);
   const [zoom, setZoom] = useState(1);
@@ -249,9 +258,8 @@ export function MechanicalVectorView({
               vertices[i + 2],
             ).applyMatrix4(inverse),
           );
-        const base = new THREE.Color(
-          part.id === selected ? "#79eadb" : part.color,
-        );
+        const isPreview = previewEnabled && part.id === previewPartId;
+        const base = new THREE.Color(isPreview ? "#ffcf70" : part.id === selected ? "#79eadb" : part.color);
         const light = new THREE.Vector3(-0.3, 0.85, 0.5).normalize();
         const result: Array<{
           key: string;
@@ -303,7 +311,7 @@ export function MechanicalVectorView({
         .map((p) => `${400 + p.x * factor},${230 - p.y * factor}`)
         .join(" "),
     }));
-  }, [model, selected, view, mode, explosion, orbit, zoom, xrayCut, xrayOpacity, xrayIsolatedLayer]);
+  }, [model, selected, view, mode, explosion, orbit, zoom, xrayCut, xrayOpacity, xrayIsolatedLayer, previewPartId, previewEnabled]);
   return (
     <svg
       className="mt-vector-view"
@@ -357,11 +365,13 @@ export function MechanicalVectorView({
           data-part={face.id}
           points={face.coords}
           fill={mode === "wireframe" ? "none" : face.color}
-          fillOpacity={(mode === "xray" ? 0.25 * Math.max(0, Math.min(1, (xrayOpacity[face.category] ?? 100) / 100)) : 1) * (model.parts.find((part) => part.id === face.id)?.opacity ?? 1)}
+          fillOpacity={previewEnabled && face.id === previewPartId ? 0.48 : (mode === "xray" ? 0.25 * Math.max(0, Math.min(1, (xrayOpacity[face.category] ?? 100) / 100)) : 1) * (model.parts.find((part) => part.id === face.id)?.opacity ?? 1)}
           stroke={
             face.id === selected
               ? "#cafff2"
-              : mode === "wireframe"
+              : previewEnabled && face.id === previewPartId
+                ? "#ffe6a8"
+                : mode === "wireframe"
                 ? "#78adba"
                 : face.color
           }
@@ -387,6 +397,8 @@ export function MechanicalTwinViewport(props: Props) {
     xrayOpacity,
     xrayIsolatedLayer,
     kinematicsPlaying = false,
+    previewPartId,
+    previewEnabled = false,
   } = props;
   const root = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -471,6 +483,8 @@ export function MechanicalTwinViewport(props: Props) {
                 xrayOpacity={xrayOpacity}
                 xrayIsolatedLayer={xrayIsolatedLayer}
                 kinematicsPlaying={kinematicsPlaying}
+                previewPartId={previewPartId}
+                previewEnabled={previewEnabled}
               />
             ))}
             <OrbitControls
@@ -487,6 +501,7 @@ export function MechanicalTwinViewport(props: Props) {
       ) : (
         vector
       )}
+      {previewEnabled && previewPartId && <div className="mt-preview-tag"><span>FEATURE TREE PREVIEW</span><b>{previewPartId}</b></div>}
       <div className="mt-scene-tag">
         <span>MECHANICAL TWIN / {model.modelType.toUpperCase()}</span>
         <b>{webgl ? "3D INTERACTIVE" : "PROJECTION MÉCANIQUE INTERACTIVE"}</b>

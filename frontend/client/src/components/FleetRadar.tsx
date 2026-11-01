@@ -109,7 +109,7 @@ export function FleetRadar({ projectId, geofence }: Props) {
     if (paused || !projectId) return;
     let stopped = false;
     try {
-      const es = new EventSource("/api/hardware/fleet/telemetry/stream", {
+      const es = new EventSource(`/api/hardware/fleet/telemetry/stream?projectId=${encodeURIComponent(projectId)}`, {
         withCredentials: true,
       });
       eventSourceRef.current = es;
@@ -148,7 +148,7 @@ export function FleetRadar({ projectId, geofence }: Props) {
   // === Fetch one-shot snapshot when SSE not yet ready ===
   useEffect(() => {
     if (!projectId) return;
-    fetch(`/api/hardware/fleet/telemetry/snapshot`, { credentials: "include" })
+    fetch(`/api/hardware/fleet/telemetry/snapshot?projectId=${encodeURIComponent(projectId)}`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data) setSnapshot(data);
@@ -163,9 +163,18 @@ export function FleetRadar({ projectId, geofence }: Props) {
   const [replaySpeed, setReplaySpeed] = useState(1);
   const [replayLoading, setReplayLoading] = useState(false);
 
+  useEffect(() => {
+    setSnapshot(null);
+    setTrails({});
+    setReplayHistory({});
+    setReplayMode(false);
+    setReplayIndex(0);
+    setError(null);
+  }, [projectId]);
+
   const loadReplayHistory = async () => {
-    if (!snapshot || snapshot.drones.length === 0) {
-      setError("Aucun drone dans le pool — rien à rejouer");
+    if (!projectId || !snapshot || snapshot.drones.length === 0) {
+      setError(!projectId ? "Sélectionnez un projet pour charger le replay" : "Aucun drone dans le pool — rien à rejouer");
       return;
     }
     setReplayLoading(true);
@@ -173,7 +182,7 @@ export function FleetRadar({ projectId, geofence }: Props) {
       const byDrone: Record<string, Array<Record<string, unknown>>> = {};
       for (const d of snapshot.drones) {
         const r = await fetch(
-          `/api/hardware/fleet/telemetry/history?drone_id=${encodeURIComponent(d.droneId)}&limit=500`,
+          `/api/hardware/fleet/telemetry/history?projectId=${encodeURIComponent(projectId)}&drone_id=${encodeURIComponent(d.droneId)}&limit=500`,
           { credentials: "include" },
         );
         if (r.ok) {

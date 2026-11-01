@@ -193,6 +193,41 @@ def account_for_identity(email: str, subject: str) -> dict[str, Any] | None:
     return {**account, "id": subject, "accountId": account.get("id"), "email": email.strip().casefold()}
 
 
+def bind_entra_identity(email: str, subject: str, tenant_id: str) -> dict[str, Any] | None:
+    """Bind an already-approved Entra identity without granting any role.
+
+    The email match is only the provisioning lookup. Once the first validated
+    Entra ID token is accepted, the immutable tenant + subject pair is stored
+    on the Aeromind account. A later token for a different identity is refused.
+    """
+    normalized_email = email.strip().casefold()
+    subject = subject.strip()
+    tenant_id = tenant_id.strip()
+    if not normalized_email or not subject or not tenant_id:
+        return None
+    with SessionLocal() as db:
+        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == normalized_email))
+        if row is None:
+            primary = _primary_account()
+            if primary is None or primary.get("email", "").casefold() != normalized_email:
+                return None
+            return {**primary, "id": subject, "accountId": primary.get("id"), "email": normalized_email}
+        account = _record_account(row)
+        if account.get("accountStatus") not in {"active", "evaluation"}:
+            return None
+        bound_subject = str(account.get("entraSubject", "")).strip()
+        bound_tenant = str(account.get("entraTenantId", "")).strip()
+        if (bound_subject and bound_subject != subject) or (bound_tenant and bound_tenant != tenant_id):
+            return None
+        changed = not bound_subject or not bound_tenant
+        if changed:
+            account.update({"entraSubject": subject, "entraTenantId": tenant_id, "entraIdentityBoundAt": _now()})
+            row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
+            db.add(_event(db, "account.entra_identity_bound", {"id": account.get("id", "unknown"), "email": normalized_email, "role": account.get("role", "user")}, str(account.get("id", "")), {"tenantId": tenant_id, "subject": subject}))
+            db.commit()
+        return {**account, "id": subject, "accountId": account.get("id"), "email": normalized_email}
+
+
 def verify_authorization_code(email: str, code: str) -> bool:
     account = account_for_email(email)
     if not account or account.get("accountStatus") not in {"active", "evaluation"}:

@@ -93,6 +93,37 @@ describe("mechanicalTwinGeometry", () => {
     expect(large.parts.find(part => part.id === "wing-main-port")!.size[0]).toBeGreaterThan(small.parts.find(part => part.id === "wing-main-port")!.size[0]);
   });
 
+  it("reconstruit réellement le fuselage selon les sections circulaire, elliptique et polygonale", () => {
+    const design = droneCatalog.find(item => item.modelType === "voilure-conventionnelle")!;
+    const circular = modelFor(design, { fuselageSectionType: "circular" });
+    const elliptical = modelFor(design, { fuselageSectionType: "elliptical" });
+    const polygonal = modelFor(design, { fuselageSectionType: "polygonal" });
+    const circularPart = circular.parts.find(part => part.id === "fuselage-shell")!;
+    const ellipticalPart = elliptical.parts.find(part => part.id === "fuselage-shell")!;
+    const polygonalPart = polygonal.parts.find(part => part.id === "fuselage-shell")!;
+    expect(circular.settings.fuselageSectionType).toBe("circular");
+    expect(elliptical.settings.fuselageSectionType).toBe("elliptical");
+    expect(polygonal.settings.fuselageSectionType).toBe("polygonal");
+    expect(polygonalPart.vertices.length).toBeLessThan(ellipticalPart.vertices.length);
+    expect(circularPart.vertices).not.toEqual(ellipticalPart.vertices);
+    expect(circularPart.indices.length % 3).toBe(0);
+    expect(ellipticalPart.indices.length % 3).toBe(0);
+    expect(polygonalPart.indices.length % 3).toBe(0);
+  });
+
+  it("applique les variables de flèche, dièdre et épaisseur au maillage reconstruit", () => {
+    const design = droneCatalog.find(item => item.modelType === "voilure-conventionnelle")!;
+    const base = modelFor(design);
+    const tuned = modelFor(design, {
+      mechanicalTwin: { designId: design.id, sweepDeg: 35, dihedralDeg: 12, fuselageHeight: 0.42 },
+    });
+    expect(tuned.settings.sweepDeg).toBe(35);
+    expect(tuned.settings.dihedralDeg).toBe(12);
+    expect(tuned.settings.fuselageHeight).toBeCloseTo(0.42);
+    expect(tuned.parts.find(part => part.id === "wing-main-port")!.vertices).not.toEqual(base.parts.find(part => part.id === "wing-main-port")!.vertices);
+    expect(tuned.parts.find(part => part.id === "fuselage-shell")!.size[1]).not.toBeCloseTo(base.parts.find(part => part.id === "fuselage-shell")!.size[1]);
+  });
+
   it("paramètre les motoréducteurs ornithoptère et les cages cycliques selon motorCount", () => {
     const ornithopter = droneCatalog.find(item => item.modelType === "ornithoptère")!;
     const cyclocopter = droneCatalog.find(item => item.modelType === "cyclocoptère")!;

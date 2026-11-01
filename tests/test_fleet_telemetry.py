@@ -74,11 +74,11 @@ def _register_drone_with_observer(pool: pool_mod.MavlinkPool, drone_id: str, dro
         drone_id,
         drone_name,
         "udpout:127.0.0.1:14550",
-        owner_id="test-owner",
+        owner_id="test-user",
         project_id="p1",
     )
     # Manually replace the observer with our fake
-    entry = pool.entry(drone_id, owner_id="test-owner", project_id="p1")
+    entry = pool.entry(drone_id, owner_id="test-user", project_id="p1")
     entry.observer = observer
 
 
@@ -88,7 +88,7 @@ def _register_drone_with_observer(pool: pool_mod.MavlinkPool, drone_id: str, dro
 
 
 def test_snapshot_empty_pool():
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     assert snap["poolSize"] == 0
     assert snap["drones"] == []
     assert "timestamp" in snap
@@ -100,7 +100,7 @@ def test_snapshot_returns_drone_positions():
     obs = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=12.5, armed=True)
     _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
 
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     assert snap["poolSize"] == 1
     drone = snap["drones"][0]
     assert drone["droneId"] == "drone-1"
@@ -111,6 +111,28 @@ def test_snapshot_returns_drone_positions():
     assert drone["position"]["relative_altitude_m"] == 12.5
     assert drone["battery_remaining_pct"] == 78
     assert drone["flight"]["heading"] == 45.0
+
+
+def test_snapshot_only_exposes_drones_for_authenticated_owner():
+    pool = pool_mod.get_pool()
+    _register_drone_with_observer(
+        pool, "owned-drone", "Owned", _make_observer(True, 38.0, -122.0, 10.0)
+    )
+    pool.register(
+        "foreign-drone", "Foreign", "udpout:127.0.0.1:14550",
+        owner_id="other-user", project_id="p1",
+    )
+    pool.entry(
+        "foreign-drone", owner_id="other-user", project_id="p1"
+    ).observer = _make_observer(True, 38.0, -122.0, 10.0)
+
+    own_snapshot = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+    foreign_snapshot = ft.fleet_snapshot_sync(user_id="other-user", project_id="p1")
+    with pytest.raises(ValueError, match="authenticated owner and explicit project_id"):
+        ft.fleet_snapshot_sync(user_id="", project_id="p1")
+
+    assert [drone["droneId"] for drone in own_snapshot["drones"]] == ["owned-drone"]
+    assert [drone["droneId"] for drone in foreign_snapshot["drones"]] == ["foreign-drone"]
 
 
 def test_snapshot_computes_xy_when_geofence_home_set():
@@ -126,9 +148,9 @@ def test_snapshot_computes_xy_when_geofence_home_set():
         max_distance_m=500,
         home_lat=38.0,
         home_lon=-122.0,
-    ))
+    ), owner_id="test-user")
 
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     drone = snap["drones"][0]
     # ~111 m north and ~85 m west of home (lat 0.001 = 111m, lon 0.001 at lat 38 ≈ 88m)
     assert drone["x_m"] is not None
@@ -150,9 +172,9 @@ def test_snapshot_flags_drone_outside_geofence_polygon():
         polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
         home_lat=38.0,
         home_lon=-122.0,
-    ))
+    ), owner_id="test-user")
 
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     drone = snap["drones"][0]
     assert drone["inside_geofence"] is False
 
@@ -168,9 +190,9 @@ def test_snapshot_flags_drone_above_max_altitude():
         max_altitude_m=100,
         home_lat=38.0,
         home_lon=-122.0,
-    ))
+    ), owner_id="test-user")
 
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     drone = snap["drones"][0]
     assert drone["altitude_ok"] is False
 
@@ -180,7 +202,7 @@ def test_snapshot_handles_disconnected_observer():
     obs = _make_observer(connected=False, lat=None, lon=None, alt=None)
     _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
 
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     drone = snap["drones"][0]
     assert drone["connected"] is False
     assert drone["position"]["latitude_deg"] is None
@@ -200,9 +222,9 @@ def test_snapshot_handles_multiple_drones():
         polygon=[(37.99, -122.01), (38.05, -122.01), (38.05, -121.99), (37.99, -121.99)],
         home_lat=38.0,
         home_lon=-122.0,
-    ))
+    ), owner_id="test-user")
 
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     assert snap["poolSize"] == 2
     drones = {d["droneId"]: d for d in snap["drones"]}
     assert drones["drone-1"]["droneName"] == "Alpha"
@@ -222,9 +244,9 @@ def test_snapshot_includes_geofence_metadata():
         max_altitude_m=120,
         home_lat=38.0,
         home_lon=-122.0,
-    ))
+    ), owner_id="test-user")
 
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     assert snap["geofenceConfigured"] is True
     assert snap["homeLat"] == 38.0
     assert snap["homeLon"] == -122.0
@@ -237,7 +259,7 @@ def test_snapshot_no_geofence_returns_null_home():
     _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
     # No geofence set
 
-    snap = ft.fleet_snapshot_sync(user_id="test-user")
+    snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
     assert snap["geofenceConfigured"] is False
     assert snap["homeLat"] is None
     drone = snap["drones"][0]
@@ -265,3 +287,162 @@ def test_point_in_polygon_simple_square():
     assert ft._point_in_polygon((5, 5), polygon) is True
     assert ft._point_in_polygon((15, 5), polygon) is False
     assert ft._point_in_polygon((-1, 5), polygon) is False
+
+
+def test_history_endpoints_filter_samples_by_project_owner(tmp_path, monkeypatch):
+    import json
+    from datetime import UTC, datetime
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from starlette.requests import Request
+    from web.database import Base
+    from web.models import FleetTelemetrySample, Project, User
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'history-owner.db'}")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    now = datetime.now(UTC)
+    request = Request({"type": "http", "http_version": "1.1", "method": "GET", "scheme": "http", "path": "/api/hardware/fleet/telemetry/history", "raw_path": b"/api/hardware/fleet/telemetry/history", "query_string": b"", "root_path": "", "headers": [], "client": ("127.0.0.1", 1234), "server": ("testserver", 80)})
+    with Session() as db:
+        db.add_all([
+            User(id="owner", email="owner@example.test"),
+            User(id="other", email="other@example.test"),
+        ])
+        db.flush()
+        db.add_all([
+            Project(id="owner-project", user_id="owner", name="Owner project", data_json="{}"),
+            Project(id="owner-project-2", user_id="owner", name="Second owner project", data_json="{}"),
+            Project(id="other-project", user_id="other", name="Other project", data_json="{}"),
+        ])
+        db.add_all([
+            FleetTelemetrySample(project_id="owner-project", drone_id="shared-drone", drone_name="Owner drone", sample_time=now, latitude_deg=11.0),
+            FleetTelemetrySample(project_id="owner-project-2", drone_id="shared-drone", drone_name="Second-project drone", sample_time=now, latitude_deg=33.0),
+            FleetTelemetrySample(project_id="other-project", drone_id="shared-drone", drone_name="Other drone", sample_time=now, latitude_deg=22.0),
+        ])
+        db.commit()
+
+    monkeypatch.setattr(ft, "SessionLocal", Session)
+    monkeypatch.setattr(ft, "current_user", lambda *_args, **_kwargs: {"id": "owner"})
+    try:
+        history = ft.fleet_history_endpoint(
+            request=request, drone_id="shared-drone", project_id="owner-project", limit=500, since_iso=None,
+            aeromind_session=None, authorization=None,
+        )
+        history_payload = json.loads(bytes(history.body).decode("utf-8"))
+        assert history_payload["count"] == 1
+        assert history_payload["samples"][0]["latitude_deg"] == 11.0
+
+        ranged = ft.fleet_history_range_endpoint(
+            request=request, project_id="owner-project", drone_id="shared-drone", minutes=15,
+            aeromind_session=None, authorization=None,
+        )
+        range_payload = json.loads(bytes(ranged.body).decode("utf-8"))
+        assert range_payload["totalCount"] == 1
+        assert range_payload["drones"]["shared-drone"][0]["latitude_deg"] == 11.0
+    finally:
+        engine.dispose()
+
+
+
+def test_app_flight_history_and_csv_are_owner_scoped(tmp_path, monkeypatch):
+    import csv
+    import io
+    import json
+    from datetime import UTC, datetime
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from starlette.requests import Request
+    from web import app as app_module
+    from web.database import Base
+    from web.models import FleetTelemetrySample, Project, User
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'app-history-owner.db'}")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    now = datetime.now(UTC)
+    with Session() as db:
+        db.add_all([
+            User(id="owner", email="owner@example.test"),
+            User(id="other", email="other@example.test"),
+        ])
+        db.flush()
+        db.add_all([
+            Project(id="owner-project", user_id="owner", name="Owner project", data_json="{}"),
+            Project(id="owner-project-2", user_id="owner", name="Second owner project", data_json="{}"),
+            Project(id="other-project", user_id="other", name="Other project", data_json="{}"),
+        ])
+        db.add_all([
+            FleetTelemetrySample(
+                project_id="owner-project", drone_id="shared-drone", drone_name="Owner drone",
+                sample_time=now, latitude_deg=11.0,
+            ),
+            FleetTelemetrySample(
+                project_id="owner-project-2", drone_id="shared-drone", drone_name="Second-project drone",
+                sample_time=now, latitude_deg=33.0,
+            ),
+            FleetTelemetrySample(
+                project_id="other-project", drone_id="shared-drone", drone_name="Other drone",
+                sample_time=now, latitude_deg=22.0,
+            ),
+        ])
+        db.commit()
+
+    monkeypatch.setattr(app_module, "SessionLocal", Session)
+    monkeypatch.setattr(
+        app_module, "_current_user",
+        lambda *_args, **_kwargs: {"id": "owner", "role": "user", "email": "owner@example.test"},
+    )
+
+    def make_request(path: str, query: bytes = b"projectId=owner-project&droneId=shared-drone&minutes=60") -> Request:
+        return Request({
+            "type": "http", "http_version": "1.1", "method": "GET",
+            "scheme": "http", "path": path, "raw_path": path.encode(),
+            "query_string": query, "root_path": "", "headers": [],
+            "client": ("127.0.0.1", 1234), "server": ("testserver", 80),
+        })
+
+    try:
+        history = app_module.flights_history(
+            request=make_request("/api/flights/history"),
+            aeromind_session=None, authorization=None,
+        )
+        history_payload = json.loads(bytes(history.body).decode("utf-8"))
+        assert history_payload["totalCount"] == 1
+        assert history_payload["samples"][0]["latitude_deg"] == 11.0
+
+        exported = app_module.flights_export_csv(
+            request=make_request("/api/flights/export.csv"),
+            aeromind_session=None, authorization=None,
+        )
+        csv_text = bytes(exported.body).decode("utf-8")
+        rows = list(csv.reader(io.StringIO(csv_text)))
+        assert len(rows) == 2
+        assert "11.0" in rows[1]
+        assert "22.0" not in csv_text
+        assert "33.0" not in csv_text
+
+        missing_scope = app_module.flights_history(
+            request=make_request("/api/flights/history", query=b"minutes=60"),
+            aeromind_session=None, authorization=None,
+        )
+        assert missing_scope.status_code == 400
+    finally:
+        engine.dispose()
+
+
+
+def test_virtual_only_snapshot_never_accesses_mavlink_pool(monkeypatch):
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "true")
+    monkeypatch.setattr(
+        ft,
+        "get_pool",
+        lambda: pytest.fail("virtual-only snapshot must not access the MAVLink pool"),
+    )
+
+    snapshot = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+
+    assert snapshot["virtualOnly"] is True
+    assert snapshot["hardwareControlEnabled"] is False
+    assert snapshot["poolSize"] == 0
+    assert snapshot["drones"] == []
+    assert snapshot["alerts"] == []

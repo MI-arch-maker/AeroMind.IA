@@ -1,256 +1,577 @@
-/**
- * ParametricDroneCenter — Centre de Construction Paramétrique des Drones.
- *
- * Interface de CAO paramétrique intégrée à AeroMind, inspirée d'Onshape.
- * Permet de concevoir un drone en manipulant des variables (longueur, envergure,
- * flèche, dièdre, épaisseur) avec un aperçu 3D temps réel (Three.js), un arbre
- * de features, un studio de variables éditables, et un inspecteur de propriétés
- * aérodynamiques / masse / surfaces de contrôle.
- *
- * Synchronisé avec le ConceptConfig du projet AeroMind actif : les modifications
- * de variables mettent à jour config.wingspan, config.fuselageLength, etc.
- */
-import { Component, useMemo, useRef, useState, useEffect, type ErrorInfo, type ReactNode } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import * as THREE from "three";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
-  Activity, Box, Camera, Cog, Copy, Download, Layers, Maximize2, Plus,
-  Ruler, Save, Search, Settings as SettingsIcon, Upload, Wrench,
+  Activity, ArrowDownToLine, ArrowUpFromLine, Box, Camera, Check,
+  Copy, Download, Eye, EyeOff, FileJson2, FileSpreadsheet, Maximize2, Plus,
+  Redo2, RotateCcw, Save, Search, Undo2, Wrench,
 } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
-import { calculateParametricMetrics, PARAMETRIC_PREVIEW_DEFAULTS, resolveParametricVariables } from "../lib/engineeringDisplayState";
+import type { DroneCatalogDesign } from "../lib/droneCatalog";
+import { calculateParametricMetrics } from "../lib/engineeringDisplayState";
+import {
+  buildMechanicalModel,
+  transformedPartVertices,
+  type ControlDeflections,
+  type MechanicalModel,
+  type MechanicalPart,
+  type ParametricSketchProfile,
+} from "../lib/mechanicalTwinGeometry";
+import {
+  appendFeatureOperation,
+  appendNativeEdgeTreatment,
+  featureHistoryFor,
+  materializeNativePart,
+  nativeCsgId,
+  type FeatureOperation,
+} from "../lib/parametricFeatureOperations";
+import {
+  addCustomVariable,
+  collectVariableRows,
+  getActiveMechanicalTwin,
+  makeParametricSnapshot,
+  parseParametricSnapshot,
+  removeCustomVariable,
+  setVariableValue,
+  updateActiveMechanicalTwin,
+  updateVariableDefinition,
+  variablesFromCsv,
+  variablesToCsv,
+  type VariableRow,
+} from "../lib/parametricStudioModel";
 import { useLanguage } from "../contexts/LanguageContext";
 import { toast } from "sonner";
+import { MechanicalTwinViewport } from "./MechanicalTwinViewport";
+import "./mechanical-twin.css";
 import "./parametric-drone-center.css";
 
 type Props = {
   config: ConceptConfig;
-  setConfig: (updater: (prev: ConceptConfig) => ConceptConfig) => void;
+  setConfig: Dispatch<SetStateAction<ConceptConfig>>;
   hasProject: boolean;
-  onCommit?: () => void;
+  activeProfile?: DroneCatalogDesign;
+  activeDroneLabel?: string;
+  onCommit?: () => Promise<{ scope: "LOCAL" | "SERVER-ACK" }>;
 };
 
-type VariableType = "number" | "angle" | "ratio";
-
-type Variable = {
-  id: string;
-  name: string;
-  value: number;
-  unit: string;
-  min: number;
-  max: number;
-  step: number;
-  type: VariableType;
-  description: string;
-  appliesTo: (keyof ConceptConfig) | "custom";
-};
-
-type FeatureGroup = {
-  id: string;
-  label: string;
-  icon: string;
-  color: string;
-  features: { name: string; status: "ok" | "warn" | "active"; meta?: string }[];
-};
-
-const DEFAULT_VARIABLES: Variable[] = [
-  { id: "length", name: "#length", value: 10, unit: "m", min: 5, max: 15, step: 0.1, type: "number", description: "Longueur du fuselage", appliesTo: "fuselageLength" },
-  { id: "wingspan", name: "#wingspan", value: 15, unit: "m", min: 10, max: 15, step: 0.1, type: "number", description: "Envergure totale", appliesTo: "wingspan" },
-  { id: "sweep", name: "#sweep", value: 60, unit: "°", min: 60, max: 90, step: 1, type: "angle", description: "Flèche de l'aile", appliesTo: "custom" },
-  { id: "dihedral", name: "#dihedral", value: 0, unit: "°", min: 0, max: 10, step: 0.5, type: "angle", description: "Dièdre de l'aile", appliesTo: "custom" },
-  { id: "max_thickness", name: "#max_thickness", value: 0.3, unit: "m", min: 0.1, max: 0.5, step: 0.01, type: "number", description: "Épaisseur max profil", appliesTo: "custom" },
-  { id: "chord", name: "#chord", value: 3, unit: "m", min: 1, max: 5, step: 0.1, type: "number", description: "Corde racine", appliesTo: "chord" },
-  { id: "thickness_ratio", name: "#thickness_ratio", value: 0.1, unit: "", min: 0.08, max: 0.15, step: 0.01, type: "ratio", description: "Ratio épaisseur/corde", appliesTo: "custom" },
-  { id: "winglet_angle", name: "#winglet_angle", value: 45, unit: "°", min: 30, max: 60, step: 1, type: "angle", description: "Angle winglet", appliesTo: "custom" },
-  { id: "motor_count", name: "#motor_count", value: 4, unit: "", min: 1, max: 8, step: 1, type: "number", description: "Nombre de moteurs", appliesTo: "motorCount" },
-  { id: "cruise_speed", name: "#cruise_speed", value: 20, unit: "km/h", min: 5, max: 650, step: 1, type: "number", description: "Vitesse cible de conception (simulation)", appliesTo: "cruiseSpeedKmh" },
-  { id: "altitude", name: "#altitude", value: 100, unit: "m", min: 10, max: 6000, step: 5, type: "number", description: "Altitude opération", appliesTo: "altitudeM" },
-  { id: "fuse_sec3_top", name: "#fuse_sec3_top", value: 1.7, unit: "m", min: 1, max: 2, step: 0.05, type: "number", description: "Diamètre haut section 3", appliesTo: "custom" },
+type StudioTab = "part" | "variable" | "assembly";
+type MaterialId = "carbon" | "aluminum" | "kevlar";
+const MATERIALS: Array<{ id: MaterialId; name: string; density: string; color: string }> = [
+  { id: "carbon", name: "Carbone T700", density: "1,80 g/cm³ · réf.", color: "#3a3a3e" },
+  { id: "aluminum", name: "Aluminium 7075", density: "2,81 g/cm³ · réf.", color: "#8c999e" },
+  { id: "kevlar", name: "Kevlar 49", density: "1,44 g/cm³ · réf.", color: "#8a7a4a" },
 ];
+const EMPTY_CONTROLS: ControlDeflections = { aileron: 15, flap: 20, elevator: 15, rudder: 15 };
+const BINDINGS = [
+  ["metadata", "Métadonnée uniquement"],
+  ["fuselageLength", "Longueur fuselage"], ["wingspan", "Envergure"], ["chord", "Corde"],
+  ["motorCount", "Nombre de moteurs"], ["cruiseSpeedKmh", "Vitesse cible"], ["altitudeM", "Altitude"],
+  ["sweepDeg", "Flèche"], ["dihedralDeg", "Dièdre"], ["fuselageHeight", "Hauteur section"], ["fuselageWidth", "Largeur section"],
+] as const;
+const DEFAULT_SKETCH: Omit<ParametricSketchProfile, "id" | "modifiedAt"> = { name: "Profil", kind: "rectangle", width: 0.24, height: 0.08 };
 
-const FEATURE_GROUPS: FeatureGroup[] = [
-  { id: "fuselage", label: "Fuselage", icon: "⚙", color: "var(--cyan)", features: [
-    { name: "Section 1 — nez", status: "ok" },
-    { name: "Section 2 — cockpit", status: "ok" },
-    { name: "Section 3 — centrale", status: "active" },
-    { name: "Section 4 — arrière", status: "ok" },
-    { name: "Section 5 — empennage", status: "ok" },
-    { name: "Coupole capteur", status: "warn" },
-    { name: "Trappe batterie", status: "ok" },
-    { name: "Support moteur", status: "ok" },
-  ]},
-  { id: "wing", label: "Voilure", icon: "✈", color: "var(--blue)", features: [
-    { name: "Profil racine", status: "ok" },
-    { name: "Profil saumon", status: "ok" },
-    { name: "Plan dièdre", status: "ok" },
-    { name: "Flèche avant", status: "ok" },
-    { name: "Aile gauche", status: "active" },
-    { name: "Aile droite", status: "active" },
-    { name: "Winglet gauche", status: "ok" },
-    { name: "Winglet droit", status: "ok" },
-  ]},
-  { id: "controls", label: "Surfaces contrôle", icon: "🎛", color: "var(--amber)", features: [
-    { name: "Aileron gauche", status: "ok" },
-    { name: "Aileron droit", status: "ok" },
-    { name: "Volet gauche (flap)", status: "ok" },
-    { name: "Volet droit (flap)", status: "ok" },
-    { name: "Profondeur G.", status: "ok" },
-    { name: "Profondeur D.", status: "ok" },
-    { name: "Direction (gouvernail)", status: "ok" },
-    { name: "Trim tab", status: "warn" },
-  ]},
-  { id: "propulsion", label: "Propulsion", icon: "◉", color: "var(--red)", features: [
-    { name: "Moteur principal", status: "ok" },
-    { name: "Hélice 24\"", status: "ok" },
-    { name: "Cône spinner", status: "ok" },
-    { name: "Support nacelle", status: "ok" },
-    { name: "Échappement", status: "warn" },
-    { name: "Réservoir", status: "ok" },
-  ]},
-];
-
-/* ── 3D parametric drone model ── */
-function ParametricDrone3D({ vars }: { vars: Record<string, number> }) {
-  const groupRef = useRef<THREE.Group>(null);
-
-  const fuselageMat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0xb0c4d8, roughness: 0.4, metalness: 0.3 }), []);
-  const wingMat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0x25d0d9, roughness: 0.5, metalness: 0.2, emissive: 0x25d0d9, emissiveIntensity: 0.1 }), []);
-  const aileronMat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0xf5a623, roughness: 0.4, emissive: 0xf5a623, emissiveIntensity: 0.3 }), []);
-
-  useFrame((state) => {
-    if (!groupRef.current) return;
-    groupRef.current.rotation.y = state.clock.elapsedTime * 0.15;
-  });
-
-  const length = vars.length ?? 10;
-  const wingspan = vars.wingspan ?? 15;
-  const sweep = (vars.sweep ?? 60) * Math.PI / 180;
-  const dihedral = (vars.dihedral ?? 0) * Math.PI / 180;
-  const thickness = vars.max_thickness ?? 0.3;
-  const chord = vars.chord ?? 3;
-  const motorCount = Math.round(vars.motor_count ?? 4);
-
-  // Fuselage
-  const fuseLen = length;
-  const fuseRad = Math.max(0.3, thickness * 1.5);
-
-  // Wing geometry (swept, tapered)
-  const wingHalfSpan = wingspan / 2;
-  const wingSweepBack = Math.tan(sweep) * wingHalfSpan * 0.3;
-
-  return (
-    <group ref={groupRef}>
-      {/* Fuselage */}
-      <mesh castShadow receiveShadow position={[0, 0, 0]} material={fuselageMat}>
-        <cylinderGeometry args={[fuseRad * 0.6, fuseRad, fuseLen, 24]} />
-        <group /> {/* placeholder to attach rotation */}
-      </mesh>
-      <mesh castShadow position={[fuseLen / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]} material={fuselageMat}>
-        <coneGeometry args={[fuseRad * 0.6, fuseLen * 0.2, 24]} />
-      </mesh>
-
-      {/* Main wings (swept) */}
-      <mesh castShadow receiveShadow position={[-wingSweepBack * 0.5, 0, wingHalfSpan / 2]} rotation={[0, 0, dihedral]} material={wingMat}>
-        <boxGeometry args={[chord, thickness, wingHalfSpan]} />
-      </mesh>
-      <mesh castShadow receiveShadow position={[-wingSweepBack * 0.5, 0, -wingHalfSpan / 2]} rotation={[0, 0, -dihedral]} material={wingMat}>
-        <boxGeometry args={[chord, thickness, wingHalfSpan]} />
-      </mesh>
-
-      {/* Ailerons (highlighted orange) */}
-      <mesh castShadow position={[-chord * 0.3, 0, wingHalfSpan * 0.7]} material={aileronMat}>
-        <boxGeometry args={[chord * 0.4, thickness * 0.8, wingHalfSpan * 0.25]} />
-      </mesh>
-      <mesh castShadow position={[-chord * 0.3, 0, -wingHalfSpan * 0.7]} material={aileronMat}>
-        <boxGeometry args={[chord * 0.4, thickness * 0.8, wingHalfSpan * 0.25]} />
-      </mesh>
-
-      {/* Tail (horizontal stabilizer) */}
-      <mesh castShadow position={[-fuseLen * 0.4, 0, 0]} material={fuselageMat}>
-        <boxGeometry args={[chord * 0.5, thickness * 0.7, wingspan * 0.3]} />
-      </mesh>
-
-      {/* Vertical stabilizer */}
-      <mesh castShadow position={[-fuseLen * 0.4, fuseLen * 0.08, 0]} material={fuselageMat}>
-        <boxGeometry args={[chord * 0.5, fuseLen * 0.18, thickness * 0.5]} />
-      </mesh>
-
-      {/* Motors (instanced around) */}
-      {Array.from({ length: motorCount }).map((_, i) => {
-        const angle = (i / motorCount) * Math.PI * 2;
-        const r = wingHalfSpan * 0.6;
-        const mx = Math.cos(angle) * 0.3;
-        const mz = Math.sin(angle) * r;
-        return (
-          <group key={i} position={[mx, thickness, mz]}>
-            <mesh castShadow material={fuselageMat}>
-              <cylinderGeometry args={[0.2, 0.2, 0.5, 12]} />
-            </mesh>
-            <mesh position={[0, 0.4, 0]} material={new THREE.MeshStandardMaterial({ color: 0x1a1a1e, transparent: true, opacity: 0.5 })}>
-              <boxGeometry args={[0.1, 1.5, 0.1]} />
-            </mesh>
-          </group>
-        );
-      })}
-
-      {/* Ground shadow plane */}
-      <mesh receiveShadow position={[0, -fuseRad * 1.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[wingspan * 2.5, wingspan * 2.5]} />
-        <meshStandardMaterial color={0x0a1218} transparent opacity={0.4} />
-      </mesh>
-    </group>
-  );
+function makeId(prefix: string) {
+  const id = globalThis.crypto?.randomUUID?.().replace(/-/g, "") ?? `${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${id}`;
 }
 
-function Scene({ vars }: { vars: Record<string, number> }) {
-  return (
-    <>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[20, 30, 15]} intensity={1.2} castShadow shadow-mapSize={[1024, 1024]} />
-      <directionalLight position={[-15, 10, -10]} intensity={0.3} color="#25d0d9" />
-      <ParametricDrone3D vars={vars} />
-      <gridHelper args={[60, 30, 0x1a2e3e, 0x0e1a24]} position={[0, -5, 0]} />
-      <OrbitControls enableZoom enablePan={false} autoRotate autoRotateSpeed={0.5} minPolarAngle={Math.PI / 6} maxPolarAngle={Math.PI / 2.1} target={[0, 0, 0]} />
-    </>
-  );
+function downloadFile(content: string, mimeType: string, filename: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function ParametricViewportFallback() {
-  return <div className="pdc-viewport-fallback" role="status" aria-label="Aperçu 3D de secours">
-    <svg viewBox="0 0 480 260" role="img" aria-label="Schéma de drone à voilure fixe">
-      <path d="M240 36 257 109 415 158 415 174 256 151 252 213 286 232 282 243 240 233 198 243 194 232 228 213 224 151 65 174 65 158 223 109Z" fill="#25d0d9" stroke="#b9fffb" strokeWidth="3" />
-      <path d="M240 42v188" stroke="#f5a623" strokeWidth="5" />
-    </svg>
-    <div><strong>APERÇU 3D INDISPONIBLE</strong><span>Le navigateur ne fournit pas de contexte WebGL utilisable. Les paramètres et calculs restent accessibles ci-dessous.</span></div>
-  </div>;
+function safeName(value: string) {
+  return value.replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/^_+|_+$/g, "") || "part";
 }
 
-class ParametricViewportBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("Échec isolé du viewport 3D paramétrique", error, info.componentStack);
+function exportModelObj(model: MechanicalModel) {
+  const lines = ["# AeroMind mesh export · unit: metre · triangulated visualization mesh"];
+  let vertexOffset = 1;
+  for (const part of model.parts) {
+    if (part.hidden) continue;
+    const vertices = transformedPartVertices(part);
+    lines.push(`o ${safeName(part.name)}`);
+    for (let index = 0; index < vertices.length; index += 3) lines.push(`v ${vertices[index]} ${vertices[index + 1]} ${vertices[index + 2]}`);
+    for (let index = 0; index < part.indices.length; index += 3) {
+      lines.push(`f ${part.indices[index] + vertexOffset} ${part.indices[index + 1] + vertexOffset} ${part.indices[index + 2] + vertexOffset}`);
+    }
+    vertexOffset += vertices.length / 3;
   }
-  render() { return this.state.hasError ? this.props.fallback : this.props.children; }
+  return lines.join("\n");
 }
 
-export function ParametricDroneCenter({ config, setConfig, hasProject, onCommit }: Props) {
+function exportModelStl(model: MechanicalModel) {
+  const lines = [`solid aeromind_visualization_mesh`];
+  for (const part of model.parts) {
+    if (part.hidden) continue;
+    const vertices = transformedPartVertices(part);
+    for (let index = 0; index + 2 < part.indices.length; index += 3) {
+      const points = [0, 1, 2].map(offset => {
+        const base = part.indices[index + offset] * 3;
+        return [vertices[base], vertices[base + 1], vertices[base + 2]] as [number, number, number];
+      });
+      const [a, b, c] = points;
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const normal = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      const magnitude = Math.hypot(...normal) || 1;
+      lines.push(` facet normal ${normal.map(value => value / magnitude).join(" ")}`, "  outer loop");
+      for (const point of points) lines.push(`   vertex ${point.join(" ")}`);
+      lines.push("  endloop", " endfacet");
+    }
+  }
+  lines.push("endsolid aeromind_visualization_mesh");
+  return lines.join("\n");
+}
+
+function roundValue(value: number, step: number) {
+  const precision = Math.min(8, Math.max(0, (String(step).split(".")[1] ?? "").length));
+  return Number(value.toFixed(precision));
+}
+
+export function ParametricDroneCenter({ config, setConfig, hasProject, activeProfile, activeDroneLabel = "Aucun drone sélectionné", onCommit }: Props) {
   const { t } = useLanguage();
-  const [vars, setVars] = useState<Record<string, number>>(() => ({ ...PARAMETRIC_PREVIEW_DEFAULTS }));
-  const [selectedGroup, setSelectedGroup] = useState<string>("controls");
-  const [selectedFeature, setSelectedFeature] = useState<string>("Section 3 — centrale");
-  const [activeTab, setActiveTab] = useState<"part" | "variable" | "assembly">("part");
+  const [activeTab, setActiveTab] = useState<StudioTab>("part");
+  const [selectedMechanicalPart, setSelectedMechanicalPart] = useState("");
+  const [selectedVariableId, setSelectedVariableId] = useState("wingspan");
+  const [selectedSketchId, setSelectedSketchId] = useState("");
+  const [booleanToolId, setBooleanToolId] = useState("");
   const [search, setSearch] = useState("");
-  const [material, setMaterial] = useState<"carbon" | "aluminum" | "kevlar">("carbon");
-  const [sectionType, setSectionType] = useState<"circular" | "elliptical" | "polygonal">("elliptical");
+  const [commandStatus, setCommandStatus] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "local" | "server" | "error">("idle");
+  const [treePreviewEnabled, setTreePreviewEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [rebuildRevision, setRebuildRevision] = useState(0);
+  const [sketchWidth, setSketchWidth] = useState(DEFAULT_SKETCH.width);
+  const [sketchHeight, setSketchHeight] = useState(DEFAULT_SKETCH.height);
+  const [sketchKind, setSketchKind] = useState<"rectangle" | "ellipse">("rectangle");
+  const undoStack = useRef<ConceptConfig[]>([]);
+  const redoStack = useRef<ConceptConfig[]>([]);
+  const configRef = useRef(config);
+  const [, setHistoryTick] = useState(0);
+  configRef.current = config;
+
+  const mechanicalModel = useMemo<MechanicalModel | null>(() => activeProfile ? buildMechanicalModel(activeProfile, config) : null, [activeProfile, config]);
+  const activeDesignId = activeProfile?.id;
+  const activeTwin = getActiveMechanicalTwin(config, activeDesignId);
+  const variableRows = useMemo(() => collectVariableRows(config, true, activeDesignId), [config, activeDesignId]);
+  const metrics = useMemo(() => calculateParametricMetrics(Object.fromEntries(variableRows.map(variable => [variable.id, variable.value]))), [variableRows]);
+  const featureHistory = useMemo(() => activeDesignId ? featureHistoryFor(config, activeDesignId) : [], [config, activeDesignId]);
+  const selectedPart = mechanicalModel?.parts.find(part => part.id === selectedMechanicalPart);
+  const selectedSketch = activeTwin?.sketchProfiles?.find(sketch => sketch.id === selectedSketchId) ?? activeTwin?.sketchProfiles?.at(-1);
+  const customVariableIds = useMemo(() => new Set(activeTwin?.customVariables?.map(variable => variable.id) ?? []), [activeTwin]);
+  const treeGroups = useMemo(() => {
+    if (!mechanicalModel) return [];
+    const groups = new Map<string, MechanicalPart[]>();
+    for (const part of mechanicalModel.parts) groups.set(part.category, [...(groups.get(part.category) ?? []), part]);
+    return [...groups.entries()].map(([label, parts]) => ({ id: label, label, parts }));
+  }, [mechanicalModel]);
+  const searchableParts = useMemo(() => treeGroups.map(group => ({
+    ...group,
+    parts: group.parts.filter(part => !search || `${part.name} ${part.id} ${part.category}`.toLowerCase().includes(search.toLowerCase())),
+  })).filter(group => group.parts.length > 0), [treeGroups, search]);
+  const nativeParts = mechanicalModel?.parts.filter(part => !activeTwin?.extraParts?.some(extra => extra.id === part.id)) ?? [];
+  const booleanChoices = [...(activeTwin?.extraParts ?? []), ...nativeParts.map(part => ({ id: part.id, name: part.name }))]
+    .filter(part => part.id !== selectedMechanicalPart);
+  const selectedMaterial = (selectedPart && activeTwin?.edits?.[selectedPart.id]?.materialId as MaterialId | undefined) ?? "carbon";
+  const selectedFeature = selectedPart?.name ?? featureHistory.find(feature => feature.id === selectedMechanicalPart)?.name ?? "Aucune sélection";
+  const canUndo = undoStack.current.length > 0;
+  const canRedo = redoStack.current.length > 0;
 
   useEffect(() => {
-    const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === document.querySelector(".pdc-app"));
-    document.addEventListener("fullscreenchange", syncFullscreen);
-    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+    undoStack.current = [];
+    redoStack.current = [];
+    setHistoryTick(value => value + 1);
+    setSelectedMechanicalPart("");
+    setSelectedSketchId("");
+  }, [activeDesignId]);
+
+  useEffect(() => {
+    if (!mechanicalModel) {
+      setSelectedMechanicalPart("");
+      return;
+    }
+    if (selectedMechanicalPart && mechanicalModel.parts.some(part => part.id === selectedMechanicalPart)) return;
+    setSelectedMechanicalPart(mechanicalModel.parts.find(part => !part.hidden)?.id ?? mechanicalModel.parts[0]?.id ?? "");
+    setRebuildRevision(revision => revision + 1);
+  }, [mechanicalModel, selectedMechanicalPart]);
+
+  useEffect(() => {
+    if (!booleanChoices.some(part => part.id === booleanToolId)) setBooleanToolId(booleanChoices[0]?.id ?? "");
+  }, [booleanChoices, booleanToolId]);
+
+  useEffect(() => {
+    const onFullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreen);
+    return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
+
+  const commitConfig = (change: (current: ConceptConfig) => ConceptConfig) => {
+    const previous = configRef.current;
+    const next = change(previous);
+    if (next === previous) return next;
+    undoStack.current = [...undoStack.current.slice(-49), previous];
+    redoStack.current = [];
+    configRef.current = next;
+    setConfig(next);
+    setHistoryTick(value => value + 1);
+    setSaveState("idle");
+    return next;
+  };
+
+  const undo = () => {
+    const previous = undoStack.current.pop();
+    if (!previous) return;
+    redoStack.current.push(configRef.current);
+    configRef.current = previous;
+    setConfig(previous);
+    setHistoryTick(value => value + 1);
+    setSaveState("idle");
+    setCommandStatus("Dernière modification annulée.");
+  };
+
+  const redo = () => {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(configRef.current);
+    configRef.current = next;
+    setConfig(next);
+    setHistoryTick(value => value + 1);
+    setSaveState("idle");
+    setCommandStatus("Modification rétablie.");
+  };
+
+  const handleSave = async () => {
+    if (!hasProject) {
+      toast.info("Aucun projet actif", { description: t("Les changements sont une prévisualisation locale et ne seront pas enregistrés dans un projet.") });
+      return;
+    }
+    if (!onCommit) {
+      setSaveState("error");
+      toast.error(t("Enregistrement indisponible"), { description: t("Aucun service de sauvegarde n’a confirmé cette action.") });
+      return;
+    }
+    if (variableRows.some(variable => variable.error)) {
+      setSaveState("error");
+      toast.error(t("Variables non valides"), { description: t("Corrigez les expressions et leurs plages avant l’enregistrement.") });
+      return;
+    }
+    setSaveState("saving");
+    try {
+      const acknowledgement = await onCommit();
+      setSaveState(acknowledgement.scope === "SERVER-ACK" ? "server" : "local");
+      toast.success(acknowledgement.scope === "SERVER-ACK" ? "Synchronisation confirmée" : "Enregistré sur cet appareil", {
+        description: acknowledgement.scope === "SERVER-ACK" ? "Le serveur a accusé réception du snapshot actif." : "Le snapshot du projet actif a été écrit dans le stockage local du navigateur.",
+      });
+    } catch (error) {
+      setSaveState("error");
+      toast.error("Enregistrement échoué", { description: error instanceof Error ? error.message : "Le stockage n’a pas confirmé l’opération." });
+    }
+  };
+
+  const updateVariable = (variableId: string, value: number) => {
+    const variable = variableRows.find(row => row.id === variableId);
+    if (!variable || variable.expression || !Number.isFinite(value)) return;
+    const normalized = Math.max(variable.min, Math.min(variable.max, roundValue(value, variable.step)));
+    commitConfig(current => setVariableValue(current, activeDesignId, variable, normalized));
+    setSelectedVariableId(variableId);
+  };
+
+  const updateVariableText = (variableId: string, patch: { name?: string; unit?: string; min?: number; max?: number; step?: number; description?: string; appliesTo?: string; expression?: string }) => {
+    if (!activeDesignId || !customVariableIds.has(variableId)) return;
+    const currentVariable = variableRows.find(variable => variable.id === variableId);
+    if (!currentVariable) return;
+    const safePatch = { ...patch };
+    if (safePatch.name) safePatch.name = safePatch.name.startsWith("#") ? safePatch.name : `#${safePatch.name.replace(/^#+/, "")}`;
+    const min = safePatch.min ?? currentVariable.min;
+    const max = safePatch.max ?? currentVariable.max;
+    const step = safePatch.step ?? currentVariable.step;
+    if ((safePatch.name !== undefined && (safePatch.name.trim().length < 2 || safePatch.name.length > 80)) || (safePatch.unit !== undefined && safePatch.unit.length > 40) || (safePatch.description !== undefined && safePatch.description.length > 200) || (safePatch.expression !== undefined && safePatch.expression.length > 200) || !Number.isFinite(min) || !Number.isFinite(max) || min > max || !Number.isFinite(step) || step <= 0 || currentVariable.value < min || currentVariable.value > max) {
+      toast.error(t("Définition de variable invalide"), { description: t("Nom, unité, plage, pas et valeur courante doivent respecter le contrat paramétrique.") });
+      return;
+    }
+    commitConfig(current => {
+      const updated = updateVariableDefinition(current, activeDesignId, variableId, safePatch);
+      if (safePatch.expression !== undefined && safePatch.expression.trim()) {
+        const derived = collectVariableRows(updated, true, activeDesignId).find(row => row.id === variableId);
+        if (!derived?.error && derived) return setVariableValue(updated, activeDesignId, derived, derived.value);
+      }
+      return updated;
+    });
+  };
+
+  const addVariable = (duplicate = false) => {
+    if (!activeDesignId) {
+      toast.info(t("Sélectionnez un design"), { description: t("Les variables utilisateur sont persistées dans le Mechanical Twin du design actif.") });
+      return;
+    }
+    const source = duplicate ? variableRows.find(variable => variable.id === selectedVariableId) : undefined;
+    const result = addCustomVariable(configRef.current, activeDesignId, source);
+    commitConfig(() => result.config);
+    setSelectedVariableId(result.variable.id);
+    setActiveTab("variable");
+    setCommandStatus(duplicate ? `Variable ${result.variable.name} dupliquée.` : `Variable ${result.variable.name} créée et enregistrée dans le design actif.`);
+  };
+
+  const deleteVariable = (variableId: string) => {
+    if (!activeDesignId || !customVariableIds.has(variableId)) return;
+    commitConfig(current => removeCustomVariable(current, activeDesignId, variableId));
+    if (selectedVariableId === variableId) setSelectedVariableId("wingspan");
+  };
+
+  const updateSection = (section: "circular" | "elliptical" | "polygonal") => {
+    if (!activeDesignId) return;
+    commitConfig(current => updateActiveMechanicalTwin(current, activeDesignId, twin => ({ ...twin, fuselageSectionType: section })));
+    setCommandStatus(`Section du design actif : ${section}.`);
+  };
+
+  const setMaterialForPart = (materialId: MaterialId) => {
+    if (!activeDesignId || !selectedPart) {
+      toast.info("Sélectionnez une pièce", { description: t("Le matériau est affecté à la pièce sélectionnée, pas à tous les designs.") });
+      return;
+    }
+    const material = MATERIALS.find(item => item.id === materialId)!;
+    commitConfig(current => updateActiveMechanicalTwin(current, activeDesignId, twin => ({
+      ...twin,
+      edits: { ...(twin.edits ?? {}), [selectedPart.id]: { ...(twin.edits?.[selectedPart.id] ?? {}), materialId, color: material.color } },
+    })));
+    setCommandStatus(`${material.name} affecté à « ${selectedPart.name} » (référence de matériau, non utilisée comme masse réelle).`);
+  };
+
+  const setControlDeflection = (key: keyof ControlDeflections, value: number) => {
+    if (!activeDesignId) return;
+    commitConfig(current => updateActiveMechanicalTwin(current, activeDesignId, twin => ({
+      ...twin,
+      controlDeflections: { ...EMPTY_CONTROLS, ...(twin.controlDeflections ?? {}), [key]: value },
+    })));
+  };
+
+  const createSketch = () => {
+    if (!activeDesignId) {
+      toast.info(t("Sélectionnez un design"), { description: t("Une esquisse doit être associée au Mechanical Twin actif.") });
+      return;
+    }
+    if (![sketchWidth, sketchHeight].every(value => Number.isFinite(value) && value > 0 && value <= 20)) {
+      toast.error(t("Dimensions d’esquisse invalides"), { description: t("Les deux dimensions doivent être finies et comprises entre 0 et 20 m.") });
+      return;
+    }
+    const profile: ParametricSketchProfile = {
+      id: makeId("sketch"), name: `Profil ${sketchKind === "rectangle" ? "rectangulaire" : "elliptique"} ${new Date().toLocaleTimeString("fr-FR")}`,
+      kind: sketchKind, width: sketchWidth, height: sketchHeight, modifiedAt: new Date().toISOString(),
+    };
+    commitConfig(current => updateActiveMechanicalTwin(current, activeDesignId, twin => ({
+      ...twin,
+      sketchProfiles: [...(twin.sketchProfiles ?? []), profile],
+      featureHistory: [...(twin.featureHistory ?? []), {
+        id: profile.id, kind: "sketch", name: profile.name, status: "applied", createdAt: profile.modifiedAt,
+        dependsOn: [], parameters: { profileId: profile.id, profileKind: profile.kind, width: profile.width, height: profile.height },
+      }],
+    })));
+    setSelectedSketchId(profile.id);
+    setCommandStatus(`Esquisse ${profile.kind} ${profile.width.toFixed(3)} × ${profile.height.toFixed(3)} m enregistrée.`);
+  };
+
+  const applyFeatureOperation = (operation: FeatureOperation) => {
+    if (!activeDesignId || !activeProfile || !hasProject) {
+      toast.info(t("Opération indisponible"), { description: t("Sélectionnez un design enregistré dans un projet actif avant de construire une feature.") });
+      return;
+    }
+    const target = mechanicalModel?.parts.find(part => part.id === selectedMechanicalPart);
+    let updatedConfig = configRef.current;
+    let finalOperation: FeatureOperation = operation;
+    let targetId = target?.id;
+    if (operation.kind === "boolean") {
+      const toolPart = mechanicalModel?.parts.find(part => part.id === operation.toolId);
+      const targetPart = mechanicalModel?.parts.find(part => part.id === operation.targetId);
+      if (!targetPart || !toolPart || targetPart.id === toolPart.id) {
+        toast.error(t("Booléen impossible"), { description: t("Choisissez deux pièces distinctes et valides.") });
+        return;
+      }
+      let targetOperationId = operation.targetId;
+      let toolOperationId = operation.toolId;
+      if (!(updatedConfig.mechanicalTwins?.[activeDesignId]?.extraParts ?? []).some(part => part.id === targetPart.id)) {
+        updatedConfig = materializeNativePart(updatedConfig, activeDesignId, targetPart);
+        targetOperationId = nativeCsgId(targetPart.id);
+      }
+      if (!(updatedConfig.mechanicalTwins?.[activeDesignId]?.extraParts ?? []).some(part => part.id === toolPart.id)) {
+        updatedConfig = materializeNativePart(updatedConfig, activeDesignId, toolPart);
+        toolOperationId = nativeCsgId(toolPart.id);
+      }
+      finalOperation = { kind: "boolean", operation: operation.operation, targetId: targetOperationId, toolId: toolOperationId };
+      targetId = targetPart.id;
+    }
+    updatedConfig = appendFeatureOperation(updatedConfig, activeDesignId, finalOperation, targetId);
+    const newHistory = featureHistoryFor(updatedConfig, activeDesignId);
+    const feature = newHistory.at(-1);
+    commitConfig(() => updatedConfig);
+    if (feature?.status !== "applied") {
+      toast.warning(t("Opération non appliquée"), { description: t("La géométrie source est conservée. Consultez l’historique pour le motif ou la limite de capacité.") });
+      setCommandStatus(`${feature?.name ?? operation.kind} : indisponible ou géométrie non valide.`);
+      return;
+    }
+    if (operation.kind === "boolean" || operation.kind === "extrusion" || operation.kind === "revolution") setSelectedMechanicalPart(feature.id);
+    else if (feature.targetPartId) setSelectedMechanicalPart(feature.targetPartId);
+    setRebuildRevision(revision => revision + 1);
+    setCommandStatus(`${feature.name} appliquée et inscrite dans l’historique du design actif.`);
+    toast.success(t("Géométrie reconstruite"), { description: feature.name });
+  };
+
+  const createExtrusion = () => {
+    if (!selectedSketch) {
+      toast.info(t("Aucune esquisse sélectionnée"), { description: t("Créez un profil puis sélectionnez-le avant l’extrusion.") });
+      setActiveTab("part");
+      return;
+    }
+    if (selectedSketch.kind !== "rectangle") {
+      toast.info(t("Profil incompatible"), { description: t("Le moteur actuel n’extrude qu’un profil rectangulaire.") });
+      return;
+    }
+    const position = selectedPart?.position ?? [0, 0, 0];
+    applyFeatureOperation({ kind: "extrusion", width: selectedSketch.width, height: selectedSketch.height, depth: Math.max(0.05, selectedSketch.height), position });
+  };
+
+  const createRevolution = () => {
+    if (!selectedSketch) {
+      toast.info(t("Aucune esquisse sélectionnée"), { description: t("Créez un profil elliptique/circulaire avant cette opération.") });
+      setActiveTab("part");
+      return;
+    }
+    if (selectedSketch.kind !== "ellipse") {
+      toast.info(t("Profil incompatible"), { description: t("Le moteur actuel n’accepte qu’un profil elliptique simplifié pour le cylindre.") });
+      return;
+    }
+    const radius = selectedSketch.width / 2;
+    applyFeatureOperation({ kind: "revolution", radius, height: selectedSketch.height, position: selectedPart?.position ?? [0, 0, 0] });
+  };
+
+  const createBoolean = (operation: "union" | "subtract" | "intersect") => {
+    if (!selectedMechanicalPart || !booleanToolId || selectedMechanicalPart === booleanToolId) {
+      toast.info(t("Deux pièces distinctes requises"), { description: t("Sélectionnez une pièce cible et une pièce outil dans la liste.") });
+      return;
+    }
+    applyFeatureOperation({ kind: "boolean", operation, targetId: selectedMechanicalPart, toolId: booleanToolId });
+  };
+
+  const recordUnsupportedEdgeTreatment = (treatment: "fillet" | "chamfer") => {
+    if (!activeDesignId || !selectedPart) return;
+    const next = appendNativeEdgeTreatment(configRef.current, activeDesignId, selectedPart, treatment, Math.max(0.01, Math.min(...selectedPart.size) * 0.08));
+    commitConfig(() => next);
+    setCommandStatus(`${treatment === "fillet" ? "Congé" : "Chanfrein"} exact indisponible pour ce maillage; géométrie source conservée.`);
+    toast.warning(t("Opération non disponible"), { description: t("Aucun congé/chanfrein d’arête exact n’est calculé par le noyau actuel.") });
+  };
+
+  const resetFeatures = () => {
+    if (!activeDesignId) return;
+    if (!window.confirm(t("Supprimer les features de ce design et restaurer les pièces sources ? Cette opération peut être annulée avec Annuler."))) return;
+    const currentTwin = getActiveMechanicalTwin(configRef.current, activeDesignId);
+    if (!currentTwin) return;
+    const conversions = (currentTwin.featureHistory ?? []).filter(feature => feature.kind === "conversion");
+    const edits = { ...(currentTwin.edits ?? {}) };
+    for (const conversion of conversions) {
+      const sourceId = conversion.targetPartId;
+      if (!sourceId) continue;
+      const oldEdit = edits[sourceId];
+      if (!oldEdit) continue;
+      const { hidden: _hidden, ...rest } = oldEdit;
+      const wasHidden = conversion.parameters.sourceVisibility === "hidden";
+      edits[sourceId] = wasHidden ? { ...rest, hidden: true } : rest;
+      if (Object.keys(edits[sourceId]).length === 0) delete edits[sourceId];
+    }
+    commitConfig(current => updateActiveMechanicalTwin(current, activeDesignId, twin => ({ ...twin, extraParts: [], featureHistory: [], edits })));
+    setSelectedMechanicalPart(mechanicalModel?.parts.find(part => !part.hidden)?.id ?? "");
+    setCommandStatus("Features supprimées; visibilité source restaurée selon les conversions enregistrées.");
+  };
+
+  const handleImportFile = async (file?: File) => {
+    if (!file) return;
+    if (!activeDesignId) {
+      toast.error(t("Import impossible"), { description: t("Sélectionnez un design actif avant de modifier ses variables.") });
+      return;
+    }
+    try {
+      const contents = await file.text();
+      if (file.name.toLowerCase().endsWith(".csv")) {
+        const imported = variablesFromCsv(contents);
+        if (imported.length > 250) throw new Error("Le fichier dépasse 250 variables.");
+        const defaultIds = new Set(["length", "wingspan", "sweep", "dihedral", "max_thickness", "chord", "thickness_ratio", "winglet_angle", "motor_count", "cruise_speed", "altitude", "fuse_sec3_top"]);
+        commitConfig(current => {
+          let next = current;
+          for (const definition of imported) {
+            const existing = collectVariableRows(next, true, activeDesignId).find(row => row.id === definition.id);
+            if (existing) next = setVariableValue(next, activeDesignId, { ...existing, ...definition }, definition.value);
+          }
+          return updateActiveMechanicalTwin(next, activeDesignId, twin => {
+            const custom = new Map((twin.customVariables ?? []).map(variable => [variable.id, variable]));
+            for (const definition of imported) if (!defaultIds.has(definition.id)) custom.set(definition.id, definition);
+            return { ...twin, customVariables: [...custom.values()] };
+          });
+        });
+        toast.success(t("CSV importé"), { description: `${imported.length} variable(s) validée(s) et appliquée(s) au design actif.` });
+      } else {
+        const snapshot = parseParametricSnapshot(contents);
+        if (snapshot.designId !== activeDesignId) throw new Error("Le fichier appartient à un autre design; sélectionnez son design avant l’import.");
+        commitConfig(current => {
+          let next = updateActiveMechanicalTwin(current, activeDesignId, twin => ({ ...twin, ...(snapshot.mechanicalTwin ?? {}) }));
+          if (snapshot.concept) next = { ...next, ...snapshot.concept };
+          for (const definition of snapshot.variables) {
+            const existing = collectVariableRows(next, true, activeDesignId).find(row => row.id === definition.id);
+            if (existing) next = setVariableValue(next, activeDesignId, { ...existing, ...definition }, definition.value);
+          }
+          return next;
+        });
+        toast.success(t("JSON importé"), { description: t("Le snapshot versionné du design actif a été validé puis appliqué.") });
+      }
+    } catch (error) {
+      toast.error(t("Import refusé"), { description: error instanceof Error ? error.message : "Format ou données invalides." });
+    }
+  };
+
+  const handleImport = (kind: "json" | "csv") => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = kind === "json" ? ".json,application/json" : ".csv,text/csv";
+    input.onchange = () => void handleImportFile(input.files?.[0]);
+    input.click();
+  };
+
+  const handleExport = (kind: "json" | "csv" | "obj" | "stl") => {
+    try {
+      const filename = safeName(activeProfile?.id ?? "preview-local");
+      if (kind === "json") {
+        if (!activeDesignId) throw new Error("Sélectionnez un design actif pour un export versionné.");
+        if (variableRows.some(variable => variable.error)) throw new Error("Corrigez les variables hors plage ou les expressions avant export.");
+        const snapshot = makeParametricSnapshot(config, activeDesignId, variableRows);
+        downloadFile(`${JSON.stringify(snapshot, null, 2)}\n`, "application/json", `aeromind-parametric-${filename}.json`);
+      } else if (kind === "csv") {
+        if (variableRows.some(variable => variable.error)) throw new Error("Corrigez les variables hors plage ou les expressions avant export.");
+        downloadFile(variablesToCsv(variableRows), "text/csv;charset=utf-8", `aeromind-variables-${filename}.csv`);
+      } else {
+        if (!mechanicalModel) throw new Error("Un design mécanique est requis pour exporter un maillage.");
+        const data = kind === "obj" ? exportModelObj(mechanicalModel) : exportModelStl(mechanicalModel);
+        downloadFile(data, kind === "obj" ? "text/plain;charset=utf-8" : "model/stl", `aeromind-${filename}.${kind}`);
+      }
+      setCommandStatus(`Export ${kind.toUpperCase()} prêt (unités du maillage : m).`);
+    } catch (error) {
+      toast.error(t("Export indisponible"), { description: error instanceof Error ? error.message : "Une erreur de validation s’est produite." });
+    }
+  };
+
+  const captureParametric = () => {
+    try {
+      const canvas = document.querySelector<HTMLCanvasElement>(".pdc-viewport canvas");
+      const image = canvas?.toDataURL("image/jpeg", 0.78) ?? "";
+      if (!image) throw new Error("Aucun canvas de viewport disponible.");
+      const payload = JSON.stringify({ image, capturedAt: new Date().toISOString(), variables: Object.fromEntries(variableRows.map(variable => [variable.id, variable.value])), wingArea: metrics.wingArea });
+      localStorage.setItem("aeromind-parametric-capture", payload);
+      window.dispatchEvent(new CustomEvent("aeromind-parametric-capture", { detail: payload }));
+      toast.success(t("Capture ajoutée au rapport révisable."));
+    } catch (error) {
+      toast.error(t("Capture impossible"), { description: error instanceof Error ? error.message : "Canvas non disponible." });
+    }
+  };
 
   const toggleFullscreen = async () => {
     try {
@@ -259,369 +580,163 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, onCommit 
     } catch { toast.error(t("Le plein écran n’est pas disponible dans ce navigateur.")); }
   };
 
-  // An empty workspace uses a local CAD preview; it must not hydrate blank zeroes as geometry.
-  useEffect(() => {
-    setVars(resolveParametricVariables(config, hasProject));
-  }, [hasProject, config.fuselageLength, config.wingspan, config.motorCount, config.cruiseSpeedKmh, config.altitudeM]);
-
-  const updateVar = (id: string, value: number) => {
-    setVars(prev => ({ ...prev, [id]: value }));
-    // Sync to ConceptConfig
-    const v = DEFAULT_VARIABLES.find(x => x.id === id);
-    if (!v || v.appliesTo === "custom") return;
-    const key = v.appliesTo as keyof ConceptConfig;
-    if (hasProject) setConfig(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleSave = () => {
-    if (!hasProject) {
-      toast.info(t("Non enregistré"), { description: "Créez manuellement un projet avant de valider ou sauvegarder cette configuration." });
-      return;
-    }
-    if (!hasProjectGeometry) {
-      toast.info(t("Non enregistré"), { description: "Renseignez une envergure, une corde et un fuselage valides avant de valider la configuration." });
-      return;
-    }
-    onCommit?.();
-    toast.success(t("Configuration sauvegardée"), { description: t("Les variables paramétriques ont été synchronisées avec le projet.") });
-  };
-
-  const handleExport = () => {
-    const json = JSON.stringify({ variables: vars, config: { wingspan: config.wingspan, fuselageLength: config.fuselageLength, motorCount: config.motorCount } }, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `aeromind-parametric-${Date.now()}.json`; a.click();
-    URL.revokeObjectURL(url);
-    toast.success(t("Export réussi"), { description: t("Fichier JSON de configuration téléchargé.") });
-  };
-
-  const handleImport = () => {
-    const input = document.createElement("input");
-    input.type = "file"; input.accept = ".json";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const data = JSON.parse(reader.result as string);
-          if (!data || typeof data !== "object" || !data.variables || typeof data.variables !== "object") throw new Error("structure");
-          const imported: Record<string, number> = {};
-          for (const v of DEFAULT_VARIABLES) {
-            const value = Number(data.variables[v.id]);
-            if (Number.isFinite(value) && value >= v.min && value <= v.max) imported[v.id] = value;
-          }
-          setVars(prev => ({ ...prev, ...imported }));
-          if (hasProject) {
-            setConfig(prev => {
-              const next = { ...prev };
-              for (const v of DEFAULT_VARIABLES) if (v.appliesTo !== "custom" && imported[v.id] !== undefined) (next as any)[v.appliesTo] = imported[v.id];
-              return next;
-            });
-          }
-          toast.success(t("Import réussi"), { description: hasProject ? t("Variables valides importées et synchronisées avec le projet.") : "Variables chargées dans l’aperçu local non enregistré." });
-        } catch { toast.error(t("Import échoué"), { description: t("Fichier JSON invalide.") }); }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
-
-  const filteredGroups = FEATURE_GROUPS.filter(g =>
-    !search || g.features.some(f => f.name.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  const totalFeatures = FEATURE_GROUPS.reduce((s, g) => s + g.features.length, 0);
-  const { wingArea, aspectRatio, emptyMassKg: emptyMass } = calculateParametricMetrics(vars);
-  const hasProjectGeometry = hasProject && config.wingspan > 0 && config.chord > 0 && config.fuselageLength > 0;
-
-  // CAHIER DES CHARGES 2026-10-30 : capture du poste paramétrique pour le Rapport.
-  // On sérialise le canvas Three.js (ou la zone SVG en fallback) en data URL et
-  // on dispatche un CustomEvent écouté par Home.tsx pour alimenter ReportView.
-  const captureParametric = () => {
-    try {
-      const canvas = document.querySelector<HTMLCanvasElement>(".pdc-viewport canvas");
-      const image = canvas ? canvas.toDataURL("image/jpeg", 0.78) : "";
-      if (!image) { toast.error(t("Aucune vue 3D à capturer.")); return; }
-      const payload = JSON.stringify({
-        image,
-        capturedAt: new Date().toISOString(),
-        variables: vars,
-        wingArea: wingArea?.toFixed(2) ?? null,
-        emptyMass: emptyMass?.toFixed(1) ?? null,
-      });
-      localStorage.setItem("aeromind-parametric-capture", payload);
-      window.dispatchEvent(new CustomEvent("aeromind-parametric-capture", { detail: payload }));
-      toast.success(t("Capture paramétrique enregistrée"), { description: t("Ajoutée au rapport révisable.") });
-    } catch { toast.error(t("Capture impossible.")); }
-  };
+  const activeControls = { ...EMPTY_CONTROLS, ...(activeTwin?.controlDeflections ?? {}) };
+  const selectedFeatureDependencies = featureHistory.find(feature => feature.id === selectedMechanicalPart)?.dependsOn ?? [];
 
   return (
     <div className={`pdc-app ${isFullscreen ? "pdc-fullscreen" : ""}`}>
-      {/* Menubar */}
-      <div className="pdc-menubar">
-        <div className="pdc-logo">
-          <span className="pdc-mark">A</span>
-          <div>
-            <div className="pdc-name">AEROMIND</div>
-            <div className="pdc-tag">{t("Centre Paramétrique")}</div>
-          </div>
-        </div>
-        <div className="pdc-menu-item">{t("Fichier")}</div>
-        <div className="pdc-menu-item">{t("Édition")}</div>
-        <div className="pdc-menu-item">{t("Affichage")}</div>
-        <div className="pdc-menu-item">{t("Insertion")}</div>
-        <div className="pdc-menu-item">{t("Outils")}</div>
-        <div className="pdc-menu-item">{t("Analyse")}</div>
+      <header className="pdc-menubar">
+        <div className="pdc-logo"><span className="pdc-mark">A</span><div><div className="pdc-name">AEROMIND</div><div className="pdc-tag">{t("Centre Parametric")}</div></div></div>
+        <span className="pdc-menu-item">{activeProfile?.label ?? "Aucun design actif"}</span>
         <div className="pdc-spacer" />
-        <div className={`pdc-pill ${hasProjectGeometry ? "green" : "cyan"}`}>{hasProjectGeometry ? t("Sauvegardé") : t("Non enregistré")}</div>
-        <div className="pdc-pill cyan">{hasProject ? "Part Studio 1" : "Aperçu local"}</div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="pdc-toolbar">
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Nouvelle esquisse"))}><Plus size={14} /> {t("Nouveau")}</button>
-        <button className="pdc-tb-btn" onClick={handleSave}><Save size={14} /> {t("Valider")}</button>
-        <div className="pdc-tb-sep" />
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Outil esquisse activé"))}><Box size={14} /> {t("Esquisse")}</button>
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Extrusion"))}><Layers size={14} /> {t("Extruder")}</button>
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Révolution"))}><Cog size={14} /> {t("Révolution")}</button>
-        <div className="pdc-tb-sep" />
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Mesure : ") + (wingArea?.toFixed(2) ?? "—") + " m²")}><Ruler size={14} /> {t("Mesurer")}</button>
-        <button className="pdc-tb-btn" onClick={() => toast.info(t("Masse à vide : ") + (emptyMass?.toFixed(1) ?? "—") + " kg")}><Activity size={14} /> {t("Masses")}</button>
-        <div className="pdc-tb-sep" />
-        <button className="pdc-tb-btn" onClick={handleImport}><Upload size={14} /> {t("Import")}</button>
-        <button className="pdc-tb-btn" onClick={handleExport}><Download size={14} /> {t("Export")}</button>
-        <div className="pdc-tb-sep" />
-        <button className="pdc-tb-btn pdc-tb-btn-capture" onClick={captureParametric} title={t("Capturer la construction paramétrique pour le rapport")}><Camera size={14} /> {t("Capturer")}</button>
-        <div className="pdc-spacer" />
-        <div className="pdc-search">
-          <Search size={12} />
-          <input placeholder={t("Rechercher une feature ou variable…")} value={search} onChange={e => setSearch(e.target.value)} />
+        <div className={`pdc-pill ${saveState === "server" ? "green" : saveState === "error" ? "amber" : "cyan"}`} role="status">
+          {saveState === "saving" ? "Enregistrement…" : saveState === "server" ? "Synchronisation confirmée" : saveState === "local" ? "Enregistré sur cet appareil" : saveState === "error" ? "Enregistrement en échec" : hasProject ? "Modifications en attente" : "Prévisualisation locale"}
         </div>
-      </div>
+        <div className="pdc-pill cyan" title={activeProfile?.mission}>{activeDroneLabel}</div>
+      </header>
 
-      {/* Main 3-pane */}
-      <div className="pdc-main">
-        {/* Left: feature tree */}
-        <div className="pdc-left">
-          <div className="pdc-left-header">
-            <span>{t("Arbre des features")}</span>
-            <div className="pdc-left-icons"><Plus size={12} /></div>
-          </div>
-          {filteredGroups.map(group => (
-            <div key={group.id} className="pdc-feature-group">
-              <div className="pdc-group-header" onClick={() => setSelectedGroup(group.id)}>
-                <span className="pdc-chevron open">▸</span>
-                <span className="pdc-group-icon" style={{ color: group.color }}>{group.icon}</span>
-                <span className="pdc-group-label">{t(group.label)}</span>
-                <span className="pdc-group-count">{group.features.length}</span>
-              </div>
-              {group.features.map(feature => (
-                <div
-                  key={feature.name}
-                  className={`pdc-feature-item ${selectedFeature === feature.name ? "selected" : ""}`}
-                  onClick={() => setSelectedFeature(feature.name)}
-                >
-                  <span className={`pdc-dot ${feature.status}`} />
-                  <span className="pdc-feature-name">{t(feature.name)}</span>
-                  {feature.meta && <span className="pdc-feature-meta">{feature.meta}</span>}
-                </div>
-              ))}
-            </div>
+      <nav className="pdc-toolbar" aria-label={t("Outils du Centre Parametric")}>
+        <button className="pdc-tb-btn" onClick={resetFeatures} disabled={!activeDesignId || !featureHistory.length} title={t("Supprimer les features du design actif et restaurer la visibilité source")}><RotateCcw size={14} /> {t("Réinitialiser features")}</button>
+        <button className="pdc-tb-btn" onClick={undo} disabled={!canUndo} title={t("Annuler la dernière modification")}><Undo2 size={14} /> Annuler</button>
+        <button className="pdc-tb-btn" onClick={redo} disabled={!canRedo} title="Rétablir"><Redo2 size={14} /> Rétablir</button>
+        <button className="pdc-tb-btn pdc-tb-btn-primary" onClick={() => void handleSave()} disabled={!hasProject || saveState === "saving"}><Save size={14} /> Enregistrer</button>
+        <span className="pdc-tb-sep" />
+        <button className="pdc-tb-btn" onClick={createSketch} disabled={!activeDesignId}><Box size={14} /> {t("Enregistrer esquisse")}</button>
+        <button className="pdc-tb-btn" onClick={createExtrusion} disabled={!activeDesignId || !selectedSketch}><ArrowUpFromLine size={14} /> {t("Extruder profil")}</button>
+        <button className="pdc-tb-btn" onClick={createRevolution} disabled={!activeDesignId || !selectedSketch}><Activity size={14} /> {t("Révolution cylindrique")}</button>
+        <span className="pdc-tb-sep" />
+        <label className="pdc-inline-select">Outil<select aria-label={t("Pièce outil du booléen")} value={booleanToolId} onChange={event => setBooleanToolId(event.target.value)} disabled={!booleanChoices.length}><option value="">{t("Pièce outil…")}</option>{booleanChoices.map(part => <option key={part.id} value={part.id}>{part.name}</option>)}</select></label>
+        <button className="pdc-tb-btn" onClick={() => createBoolean("union")} disabled={!selectedMechanicalPart || !booleanToolId}><Wrench size={13} /> Union</button>
+        <button className="pdc-tb-btn" onClick={() => createBoolean("subtract")} disabled={!selectedMechanicalPart || !booleanToolId}><Wrench size={13} /> Soustraction</button>
+        <button className="pdc-tb-btn" onClick={() => createBoolean("intersect")} disabled={!selectedMechanicalPart || !booleanToolId}><Wrench size={13} /> Intersection</button>
+        <span className="pdc-tb-sep" />
+        <button className="pdc-tb-btn" onClick={() => handleImport("json")}><ArrowDownToLine size={13} /> Import JSON</button>
+        <button className="pdc-tb-btn" onClick={() => handleImport("csv")}><FileSpreadsheet size={13} /> {t("Import CSV")}</button>
+        <button className="pdc-tb-btn" onClick={() => handleExport("json")} disabled={!activeDesignId}><FileJson2 size={13} /> JSON</button>
+        <button className="pdc-tb-btn" onClick={() => handleExport("csv")}><Download size={13} /> CSV</button>
+        <button className="pdc-tb-btn" onClick={() => handleExport("obj")} disabled={!mechanicalModel}>OBJ</button>
+        <button className="pdc-tb-btn" onClick={() => handleExport("stl")} disabled={!mechanicalModel}>STL</button>
+        <button className="pdc-tb-btn" onClick={() => void toggleFullscreen()} title="Plein écran"><Maximize2 size={14} /></button>
+        <button className="pdc-tb-btn" onClick={captureParametric} title={t("Capturer la vue pour le rapport")}><Camera size={14} /></button>
+        <label className="pdc-search"><Search size={13} /><input aria-label={t("Rechercher une pièce ou variable")} placeholder="Rechercher…" value={search} onChange={event => setSearch(event.target.value)} /></label>
+      </nav>
+
+      <div className="pdc-preview-disclaimer" role="note">{!activeProfile ? "Prévisualisation locale non associée à un design : aucune pièce, analyse ou sauvegarde de projet n’est revendiquée. Sélectionnez un design AeroMind pour éditer sa géométrie réelle." : hasProject ? "Design actif : les opérations et sauvegardes sont limitées à ce workspace. Aucune commande matérielle ne sera déclenchée." : "Design sélectionné en mode local : les modifications ne seront pas enregistrées dans un projet."}</div>
+
+      <main className="pdc-main">
+        <aside className="pdc-left" aria-label={t("Arbre du modèle")}>
+          <div className="pdc-left-header"><span>{t("Pièces du modèle")}</span><button className={`pdc-tree-preview-btn ${treePreviewEnabled ? "active" : ""}`} title={treePreviewEnabled ? "Désactiver la surbrillance de sélection" : "Activer la surbrillance de sélection"} onClick={() => setTreePreviewEnabled(value => !value)}>{treePreviewEnabled ? <Eye size={12} /> : <EyeOff size={12} />}</button></div>
+          {!mechanicalModel && <div className="pdc-empty-state">{t("Aucun Mechanical Twin construit. Choisissez un design dans AeroMind.")}</div>}
+          {searchableParts.map(group => (
+            <section key={group.id} className="pdc-feature-group">
+              <div className="pdc-group-header"><span className="pdc-chevron open">▸</span><span className="pdc-group-label">{group.label}</span><span className="pdc-group-count">{group.parts.length}</span></div>
+              {group.parts.map(part => <button key={part.id} type="button" className={`pdc-feature-item ${part.id === selectedMechanicalPart ? "selected" : ""}`} onClick={() => { setSelectedMechanicalPart(part.id); setCommandStatus(`Pièce sélectionnée par ID : ${part.id}.`); }}>
+                <span className={`pdc-dot ${part.hidden ? "warn" : part.id.startsWith("feature-") || part.id.startsWith("native-csg-") ? "cyan" : "ok"}`} /><span className="pdc-feature-name">{part.name}</span><span className="pdc-feature-meta">{part.id}</span>
+              </button>)}
+            </section>
           ))}
-          <div className="pdc-feature-group">
-            <div className="pdc-group-header">
-              <span className="pdc-chevron open">▸</span>
-              <span className="pdc-group-icon" style={{ color: "var(--violet)" }}>📐</span>
-              <span className="pdc-group-label">{t("Variables")}</span>
-              <span className="pdc-group-count">{DEFAULT_VARIABLES.length}</span>
-            </div>
-            {DEFAULT_VARIABLES.slice(0, 5).map(v => (
-              <div key={v.id} className="pdc-feature-item mono">
-                <span className="pdc-dot cyan" />
-                <span className="pdc-feature-name">{v.name} = {vars[v.id]} {v.unit}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+          <section className="pdc-feature-group">
+            <div className="pdc-group-header"><span className="pdc-chevron open">▸</span><span className="pdc-group-label">{t("Historique paramétrique")}</span><span className="pdc-group-count">{featureHistory.length}</span></div>
+            {!featureHistory.length ? <div className="pdc-feature-item pdc-history-empty">{t("Aucune feature construite")}</div> : featureHistory.map((feature, index) => <button key={feature.id} type="button" className={`pdc-feature-item mono ${feature.status === "unsupported" ? "pdc-feature-unsupported" : ""}`} onClick={() => { setSelectedMechanicalPart(mechanicalModel?.parts.some(part => part.id === feature.id) ? feature.id : feature.targetPartId ?? ""); setCommandStatus(`${feature.name} · dépendances : ${feature.dependsOn?.join(", ") || "aucune"}`); }}>
+              <span className={`pdc-dot ${feature.status === "applied" ? "ok" : "warn"}`} /><span className="pdc-feature-name">{index + 1}. {feature.name}</span><span className="pdc-feature-meta">{feature.status === "applied" ? "appliquée" : "indisponible"}</span>
+            </button>)}
+          </section>
+          <section className="pdc-feature-group">
+            <div className="pdc-group-header"><span className="pdc-chevron open">▸</span><span className="pdc-group-label">{t("Variables actives")}</span><span className="pdc-group-count">{variableRows.length}</span></div>
+            {variableRows.slice(0, 6).map(variable => <button key={variable.id} type="button" className="pdc-feature-item mono" onClick={() => { setSelectedVariableId(variable.id); setActiveTab("variable"); }}><span className={`pdc-dot ${variable.error ? "warn" : "cyan"}`} /><span className="pdc-feature-name">{variable.name} = {variable.value} {variable.unit}</span></button>)}
+          </section>
+        </aside>
 
-        {/* Center: 3D viewport + variable table */}
-        <div className="pdc-center">
-          <div className="pdc-viewport">
-            <div className="pdc-vp-overlay">
-              <div className="pdc-vp-top">
-                <div className="pdc-vp-tabs">
-                  <div className={`pdc-vp-tab ${activeTab === "part" ? "active" : ""}`} onClick={() => setActiveTab("part")}>Part Studio 1</div>
-                  <div className={`pdc-vp-tab ${activeTab === "variable" ? "active" : ""}`} onClick={() => setActiveTab("variable")}>Variable Studio 1</div>
-                  <div className={`pdc-vp-tab ${activeTab === "assembly" ? "active" : ""}`} onClick={() => setActiveTab("assembly")}>Assembly 1</div>
-                </div>
-                <div className="pdc-vp-controls">
-                  <button className="pdc-vp-btn" title={isFullscreen ? t("Quitter le plein écran") : t("Plein écran")} aria-label={isFullscreen ? t("Quitter le plein écran") : t("Plein écran")} onClick={() => void toggleFullscreen()}><Maximize2 size={14} /></button>
-                  <button className="pdc-vp-btn" title={t("Paramètres")} onClick={() => toast.info(t("Paramètres viewport"))}><SettingsIcon size={14} /></button>
-                </div>
-              </div>
-              <div className="pdc-vp-bottom">
-                <div className="pdc-readout">
-                  <span>X: <b>0.000</b></span>
-                  <span>Y: <b>0.000</b></span>
-                  <span>Z: <b>0.000</b></span>
-                  <span>‖ <b>{wingArea?.toFixed(1) ?? "—"} m²</b></span>
-                  <span>V: <b>{wingArea !== null ? (wingArea * (vars.max_thickness ?? 0.3)).toFixed(2) : "—"} m³</b></span>
-                  <span>M: <b>{emptyMass?.toFixed(1) ?? "—"} kg</b></span>
-                </div>
-              </div>
-            </div>
-            <ParametricViewportBoundary fallback={<ParametricViewportFallback />}>
-              {/* Let Three.js try WebGL2 directly: its built-in fallback probe can
-                  misclassify WebGL2-only browsers as unsupported. The local boundary
-                  below still catches a genuine renderer/context failure. */}
-              <Canvas dpr={[1, 1.5]} gl={{ preserveDrawingBuffer: true, antialias: false, powerPreference: "low-power" }} camera={{ position: [28, 18, 28], fov: 40, near: 0.1, far: 500 }}>
-                <Scene vars={vars} />
-              </Canvas>
-            </ParametricViewportBoundary>
+        <section className={`pdc-center ${activeTab !== "part" ? "pdc-center-panel" : ""}`}>
+          <div className="pdc-workspace-tabs" role="tablist" aria-label={t("Atelier paramétrique")}>
+            <button role="tab" aria-selected={activeTab === "part"} className={`pdc-vp-tab ${activeTab === "part" ? "active" : ""}`} onClick={() => setActiveTab("part")}>{t("Part Studio")}</button>
+            <button role="tab" aria-selected={activeTab === "variable"} className={`pdc-vp-tab ${activeTab === "variable" ? "active" : ""}`} onClick={() => setActiveTab("variable")}>{t("Variable Studio")}</button>
+            <button role="tab" aria-selected={activeTab === "assembly"} className={`pdc-vp-tab ${activeTab === "assembly" ? "active" : ""}`} onClick={() => setActiveTab("assembly")}>Assemblage</button>
+            <span className="pdc-spacer" />
+            <label className="pdc-inline-select">Profil<select aria-label={t("Esquisse active")} value={selectedSketch?.id ?? ""} onChange={event => setSelectedSketchId(event.target.value)} disabled={!activeTwin?.sketchProfiles?.length}><option value="">{t("Sélectionner un profil…")}</option>{activeTwin?.sketchProfiles?.map(sketch => <option key={sketch.id} value={sketch.id}>{sketch.name} · {sketch.kind}</option>)}</select></label>
           </div>
 
-          {/* Variable table */}
-          <div className="pdc-var-studio">
-            <div className="pdc-vs-header">
-              <div className={`pdc-vs-tab ${activeTab === "variable" ? "active" : ""}`} onClick={() => setActiveTab("variable")}>
-                Variable Studio 1 <span className="pdc-badge">{DEFAULT_VARIABLES.length}</span>
-              </div>
-              <div className="pdc-vs-actions">
-                <button className="pdc-vs-action" title={t("Ajouter")} onClick={() => toast.info(t("Nouvelle variable"))}><Plus size={13} /></button>
-                <button className="pdc-vs-action" title={t("Dupliquer")} onClick={() => toast.info(t("Dupliquer variable"))}><Copy size={13} /></button>
-                <button className="pdc-vs-action" title={t("Export CSV")} onClick={handleExport}><Download size={13} /></button>
-              </div>
+          {activeTab === "part" && <>
+            <div className="pdc-viewport">
+              {mechanicalModel ? <MechanicalTwinViewport model={mechanicalModel} selected={selectedMechanicalPart} onSelect={id => { setSelectedMechanicalPart(id); setCommandStatus(`Sélection viewport synchronisée avec ${id}.`); }} view="iso" mode="solid" explosion={0} resetKey={rebuildRevision} xrayCut={1} xrayOpacity={{}} previewPartId={treePreviewEnabled ? selectedMechanicalPart : undefined} previewEnabled={treePreviewEnabled} /> : <div className="pdc-viewport-fallback"><div><strong>{t("AUCUNE GÉOMÉTRIE CHARGÉE")}</strong><span>{t("Le viewport attend un design AeroMind sélectionné. Les dimensions ci-dessous restent un aperçu de paramètres, pas un drone généré.")}</span></div></div>}
+              <div className="pdc-vp-bottom"><div className="pdc-readout">
+                <span>Position X <b>{selectedPart?.position[0].toFixed(3) ?? "—"}</b></span><span>Y <b>{selectedPart?.position[1].toFixed(3) ?? "—"}</b></span><span>Z <b>{selectedPart?.position[2].toFixed(3) ?? "—"}</b></span><span>{t("Surface estimée")} <b>{metrics.wingArea?.toFixed(1) ?? "—"} m²</b></span>
+              </div></div>
             </div>
-            <div className="pdc-var-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>{t("Nom")}</th>
-                    <th>{t("Valeur")}</th>
-                    <th>{t("Unité")}</th>
-                    <th>{t("Plage")}</th>
-                    <th>{t("Curseur")}</th>
-                    <th>{t("Type")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {DEFAULT_VARIABLES.map((v, i) => (
-                    <tr key={v.id}>
-                      <td>{i + 1}</td>
-                      <td className="pdc-var-name">{v.name}</td>
-                      <td className="pdc-var-value">{vars[v.id]?.toFixed(2)}</td>
-                      <td className="pdc-var-unit">{v.unit}</td>
-                      <td className="pdc-var-range">{v.min}–{v.max}</td>
-                      <td className="pdc-slider-cell">
-                        <input type="range" min={v.min} max={v.max} step={v.step} value={vars[v.id] ?? v.value} onChange={e => updateVar(v.id, Number(e.target.value))} />
-                      </td>
-                      <td className="pdc-var-type">{v.type}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="pdc-var-studio">
+              <div className="pdc-vs-header"><button className="pdc-vs-tab active" onClick={() => setActiveTab("variable")}>{t("Variables ·")} {variableRows.length}</button><div className="pdc-vs-actions"><button className="pdc-vs-action" title={t("Créer une variable réelle")} onClick={() => addVariable(false)}><Plus size={13} /></button><button className="pdc-vs-action" title={t("Dupliquer la variable sélectionnée")} onClick={() => addVariable(true)}><Copy size={13} /></button></div></div>
+              <div className="pdc-var-table"><table><thead><tr><th>Nom</th><th>Valeur</th><th>Unité</th><th>Plage</th><th>Curseur</th><th>{t("Type / liaison")}</th></tr></thead><tbody>
+                {variableRows.slice(0, 8).map(variable => <tr key={variable.id} className={variable.id === selectedVariableId ? "pdc-selected-row" : ""} onClick={() => setSelectedVariableId(variable.id)}><td className="pdc-var-name">{variable.name}</td><td>{variable.value.toFixed(3)}</td><td className="pdc-var-unit">{variable.unit || "—"}</td><td className="pdc-var-range">{variable.min}–{variable.max}</td><td className="pdc-slider-cell"><input aria-label={`Valeur ${variable.name}`} type="range" min={variable.min} max={variable.max} step={variable.step} value={variable.value} disabled={Boolean(variable.expression || variable.error)} onChange={event => updateVariable(variable.id, Number(event.target.value))} /></td><td className="pdc-var-type">{variable.type} · {variable.appliesTo}</td></tr>)}
+              </tbody></table></div>
             </div>
-          </div>
-        </div>
+          </>}
 
-        {/* Right: inspector */}
-        <div className="pdc-right">
-          <div className="pdc-section">
-            <div className="pdc-section-header">{t("Propriétés")} — {t(selectedFeature)} ▾</div>
-            <div className="pdc-section-body">
-              <div className="pdc-field">
-                <label className="pdc-field-label"><span>{t("Type de section")}</span></label>
-                <div className="pdc-toggle-group">
-                  {(["circular", "elliptical", "polygonal"] as const).map(st => (
-                    <button key={st} className={`pdc-tg-btn ${sectionType === st ? "active" : ""}`} onClick={() => setSectionType(st)}>
-                      {st === "circular" ? t("Circulaire") : st === "elliptical" ? t("Elliptique") : t("Polygonale")}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="pdc-field">
-                <label className="pdc-field-label"><span>{t("Matériau")}</span></label>
-                <div className="pdc-material-list">
-                  {[
-                    { id: "carbon", name: "Carbone T700", density: "1.80 g/cm³", color: "#3a3a3e" },
-                    { id: "aluminum", name: "Aluminium 7075", density: "2.81 g/cm³", color: "#5a5a5e" },
-                    { id: "kevlar", name: "Kevlar 49", density: "1.44 g/cm³", color: "#8a7a4a" },
-                  ].map(m => (
-                    <button key={m.id} className={`pdc-material-item ${material === m.id ? "selected" : ""}`} onClick={() => setMaterial(m.id as any)}>
-                      <span className="pdc-material-swatch" style={{ background: m.color }} />
-                      <span className="pdc-material-name">{t(m.name)}</span>
-                      <span className="pdc-material-density">{m.density}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          {activeTab === "variable" && <div className="pdc-variable-page">
+            <div className="pdc-panel-heading"><div><span className="pdc-tag">{t("PARAMÈTRES · DESIGN ACTIF")}</span><h2>{t("Variable Studio")}</h2><p>{t("Les valeurs liées reconstruisent le design sélectionné. Les formules autorisent uniquement l’arithmétique sûre (+ − × ÷, parenthèses et références #variable).")}</p></div><div className="pdc-vs-actions"><button className="pdc-tb-btn" onClick={() => addVariable(false)}><Plus size={14} /> Ajouter</button><button className="pdc-tb-btn" onClick={() => addVariable(true)}><Copy size={14} /> Dupliquer</button></div></div>
+            <div className="pdc-var-table pdc-variable-table-full"><table><thead><tr><th>Nom</th><th>Valeur</th><th>Unité</th><th>Min</th><th>Max</th><th>Pas</th><th>{t("Formule (optionnelle)")}</th><th>Liaison</th><th>Type</th><th /></tr></thead><tbody>
+              {variableRows.filter(variable => !search || `${variable.id} ${variable.name} ${variable.description}`.toLowerCase().includes(search.toLowerCase())).map(variable => {
+                const editable = customVariableIds.has(variable.id);
+                return <tr key={variable.id} className={variable.id === selectedVariableId ? "pdc-selected-row" : ""} onClick={() => setSelectedVariableId(variable.id)}>
+                  <td>{editable ? <input aria-label={`Nom ${variable.id}`} value={variable.name.replace(/^#/, "")} onChange={event => updateVariableText(variable.id, { name: event.target.value })} /> : <span className="pdc-var-name">{variable.name}</span>}</td>
+                  <td><input className="pdc-number-input" aria-label={`Valeur ${variable.name}`} type="number" min={variable.min} max={variable.max} step={variable.step} value={variable.value} disabled={Boolean(variable.expression || variable.error)} onChange={event => updateVariable(variable.id, Number(event.target.value))} /></td>
+                  <td>{editable ? <input aria-label={`Unité ${variable.id}`} value={variable.unit} onChange={event => updateVariableText(variable.id, { unit: event.target.value })} /> : variable.unit || "—"}</td>
+                  <td>{editable ? <input className="pdc-number-input" aria-label={`Minimum ${variable.id}`} type="number" value={variable.min} onChange={event => updateVariableText(variable.id, { min: Number(event.target.value) })} /> : variable.min}</td>
+                  <td>{editable ? <input className="pdc-number-input" aria-label={`Maximum ${variable.id}`} type="number" value={variable.max} onChange={event => updateVariableText(variable.id, { max: Number(event.target.value) })} /> : variable.max}</td>
+                  <td>{editable ? <input className="pdc-number-input" aria-label={`Pas ${variable.id}`} type="number" min="0.000001" value={variable.step} onChange={event => updateVariableText(variable.id, { step: Number(event.target.value) })} /> : variable.step}</td>
+                  <td>{editable ? <input aria-label={`Expression ${variable.id}`} placeholder={t("#wingspan * 0.1")} value={variable.expression ?? ""} onChange={event => updateVariableText(variable.id, { expression: event.target.value })} /> : "—"}{variable.error && <span className="pdc-variable-error" role="alert">{variable.error}</span>}</td>
+                  <td>{editable ? <select aria-label={`Liaison ${variable.id}`} value={variable.appliesTo} onChange={event => updateVariableText(variable.id, { appliesTo: event.target.value })}>{BINDINGS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : variable.appliesTo === "metadata" ? "métadonnée" : variable.appliesTo}</td>
+                  <td>{variable.type}</td>
+                  <td>{editable && <button className="pdc-vs-action" aria-label={`Supprimer ${variable.name}`} title={t("Supprimer cette variable du design actif")} onClick={event => { event.stopPropagation(); deleteVariable(variable.id); }}>×</button>}</td>
+                </tr>;
+              })}
+            </tbody></table></div>
+            <div className="pdc-variable-footer"><span>{variableRows.length} variables</span><span>{t("Design :")} {activeProfile?.label ?? "aperçu local"}</span><span>{t("Les erreurs de formule bloquent l’enregistrement.")}</span></div>
+          </div>}
 
-          <div className="pdc-section">
-            <div className="pdc-section-header">{t("Aérodynamique")} ▾</div>
-            <div className="pdc-section-body">
-              <div className="pdc-stat-grid">
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Surface alaire")}</div><div className="pdc-value">{wingArea?.toFixed(1) ?? "—"}<span className="pdc-unit"> m²</span></div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Allongement")}</div><div className="pdc-value">{aspectRatio?.toFixed(1) ?? "—"}</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">Cz max</div><div className="pdc-value">{hasProject ? "1.42" : "—"}</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">Cd min</div><div className="pdc-value">{hasProject ? "0.028" : "—"}</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Finesse")}</div><div className="pdc-value">{hasProject ? "18.6" : "—"}</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">Vstall</div><div className="pdc-value">{hasProject ? "14.2" : "—"}{hasProject && <span className="pdc-unit"> m/s</span>}</div></div>
-              </div>
-            </div>
-          </div>
+          {activeTab === "assembly" && <div className="pdc-assembly-page">
+            <div className="pdc-panel-heading"><div><span className="pdc-tag">{t("COMPOSANTS DU MODÈLE")}</span><h2>Assemblage</h2><p>{t("Vue de composants et transformations connues. Aucun solveur de contraintes, liaison cinématique ou vérification d’interférence n’est revendiqué.")}</p></div></div>
+            {!mechanicalModel && <div className="pdc-empty-state">{t("Aucun modèle disponible. Sélectionnez un design AeroMind dans le projet.")}</div>}
+            {mechanicalModel?.parts.map(part => <button key={part.id} type="button" className={`pdc-assembly-row ${selectedMechanicalPart === part.id ? "selected" : ""}`} onClick={() => setSelectedMechanicalPart(part.id)}>
+              <span className={`pdc-dot ${part.hidden ? "warn" : "ok"}`} /><span className="pdc-assembly-name"><strong>{part.name}</strong><small>{part.category} · {part.id}</small></span><span className="pdc-assembly-dims">{part.size.map(value => value.toFixed(3)).join(" × ")} m</span><span className="pdc-assembly-pos">{part.position.map(value => value.toFixed(3)).join(", ")}</span>
+            </button>)}
+          </div>}
+        </section>
 
-          <div className="pdc-section">
-            <div className="pdc-section-header">{t("Masse & équilibrage")} ▾</div>
-            <div className="pdc-section-body">
-              <div className="pdc-stat-grid">
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Masse à vide")}</div><div className="pdc-value">{emptyMass?.toFixed(1) ?? "—"}{emptyMass !== null && <span className="pdc-unit"> kg</span>}</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">{t("Charge utile")}</div><div className="pdc-value">{hasProject && config.payloadKg > 0 ? config.payloadKg.toFixed(1) : "—"}{hasProject && config.payloadKg > 0 && <span className="pdc-unit"> kg</span>}</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">MTOW</div><div className="pdc-value">{hasProject && config.maxTakeoffKg > 0 ? config.maxTakeoffKg.toFixed(1) : "—"}{hasProject && config.maxTakeoffKg > 0 && <span className="pdc-unit"> kg</span>}</div></div>
-                <div className="pdc-stat-card"><div className="pdc-label">CG</div><div className="pdc-value">—</div></div>
-              </div>
-            </div>
-          </div>
+        <aside className="pdc-right" aria-label={t("Inspecteur de propriété")}>
+          <section className="pdc-section"><div className="pdc-section-header">{t("Inspecteur —")} {selectedFeature}</div><div className="pdc-section-body">
+            {selectedPart ? <><div className="pdc-inspector-id">{t("ID stable :")} <code>{selectedPart.id}</code></div><div className="pdc-stat-grid"><div className="pdc-stat-card"><div className="pdc-label">{t("Dimensions mesh")}</div><div className="pdc-small-value">{selectedPart.size.map(value => value.toFixed(3)).join(" × ")} m</div></div><div className="pdc-stat-card"><div className="pdc-label">{t("Sommet / triangles")}</div><div className="pdc-small-value">{selectedPart.vertices.length / 3} / {selectedPart.indices.length / 3}</div></div></div></> : <p className="pdc-empty-state">{t("Sélectionnez une pièce réelle de l’arbre ou du viewport.")}</p>}
+            {featureHistory.find(feature => feature.id === selectedMechanicalPart)?.status === "unsupported" && <div className="pdc-warning-note" role="note">{t("Opération indisponible : aucune modification géométrique appliquée.")}</div>}
+            {selectedFeatureDependencies.length > 0 && <div className="pdc-field"><div className="pdc-field-label">{t("Dépendances de feature")}</div><div className="pdc-dependency-list">{selectedFeatureDependencies.map(dependency => <code key={dependency}>{dependency}</code>)}</div></div>}
+          </div></section>
 
-          <div className="pdc-section">
-            <div className="pdc-section-header">{t("Surfaces de contrôle")} ▾</div>
-            <div className="pdc-section-body">
-              <div className="pdc-field">
-                <label className="pdc-field-label"><span>{t("Débattement aileron")}</span><span className="pdc-unit">deg</span></label>
-                <div className="pdc-field-row"><input type="range" min="0" max="30" defaultValue="25" className="pdc-field-slider" /><span className="pdc-field-display">±25°</span></div>
-              </div>
-              <div className="pdc-field">
-                <label className="pdc-field-label"><span>{t("Débattement volet")}</span><span className="pdc-unit">deg</span></label>
-                <div className="pdc-field-row"><input type="range" min="0" max="40" defaultValue="35" className="pdc-field-slider" /><span className="pdc-field-display">35°</span></div>
-              </div>
-              <div className="pdc-field">
-                <label className="pdc-field-label"><span>{t("Débattement profondeur")}</span><span className="pdc-unit">deg</span></label>
-                <div className="pdc-field-row"><input type="range" min="0" max="25" defaultValue="20" className="pdc-field-slider" /><span className="pdc-field-display">±20°</span></div>
-              </div>
-              <div className="pdc-field">
-                <label className="pdc-field-label"><span>{t("Débattement direction")}</span><span className="pdc-unit">deg</span></label>
-                <div className="pdc-field-row"><input type="range" min="0" max="30" defaultValue="25" className="pdc-field-slider" /><span className="pdc-field-display">±25°</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+          <section className="pdc-section"><div className="pdc-section-header">{t("Section de fuselage")}</div><div className="pdc-section-body"><div className="pdc-toggle-group">{(["circular", "elliptical", "polygonal"] as const).map(section => <button key={section} className={`pdc-tg-btn ${(activeTwin?.fuselageSectionType ?? config.fuselageSectionType ?? "elliptical") === section ? "active" : ""}`} disabled={!activeDesignId} onClick={() => updateSection(section)}>{section === "circular" ? "Circulaire" : section === "elliptical" ? "Elliptique" : "Polygonale"}</button>)}</div></div></section>
 
-      {/* Statusbar */}
-      <div className="pdc-statusbar">
-        <span className="pdc-item"><span className="pdc-val">{totalFeatures} {t("features")}</span></span>
-        <span className="pdc-item"><span className="pdc-val">{DEFAULT_VARIABLES.length} {t("variables")}</span></span>
-        <span className="pdc-item"><span className="pdc-val">3 {t("configurations")}</span></span>
-        <span className="pdc-spacer" />
-        <span className="pdc-seg">{t("Unités")}: SI (m, kg, s)</span>
-        <span className="pdc-seg">{t("Précision")}: 0.01 mm</span>
-        <span className="pdc-seg" style={{ color: hasProjectGeometry ? "var(--pdc-green)" : "var(--pdc-amber)" }}>● {hasProjectGeometry ? t("Validé") : t("Non enregistré")}</span>
-      </div>
+          <section className="pdc-section"><div className="pdc-section-header">{t("Matériau de la pièce sélectionnée")}</div><div className="pdc-section-body"><div className="pdc-material-list">{MATERIALS.map(material => <button key={material.id} type="button" className={`pdc-material-item ${selectedMaterial === material.id ? "selected" : ""}`} disabled={!selectedPart || !activeDesignId} onClick={() => setMaterialForPart(material.id)}><span className="pdc-material-swatch" style={{ background: material.color }} /><span className="pdc-material-name">{material.name}</span><span className="pdc-material-density">{material.density}</span></button>)}</div><small className="pdc-note">{t("Affecte uniquement l’ID de pièce sélectionné. La densité affichée est une référence, pas une attribution matière certifiée ni un calcul de masse.")}</small></div></section>
+
+          <section className="pdc-section"><div className="pdc-section-header">{t("Mesures de présélection")}</div><div className="pdc-section-body"><div className="pdc-stat-grid">
+            <div className="pdc-stat-card"><div className="pdc-label">{t("Surface alaire · proxy")}</div><div className="pdc-value">{metrics.wingArea?.toFixed(2) ?? "—"}<span className="pdc-unit"> m²</span></div></div>
+            <div className="pdc-stat-card"><div className="pdc-label">{t("Allongement · proxy")}</div><div className="pdc-value">{metrics.aspectRatio?.toFixed(2) ?? "—"}</div></div>
+            <div className="pdc-stat-card"><div className="pdc-label">{t("Masse · proxy empirique")}</div><div className="pdc-value">{metrics.emptyMassKg === null ? "—" : `≈ ${metrics.emptyMassKg.toFixed(1)}`}<span className="pdc-unit"> {metrics.emptyMassKg === null ? "" : "kg"}</span></div></div>
+            <div className="pdc-stat-card"><div className="pdc-label">{t("Centre de gravité")}</div><div className="pdc-value">{t("Non calculé")}</div></div>
+            <div className="pdc-stat-card"><div className="pdc-label">{t("Cz / Cd / finesse")}</div><div className="pdc-value">{t("Non calculés")}</div></div>
+            <div className="pdc-stat-card"><div className="pdc-label">{t("Inertie / CFD")}</div><div className="pdc-value">{t("Non calculées")}</div></div>
+          </div><small className="pdc-note">{metrics.massExplanation} {metrics.wingAreaExplanation}</small></div></section>
+
+          <section className="pdc-section"><div className="pdc-section-header">{t("Débattements cibles · non cinématiques")}</div><div className="pdc-section-body"><small className="pdc-note">{t("Valeurs enregistrées sur le design; la géométrie des gouvernes n’est pas animée et aucune vérification de commande n’est effectuée.")}</small>
+            {([ ["aileron", "Aileron", 30], ["flap", "Volet", 40], ["elevator", "Profondeur", 25], ["rudder", "Direction", 30] ] as const).map(([key, label, maximum]) => <div className="pdc-field" key={key}><label className="pdc-field-label"><span>{label}</span><span className="pdc-unit">{activeControls[key]}°</span></label><div className="pdc-field-row"><input aria-label={`${label} en degrés`} type="range" min="0" max={maximum} step="1" value={activeControls[key]} disabled={!activeDesignId} onChange={event => setControlDeflection(key, Number(event.target.value))} className="pdc-field-slider" /></div></div>)}
+          </div></section>
+
+          <section className="pdc-section"><div className="pdc-section-header">{t("Esquisse — profil vérifié")}</div><div className="pdc-section-body">
+            <label className="pdc-field-label">Type<select value={sketchKind} onChange={event => setSketchKind(event.target.value as "rectangle" | "ellipse")}><option value="rectangle">{t("Rectangle · extrusion prismatique")}</option><option value="ellipse">{t("Ellipse · révolution cylindrique simplifiée")}</option></select></label>
+            <div className="pdc-field-row"><label>{t("Largeur (m)")}<input className="pdc-number-input" type="number" min="0.01" max="20" step="0.01" value={sketchWidth} onChange={event => setSketchWidth(Number(event.target.value))} /></label><label>{t("Hauteur (m)")}<input className="pdc-number-input" type="number" min="0.01" max="20" step="0.01" value={sketchHeight} onChange={event => setSketchHeight(Number(event.target.value))} /></label></div>
+            <small className="pdc-note">{t("Le profil rectangulaire est extrudé en prisme; l’ellipse alimente un cylindre. Aucun sketcher contraint 2D n’est revendiqué.")}</small>
+          </div></section>
+
+          <section className="pdc-section"><div className="pdc-section-header">{t("Traitements d’arête indisponibles")}</div><div className="pdc-section-body"><p className="pdc-note">{t("Le noyau actuel ne réalise pas de congé ni de chanfrein d’arête exact. Une demande sera enregistrée comme non appliquée; elle ne remplace ni ne masque le maillage source.")}</p><div className="pdc-actions-row"><button className="pdc-tb-btn" disabled={!selectedPart} onClick={() => recordUnsupportedEdgeTreatment("fillet")}>{t("Demander congé")}</button><button className="pdc-tb-btn" disabled={!selectedPart} onClick={() => recordUnsupportedEdgeTreatment("chamfer")}>{t("Demander chanfrein")}</button></div></div></section>
+        </aside>
+      </main>
+
+      <footer className="pdc-statusbar"><span className="pdc-command-status" role="status"><Check size={12} /> {commandStatus || "Prêt"}</span><span className="pdc-item"><span className="pdc-val">{mechanicalModel?.parts.length ?? 0} {t("pièces mesh")}</span></span><span className="pdc-item"><span className="pdc-val">{featureHistory.length} features</span></span><span className="pdc-item"><span className="pdc-val">{variableRows.length} variables</span></span><span className="pdc-spacer" /><span className="pdc-seg">{t("Unités SI · géométrie en mètres")}</span><span className="pdc-seg">{t("Précision industrielle non certifiée")}</span><span className="pdc-seg" style={{ color: saveState === "server" ? "var(--pdc-green)" : saveState === "error" ? "var(--pdc-red)" : "var(--pdc-amber)" }}>● {saveState === "server" ? "Accusé serveur" : saveState === "local" ? "Stockage local" : saveState === "error" ? "Échec de sauvegarde" : "Modifications non confirmées"}</span></footer>
     </div>
   );
 }

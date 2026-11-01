@@ -7,7 +7,8 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 // UX-09 fix: lazy-load heavy pages to reduce initial bundle (Home.tsx is 14k lines)
 import Home from "@/pages/Home";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { Spinner } from "@/components/ui/spinner";
 
 // LABBENCH 01 is not a second application: its only entry point is the
@@ -33,6 +34,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/labbench" component={Home} />
+      <Route path="/engineering-hub" component={Home} />
       <Route path="/admin">
         <Suspense fallback={<PageLoader />}>
           <SuperAdmin />
@@ -61,6 +63,29 @@ function Router() {
 // - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
+  const [watermark, setWatermark] = useState({ enabled: true, opacity: 0.045, size: 520 });
+  useEffect(() => {
+    const readSettings = () => {
+      try {
+        const saved = localStorage.getItem("aeromind-watermark-settings");
+        if (saved) {
+          const value = JSON.parse(saved);
+          setWatermark({
+            enabled: value.enabled !== false,
+            opacity: Math.min(0.15, Math.max(0.01, Number(value.opacity) || 0.045)),
+            size: Math.min(900, Math.max(180, Number(value.size) || 520)),
+          });
+        }
+      } catch { /* Keep safe defaults when browser storage is unavailable. */ }
+    };
+    readSettings();
+    window.addEventListener("aeromind-watermark-settings-changed", readSettings);
+    window.addEventListener("storage", readSettings);
+    return () => {
+      window.removeEventListener("aeromind-watermark-settings-changed", readSettings);
+      window.removeEventListener("storage", readSettings);
+    };
+  }, []);
   return (
     <ErrorBoundary>
       <ThemeProvider
@@ -70,7 +95,19 @@ function App() {
         <LanguageProvider>
           <TooltipProvider>
             <Toaster />
-            <Router />
+            <div className="aeromind-app-shell">
+              <div
+                className="aeromind-watermark"
+                aria-hidden="true"
+                style={{ display: watermark.enabled ? "block" : "none", opacity: watermark.opacity, "--aeromind-watermark-size": `${watermark.size}px` } as CSSProperties}
+              />
+              <Router />
+              <footer className="aeromind-brand-footer" aria-label="Identité AeroMind">
+                <img src="/aeromind-logo.svg" alt="" />
+                <span>AEROMIND</span>
+                <small>Intelligence · Ingénierie · Aéronautique</small>
+              </footer>
+            </div>
           </TooltipProvider>
         </LanguageProvider>
       </ThemeProvider>

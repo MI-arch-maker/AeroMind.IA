@@ -64,3 +64,36 @@ def test_switching_to_sitl_always_disables_hardware_flag(monkeypatch):
     ops_api.set_operation_mode(ops_api.ModeChangeRequest(mode="SITL"), object())
     assert __import__("os").environ["HARDWARE_CONTROL"] == "false"
     assert __import__("os").environ["AEROMIND_SITL_ACTIVE"] == "true"
+
+
+
+def test_virtual_only_mavlink_status_refuses_before_session_or_observer(monkeypatch):
+    from starlette.requests import Request
+
+    monkeypatch.setenv("AEROMIND_VIRTUAL_ONLY", "true")
+    original_get_observer = telemetry_api.get_observer
+    monkeypatch.setattr(
+        telemetry_api,
+        "_resolve_session",
+        lambda _request: pytest.fail("virtual-only status must not resolve or promote a hardware session"),
+    )
+    monkeypatch.setattr(
+        telemetry_api,
+        "get_observer",
+        lambda: pytest.fail("virtual-only status must not create or poll a MAVLink observer"),
+    )
+    scope = {
+        "type": "http", "http_version": "1.1", "method": "GET",
+        "scheme": "http", "path": "/api/telemetry/mavlink/status",
+        "raw_path": b"/api/telemetry/mavlink/status", "query_string": b"",
+        "root_path": "", "headers": [], "client": ("127.0.0.1", 1234),
+        "server": ("testserver", 80),
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        telemetry_api.status(Request(scope))
+    assert exc.value.status_code == 403
+
+    monkeypatch.setattr(telemetry_api, "get_observer", original_get_observer)
+    with pytest.raises(RuntimeError, match="virtual-only"):
+        telemetry_api.get_observer()

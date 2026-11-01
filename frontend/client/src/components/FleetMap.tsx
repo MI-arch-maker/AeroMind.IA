@@ -53,10 +53,11 @@ export function FleetMap({ projectId, geofence }: Props) {
 
   // === SSE subscription ===
   useEffect(() => {
+    setSnapshot(null);
     if (!projectId) return;
     let stopped = false;
     try {
-      const es = new EventSource("/api/hardware/fleet/telemetry/stream", { withCredentials: true });
+      const es = new EventSource(`/api/hardware/fleet/telemetry/stream?projectId=${encodeURIComponent(projectId)}`, { withCredentials: true });
       eventSourceRef.current = es;
       es.onmessage = (event) => {
         if (stopped) return;
