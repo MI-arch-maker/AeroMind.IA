@@ -77,7 +77,7 @@ export function HumanCommandCenter() {
         setApprovalItems([]);
       }
       setAuthenticated(true);
-      setMessage("API authentifiée · deux identités humaines distinctes requises · simulation uniquement · aucune sortie physique.");
+      setMessage("API authentifiée · deux identités humaines distinctes requises · simulation locale uniquement.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Impossible de charger le centre de commande.");
     }
@@ -127,7 +127,7 @@ export function HumanCommandCenter() {
 
       <section className="hcc-banner" role="note">
         <AlertTriangle size={19}/>
-        <div><strong>Sortie physique impossible dans cette version.</strong><span>La cible est un simulateur local synthétique. L’approbation autorise uniquement l’exécution du scénario de démonstration ; elle n’autorise aucune commande d’aéronef.</span></div>
+        <div><strong>Périmètre du contrôle : scénario de simulation.</strong><span>La cible est un simulateur local synthétique. L’approbation autorise uniquement l’exécution du scénario de démonstration ; elle n’autorise aucune commande d’aéronef.</span></div>
       </section>
 
       <div className="hcc-status" role="status"><span className={authenticated ? "hcc-dot" : "hcc-dot hcc-dot-error"}/>{message}</div>
@@ -171,7 +171,7 @@ export function HumanCommandCenter() {
           </article>
         ))}
       </section>
-      <footer className="hcc-footer">Deux approbations humaines indépendantes sont requises : la première par le demandeur, la seconde par un réviseur OIDC habilité distinct. Les deux sont liées à l’empreinte immuable et expirent après 10 minutes. Cette porte autorise uniquement l’exécution locale simulée; toute sortie physique reste désactivée.</footer>
+      <footer className="hcc-footer">Deux approbations humaines indépendantes sont requises : la première par le demandeur, la seconde par un réviseur OIDC habilité distinct. Les deux sont liées à l’empreinte immuable et expirent après 10 minutes. Cette porte autorise uniquement le scénario logiciel; aucune commande de cet écran ne pilote un aéronef réel.</footer>
     </main>
   );
 }

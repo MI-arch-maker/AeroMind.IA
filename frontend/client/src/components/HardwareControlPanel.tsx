@@ -42,12 +42,27 @@ function failureMessage(body: unknown, fallback: string): string {
     : message;
 }
 
+function csrfHeaders(): Record<string, string> {
+  try {
+    const cookieToken = typeof document === "undefined"
+      ? ""
+      : document.cookie.split(";").map(cookie => cookie.trim()).find(cookie =>
+        cookie.startsWith("lab_csrf_token=") || cookie.startsWith("aeromind_lab_csrf=")
+      )?.split("=").slice(1).join("=") ?? "";
+    const storedToken = typeof sessionStorage === "undefined" ? "" : sessionStorage.getItem("lab_csrf_token") ?? "";
+    const token = decodeURIComponent(cookieToken || storedToken);
+    return token ? { "X-CSRF-Token": token } : {};
+  } catch {
+    return {};
+  }
+}
+
 async function controlRequest(path: string, body?: unknown): Promise<ApiResult> {
   try {
     const response = await fetch(path, {
       method: "POST",
       credentials: "include",
-      headers: body === undefined ? undefined : { "content-type": "application/json" },
+      headers: body === undefined ? undefined : { "content-type": "application/json", ...csrfHeaders() },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     let responseBody: unknown = null;
@@ -81,7 +96,7 @@ export function HardwareControlPanel() {
   const [localState, setLocalState] = useState<LocalVirtualControlState>(createLocalVirtualControlState);
   const [receipts, setReceipts] = useState<VirtualReceipt[]>([]);
   const [setpoint, setSetpoint] = useState(initialSetpoint);
-  const [message, setMessage] = useState("Le contrôle VIRTUAL ne concerne qu’un modèle logiciel; HARDWARE est définitivement refusé.");
+  const [message, setMessage] = useState("Le panneau VIRTUAL applique des consignes au modèle logiciel AeroMind.");
   const [busy, setBusy] = useState(false);
   const [serverStateLoaded, setServerStateLoaded] = useState(false);
   const requestEpoch = useRef(0);

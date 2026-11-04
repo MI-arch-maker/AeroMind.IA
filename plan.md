@@ -50,3 +50,60 @@ CSV/JSON sont traités comme formats de variables/configuration et d’historiqu
 ## Développement et Preview
 
 Le build frontend s’effectue avec pnpm 10.18.0 depuis `frontend/`; le backend Python utilise les dépendances du projet et sélectionne `.venv/bin/python` lorsqu’il est présent, sinon `python3`. La build Vite génère `frontend/dist`. En Preview WebDev, Vite écoute sur le port configuré 3000 et relaie les requêtes `/api` vers FastAPI sur le port interne 8000; le proxy de prévisualisation expose ainsi le frontend et l’API sous le même origin. Le script `start.sh` peut également lancer FastAPI et servir le build compilé sur `PORT` (3000 par défaut), en SQLite locale isolée et en mode virtuel strict. Le fichier `/manus-routes.json` doit être servi comme JSON réel, et non comme fallback HTML. La sauvegarde concerne le dépôt de travail et le ZIP; aucune publication de production, connexion matérielle ou migration d’une base distante n’est comprise dans cette livraison.
+
+## Extension — Centre Mécanique, filerie et intégration drone
+
+Le Centre Mécanique est ajouté comme une vue native distincte du Centre Paramétrique, du Digital Twin et de l’atelier de construction. Il réutilise les modèles mécaniques et le `ConceptConfig` existants, puis ajoute un contrat documentaire pour la structure, l’installation, les câbles, les connecteurs et la maintenance.
+
+La vue adopte un atelier de contrôle industriel sombre : rail de modules, tableau d’intégration central, inspecteur contextuel, badges de provenance et alertes explicites. Les métriques de masse, longueur, compatibilité et routage restent indicatives tant qu’elles ne sont pas rattachées à une source vérifiée. Le Centre ne déclenche aucune fabrication, commande, connexion, émission ou certification.
+
+Le bloc de configuration est synchronisé avec les snapshots projet existants. Les contrôles de séparation de câbles, de connecteurs incomplets, de pièces non installées et de maintenance échue sont des contrôles de cohérence documentaire; ils ne remplacent ni une revue mécanique, ni une analyse structurelle certifiée, ni une procédure institutionnelle.
+
+## Extension turbo — atelier d’assemblage
+
+Le Centre Mécanique comprend désormais un atelier manuel de création de pièces documentaires, un espace d’assemblage par contraintes, un registre de visserie et un atelier de graissage. Les contraintes peuvent être déclarées comme contact, concentricité, parallélisme ou relation à vérifier. La visserie conserve le type, la taille, le matériau, la quantité, le couple indicatif et l’état de montage. Les points de graissage conservent la cible, le produit à préciser, la quantité, l’intervalle et l’accessibilité.
+
+Cette extension reste volontairement dans la frontière virtuelle : elle ne constitue pas un modeleur industriel B-Rep, un solveur de résistance, une certification de couple, une procédure de lubrification constructeur ou une commande de fabrication.
+
+## Extension — Aerodynamic Simulation Center (3 novembre 2026)
+
+### Approche et architecture
+
+Le Centre aérodynamique sera monté dans la coque React/TypeScript/Vite existante, dans `frontend/client/src/pages/Home.tsx`, avec un identifiant de vue dédié exposé par `/?view=aero-cfd`. Un composant spécialisé `frontend/client/src/components/AerodynamicSimulationCenter.tsx` et un module pur de calcul/validation sépareront l’interface, les estimations et la préparation de cas. `App.tsx` reste propriétaire du routage SPA, et `frontend/client/public/manus-routes.json` sera tenu à jour avec toutes les vues déclarées réellement. Les états locaux (scénarios, imports décrits, historiques locaux) resteront explicitement locaux tant qu’aucune persistance serveur n’est raccordée.
+
+Réutiliser les modèles de configuration, fonctions d’import et calculs analytiques déjà livrés dans `frontend/client/src/lib/`, notamment le calcul aérodynamique simplifié existant. Importer et afficher les géométries seulement avec les capacités de lecture réellement testées; garder les fichiers sources intacts, signaler les formats qui sont reçus sans parseur vérifié, et préciser unités, dimensions et défauts effectivement détectés. Les vues de champs et lignes de courant sont des visualisations de données disponibles ou des illustrations clairement nommées; elles ne deviennent jamais des résultats CFD par animation seule.
+
+Les conditions d’essai (flux, ambiance, fluides, turbulence et limites), génération de maillage, scénarios, historique et rapports sont réutilisés/ajoutés dans une interface intégrée. Les grandeurs calculées par modèle conceptuel/analytique portent cette provenance, les hypothèses, l’incertitude et les limites. Le mode rotor/propulsion est présenté comme analyse simplifiée lorsque les données ne viennent pas d’un solveur. Le mode atmosphérique distingue explicitement la pression ISA dérivée de l’altitude de la pression statique manuelle; toute saisie explicite bascule en mode manuel, sans mélange silencieux.
+
+Le générateur de cas OpenFOAM existant et/ou son contrat de préparation sera exposé clairement; un cas exporté n’est pas un calcul achevé. Aucun exécutable OpenFOAM, runtime solver ou service CFD n’est disponible dans cette session. Comme approuvé par l’utilisateur, l’intégration d’exécution OpenFOAM est explicitement différée à un raccordement ultérieur. L’interface indiquera le solveur indisponible et ne produira aucun faux statut de convergence ou résultat CFD. Aucun solveur distant ne sera inventé, aucune clé n’est supposée.
+
+### Structure des changements
+
+- `frontend/client/src/pages/Home.tsx` : état, entrée de navigation et montage de la vue `aero-cfd` reliée au projet actif.
+- `frontend/client/src/components/AerodynamicSimulationCenter.tsx` et feuille CSS dédiée : import/inspection, paramètres, scénarios, analyse, résultats disponibles, historique, comparaison et exports.
+- `frontend/client/src/lib/aerodynamicWorkspace.ts` : validation d’entrées, calculs analytiques étiquetés, format des scénarios et contrats/export de rapport/cas.
+- `frontend/client/public/manus-routes.json` : route de vue `/` avec le paramètre `view=aero-cfd`, sans inventer de routes métier.
+- `TODO.md` et ce plan : critères explicites, statut de la CFD réelle différée et limites vérifiables.
+- `tests/` et les checks existants : tests des calculateurs/valideurs purs, typecheck, build, suites pertinentes.
+
+### Direction visuelle conservée
+
+Réutiliser le style existant de poste d’ingénierie sombre AeroMind; aucun nouvel habillage de marque. Graphite profond pour le plan de travail, cyan AeroMind pour géométrie et actions principales, ambre pour incertitude/limite et rouge uniquement pour erreur. Disposition en navigation de laboratoire, zone de visualisation centrale, paramètres et provenance latéraux; typographie Inter avec libellés techniques monospace. Microcopie précise (« Estimation analytique — pas une CFD », « Cas prêt à exporter — solveur non connecté »). Les interactions doivent préserver la configuration, signaler les opérations refusées, les résultats non validés et la provenance; les transitions sont discrètes et ne suggèrent pas une mesure réelle.
+
+### Capacités et limites
+
+La Preview est un environnement Webdev de développement, sur port 3000, et le ZIP sera nettoyé des secrets, environnements virtuels, dépendances installées, bases locales et builds. La préparation/export d’un cas OpenFOAM est distincte d’un solveur actif. Le livrable n’attestera ni CFD réelle exécutée, ni qualification expérimentale, ni certification. Les besoins STEP/3MF/format CAD sans parseur/convertisseur testé seront signalés comme non décodés plutôt que faussement « analysés ».
+
+
+## Extension — Aeromind Intelligence Center (3 novembre 2026)
+Le projet conserve sa coque React/TypeScript/Vite, son mode VIRTUAL ONLY et ses centres d’ingénierie existants. Une vue native `intelligence-center` ajoute une salle de contrôle multi-agents sans déplacer la source de vérité des conceptions. Le composant `AeromindIntelligenceCenter` porte un état local versionné pour l’interface de démonstration et distingue explicitement faits vérifiés, hypothèses, recommandations et actions en attente d’approbation.
+
+Le workspace contient le Master AI Dashboard, une conversation routée vers huit agents spécialisés, un graphe de tâches, une mémoire technique filtrable, un comparateur de décisions, un moteur d’amélioration continue, le routage de modèles avec repli déterministe, l’historique et la gouvernance par niveaux. Les actions de démonstration sont opérationnelles côté interface : création de missions, distribution, consolidation, import documentaire en quarantaine, approbation/refus humain, commutateurs de gouvernance, export indirect vers les centres existants et réinitialisation du workspace. Aucune clé n’est embarquée dans le client et aucune modification silencieuse de conception n’est réalisée.
+
+La route est exposée par `/?view=intelligence-center`, reliée à la navigation Home et au manifeste `manus-routes.json`. La prévisualisation utilise le serveur FastAPI/Vite existant sur le port 3000; les vérifications couvrent typecheck, tests Vitest, build Vite, manifeste de routes, santé API et commandes principales du workspace.
+
+## Session corrective — Modernisation Aeromind (3 novembre 2026)
+
+Cette session reprend la source fournie sans reconstruire l’application. Le frontend React/TypeScript/Vite reste servi par FastAPI sur le port de Preview configuré (3000); le runner `start.sh` garde SQLite locale de démonstration, `AEROMIND_VIRTUAL_ONLY=true`, `HARDWARE_CONTROL=false` et l’autostart SITL coupé. La base managée n’est pas activée. Les corrections visent les défauts statiques confirmés : résolution de toutes les vues déclarées (y compris `fleet-maintenance` et `control-center`), attente effective de l’hydratation avant sauvegarde anonyme, statut de persistance non trompeur, et envoi du jeton CSRF présent à toute mutation VIRTUAL. Le manifeste existant `frontend/client/public/manus-routes.json` est conservé et vérifié contre les routes SPA et paramètres `view` réels.
+
+Les actions du jumeau logiciel restent fonctionnelles et explicitement qualifiées de simulation. Cette archive ne suffit pas à qualifier un aéronef, un actionneur, un transport, un réseau de sécurité, un dispositif d’arrêt indépendant ou un processus d’autorisation institutionnel; aucune émission matérielle ni ouverture de MAVLink, HIL ou SITL n’est effectuée dans cette livraison. La microcopie peut éviter la formulation demandée par le cahier des charges, mais ne peut pas masquer le fait qu’une action est seulement simulée. La validation porte sur typecheck, tests unitaires frontend/build, et suites backend sans transport matériel. La livraison comprend une archive source nettoyée et la Preview WebDev; aucune publication de production, base distante ou activation matérielle n’est visée.

@@ -47,6 +47,7 @@ const FULL_WORKSPACE_VIEWS = new Set([
   "digital-twin",
   "tools",
   "inspector",
+  "intelligence-center",
   "parametric-center",
   "simulation",
   "mission-planner",

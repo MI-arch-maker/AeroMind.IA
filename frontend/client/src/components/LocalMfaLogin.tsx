@@ -65,6 +65,9 @@ export function LocalMfaLogin({ onAuthenticated }: Props) {
         <p className="session-mfa-intro">
           <ShieldCheck size={14} /> Accès local sécurisé · mot de passe et code TOTP requis
         </p>
+        <p className="session-mfa-intro" role="note">
+          Les comptes Admin et Super-Admin conservent obligatoirement le TOTP pour LABBENCH 01 ; aucune exemption privilégiée n’est activée.
+        </p>
         <label>Adresse e-mail
           <input type="email" autoComplete="username" required value={email}
             onChange={event => setEmail(event.target.value)} />

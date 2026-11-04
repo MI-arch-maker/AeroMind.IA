@@ -289,7 +289,7 @@ export const localLabBenchStatus = {
     },
     {
       code: "REQ-SAF-001",
-      title: "Absence de sortie physique",
+      title: "Périmètre de simulation",
       limit: "0 commande physique",
       unit: "",
       source: "Périmètre virtuel AeroMind",

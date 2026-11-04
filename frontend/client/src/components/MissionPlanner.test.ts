@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { missionHttpError } from "./MissionPlanner";
+import { formatWaypointCoordinate, hasWaypointCoordinates, missionHttpError, normalizeMission } from "./MissionPlanner";
 import { buildMissionPlannerSnapshot } from "./MissionPlannerView";
 
 describe("messages d’erreur du Mission Planner", () => {
@@ -12,6 +12,14 @@ describe("messages d’erreur du Mission Planner", () => {
     expect(missionHttpError(503, null)).toBe("HTTP 503");
     expect(missionHttpError(500, { detail: { code: "internal" } })).toBe("HTTP 500");
   });
+  it("tolère les brouillons avec coordonnées absentes sans casser la carte", () => {
+    const mission = normalizeMission({ id: "draft-1", name: "Brouillon", waypoints: [{ sequence: 1, command: "NAV_WAYPOINT", latitude: null, longitude: null, altitude_m: null }] });
+    expect(mission.waypoints).toHaveLength(1);
+    expect(hasWaypointCoordinates(mission.waypoints[0])).toBe(false);
+    expect(formatWaypointCoordinate(null)).toBe("—");
+    expect(formatWaypointCoordinate(45.123456)).toBe("45.12346");
+  });
+
 
   it("construit un export local complet sans action matérielle", () => {
     const snapshot = buildMissionPlannerSnapshot(

@@ -192,14 +192,14 @@ def _otp_uri(secret: str, email: str) -> str:
     return f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer)}&algorithm=SHA1&digits=6&period=30"
 
 
-def _session_response(account: dict) -> JSONResponse:
+def _session_response(account: dict, request: Request) -> JSONResponse:
     subject = f"local:{account['id']}:{int(account.get('localAuthGeneration', 0))}"
     email = _normalize_email(account["email"])
     token = _signed(_b64(f"{subject}|{email}".encode()))
     # P2-02/P2-03 fix: register the session in the server-side allowlist.
     register_primary_session(token, subject, email)
     response = JSONResponse({"authenticated": True, "email": email, "auth_method": "local-password-totp"})
-    response.set_cookie("aeromind_session", token, max_age=28_800, **_cookie_security())
+    response.set_cookie("aeromind_session", token, max_age=28_800, **_cookie_security(request))
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -287,7 +287,7 @@ def confirm_enrollment(body: Confirmation, request: Request):
         row.data_json = json.dumps(stored, ensure_ascii=False, separators=(",", ":"))
         db.commit()
         account = stored
-    return _session_response(account)
+    return _session_response(account, request)
 
 
 @router.post("/login")
@@ -314,7 +314,7 @@ def login(body: Login, request: Request):
             except Exception:
                 otp_counter = None
         accepted = _check_account(account) and stored.get("localAuthEnabled") is True and valid_password and otp_counter is not None
-        if not accepted:
+        if not accepted or row is None or account is None:
             if row is not None:
                 failures.append(now)
                 stored["localLoginFailures"] = failures[-5:]
@@ -328,7 +328,7 @@ def login(body: Login, request: Request):
         row.data_json = json.dumps(stored, ensure_ascii=False, separators=(",", ":"))
         _audit(db, "account.local_auth_login", stored, {"auth_method": "password+totp", "client": request.client.host if request.client else None})
         db.commit()
-    return _session_response(account)
+    return _session_response(account, request)
 
 
 @router.post("/admin/enrollment-invite")

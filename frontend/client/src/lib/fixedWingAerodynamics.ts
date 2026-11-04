@@ -7,6 +7,7 @@ export type FixedWingInput = {
   speedMps: number;
   altitudeM: number;
   temperatureC: number;
+  pressurePa?: number;
   bankDeg: number;
   cd0?: number;
   oswaldEfficiency?: number;
@@ -43,6 +44,13 @@ const ISA_SEA_LEVEL_PA = 101_325;
 const ISA_PRESSURE_EXPONENT = 5.2558797;
 const finite = (value: number) => Number.isFinite(value);
 
+export function standardAtmospherePressurePa(altitudeM: number): number | null {
+  if (!finite(altitudeM) || altitudeM < 0 || altitudeM > 11_000) return null;
+  const isaTemperatureK = ISA_SEA_LEVEL_K - ISA_LAPSE_K_PER_M * altitudeM;
+  if (isaTemperatureK <= 0) return null;
+  return ISA_SEA_LEVEL_PA * Math.pow(isaTemperatureK / ISA_SEA_LEVEL_K, ISA_PRESSURE_EXPONENT);
+}
+
 /** Ideal-gas density using tropospheric ISA pressure and supplied ambient temperature. */
 export function calculateFixedWingAerodynamics(input: FixedWingInput): FixedWingResult {
   const cd0 = input.cd0 ?? 0.04;
@@ -50,7 +58,9 @@ export function calculateFixedWingAerodynamics(input: FixedWingInput): FixedWing
   const clMax = input.clMax ?? 1.2;
   const assumptions = [
     `Coefficients par défaut, non étalonnés : CD₀=${cd0}, e=${oswaldEfficiency}, CLmax=${clMax}.`,
-    "Aile trapézoïdale équivalente; pression ISA troposphérique avec température ambiante saisie.",
+    input.pressurePa === undefined
+      ? "Aile trapézoïdale équivalente; pression ISA troposphérique avec température ambiante saisie."
+      : `Aile trapézoïdale équivalente; pression statique saisie ${input.pressurePa} Pa et température ambiante saisie.`,
     "Virage coordonné en palier : le facteur de charge 1/cos(φ) est pris en compte dans CL, traînée et Vs.",
     "Puissance propulsive = traînée × vitesse; rendement propulsion, rafales et effets de sol ignorés.",
   ];
@@ -66,7 +76,8 @@ export function calculateFixedWingAerodynamics(input: FixedWingInput): FixedWing
 
   const values = [
     input.spanM, input.chordM, input.taperRatio, input.massKg, input.speedMps,
-    input.altitudeM, input.temperatureC, input.bankDeg, cd0, oswaldEfficiency, clMax,
+    input.altitudeM, input.temperatureC, input.pressurePa ?? ISA_SEA_LEVEL_PA,
+    input.bankDeg, cd0, oswaldEfficiency, clMax,
   ];
   if (!values.every(finite)) {
     return { status: "invalid", applicable: true, reasons: ["Entrée non finie : fournir uniquement des nombres finis."], assumptions };
@@ -80,6 +91,7 @@ export function calculateFixedWingAerodynamics(input: FixedWingInput): FixedWing
     input.speedMps >= 0.5 && input.speedMps <= 300 &&
     input.altitudeM >= 0 && input.altitudeM <= 11_000 &&
     input.temperatureC >= -80 && input.temperatureC <= 60 &&
+    (input.pressurePa === undefined || (input.pressurePa >= 1_000 && input.pressurePa <= 200_000)) &&
     Math.abs(input.bankDeg) < 80 &&
     cd0 > 0 && cd0 <= 1 &&
     oswaldEfficiency > 0 && oswaldEfficiency <= 1 &&
@@ -88,13 +100,12 @@ export function calculateFixedWingAerodynamics(input: FixedWingInput): FixedWing
     return {
       status: "outside-domain",
       applicable: true,
-      reasons: ["Hors domaine : vérifier géométrie, masse, vitesse, altitude, température, banque et coefficients aérodynamiques saisis."],
+      reasons: ["Hors domaine : vérifier géométrie, masse, vitesse, altitude, température, pression, banque et coefficients aérodynamiques saisis."],
       assumptions,
     };
   }
 
-  const isaTemperatureK = ISA_SEA_LEVEL_K - ISA_LAPSE_K_PER_M * input.altitudeM;
-  const pressurePa = ISA_SEA_LEVEL_PA * Math.pow(isaTemperatureK / ISA_SEA_LEVEL_K, ISA_PRESSURE_EXPONENT);
+  const pressurePa = input.pressurePa ?? (standardAtmospherePressurePa(input.altitudeM) ?? ISA_SEA_LEVEL_PA);
   const densityKgM3 = pressurePa / (AIR_GAS_CONSTANT * (input.temperatureC + 273.15));
   const machNumber = input.speedMps / Math.sqrt(1.4 * AIR_GAS_CONSTANT * (input.temperatureC + 273.15));
   const wingAreaM2 = input.spanM * input.chordM * (1 + input.taperRatio) / 2;

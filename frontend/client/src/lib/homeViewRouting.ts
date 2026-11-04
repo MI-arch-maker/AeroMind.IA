@@ -1,6 +1,7 @@
 export const HOME_VIEW_IDS = [
   "overview",
   "engineering-hub",
+  "intelligence-center",
   "requirements",
   "concept",
   "tools",
@@ -19,8 +20,12 @@ export const HOME_VIEW_IDS = [
   "operations",
   "materials",
   "aero-center",
+  "aero-cfd",
   "design-studio",
   "parametric-center",
+  "mechanical-center",
+  "fleet-maintenance",
+  "control-center",
 ] as const;
 
 export type HomeViewId = (typeof HOME_VIEW_IDS)[number];

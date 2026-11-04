@@ -52,16 +52,19 @@ class Settings(BaseSettings):
     # Adresse d’expérimentation initiale. La variable d’environnement garde la
     # priorité : elle peut être remplacée par une ou plusieurs adresses, ou
     # définie à vide pour supprimer tout super-admin configuré.
-    superadmin_emails: str = Field('mcgregoralvin14@gmail.com', alias='AEROMIND_SUPERADMIN_EMAILS', validation_alias='AEROMIND_SUPERADMIN_EMAILS')
+    superadmin_emails: str = Field('', alias='AEROMIND_SUPERADMIN_EMAILS', validation_alias='AEROMIND_SUPERADMIN_EMAILS')
     local_superadmin_bootstrap_code: str | None = Field(None, alias='AEROMIND_LOCAL_SUPERADMIN_ENROLLMENT_CODE', validation_alias='AEROMIND_LOCAL_SUPERADMIN_ENROLLMENT_CODE')
     # Liste d’identités autorisées pour le parcours d’essai ; elle ne remplace
     # jamais la validation cryptographique du fournisseur OIDC.
-    trial_emails: str = Field('mcgregoralvin14@gmail.com', alias='AEROMIND_TRIAL_EMAILS', validation_alias='AEROMIND_TRIAL_EMAILS')
+    trial_emails: str = Field('', alias='AEROMIND_TRIAL_EMAILS', validation_alias='AEROMIND_TRIAL_EMAILS')
     # Destinataire par défaut des notifications de démonstration (aucun envoi
     # n'est déclenché par cette configuration). Administrable via l'environnement.
     default_demo_email: str | None = Field(None, alias='DEFAULT_DEMO_EMAIL', validation_alias='DEFAULT_DEMO_EMAIL')
     allowed_origins: str = Field('', alias='AEROMIND_ALLOWED_ORIGINS', validation_alias='AEROMIND_ALLOWED_ORIGINS')
-    allowed_hosts: str = Field('*.onrender.com,localhost,127.0.0.1', alias='AEROMIND_ALLOWED_HOSTS', validation_alias='AEROMIND_ALLOWED_HOSTS')
+    # Le proxy de prévisualisation Manus transmet le domaine temporaire
+    # *.manus.computer dans l'en-tête Host. Le wildcard reste limité à
+    # cette zone de preview et ne désactive pas TrustedHostMiddleware.
+    allowed_hosts: str = Field('*.onrender.com,*.manus.computer,localhost,127.0.0.1', alias='AEROMIND_ALLOWED_HOSTS', validation_alias='AEROMIND_ALLOWED_HOSTS')
     entra_tenant_id: str | None = Field(None, alias='ENTRA_TENANT_ID', validation_alias='ENTRA_TENANT_ID')
     entra_client_id: str | None = Field(None, alias='ENTRA_CLIENT_ID', validation_alias='ENTRA_CLIENT_ID')
     entra_client_secret: str | None = Field(None, alias='ENTRA_CLIENT_SECRET', validation_alias='ENTRA_CLIENT_SECRET')
@@ -116,7 +119,7 @@ class Settings(BaseSettings):
             host = parsed.netloc.split('@')[-1].split(':')[0].lower().rstrip('.')
             if host:
                 hosts.append(host)
-        return hosts or ['*.onrender.com', 'localhost', '127.0.0.1']
+        return hosts or ['*.onrender.com', '*.manus.computer', 'localhost', '127.0.0.1']
 
     @property
     def superadmin_email_set(self) -> set[str]:

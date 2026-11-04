@@ -12,6 +12,8 @@ describe("resolveInitialHomeView", () => {
   it("préserve les alias historiques dans Digital Twin Explorer", () => {
     expect(resolveInitialHomeView("?view=tools", "/")).toBe("digital-twin");
     expect(resolveInitialHomeView("?view=inspector", "/")).toBe("digital-twin");
+    expect(resolveInitialHomeView("?view=fleet-maintenance", "/")).toBe("fleet-maintenance");
+    expect(resolveInitialHomeView("?view=control-center", "/")).toBe("control-center");
   });
 
   it("conserve les routes historiques et ignore une vue inconnue", () => {

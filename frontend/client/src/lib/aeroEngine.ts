@@ -1,6 +1,7 @@
 import { simulationModules, type SimulationModule } from "./simulationModules";
 import type { MechanicalTwinConfig } from "./mechanicalTwinGeometry";
 import type { PayloadCalibrationProfile } from "./payloadCalibration";
+import type { MechanicalCenterConfig } from "./mechanicalCenterModel";
 
 export type RequirementStatus = "ok" | "review" | "hypothesis" | "conflict";
 
@@ -339,6 +340,8 @@ export type ConceptConfig = {
   };
   /** État métier du centre aéronautique conservé avec le projet. */
   aeronauticalRole?: string;
+  /** État documentaire du Centre Mécanique : pièces, filerie, connecteurs et maintenance. */
+  mechanicalCenter?: MechanicalCenterConfig;
   integratedEquipmentIds?: string[];
   /** Réglages d’assemblage synchronisés avec l’inspecteur du dock. */
   materialFamily?: string;

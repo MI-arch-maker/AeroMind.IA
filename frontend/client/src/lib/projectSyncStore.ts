@@ -201,6 +201,7 @@ const conceptConfigSchema = z
     activeStudioLayer: z.string().optional(),
     platformProfile: z.string().optional(),
     aeronauticalRole: z.string().optional(),
+    mechanicalCenter: jsonObject.optional(),
     integratedEquipmentIds: z.array(z.string()).optional(),
     materialFamily: z.string().optional(),
     jointType: z.string().optional(),

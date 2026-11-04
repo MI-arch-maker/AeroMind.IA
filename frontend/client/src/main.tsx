@@ -8,6 +8,7 @@ import App from "./App";
 import { installLocaleFetch } from "./i18n/requestLocale";
 import { installResizeObserverPolyfill } from "./lib/resizeObserverPolyfill";
 import { bearerHeaders, consumeSessionTokenFromFragment } from "./lib/sessionToken";
+import { apiFetch } from "./lib/apiFetch";
 import "./index.css";
 import "./action-center.css";
 import "./aeromind-dynamics.css";
@@ -79,7 +80,7 @@ const trpcClient = trpc.createClient({
         return entraHeaders;
       },
       fetch(input, init) {
-        return globalThis.fetch(input, {
+        return apiFetch(input, {
           ...(init ?? {}),
           credentials: "include",
         });

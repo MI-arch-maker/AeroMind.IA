@@ -10,6 +10,7 @@ import Home from "@/pages/Home";
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { Spinner } from "@/components/ui/spinner";
+import VirtualParametricFactory from "@/pages/VirtualParametricFactory";
 
 // LABBENCH 01 is not a second application: its only entry point is the
 // integrated Home workspace. Keep the legacy URL as an alias to that same
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/labbench" component={Home} />
       <Route path="/engineering-hub" component={Home} />
+      <Route path="/virtual-factory" component={VirtualParametricFactory} />
       <Route path="/admin">
         <Suspense fallback={<PageLoader />}>
           <SuperAdmin />

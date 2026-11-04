@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateFixedWingAerodynamics as calc,
+  standardAtmospherePressurePa,
   type FixedWingInput,
 } from "./fixedWingAerodynamics";
 
@@ -42,6 +43,18 @@ describe("fixed-wing aerodynamic estimate", () => {
     expect(calc({ ...base, massKg: 10 }).requiredCL!).toBeGreaterThan(nominal.requiredCL!);
     expect(calc({ ...base, speedMps: 26 }).dragN!).toBeGreaterThan(nominal.dragN!);
     expect(calc({ ...base, altitudeM: 1500 }).densityKgM3!).toBeLessThan(nominal.densityKgM3!);
+  });
+
+  it("uses a supplied static pressure and rejects invalid pressure inputs", () => {
+    const nominal = calc(base);
+    const lowPressure = calc({ ...base, pressurePa: 80_000 });
+    expect(lowPressure.densityKgM3!).toBeLessThan(nominal.densityKgM3!);
+    expect(standardAtmospherePressurePa(2500)!).toBeLessThan(standardAtmospherePressurePa(0)!);
+    const manualAtLowAltitude = calc({ ...base, pressurePa: 101325, altitudeM: 100 });
+    const manualAtHighAltitude = calc({ ...base, pressurePa: 101325, altitudeM: 5000 });
+    expect(manualAtHighAltitude.densityKgM3).toBeCloseTo(manualAtLowAltitude.densityKgM3!, 8);
+    expect(calc({ ...base, pressurePa: Number.NaN }).status).toBe("invalid");
+    expect(calc({ ...base, pressurePa: 0 }).status).toBe("outside-domain");
   });
 
   it("rejects non-finite inputs and flags invalid domain and stall margin", () => {

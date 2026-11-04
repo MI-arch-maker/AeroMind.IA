@@ -129,6 +129,7 @@ describe("HardwareControlPanel · UI VIRTUAL sans matériel", () => {
     ];
     const fetchMock = vi.fn(async (_path: RequestInfo | URL, _init?: RequestInit): Promise<unknown> => jsonResponse(states.shift()));
     vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("sessionStorage", { getItem: (key: string) => key === "lab_csrf_token" ? "csrf-step-up-test" : null });
 
     let ui = renderPanel({ 5: loadedState({ revision: 7 }) });
     check(ui, "Intention d’activer");
@@ -169,6 +170,7 @@ describe("HardwareControlPanel · UI VIRTUAL sans matériel", () => {
     expect(payloads[2]).toMatchObject({ command: "position", x_m: 0, y_m: 0, altitude_m: 20, confirm_command: true });
     expect(payloads[3]).toMatchObject({ mode: "SIMULATION", confirm_operator: false, confirm_safety: false });
     expect(calls.every(({ path }) => String(path).startsWith("/api/control/"))).toBe(true);
+    expect(calls.every(({ init }) => (init.headers as Record<string, string>)["X-CSRF-Token"] === "csrf-step-up-test")).toBe(true);
   });
 
   it("refuse une mutation avant le chargement de l’état serveur", () => {

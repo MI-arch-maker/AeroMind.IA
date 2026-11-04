@@ -245,6 +245,15 @@ button:disabled {
   background: var(--cyan);
   border-radius: 2px;
 }
+.factory-nav-item {
+  margin-top: 6px;
+  color: var(--cyan);
+  background: rgba(117, 226, 220, 0.08);
+  border-color: rgba(117, 226, 220, 0.22);
+}
+.factory-nav-item small {
+  color: var(--cyan);
+}
 .sidebar-bottom {
   margin-top: auto;
   display: grid;

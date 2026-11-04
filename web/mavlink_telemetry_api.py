@@ -377,16 +377,17 @@ def status(
     dev_token = getattr(getattr(request, "state", None), "dev_lab_session_token", None)
     dev_csrf = getattr(getattr(request, "state", None), "dev_lab_csrf_token", None)
     if dev_token:
-        from fastapi import Response
+        from .oidc import _cookie_security
+        cookie_security = _cookie_security(request)
         response = JSONResponse(payload)
         response.set_cookie(
             "aeromind_lab_session", dev_token,
-            httponly=True, samesite="lax", max_age=3600, secure=False,
+            max_age=3600, **cookie_security,
         )
         if dev_csrf:
             response.set_cookie(
                 "aeromind_lab_csrf", dev_csrf,
-                httponly=False, samesite="lax", max_age=3600, secure=False,
+                max_age=3600, **{**cookie_security, "httponly": False},
             )
         return response  # type: ignore[return-value]
     return payload

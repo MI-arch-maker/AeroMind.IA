@@ -99,11 +99,8 @@ def set_runtime_superadmin_emails(emails: set[str]) -> None:
 
 def _primary_account() -> dict[str, Any] | None:
     emails = current_superadmin_emails()
-    # L'adresse mcgregoralvin14@gmail.com reste conservée comme adresse
-    # super-admin par défaut, conformément à la décision explicite de
-    # l'utilisateur du 30 octobre 2026, jusqu'à révocation personnelle.
-    preferred = "mcgregoralvin14@gmail.com"
-    email = preferred if preferred in emails else next(iter(emails), None)
+    # La sélection primaire provient exclusivement de la configuration/secrets.
+    email = next(iter(sorted(emails)), None)
     if not email:
         return None
     return {"id": "primary-super-admin", "name": "Administrateur principal", "email": email,

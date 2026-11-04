@@ -84,324 +84,22 @@ import "./labbench.css";
 // server-side persistence and double confirmation for the N3 arm.
 // ===========================================================================
 
-type ViewId =
-  | "projects"
-  | "overview"
-  | "dashboard"
-  | "requirements"
-  | "simulation"
-  | "hardware"
-  | "materials"
-  | "bench"
-  | "fleet"
-  | "radar"
-  | "map"
-  | "mission"
-  | "preflight"
-  | "charts"
-  | "flights"
-  | "replay-adv"
-  | "voice"
-  | "collaboration"
-  | "maintenance"
-  | "hardware-control"
-  | "reports"
-  | "audit";
-type ModeId = "simulation" | "connected" | "authorized";
-
-type ZoneId = "governance" | "simulation" | "hardware" | "bench" | "audit";
-
-type GateState = "passed" | "open" | "pending";
-
-type GateDefinition = {
-  code: string;
-  label: string;
-  description: string;
-  level: string;
-  zone: ZoneId;
-  requiredConditions: string[];
-  conditions: Record<string, boolean>;
-  state: GateState;
-};
-
-type ZoneProgress = {
-  zone: ZoneId;
-  label: string;
-  passed: boolean;
-  openCount: number;
-  gates: Array<{ code: string; state: GateState }>;
-};
-
-type GateStateResponse = {
-  projectId: string;
-  gateStateId: string;
-  updatedAt: string;
-  conditions: Record<string, boolean>;
-  gates: GateDefinition[];
-  currentGate: string;
-  armEvents: Array<Record<string, unknown>>;
-  reviewEvents: Array<Record<string, unknown>>;
-  hardwareChecklist: {
-    deviceIdentified: boolean;
-    driverValidated: boolean;
-    calibrationSimulated: boolean;
-    complete: boolean;
-  };
-  physicalOutputEnabled: false;
-  physicalCommandsEmitted: false;
-  physicalExecutionPermitted: false;
-  zoneProgress: ZoneProgress[];
-};
-
-type LocalGateState = {
-  gates: GateDefinition[];
-  zoneProgress: ZoneProgress[];
-  currentGate: string;
-  conditions: Record<string, boolean>;
-  hardwareChecklist: GateStateResponse["hardwareChecklist"];
-  armEvents: Array<Record<string, unknown>>;
-  reviewEvents: Array<Record<string, unknown>>;
-  updatedAt: string | null;
-};
-
-// === TypeScript port of Python _resolvedGates + _zone_progress ===
-const GATE_DEFS: Array<{ code: string; label: string; description: string; level: string; zone: ZoneId; requiredConditions: string[] }> = [
-  { code: "N1", label: "Conception", description: "Registre exigences + identité appareil/émulateur créés.", level: "N1", zone: "governance", requiredConditions: ["registry_initialized"] },
-  { code: "N2", label: "Simulation", description: "Au moins un run N2 archivé côté serveur (empreinte SHA-256).", level: "N2", zone: "simulation", requiredConditions: ["registry_initialized", "n2_run_archived"] },
-  { code: "N3-READY", label: "Conformité matérielle", description: "Pilote + identité appareil vérifiés ; calibration simulée exécutée.", level: "N3", zone: "hardware", requiredConditions: ["registry_initialized", "n2_run_archived", "hardware_checklist_complete"] },
-  { code: "N3-ARMED", label: "Armement N3 supervisé", description: "Armement explicite après double confirmation humaine.", level: "N3", zone: "bench", requiredConditions: ["n3_ready", "arm_double_confirmed"] },
-  { code: "N4", label: "Mise en service (revue indépendante)", description: "Revue indépendante signée après démonstration N3 supervisée.", level: "N4", zone: "audit", requiredConditions: ["n3_armed", "independent_review_signed"] },
-];
-
-function _resolvedGates(conditions: Record<string, boolean>): GateDefinition[] {
-  const result: GateDefinition[] = [];
-  let passedSoFar = true;
-  for (const def of GATE_DEFS) {
-    const allMet = def.requiredConditions.every((c) => conditions[c] === true);
-    let state: GateState;
-    if (passedSoFar && allMet) {
-      state = "passed";
-    } else if (!passedSoFar) {
-      state = "pending";
-    } else {
-      state = "open";
-      passedSoFar = false;
-    }
-    result.push({
-      code: def.code,
-      label: def.label,
-      description: def.description,
-      level: def.level,
-      zone: def.zone,
-      requiredConditions: def.requiredConditions,
-      conditions: Object.fromEntries(def.requiredConditions.map((c) => [c, conditions[c] === true])),
-      state,
-    });
-  }
-  return result;
-}
-
-function _zoneProgress(gates: GateDefinition[]): ZoneProgress[] {
-  const zonesOrder: ZoneId[] = ["governance", "simulation", "hardware", "bench", "audit"];
-  const zoneLabels: Record<ZoneId, string> = {
-    governance: "Gouvernance & Exigences",
-    simulation: "Simulation & HIL",
-    hardware: "Hardware & Drivers",
-    bench: "Banc de test & Commandes",
-    audit: "Preuves & Audit",
-  };
-  return zonesOrder.map((zone) => {
-    const zoneGates = gates.filter((g) => g.zone === zone);
-    const passed = zoneGates.length > 0 && zoneGates.every((g) => g.state === "passed");
-    const openCount = zoneGates.filter((g) => g.state === "open").length;
-    return {
-      zone,
-      label: zoneLabels[zone],
-      passed,
-      openCount,
-      gates: zoneGates.map((g) => ({ code: g.code, state: g.state })),
-    };
-  });
-}
-
-// Helper: find first matching element in array, return fallback
-function _next<T>(predicate: (item: T) => boolean, items: T[], fallback: T): T {
-  return items.find(predicate) ?? fallback;
-}
-
-const initialLocalGateState: LocalGateState = {
-  gates: [
-    {
-      code: "N1",
-      label: "Conception",
-      description: "Registre exigences + identité appareil/émulateur créés.",
-      level: "N1",
-      zone: "governance",
-      requiredConditions: ["registry_initialized"],
-      conditions: { registry_initialized: false },
-      state: "open",
-    },
-    {
-      code: "N2",
-      label: "Simulation",
-      description: "Au moins un run N2 archivé côté serveur (empreinte SHA-256).",
-      level: "N2",
-      zone: "simulation",
-      requiredConditions: ["registry_initialized", "n2_run_archived"],
-      conditions: { registry_initialized: false, n2_run_archived: false },
-      state: "pending",
-    },
-    {
-      code: "N3-READY",
-      label: "Conformité matérielle",
-      description: "Pilote + identité appareil vérifiés ; calibration simulée exécutée.",
-      level: "N3",
-      zone: "hardware",
-      requiredConditions: ["registry_initialized", "n2_run_archived", "hardware_checklist_complete"],
-      conditions: { registry_initialized: false, n2_run_archived: false, hardware_checklist_complete: false },
-      state: "pending",
-    },
-    {
-      code: "N3-ARMED",
-      label: "Armement N3 supervisé",
-      description: "Armement explicite après double confirmation humaine.",
-      level: "N3",
-      zone: "bench",
-      requiredConditions: ["n3_ready", "arm_double_confirmed"],
-      conditions: { n3_ready: false, arm_double_confirmed: false },
-      state: "pending",
-    },
-    {
-      code: "N4",
-      label: "Mise en service (revue indépendante)",
-      description: "Revue indépendante signée après démonstration N3 supervisée.",
-      level: "N4",
-      zone: "audit",
-      requiredConditions: ["n3_armed", "independent_review_signed"],
-      conditions: { n3_armed: false, independent_review_signed: false },
-      state: "pending",
-    },
-  ],
-  zoneProgress: [
-    { zone: "governance", label: "Gouvernance & Exigences", passed: false, openCount: 1, gates: [{ code: "N1", state: "open" }] },
-    { zone: "simulation", label: "Simulation & HIL", passed: false, openCount: 0, gates: [{ code: "N2", state: "pending" }] },
-    { zone: "hardware", label: "Hardware & Drivers", passed: false, openCount: 0, gates: [{ code: "N3-READY", state: "pending" }] },
-    { zone: "bench", label: "Banc de test & Commandes", passed: false, openCount: 0, gates: [{ code: "N3-ARMED", state: "pending" }] },
-    { zone: "audit", label: "Preuves & Audit", passed: false, openCount: 0, gates: [{ code: "N4", state: "pending" }] },
-  ],
-  currentGate: "N1",
-  conditions: {
-    registry_initialized: false,
-    n2_run_archived: false,
-    hardware_checklist_complete: false,
-    n3_ready: false,
-    arm_double_confirmed: false,
-    n3_armed: false,
-    independent_review_signed: false,
-  },
-  hardwareChecklist: {
-    deviceIdentified: false,
-    driverValidated: false,
-    calibrationSimulated: false,
-    complete: false,
-  },
-  armEvents: [],
-  reviewEvents: [],
-  updatedAt: null,
-};
-
-const ZONE_GROUPS: Array<{
-  id: ZoneId;
-  label: string;
-  description: string;
-  views: Array<{ id: ViewId; label: string; caption: string; icon: typeof Gauge }>;
-}> = [
-  {
-    id: "governance",
-    label: "01 · Gouvernance & Exigences",
-    description: "N1 · registre, exigences et projets",
-    views: [
-      { id: "projects", label: "Projets", caption: "Rattachement officiel", icon: FolderKanban },
-      { id: "dashboard", label: "Dashboard", caption: "Vue multi-projets", icon: Activity },
-      { id: "overview", label: "Vue preuves", caption: "Chaîne N1→N4", icon: ClipboardCheck },
-      { id: "requirements", label: "Exigences", caption: "Référentiel", icon: ShieldCheck },
-    ],
-  },
-  {
-    id: "simulation",
-    label: "02 · Simulation & HIL",
-    description: "N2 · moteur thermique synthétique",
-    views: [
-      { id: "simulation", label: "Simulation", caption: "Moteur N2", icon: Activity },
-    ],
-  },
-  {
-    id: "hardware",
-    label: "03 · Hardware & Drivers",
-    description: "N3 · registre appareil + pilote",
-    views: [
-      { id: "hardware", label: "Hardware", caption: "Checklist + pilote", icon: Cpu },
-      { id: "materials", label: "Matériels", caption: "Catalogue étendu", icon: Database },
-      { id: "maintenance", label: "Maintenance", caption: "Records + batteries", icon: ShieldCheck },
-    ],
-  },
-  {
-    id: "bench",
-    label: "04 · Banc de test & Commandes",
-    description: "N3 → N4 · armement supervisé",
-    views: [
-      { id: "bench", label: "Banc", caption: "Commandes supervisées", icon: Radio },
-      { id: "fleet", label: "Flotte", caption: "Multi-drones", icon: Gauge },
-      { id: "radar", label: "Radar", caption: "Temps réel + replay", icon: Crosshair },
-      { id: "map", label: "Carte", caption: "Vue géographique", icon: Map },
-      { id: "mission", label: "Mission", caption: "Waypoints + upload", icon: Plane },
-      { id: "preflight", label: "Pré-vol", caption: "Checklist", icon: ClipboardCheck },
-      { id: "charts", label: "Charts", caption: "Télémétrie", icon: Activity },
-      { id: "replay-adv", label: "Replay 3D", caption: "Timeline + 3D trail", icon: Crosshair },
-      { id: "voice", label: "Voix", caption: "Commandes vocales", icon: Mic },
-      { id: "collaboration", label: "Multi-op", caption: "Opérateurs live", icon: Users },
-      { id: "flights", label: "Vols", caption: "Historique + CSV", icon: History },
-      { id: "hardware-control", label: "Hardware", caption: "Pilote matériel v5", icon: Zap },
-      { id: "reports", label: "Rapports", caption: "Dossier de preuve", icon: FileCheck2 },
-    ],
-  },
-  {
-    id: "audit",
-    label: "05 · Preuves & Audit",
-    description: "tous niveaux · traçabilité",
-    views: [
-      { id: "audit", label: "Journal d’audit", caption: "Événements & reçus", icon: History },
-    ],
-  },
-];
-
-const modeItems: Array<{
-  id: ModeId;
-  label: string;
-  eyebrow: string;
-  detail: string;
-}> = [
-  {
-    id: "simulation",
-    label: "Simulation",
-    eyebrow: "N2",
-    detail: "Données synthétiques. Aucun appareil réel n’est commandé.",
-  },
-  {
-    id: "connected",
-    label: "Diagnostic virtuel",
-    eyebrow: "N2",
-    detail:
-      "Identité de l’émulateur et télémétrie synthétique ; aucun appareil réel.",
-  },
-  {
-    id: "authorized",
-    label: "Commande virtuelle supervisée",
-    eyebrow: "N3",
-    detail:
-      "Consigne simulée après deux confirmations humaines ; sorties physiques interdites.",
-  },
-];
+import {
+  initialLocalGateState,
+  MODE_ITEMS,
+  nextItem,
+  resolveGates,
+  resolveZoneProgress,
+  ZONE_GROUPS,
+  type GateDefinition,
+  type GateStateResponse,
+  type GateState,
+  type LocalGateState,
+  type ModeId,
+  type ViewId,
+  type ZoneId,
+  type ZoneProgress,
+} from "@/lib/labBenchArchitecture";
 
 // Only the explicit user-entered scenario is persisted. The previous key is
 // intentionally ignored so old demo/default values cannot become evidence.
@@ -812,8 +510,8 @@ export default function LabBench({
   const localSeedRegistry = () => {
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, registry_initialized: true };
-      const gates = _resolvedGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      const gates = resolveGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
     });
     toast.success("Registre initialisé (mode local)");
   };
@@ -831,8 +529,8 @@ export default function LabBench({
     setRunScenarioSignature(JSON.stringify(scenario));
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, n2_run_archived: true };
-      const gates = _resolvedGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      const gates = resolveGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
     });
     setAudit((entries) => [
       { time: new Date().toLocaleTimeString("fr-FR"), type: "simulation.local.completed", message: `${result.runId} calculé localement ; preuve N2 locale.`, status: "info" },
@@ -844,8 +542,8 @@ export default function LabBench({
   const localCompleteChecklist = () => {
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, hardware_checklist_complete: true };
-      const gates = _resolvedGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      const gates = resolveGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
     });
     toast.success("Checklist hardware simulée (mode local)");
   };
@@ -857,8 +555,8 @@ export default function LabBench({
     }
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, arm_double_confirmed: true, n3_armed: true };
-      const gates = _resolvedGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      const gates = resolveGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
     });
     setHumanConfirmed(false);
     setSafetyConfirmed(false);
@@ -869,8 +567,8 @@ export default function LabBench({
   const localDisarmN3 = () => {
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, arm_double_confirmed: false, n3_armed: false };
-      const gates = _resolvedGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      const gates = resolveGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
     });
     setMode("simulation");
     toast.info("N3 désarmé (mode local)");
@@ -883,8 +581,8 @@ export default function LabBench({
     }
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, independent_review_signed: true };
-      const gates = _resolvedGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      const gates = resolveGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
     });
     setSignOffDialogOpen(false);
     setReviewer("");
@@ -975,7 +673,7 @@ export default function LabBench({
   const armN3Mutation = trpc.labBench.armN3.useMutation({
     onSuccess: (data: any) => {
       toast.success("N3 armé (virtuel)", {
-        description: data?.reason ?? "Armement enregistré ; aucune sortie physique.",
+        description: data?.reason ?? "Armement enregistré pour le scénario logiciel.",
       });
       setArmDialogOpen(false);
       setHumanConfirmed(false);
@@ -1106,7 +804,7 @@ export default function LabBench({
   const fleetArmMutation = trpc.labBench.armN3Drone.useMutation({
     onSuccess: (data: any) => {
       toast.success(`N3 armé pour ${data?.droneName ?? "drone"}`, {
-        description: data?.reason ?? "Armement enregistré ; aucune sortie physique.",
+        description: data?.reason ?? "Armement enregistré pour le scénario logiciel.",
       });
       setFleetArmDialogDrone(null);
       setFleetHumanConfirmed(false);
@@ -1668,7 +1366,7 @@ export default function LabBench({
         : null,
     [telemetry],
   );
-  const currentMode = modeItems.find((item) => item.id === mode)!;
+  const currentMode = MODE_ITEMS.find((item) => item.id === mode)!;
   const registry = registryQuery.data;
   const registryRequirements = Array.isArray(registry?.requirements)
     ? registry.requirements
@@ -1746,8 +1444,8 @@ export default function LabBench({
       // Advance the N2 gate in local mode
       setLocalGateState((prev) => {
         const conditions = { ...prev.conditions, n2_run_archived: true };
-        const gates = _resolvedGates(conditions);
-        return { ...prev, conditions, gates, zoneProgress: _zoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+        const gates = resolveGates(conditions);
+        return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
       });
       toast.success("Run N2 archivé (mode local)", { description: "Gate N2 validée. Vous pouvez maintenant compléter la checklist N3-READY." });
       return;
@@ -2167,16 +1865,16 @@ export default function LabBench({
               <CircleDot size={14} /> Gate courant : {gateState.currentGate}
             </span>
             <span className="lb-lock">
-              <LockKeyhole size={14} /> VIRTUAL ONLY — aucune liaison matérielle
+              <LockKeyhole size={14} /> Mode logiciel sécurisé
             </span>
           </div>
         </header>
         <div className="lb-safety-banner">
           <ShieldCheck size={19} />
           <div>
-            <strong>LabBench 01 — interface intégrée à AeroMind</strong>
+            <strong>Interface laboratoire AeroMind</strong>
             <span>
-              Ce runtime est verrouillé en mode VIRTUAL ONLY : aucune liaison MAVLink, aucun HIL ni aucune sortie physique ne sont ouverts.
+              Ce runtime de démonstration exécute le scénario logiciel; aucune donnée de cet écran ne pilote un appareil réel.
               HARDWARE_CONTROL ne peut pas lever ce verrou. La checklist EASA est un aide-mémoire de laboratoire, pas une approbation ni une autorisation de vol.
             </span>
           </div>
@@ -2301,7 +1999,7 @@ export default function LabBench({
         </section>
         {renderGateProgressPanel()}
         <section className="lb-mode-row" aria-label="Mode de travail">
-          {modeItems.map((item) => (
+          {MODE_ITEMS.map((item) => (
             <button
               key={item.id}
               onClick={() => {
@@ -4108,8 +3806,7 @@ export default function LabBench({
                   onChange={(event) => setHumanConfirmed(event.target.checked)}
                 />
                 <span>
-                  Je confirme avoir lu la procédure d’armement et l’absence de
-                  sortie physique.
+                  Je confirme avoir lu la procédure d’armement et le périmètre de simulation.
                 </span>
               </label>
               <label className="lb-confirm">
@@ -4251,8 +3948,7 @@ export default function LabBench({
                   onChange={(event) => setFleetHumanConfirmed(event.target.checked)}
                 />
                 <span>
-                  Je confirme avoir lu la procédure d’armement et l’absence de
-                  sortie physique pour le drone {fleetArmDialogDrone.name}.
+                  Je confirme avoir lu la procédure d’armement et le périmètre de simulation pour le drone {fleetArmDialogDrone.name}.
                 </span>
               </label>
               <label className="lb-confirm">

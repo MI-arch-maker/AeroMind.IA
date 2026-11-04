@@ -4,6 +4,15 @@ import { toast } from "sonner";
 import { normalizeCommandList, recordOf } from "@/lib/labBench";
 
 const STORAGE_KEY = "aeromind.labbench.hardware-config.v1";
+const BACKEND_ALLOWLIST = [
+  "COMPONENT_ARM_DISARM",
+  "NAV_TAKEOFF",
+  "NAV_LAND",
+  "NAV_RETURN_TO_LAUNCH",
+  "DO_SET_MODE",
+];
+const isAllowedCommand = (command: string) =>
+  BACKEND_ALLOWLIST.includes(command) || command.startsWith("simulate.") || command.startsWith("read.");
 type HardwareConfig = {
   manufacturer: string;
   model: string;
@@ -83,16 +92,11 @@ export function LabBenchHardwareConfig() {
   ) => setConfig((current) => ({ ...current, [key]: value }));
   // P2-13 fix: validate allowedCommands against backend MAVLink allowlist.
   // DO_SET_SERVO/DO_SET_RELAY are intentionally excluded (non-weaponized compliance).
-  const BACKEND_ALLOWLIST = [
-    "COMPONENT_ARM_DISARM", "NAV_TAKEOFF", "NAV_LAND",
-    "NAV_RETURN_TO_LAUNCH", "DO_SET_MODE",
-    "MISSION_COUNT", "MISSION_ITEM_INT",
-  ];
   const _invalidCommands = config.allowedCommands
     .split(/\r?\n/)
     .map(l => l.trim())
     .filter(Boolean)
-    .filter(l => !BACKEND_ALLOWLIST.includes(l) && !l.startsWith("simulate.") && !l.startsWith("read."));
+    .filter(l => !isAllowedCommand(l));
   const allowedCommandsValid = _invalidCommands.length === 0;
   const valid =
     config.manufacturer.trim() &&
@@ -115,7 +119,7 @@ export function LabBenchHardwareConfig() {
   const save = () => {
     if (!allowedCommandsValid) {
       toast.error("Commandes non autorisées dans la liste blanche", {
-        description: `Retirer: ${_invalidCommands.join(", ")}. Autorisé: COMPONENT_ARM_DISARM, NAV_*, DO_SET_MODE, MISSION_*, simulate.*, read.* (P2-13: DO_SET_SERVO/RELAY exclus — conformité non-armée).`,
+        description: `Retirer: ${_invalidCommands.join(", ")}. Autorisé: COMPONENT_ARM_DISARM, NAV_TAKEOFF, NAV_LAND, NAV_RETURN_TO_LAUNCH, DO_SET_MODE, simulate.*, read.*.`,
       });
       return;
     }
@@ -141,7 +145,7 @@ export function LabBenchHardwareConfig() {
       setSavedAt(saved.savedAt);
       toast.success("Configuration enregistrée sur cet appareil", {
         description:
-          "Ceci ne connecte pas l’équipement et n’active aucune sortie physique.",
+          "Le profil reste documentaire et s’applique au banc de simulation.",
       });
     } catch {
       toast.error("Stockage local indisponible", {
@@ -177,7 +181,7 @@ export function LabBenchHardwareConfig() {
       <div className="lb-panel-title">
         <Save size={17} />
         <span>Profil du banc virtuel et préparation matérielle</span>
-        <small>VIRTUEL · AUCUNE SORTIE PHYSIQUE</small>
+        <small>VIRTUEL · SCÉNARIO LOGICIEL</small>
       </div>
       <p className="lb-config-intro">
         Le profil par défaut décrit l’émulateur AeroMind, pas un appareil réel.
@@ -332,16 +336,9 @@ export function LabBenchHardwareConfig() {
               value={config.allowedCommands}
               onChange={(e) => {
                 const value = e.target.value;
-                // Validate each line against the backend MAVLink allowlist + simulate/read prefixes
-                const BACKEND_ALLOWLIST = [
-                  "COMPONENT_ARM_DISARM", "NAV_TAKEOFF", "NAV_LAND",
-                  "NAV_RETURN_TO_LAUNCH", "DO_SET_MODE",
-                  "MISSION_COUNT", "MISSION_ITEM_INT",
-                ];
+                // Validate each line against the shared backend allowlist + local simulate/read prefixes.
                 const lines = value.split("\n").map(l => l.trim()).filter(Boolean);
-                const invalid = lines.filter(
-                  l => !BACKEND_ALLOWLIST.includes(l) && !l.startsWith("simulate.") && !l.startsWith("read.")
-                );
+                const invalid = lines.filter(l => !isAllowedCommand(l));
                 if (invalid.length > 0) {
                   console.warn("[LabBenchHardwareConfig] Commandes non autorisées:", invalid);
                 }
@@ -349,8 +346,8 @@ export function LabBenchHardwareConfig() {
               }}
             />
             <small className="text-muted-foreground">
-              Autorisé: COMPONENT_ARM_DISARM, NAV_*, DO_SET_MODE, MISSION_*, simulate.*, read.*
-              (P2-13: DO_SET_SERVO/DO_SET_RELAY exclus — conformité non-armée)
+              Autorisé: COMPONENT_ARM_DISARM, NAV_TAKEOFF, NAV_LAND,
+              NAV_RETURN_TO_LAUNCH, DO_SET_MODE, simulate.*, read.*
             </small>
           </label>
           <label>

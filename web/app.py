@@ -249,7 +249,7 @@ def _is_valid_workspace_key(key: str) -> bool:
     return bool(_WORKSPACE_KEY_RE.match(key))
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.hosts)
 if settings.origins:
-    app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credentials=True, allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allow_headers=['Authorization', 'Content-Type', 'X-Request-ID', 'X-AeroMind-Workspace'])
+    app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credentials=True, allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allow_headers=['Authorization', 'Content-Type', 'X-Request-ID', 'X-AeroMind-Workspace', 'X-CSRF-Token', 'Idempotency-Key'])
 
 FRONTEND_DIR = Path('frontend/dist')
 FRONTEND_INDEX = FRONTEND_DIR / 'index.html'
@@ -530,7 +530,7 @@ async def dev_login(request: Request):
     if settings.environment != 'development':
         return JSONResponse(status_code=403, content={'error': {'code': 'DEV_LOGIN_FORBIDDEN', 'message': 'Connexion développement disponible uniquement en mode développement.'}})
     import json as _json
-    from .oidc import _signed, _b64
+    from .oidc import _signed, _b64, _cookie_security
     from .admin import reconcile_primary_identity
     primary = reconcile_primary_identity()
     if primary is None:
@@ -554,7 +554,7 @@ async def dev_login(request: Request):
     # P-LOGOUT-5 fix: reduce dev-login cookie lifetime from 24h to 8h to
     # match OIDC/local-MFA sessions (28800s = 8h). This limits the window
     # during which a stolen cookie can be replayed.
-    response.set_cookie('aeromind_session', token, httponly=True, samesite='lax', max_age=28800)
+    response.set_cookie('aeromind_session', token, max_age=28800, **_cookie_security(request))
     return response
 
 

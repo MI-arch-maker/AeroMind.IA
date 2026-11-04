@@ -470,7 +470,7 @@ async def upload_mission_to_drone(
                     target_system=pilot.target_system,
                     target_component=pilot.target_component,
                 )
-            except HardwareCommandError as exc:
+            except cmd_api.HardwareCommandError as exc:
                 m.upload_state = "failed"
                 m.upload_error = f"MISSION_PROTOCOL_TRANSPORT: {exc.code}: {exc.message}"
                 m.uploaded_at = None

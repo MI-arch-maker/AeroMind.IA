@@ -50,6 +50,7 @@ import {
 import { manufacturerPartCatalog } from "../lib/manufacturerParts";
 import { materialCatalog, materialLibrarySummary } from "../lib/materialLibrary";
 import EngineeringHub from "../modules/engineering-hub/EngineeringHub";
+import { AeromindIntelligenceCenter } from "../components/AeromindIntelligenceCenter";
 import { ParametricDronePreview } from "../components/ParametricDronePreview";
 import { PhysicalDroneModel } from "../components/PhysicalDroneModel";
 import { EngineeringDronePlate } from "../components/EngineeringDronePlate";
@@ -107,21 +108,25 @@ import {
   PART_SCALE_STEP,
   type PartCommand,
 } from "../lib/partCommands";
-import {
-  runVirtualTestCampaign,
+import { runVirtualTestCampaign,
   virtualCampaignToCsv,
   type VirtualTestCampaign,
   type VirtualTestId,
 } from "../lib/virtualTestBench";
 import { AeronauticalCenterView } from "../components/AeronauticalCenterView";
+import { AerodynamicSimulationCenter } from "../components/AerodynamicSimulationCenter";
 import { WorkspaceWindow } from "../components/WorkspaceWindow";
 import { DesignStudioView } from "../components/DesignStudioView";
 import { ParametricDroneCenter } from "../components/ParametricDroneCenter";
+import { MechanicalWorkbench } from "../components/MechanicalWorkbench";
 import { MissionPlannerView } from "../components/MissionPlannerView";
+import { FleetMaintenanceCenter } from "../components/FleetMaintenanceCenter";
+import { AeromindControlCenter } from "../components/AeromindControlCenter";
 import { DigitalTwinExplorer } from "../components/DigitalTwinExplorer";
 import { SatelliteNavigationView } from "../components/SatelliteNavigationView";
 import { LocalMfaLogin } from "../components/LocalMfaLogin";
 import { HumanCommandCenter } from "../components/HumanCommandCenter";
+import { PhysicalControlGovernancePanel } from "../components/PhysicalControlGovernancePanel";
 import { ValidationAuditJournal, type AuditSyncState, type PersistedValidationAuditEvent } from "../components/ValidationAuditJournal";
 import { createValidationAuditEntry, readValidationAuditOutbox, writeValidationAuditOutbox, type ValidationAuditEntry, type ValidationAuditEventType } from "../lib/validationAuditOutbox";
 import LabBench from "./LabBench";
@@ -155,6 +160,7 @@ import {
   ArrowUpRight,
   ArrowRight,
   BatteryCharging,
+  BrainCircuit,
   Box,
   Check,
   CheckCircle2,
@@ -383,6 +389,7 @@ function downloadLocalFile(filename: string, content: string, type: string) {
 type ViewId =
   | "overview"
   | "engineering-hub"
+  | "intelligence-center"
   | "requirements"
   | "concept"
   | "tools"
@@ -401,8 +408,12 @@ type ViewId =
   | "operations"
   | "materials"
   | "aero-center"
+  | "aero-cfd"
   | "design-studio"
   | "parametric-center"
+  | "mechanical-center"
+  | "fleet-maintenance"
+  | "control-center"
 ;
 type ProjectState = {
   name: string;
@@ -532,6 +543,14 @@ const navItems: Array<{
     primary: true,
   },
   {
+    id: "intelligence-center",
+    label: "Centre Intelligence IA",
+    meta: "AI",
+    icon: BrainCircuit,
+    group: "PILOTER",
+    primary: true,
+  },
+  {
     id: "design-studio",
     label: "Studio IDDS",
     meta: "CAD",
@@ -545,6 +564,30 @@ const navItems: Array<{
     meta: "PAR",
     icon: Wrench,
     group: "CONCEVOIR",
+    primary: true,
+  },
+  {
+    id: "mechanical-center",
+    label: "Centre Mécanique",
+    meta: "MEC",
+    icon: Wrench,
+    group: "CONCEVOIR",
+    primary: true,
+  },
+  {
+    id: "fleet-maintenance",
+    label: "Fleet & Maintenance Center",
+    meta: "FLEET",
+    icon: ClipboardCheck,
+    group: "PILOTER",
+    primary: true,
+  },
+  {
+    id: "control-center",
+    label: "Global Mission Control",
+    meta: "CTRL",
+    icon: Gauge,
+    group: "PILOTER",
     primary: true,
   },
   {
@@ -576,6 +619,14 @@ const navItems: Array<{
     label: "Simulation & analyses",
     meta: "SIM-000",
     icon: Activity,
+    group: "SIMULER",
+    primary: true,
+  },
+  {
+    id: "aero-cfd",
+    label: "Aérodynamique & CFD",
+    meta: "CFD",
+    icon: Wind,
     group: "SIMULER",
     primary: true,
   },
@@ -636,15 +687,20 @@ const navItems: Array<{
 //     contextuel attendu. Ils sont désormais insérés à leur position canonique.
 const engineeringNavOrder: ViewId[] = [
   "overview",
+  "intelligence-center",
   "requirements",
   "engineering-hub",
   "catalog",
   "digital-twin",
   "design-studio",
   "parametric-center", // ← après STUDIO IDDS
+  "mechanical-center",
+  "fleet-maintenance",
+  "control-center",
   "materials",
   "aero-center",
   "simulation",
+  "aero-cfd",
   "mission-planner", // ← en dessous de SIMULATION & ANALYSES
   "labbench",
   "mission-center",
@@ -7989,12 +8045,14 @@ function LiveSimulationView({
   simulation,
   requirements,
   setConfig,
+  projectId,
   activeProfile,
   activeDroneLabel,
   onOpenBuilder,
 }: {
   config: ConceptConfig;
   setConfig: SetConceptConfig;
+  projectId?: string | null;
   simulation: SimulationResult;
   requirements: Requirement[];
   activeProfile?: DroneCatalogDesign;
@@ -8971,6 +9029,8 @@ const observationOperations: Array<{
 
 function MissionOperationsView({
   projectName,
+  projectId,
+  activeDroneLabel,
   config,
   activeProfile,
   simulation,
@@ -8981,6 +9041,8 @@ function MissionOperationsView({
   onSimulationArmedChange,
 }: {
   projectName: string;
+  projectId?: string | null;
+  activeDroneLabel: string;
   config: ConceptConfig;
   activeProfile?: DroneCatalogDesign;
   simulation: SimulationResult;
@@ -10886,6 +10948,7 @@ function MissionOperationsView({
             </small>
           </div>
         </section>
+        <PhysicalControlGovernancePanel projectId={projectId} activeDroneLabel={activeDroneLabel} />
         <section className="panel telemetry-bridge-panel">
           <div className="panel-header">
             <div>
@@ -11597,7 +11660,7 @@ function IdentityConnections() {
   const providersQuery = trpc.identity.providers.useQuery();
   const providers = providersQuery.data ?? [];
   const [connectionState, setConnectionState] = useState("Prêt pour la connexion OIDC");
-  const trialEmail = "mcgregoralvin14@gmail.com";
+  const trialEmail = "Adresse définie par AEROMIND_TRIAL_EMAILS / DEFAULT_DEMO_EMAIL";
   const copyTrialEmail = async () => {
     try {
       await navigator.clipboard.writeText(trialEmail);
@@ -11618,7 +11681,7 @@ function IdentityConnections() {
       <p className="section-description">
         Passerelle d’identité et d’observation : les boutons ci-dessous vérifient la disponibilité du fournisseur et préparent une session d’essai. Aucun secret n’est enregistré dans le navigateur.
       </p>
-      <div className="observator-trial-card"><div><span className="eyebrow">ADRESSE AEROMIND / SUPER-ADMIN PAR DÉFAUT</span><strong>{trialEmail}</strong><small>Connexion réelle soumise au fournisseur OIDC configuré côté serveur.</small></div><div className="observator-trial-actions"><button type="button" className="secondary-button" onClick={copyTrialEmail}><Copy size={14} /> Copier</button><button type="button" className="primary-button" onClick={() => { setConnectionState("Vérification du fournisseur…"); void providersQuery.refetch().then(() => setConnectionState("Fournisseur vérifié · prêt")); }}><RefreshCw size={14} /> Tester la connexion</button></div></div>
+      <div className="observator-trial-card"><div><span className="eyebrow">IDENTITÉ AEROMIND CONFIGURÉE</span><strong>{trialEmail}</strong><small>Connexion réelle soumise au fournisseur OIDC configuré côté serveur.</small></div><div className="observator-trial-actions"><button type="button" className="secondary-button" onClick={copyTrialEmail}><Copy size={14} /> Copier</button><button type="button" className="primary-button" onClick={() => { setConnectionState("Vérification du fournisseur…"); void providersQuery.refetch().then(() => setConnectionState("Fournisseur vérifié · prêt")); }}><RefreshCw size={14} /> Tester la connexion</button></div></div>
       <div className="materials-grid">
         {providers.map(provider => (
           <div className="material-card" key={provider.id}>
@@ -12262,7 +12325,7 @@ function OperationsView({
         return;
       }
       setAuthorizationState("approved");
-      record("Autorisation approuvée · sortie physique toujours bloquée");
+      record("Autorisation approuvée pour le scénario logiciel uniquement");
     } catch {
       record("Approbation impossible · identité non vérifiable");
     }
@@ -12995,6 +13058,7 @@ export default function Home() {
   const serverHydratedForUser = useRef<string | null>(null);
   const pendingIdentityRefresh = useRef(false);
   const localServerHydrated = useRef(false);
+  const [localWorkspaceHydrationReady, setLocalWorkspaceHydrationReady] = useState(false);
   const skipServerSave = useRef(false);
   const syncChannelRef = useRef<BroadcastChannel | null>(null);
   const suppressSyncBroadcast = useRef(false);
@@ -13117,6 +13181,7 @@ export default function Home() {
     } else {
       pendingIdentityRefresh.current = false;
       localServerHydrated.current = false;
+      setLocalWorkspaceHydrationReady(false);
     }
   }, [currentIntegrationIdentity, serverProjectsQuery.refetch]);
   useEffect(() => {
@@ -13126,9 +13191,12 @@ export default function Home() {
     // never silently collides with another anonymous browser. The backend
     // rejects the request with 400 if the header is missing — the helper
     // guarantees it is present in browser contexts.
-    localServerHydrated.current = true;
     const headers = anonymousWorkspaceHeaders();
-    if (!headers) return; // SSR or no localStorage: skip the network round-trip
+    if (!headers) {
+      localServerHydrated.current = true;
+      setLocalWorkspaceHydrationReady(true);
+      return; // SSR or no localStorage: skip the network round-trip
+    }
     const controller = new AbortController();
     void fetch(`/api/local/workspace?t=${Date.now()}`, {
       method: "GET",
@@ -13177,6 +13245,11 @@ export default function Home() {
       .catch(() => {
         // Network failure is non-fatal — the local localStorage draft remains
         // the source of truth for this anonymous browser.
+      })
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        localServerHydrated.current = true;
+        setLocalWorkspaceHydrationReady(true);
       });
     return () => controller.abort();
   }, [authenticatedUser, initialProjects.length]);
@@ -13337,6 +13410,7 @@ export default function Home() {
     activeProjectId,
     projects,
     authenticatedUser,
+    localWorkspaceHydrationReady,
     serverProjectsQuery.isSuccess,
     saveSnapshotMutation.mutateAsync,
     serverVersionsQuery.refetch,
@@ -13795,7 +13869,7 @@ export default function Home() {
     setActiveView("digital-twin");
     setAction("catalog", {
       status: "success",
-      message: `${reference.model} chargé : configuration, géométrie et certification documentaire synchronisées.`,
+      message: `${reference.model} chargé : configuration et géométrie importées; documentation à vérifier.`,
     });
   };
   const updateRequirement = (
@@ -14115,7 +14189,7 @@ export default function Home() {
     if (navigateAfterLoad) setActiveView(keepStudioOpen ? "design-studio" : "digital-twin");
     setAction("catalog", {
       status: "success",
-      message: `${design.label} chargé après action humaine. Données synchronisées; ${estimatedTakeoffMass ? "la MTOW de banc a été estimée à partir de la masse calculée (+10 %, hypothèse locale non certifiée) car aucune valeur source n’est fournie. " : ""}${requirementsForDroneProfile(design).length} exigences proposées, non approuvées et personnalisables dans Exigences.`,
+      message: `${design.label} appliqué au workspace après action humaine; état de persistance visible dans l’en-tête. ${estimatedTakeoffMass ? "La MTOW de banc a été estimée à partir de la masse calculée (+10 %, hypothèse locale non certifiée) car aucune valeur source n’est fournie. " : ""}${requirementsForDroneProfile(design).length} exigences proposées, non approuvées et personnalisables dans Exigences.`,
     });
   };
   const activeLibraryProfile = cellIntegratedThisSession && config.engineeringSelection?.source !== "custom" && !hasDroneGeometry(config.customSketch?.strokes) && config.platformProfile
@@ -14147,6 +14221,15 @@ export default function Home() {
     setActiveView(view === "tools" || view === "inspector" ? "digital-twin" : view);
     setMobileNavOpen(false);
   };
+  const workspacePersistenceLabel = !activeProjectId
+    ? "AUCUN PROJET ACTIF"
+    : saveState === "saving"
+      ? "ENREGISTREMENT EN COURS"
+      : saveState === "error"
+        ? "ENREGISTREMENT NON CONFIRMÉ"
+        : authenticatedUser && serverProjectsQuery.isSuccess && !activeProjectId.startsWith("project-")
+          ? "ENREGISTRÉ SUR LE SERVEUR"
+          : "BROUILLON ENREGISTRÉ DANS CE NAVIGATEUR";
   return (
     <div className="aeromind-app">
       <aside className={`sidebar ${mobileNavOpen ? "mobile-open" : ""}`}>
@@ -14198,6 +14281,15 @@ export default function Home() {
           })}
           <button
             type="button"
+            className="nav-item factory-nav-item"
+            onClick={() => window.location.assign("/virtual-factory")}
+          >
+            <Box size={17} strokeWidth={1.7} />
+            <span>Virtual Parametric Factory</span>
+            <small>3DP</small>
+          </button>
+          <button
+            type="button"
             className={`nav-advanced-toggle ${showAdvancedNav ? "is-open" : ""}`}
             onClick={() => setShowAdvancedNav(value => !value)}
             aria-expanded={showAdvancedNav}
@@ -14220,7 +14312,7 @@ export default function Home() {
               </strong>
               <span>
                 {serverProjectsQuery.isSuccess
-                  ? "API et projets synchronisés"
+                  ? "Projets du compte chargés · état de sauvegarde visible au-dessus"
                   : authenticatedUser
                     ? "API métier indisponible"
                     : "Connexion requise pour la persistance"}
@@ -14351,25 +14443,19 @@ export default function Home() {
               className={`autosave autosave-${saveState}`}
               title={
                 syncNotice || (saveState === "error"
-                  ? "Le brouillon reste disponible localement ; la synchronisation distante pourra être réessayée."
-                  : "Source locale synchronisée entre les onglets ; copie distante opportuniste.")
+                  ? "Le dernier enregistrement n’a pas été confirmé; consultez l’état et conservez une copie locale si nécessaire."
+                  : "Les vues partagent l’état du projet actif; l’indication précise où la dernière sauvegarde est confirmée.")
               }
               role="status"
               aria-live="polite"
             >
-              <span className="save-dot" />{" "}
-              {syncNotice || (saveState === "saving"
-                ? "SYNCHRONISATION…"
-                : saveState === "error"
-                  ? "ERREUR DE SYNCHRONISATION · détail dans l’état"
-                  : authenticatedUser && serverProjectsQuery.isSuccess
-                    ? "SYNCHRONISÉ (SERVEUR)"
-                    : "SYNCHRONISÉ (LOCAL)")}
+              <span className="save-dot" /> {syncNotice || workspacePersistenceLabel}
             </span>
             <button
               className="icon-button"
-              aria-label="Ouvrir la traçabilité"
-              onClick={() => navigateToView("simulation")}
+              aria-label="Ouvrir le journal d’audit"
+              title="Ouvrir le journal d’audit"
+              onClick={() => window.location.assign("/audit-journal")}
             >
               <Activity size={16} />
             </button>
@@ -14399,7 +14485,7 @@ export default function Home() {
           <section
             className="shared-sync-ribbon"
             role="status"
-            aria-label="État synchronisé du projet actif"
+            aria-label="État du workspace actif"
             data-testid="shared-workspace-state"
             data-active-drone={config.engineeringSelection?.droneId ?? config.platformProfile ?? "none"}
             data-installed-material-count={config.installedMaterials?.length ?? 0}
@@ -14407,11 +14493,11 @@ export default function Home() {
           >
             <div className="shared-sync-ribbon-title">
               <span className="shared-sync-live-dot" />
-              <div><strong>PROJET SYNCHRONISÉ</strong><small>{project.name} · même source de données pour tous les écrans</small></div>
+              <div><strong>{workspacePersistenceLabel}</strong><small>{activeProjectId ? `${project.name} · données partagées entre les vues du workspace` : "Aucun projet actif · navigation en mode exploration"}</small></div>
             </div>
             <div className="shared-sync-ribbon-cell"><small>DRONE / DESSIN ACTIF</small><strong>{activeDroneLabel}</strong><span>{config.engineeringSelection?.source === "custom" || config.customSketch?.strokes.length ? `${config.customSketch?.strokes.length ?? 0} objets de dessin partagés` : `${config.airframe ?? "architecture en attente"} · ${config.wingspan.toFixed(2)} m`}</span></div>
             <div className="shared-sync-ribbon-cell"><small>MATÉRIAU SÉLECTIONNÉ / NOMENCLATURE</small><strong>{config.engineeringSelection?.materialLabel ?? "Aucun matériau sélectionné"}</strong><span>{config.installedMaterials?.length ?? 0} élément(s) installé(s) · {(config.constructionMassKg ?? 0).toFixed(2)} kg déclarés</span></div>
-            <div className="shared-sync-ribbon-cell"><small>ÉCRITURES / COMMANDES</small><strong>{requirements.length} exigence(s) · {config.missionPlan?.waypoints.length ?? 0} waypoint(s)</strong><span>{config.flightControls?.mode ?? "commandes virtuelles"} · sortie physique désactivée</span></div>
+            <div className="shared-sync-ribbon-cell"><small>ÉCRITURES / COMMANDES</small><strong>{requirements.length} exigence(s) · {config.missionPlan?.waypoints.length ?? 0} waypoint(s)</strong><span>SIMULATION LOGICIELLE · commandes liées au scénario</span></div>
           </section>
           <section className="digital-thread-rail" aria-label="Fil d’ingénierie AeroMind">
             <div className="digital-thread-heading">
@@ -14483,6 +14569,13 @@ export default function Home() {
                         serverPersisted={Boolean(authenticatedUser && serverProjectsQuery.isSuccess && !serverProjectsQuery.isFetching && projects.some(record => record.id === activeProjectId))}
                         t={t}
                         onOpen={navigateToView}
+                      />
+                    )}
+                    {activeView === "intelligence-center" && (
+                      <AeromindIntelligenceCenter
+                        projectName={project.name}
+                        projectId={activeProjectId || undefined}
+                        onNavigate={view => navigateToView(view as ViewId)}
                       />
                     )}
                     {activeView === "requirements" && (
@@ -14568,6 +14661,7 @@ export default function Home() {
                       <LiveSimulationView
                         config={config}
                         setConfig={setConfig}
+                        projectId={activeProjectId}
                         activeProfile={activeLibraryDesign}
                         activeDroneLabel={activeDroneLabel}
                         simulation={simulation}
@@ -14585,6 +14679,8 @@ export default function Home() {
                     {activeView === "mission-center" && (
                       <MissionOperationsView
                         projectName={project.name}
+                        projectId={activeProjectId}
+                        activeDroneLabel={activeDroneLabel}
                         config={config}
                         activeProfile={activeLibraryDesign}
                         setConfig={setConfig}
@@ -14657,6 +14753,13 @@ export default function Home() {
                       <AeronauticalCenterView
                         config={config}
                         setConfig={setConfig}
+                      />
+                    )}
+                    {activeView === "aero-cfd" && (
+                      <AerodynamicSimulationCenter
+                        config={config}
+                        projectName={project.name}
+                        onNavigate={navigateToView}
                       />
                     )}
                     {activeView === "design-studio" && (
@@ -14732,6 +14835,16 @@ export default function Home() {
                         }}
                       />
                     )}
+                    {activeView === "mechanical-center" && (
+                      <MechanicalWorkbench
+                        config={config}
+                        setConfig={setConfig}
+                        activeDroneLabel={activeDroneLabel}
+                        activeProfile={activeLibraryDesign}
+                      />
+                    )}
+                    {activeView === "fleet-maintenance" && <FleetMaintenanceCenter />}
+                    {activeView === "control-center" && <AeromindControlCenter />}
                     {activeView === "mission-planner" && (
                       <MissionPlannerView
                         config={config}

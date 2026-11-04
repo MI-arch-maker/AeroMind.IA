@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MapPin, Plane, Plus, Trash2, Upload, Crosshair } from "lucide-react";
+import { ArrowLeft, MapPin, Plane, Plus, RefreshCw, Trash2, Upload, Crosshair } from "lucide-react";
 
 // ===========================================================================
 // MissionPlanner — waypoints on SVG map + MAVLink mission upload (v8)
@@ -13,9 +13,9 @@ type Waypoint = {
   id?: string;
   sequence: number;
   command: string;
-  latitude: number;
-  longitude: number;
-  altitude_m: number;
+  latitude: number | null;
+  longitude: number | null;
+  altitude_m: number | null;
   param1?: number | null;
   param2?: number | null;
   param3?: number | null;
@@ -51,6 +51,36 @@ type Props = {
 const W = 640;
 const H = 480;
 
+export function normalizeMission(input: Partial<Mission> & { id: string; name?: string }): Mission {
+  const waypoints = Array.isArray(input.waypoints) ? input.waypoints.map((waypoint, index) => ({
+    ...waypoint,
+    sequence: Number.isFinite(Number(waypoint.sequence)) ? Number(waypoint.sequence) : index + 1,
+    command: String(waypoint.command || "NAV_WAYPOINT"),
+    latitude: waypoint.latitude == null ? null : Number(waypoint.latitude),
+    longitude: waypoint.longitude == null ? null : Number(waypoint.longitude),
+    altitude_m: waypoint.altitude_m == null ? null : Number(waypoint.altitude_m),
+  })) : [];
+  return {
+    id: String(input.id),
+    projectId: input.projectId ?? null,
+    name: String(input.name || "Mission sans nom"),
+    description: String(input.description || ""),
+    waypointsCount: waypoints.length,
+    waypoints,
+    createdAt: String(input.createdAt || new Date(0).toISOString()),
+    uploadedAt: input.uploadedAt ?? null,
+    uploadedToDroneId: input.uploadedToDroneId ?? null,
+  };
+}
+
+export function hasWaypointCoordinates(waypoint: Waypoint): waypoint is Waypoint & { latitude: number; longitude: number } {
+  return Number.isFinite(waypoint.latitude) && Number.isFinite(waypoint.longitude);
+}
+
+export function formatWaypointCoordinate(value: number | null): string {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(5) : "—";
+}
+
 export function missionHttpError(status: number, body: unknown): string {
   if (body && typeof body === "object") {
     const record = body as { detail?: unknown; message?: unknown; error?: unknown };
@@ -63,7 +93,7 @@ export function missionHttpError(status: number, body: unknown): string {
 }
 
 export function MissionPlanner({ projectId, geofence }: Props) {
-  const [missions, setMissions] = useState<any[]>([]);
+  const [missions, setMissions] = useState<Mission[]>([]);
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,18 +111,27 @@ export function MissionPlanner({ projectId, geofence }: Props) {
     const r = await fetch(url.toString(), { credentials: "include" });
     if (!r.ok) throw new Error(await responseError(r));
     const body = await r.json() as { missions?: Mission[] };
-    const list: Mission[] = Array.isArray(body?.missions) ? body.missions : [];
+    const list: Mission[] = Array.isArray(body?.missions)
+      ? body.missions.filter((mission): mission is Mission & { id: string } => Boolean(mission && mission.id)).map(normalizeMission)
+      : [];
     setMissions(list);
+    setActiveMission((current) => {
+      if (!current) return null;
+      return list.find((mission) => mission.id === current.id) ?? null;
+    });
   };
 
   useEffect(() => { void refreshMissions().catch((error) => setActionMessage(`Échec du rafraîchissement des missions: ${error instanceof Error ? error.message : "erreur réseau"}`)); }, [projectId]);
 
-  const homeLat = geofence?.homeLat ?? activeMission?.waypoints[0]?.latitude ?? 0;
-  const homeLon = geofence?.homeLon ?? activeMission?.waypoints[0]?.longitude ?? 0;
+  const firstLocatedWaypoint = activeMission?.waypoints.find(hasWaypointCoordinates);
+  const homeLat = geofence?.homeLat ?? firstLocatedWaypoint?.latitude ?? 0;
+  const homeLon = geofence?.homeLon ?? firstLocatedWaypoint?.longitude ?? 0;
 
-  // Bounding box around home + waypoints
-  const allLats = [homeLat, ...(activeMission?.waypoints?.map((w) => w.latitude) ?? []), ...(geofence?.polygon?.map((p) => p[0]) ?? [])];
-  const allLons = [homeLon, ...(activeMission?.waypoints?.map((w) => w.longitude) ?? []), ...(geofence?.polygon?.map((p) => p[1]) ?? [])];
+  // Bounding box around home + located waypoints + geofence. Draft points
+  // without coordinates remain editable and never break map rendering.
+  const locatedWaypoints = activeMission?.waypoints.filter(hasWaypointCoordinates) ?? [];
+  const allLats = [homeLat, ...locatedWaypoints.map((w) => w.latitude), ...(geofence?.polygon?.map((p) => p[0]) ?? [])];
+  const allLons = [homeLon, ...locatedWaypoints.map((w) => w.longitude), ...(geofence?.polygon?.map((p) => p[1]) ?? [])];
   const minLat = Math.min(...allLats) - 0.001;
   const maxLat = Math.max(...allLats) + 0.001;
   const minLon = Math.min(...allLons) - 0.001;
@@ -246,6 +285,11 @@ export function MissionPlanner({ projectId, geofence }: Props) {
     }
   };
 
+  const selectMission = (mission: Mission) => {
+    setActiveMission(normalizeMission(mission));
+    setUploadResult(null);
+    setActionMessage(null);
+  };
   const removeWaypoint = (seq: number) => {
     if (!activeMission) return;
     const filtered = activeMission.waypoints?.filter((w) => w.sequence !== seq) ?? [];
@@ -262,6 +306,9 @@ export function MissionPlanner({ projectId, geofence }: Props) {
           <Plane size={14} /> Mission planner · {missions.length} mission(s)
         </span>
         <div className="lb-radar-controls">
+          <button type="button" className="lb-secondary" onClick={() => void refreshMissions().catch((error) => setActionMessage(`Échec du rafraîchissement: ${error instanceof Error ? error.message : "erreur réseau"}`))} disabled={loading} aria-label="Actualiser les missions" title="Actualiser les missions">
+            <RefreshCw size={13} /> Actualiser
+          </button>
           <input
             type="text"
             placeholder="Nouvelle mission…"
@@ -269,7 +316,7 @@ export function MissionPlanner({ projectId, geofence }: Props) {
             onChange={(e) => setNewName(e.target.value)}
             className="lb-mission-input"
           />
-          <button className="lb-secondary" onClick={createMission} disabled={loading || !newName.trim()}>
+          <button type="button" className="lb-secondary" onClick={createMission} disabled={loading || !newName.trim()}>
             <Plus size={13} /> Créer
           </button>
         </div>
@@ -301,15 +348,16 @@ export function MissionPlanner({ projectId, geofence }: Props) {
             <circle cx={project(homeLat, homeLon).x} cy={project(homeLat, homeLon).y} r={5} fill="#75d7ad" />
             <text x={project(homeLat, homeLon).x + 8} y={project(homeLat, homeLon).y + 4} fill="#75d7ad" fontSize="11" fontFamily="IBM Plex Mono">HOME</text>
             {/* Waypoints */}
-            {activeMission?.waypoints?.map((w, i) => {
+            {activeMission?.waypoints?.filter(hasWaypointCoordinates).map((w, i) => {
               const p = project(w.latitude, w.longitude);
               return (
                 <g key={i}>
                   <circle cx={p.x} cy={p.y} r={6} fill="#25d0d9" stroke="white" strokeWidth={0.5} />
                   <text x={p.x + 10} y={p.y + 4} fill="#25d0d9" fontSize="11" fontFamily="IBM Plex Mono">{w.sequence}</text>
                   {i > 0 && (() => {
-                    const prev = activeMission.waypoints![i - 1];
-                    const pp = project(prev.latitude, prev.longitude);
+                    const previousLocated = locatedWaypoints[i - 1];
+                    if (!previousLocated) return null;
+                    const pp = project(previousLocated.latitude, previousLocated.longitude);
                     return <line x1={pp.x} y1={pp.y} x2={p.x} y2={p.y} stroke="rgba(37,208,217,.4)" strokeWidth={1} strokeDasharray="3 3" />;
                   })()}
                 </g>
@@ -327,8 +375,13 @@ export function MissionPlanner({ projectId, geofence }: Props) {
           {activeMission ? (
             <>
               <div className="lb-mission-side-head">
-                <strong>{activeMission.name}</strong>
-                <small>{activeMission.waypoints?.length ?? 0} waypoints</small>
+                <div>
+                  <strong>{activeMission.name}</strong>
+                  <small>{activeMission.waypoints?.length ?? 0} waypoints</small>
+                </div>
+                <button type="button" className="lb-secondary" onClick={() => { setActiveMission(null); setUploadResult(null); }} aria-label="Retour à la liste des missions" title="Retour à la liste">
+                  <ArrowLeft size={12} /> Liste
+                </button>
               </div>
               <div className="lb-mission-wps">
                 {activeMission.waypoints?.map((w, i) => (
@@ -336,9 +389,9 @@ export function MissionPlanner({ projectId, geofence }: Props) {
                     <span className="lb-mission-wp-seq">{w.sequence}</span>
                     <div>
                       <strong>{w.command}</strong>
-                      <small>{w.latitude.toFixed(5)}, {w.longitude.toFixed(5)} · {w.altitude_m}m</small>
+                      <small>{formatWaypointCoordinate(w.latitude)}, {formatWaypointCoordinate(w.longitude)} · {w.altitude_m == null ? "—" : `${w.altitude_m}m`}</small>
                     </div>
-                    <button className="lb-secondary" onClick={() => removeWaypoint(w.sequence)}>
+                    <button type="button" className="lb-secondary" onClick={() => removeWaypoint(w.sequence)} aria-label={`Supprimer le waypoint ${w.sequence}`} title="Supprimer le waypoint">
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -347,11 +400,12 @@ export function MissionPlanner({ projectId, geofence }: Props) {
                   <p className="lb-empty-state">Cliquez sur la carte pour ajouter des waypoints.</p>
                 )}
               </div>
+              {!projectId && <p className="lb-empty-state">Sélectionnez un projet avant tout upload matériel. La sauvegarde locale reste disponible.</p>}
               <div className="lb-mission-actions">
-                <button className="lb-secondary" onClick={saveMission} disabled={loading}>
+                <button type="button" className="lb-secondary" onClick={saveMission} disabled={loading}>
                   Sauvegarder
                 </button>
-                <button className="lb-primary" onClick={uploadMission} disabled={loading}>
+                <button type="button" className="lb-primary" onClick={uploadMission} disabled={loading || !projectId} title={!projectId ? "Un projet est requis pour l’upload" : "Uploader la mission"}>
                   <Upload size={13} /> Upload vers drone
                 </button>
               </div>
@@ -371,11 +425,11 @@ export function MissionPlanner({ projectId, geofence }: Props) {
                     const isActive = activeId === mId;
                     return (
                       <div key={mId} className={`lb-mission-row ${isActive ? "is-selected" : ""}`}>
-                        <button onClick={() => setActiveMission(m as Mission)}>
+                        <button type="button" onClick={() => selectMission(m)}>
                           <strong>{m.name}</strong>
                           <small>{m.waypointsCount} waypoints · {m.uploadedAt ? "uploadée" : "brouillon"}</small>
                         </button>
-                        <button className="lb-secondary" onClick={() => deleteMission(mId)}>
+                        <button type="button" className="lb-secondary" onClick={() => deleteMission(mId)} aria-label={`Supprimer la mission ${m.name}`} title="Supprimer la mission">
                           <Trash2 size={12} />
                         </button>
                       </div>

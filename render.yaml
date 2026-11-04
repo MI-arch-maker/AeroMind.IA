@@ -65,11 +65,11 @@ services:
       - key: AEROMIND_ALLOWED_ORIGINS
         sync: false
       - key: AEROMIND_SUPERADMIN_EMAILS
-        value: mcgregoralvin14@gmail.com
+        sync: false
       - key: AEROMIND_TRIAL_EMAILS
-        value: mcgregoralvin14@gmail.com
+        sync: false
       - key: DEFAULT_DEMO_EMAIL
-        value: mcgregoralvin14@gmail.com
+        sync: false
       # Option A — Microsoft Entra ID (laisser vide si OIDC générique utilisé)
       - key: ENTRA_TENANT_ID
         sync: false

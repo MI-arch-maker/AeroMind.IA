@@ -299,27 +299,21 @@ def step_up(
     )
     # P0-02 fix: use the canonical cookie name constants so verify_csrf_double_submit
     # and _extract_session_token can read them back (was mismatched before — SEC fix).
-    import os as _os
-    _is_prod = _os.environ.get("AEROMIND_ENV", "development") == "production"
+    from .oidc import _cookie_security
+    cookie_security = _cookie_security(request)
     _max_age = int((datetime.fromisoformat(expires_at.isoformat())
                     - datetime.now(UTC)).total_seconds())
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_token,
-        httponly=True,
-        secure=_is_prod,
-        samesite="lax",
         max_age=_max_age,
-        path="/",
+        **cookie_security,
     )
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
         value=csrf_token,
-        httponly=False,  # CSRF token must be readable by JS to set X-CSRF-Token header
-        secure=_is_prod,
-        samesite="lax",
+        **{**cookie_security, "httponly": False},  # JS must read the CSRF double-submit token
         max_age=_max_age,
-        path="/",
     )
     return response
 

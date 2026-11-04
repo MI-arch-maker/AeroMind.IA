@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import secrets
 import time
+from typing import Any
 from urllib.parse import quote, urlencode, urlparse
 
 import httpx
@@ -146,7 +147,7 @@ def _identity_email_candidates(claims: dict) -> list[str]:
     return candidates
 
 
-def _cookie_security(request: Request | None = None) -> dict[str, object]:
+def _cookie_security(request: Request | None = None) -> dict[str, Any]:
     # Le Preview public est HTTPS et embarqué dans un iframe cross-site.
     # Le développement local reste compatible HTTP.
     forwarded_proto = request.headers.get('x-forwarded-proto', '').split(',', 1)[0].strip().lower() if request else ''

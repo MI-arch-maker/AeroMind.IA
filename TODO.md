@@ -1,5 +1,3 @@
-
-
 ## Demande — intégration des laboratoires Simulation & analyses / Essai & scénarios
 
 - [x] **Source unique projet :** le laboratoire panoramique, le laboratoire spatial et Mission Control lisent le même `ConceptConfig`, les exigences et le résultat du moteur AeroMind.
@@ -34,6 +32,7 @@
 - [x] **Validation finale de livraison :** dépendances installées depuis le lockfile ; typecheck/i18n réussis (`2617` clés synchronisées), Vitest réussi (`54` fichiers, `273` tests), build Vite réussi, manifeste `/manus-routes.json` servi en `200`, Preview démarrée sur le port `3000` et accès `/labbench` capturé avec le rendu intégré.
 
 ## Modernisation Aeromind — navigation satellite, accès MFA et LABBENCH 01 (29 octobre 2026)
+
 - [x] **Navigateur par satellite :** corriger l’interface « NAVIGATEUR PAR SATELLITE » qui ne fonctionnait pas, refusait de s’ouvrir sur HTTPS et envoyait un message d’erreur d’affichage; prévenir le blocage de contenu mixte et stabiliser le repli entre fournisseurs de tuiles.
 - [x] **Connexion MFA AeroMind :** au-delà de l’onglet « CONNEXION SUR MICROSOFT ENTRA » retrouvé sur l’application AeroMind, créer juste en dessous l’onglet « CONNEXION MFA », également disponible sur l’interface admin; réutiliser le flux local MFA existant avec mot de passe et TOTP.
 - [x] **LABBENCH 01 :** moderniser les onglets et contrôles de connexion visibles dans LABBENCH 01 sans changer les règles d’autorisation Step-up.
@@ -60,3 +59,106 @@
 - [x] **Simulation préservée et sortie physique séparée :** commandes virtuelles, adaptateur simulation-only et code MAVLink préservés. La simulation reste autorisée aux rôles habilités; le service institutionnel ne contient aucun transport, pilote, socket ou jeton matériel et le runtime final garde les sorties physiques désactivées.
 - [x] **Traçabilité :** tables et événements append-only pour soumission, validations/refus, transmission, décision GATE 05 et exécution simulée, avec demande, auteur, rôle, horodatage et corrélation.
 - [x] **Interface, tests et livraison :** panneau GATE dans le simulateur, 4 tests backend GATE, 49 tests matériels sur doubles, 365 tests frontend, typecheck, build, Preview port 3000 et rapport final. Archive source finale à produire sans dépendances, bases, secrets ni build généré.
+
+## Demande — Centre Mécanique, filerie et intégration drone (2 novembre 2026)
+
+- [x] **Onglet Centre Mécanique :** ajouter un centre natif distinct du Centre Paramétrique, du Digital Twin et de l’atelier de construction, accessible depuis la navigation principale et relié au même `ConceptConfig` projet.
+- [x] **Structure et nomenclature :** représenter les pièces, sous-ensembles, matériaux, masses indicatives, interfaces et statuts de revue; distinguer les données de conception des données vérifiées constructeur.
+- [x] **Installation des pièces :** permettre d’ajouter, positionner logiquement, sélectionner et faire progresser le statut documentaire des composants installés, sans déclencher de fabrication ni de commande matérielle.
+- [x] **Filerie et câbles :** gérer les fils/câbles par origine, destination, bus, section, longueur indicative, chemin, points de maintien et contrôles de séparation; signaler les données incomplètes et les conflits de routage.
+- [x] **Connecteurs :** gérer type, broches, côté A/B, verrouillage documentaire, compatibilité et état de vérification; ne jamais ouvrir une liaison physique réelle.
+- [x] **Maintenance et revue :** gérer actions, intervalles, outils, accessibilité, pièces de rechange et statuts de revue; conserver les limites de pré-dimensionnement et l’absence de certification automatique.
+- [x] **Synchronisation et limites :** persister le bloc Centre Mécanique avec le projet, réutiliser les briques Mechanical Twin/assemblage existantes, préserver la chaîne GATE et garder la sortie matérielle désactivée.
+- [x] **Validation et livraison :** typecheck, build, tests ciblés, Preview fonctionnelle et archive source complète sans secrets, dépendances ni artefacts générés.
+
+## Extension turbo — atelier d’assemblage mécanique (2 novembre 2026)
+
+- [x] **Atelier manuel :** créer des pièces documentaires libres, des gabarits de fixation et des éléments de sous-ensemble moteur depuis le Centre Mécanique.
+- [x] **Assemblage contraint :** représenter des relations de contact, concentricité, parallélisme et autres contraintes avec états à vérifier, satisfaits ou en conflit.
+- [x] **Visserie :** intégrer boulons, vis, écrous, rondelles, entretoises et inserts avec taille, matériau, quantité, couple indicatif et état de montage.
+- [x] **Graissage :** intégrer les points de lubrification avec cible, produit à préciser, quantité, intervalle, accès et état d’entretien.
+- [x] **Limites industrielles :** conserver l’étiquetage indicatif; aucun solveur industriel, ordre de fabrication, couple certifié, achat, mise sous tension ou liaison physique n’est activé.
+- [x] **Validation :** typecheck, build Vite et suite frontend réussis; l’extension reste dans le même snapshot `ConceptConfig` et dans le mode `VIRTUAL ONLY`.
+
+## Refonte cible — AeroMind Mechanical Workbench (2 novembre 2026)
+
+- [x] **Coque d’ingénierie :** remplacer la présentation tabulaire principale par une coque professionnelle en trois panneaux : arbre d’assemblage, viewport central et inspecteur contextuel.
+- [x] **Viewport et modes :** connecter le viewport 3D Mechanical Twin au design actif, afficher l’assemblage ISO, la vue éclatée réglable et les modes Part Studio mécanique, Assembly, Filerie/Connectique et Maintenance.
+- [x] **Arbre et sélection :** synchroniser la sélection arbre/viewport, distinguer les pièces du Twin et les pièces manuelles, afficher les révisions locales et la recherche.
+- [x] **Barre d’outils :** fournir annuler/rétablir, enregistrer, créer une pièce, vue éclatée, mesure documentaire, variante et plein écran.
+- [x] **Inspecteur :** fournir les panneaux identité, géométrie, assemblage, interfaces et maintenance pour la pièce sélectionnée.
+- [x] **Limites et sécurité :** conserver VIRTUAL ONLY, la réversibilité locale, les métriques indicatives et l’interdiction de toute sortie matérielle ou certification implicite.
+- [x] **Validation :** typecheck, build et suite frontend réussis; Preview et route directe du Centre Mécanique vérifiées.
+
+## Recalibrage interfaces — longueurs et largeurs (2 novembre 2026)
+
+- [x] **Desktop fluide :** largeurs gauche, centre et inspecteur basées sur `clamp()` avec priorité dimensionnelle au viewport 3D central.
+- [x] **Hauteur adaptative :** hauteur globale et viewport calculés à partir de la hauteur disponible, avec ratio 16:9 et limites min/max pour éviter les débordements.
+- [x] **Tablette :** passage contrôlé à deux colonnes, inspecteur réorganisé sous la zone principale et onglets défilables.
+- [x] **Mobile :** empilement arbre → viewport → inspecteur, barre d’outils défilable et viewport en ratio 4:3 pour préserver la lisibilité.
+- [x] **Validation :** typecheck et build Vite réussis; les règles dimensionnelles sont isolées dans `mechanical-workbench.css`.
+
+## Modernisation commande — gouvernance physique indépendante (2 novembre 2026)
+
+- [x] **Panneau de gouvernance :** ajouter dans Mission Operations une demande de contrôle matériel contextualisée par projet et drone actif.
+- [x] **Chaîne hiérarchique :** représenter GATE 01 à GATE 04, l’ordre obligatoire, le code de transmission et la décision Super-Administrateur comme étapes distinctes.
+- [x] **Journal et contrôle :** afficher les validations, auteur courant, horodatage local, expiration documentaire et révocation.
+- [x] **Séparation de sécurité :** afficher explicitement que GATE 05 ne vaut pas autorisation matérielle; la sortie physique, MAVLink et WSS restent verrouillés dans la Preview.
+- [x] **Commandes virtuelles :** conserver les commandes de scénario et leur exécution synthétique locale sans ouvrir d’actionneur.
+- [x] **Validation :** typecheck et build Vite réussis; aucune connexion physique ni émission de commande réalisée.
+
+## Sécurité LABBENCH 01 — comptes privilégiés
+
+- [x] **Règle conservée :** le mot de passe et le TOTP restent obligatoires pour les comptes Admin et Super-Admin; aucune exemption privilégiée n’est introduite.
+- [x] **Signalisation :** l’écran de connexion LABBENCH indique explicitement cette règle afin d’éviter une interprétation ambiguë de la chaîne de validation.
+- [ ] **Alternative acceptable ultérieure :** étudier un fournisseur d’identité MFA/passkey institutionnel équivalent, sans réduire l’assurance d’authentification et sans supprimer le step-up des opérations sensibles.
+
+## Cahier des charges — Aeromind Aerodynamic Simulation Center (3 novembre 2026)
+
+- [ ] **Importateur de modèles 3D :** permettre l’importation des formats STEP, STL, OBJ, 3MF et formats CAD compatibles; afficher le modèle en trois dimensions; prévoir rotation, zoom, déplacement, sélection de surfaces, inspection géométrique, vérification des unités et détection des défauts géométriques. Ne marquer comme décodé/inspecté que ce qui est réellement pris en charge par un parseur vérifié; conserver les sources importées.
+- [ ] **Préparation de simulation et maillage :** définir la vitesse et la direction du flux d’air, la température, la pression, la densité, la viscosité, les conditions atmosphériques, le modèle de turbulence, le type de calcul et les conditions aux limites; définir et sauvegarder des scénarios; préparer/générer un maillage uniquement lorsque le calcul livré le permet et montrer la méthode, l’état et les limites.
+- [ ] **Solveur CFD réel — ouverture explicite :** le moteur doit utiliser un solveur CFD réellement intégré ou un service externe documenté. Un cas préparé/exporté, une animation, un modèle analytique ou une visualisation ne sont pas une simulation CFD exécutée. Pour ce lot, préparer le flux OpenFOAM et conserver l’état « solveur non connecté / calcul CFD indisponible » jusqu’à un raccordement réel; garder l’item ouvert tant qu’un solveur n’a pas été raccordé et qu’un calcul vérifiable n’a pas été exécuté.
+- [ ] **Visualisation des écoulements :** représenter lorsque des données de calcul existent des lignes de courant, champs de vitesse, distribution de pression, zones de turbulence, vorticité, écoulements autour des surfaces, zones de séparation et résultats de convergence; prévoir les modes 3D Flow, Pressure Map, Velocity Map, Streamlines, Cross Sections et Comparative View. Les résultats non disponibles ne doivent pas être remplacés par une animation portant l’étiquette CFD.
+- [ ] **Analyse de performance et propulsion :** analyser traînée, portance, rapport portance/traînée lorsque pertinent, distribution de pression, résistance aérodynamique, effets de géométrie, sensibilité aux conditions atmosphériques et interactions entre éléments; prévoir les interactions rotor/flux d’air, effets des structures, interférences, répartition des flux et effets de configuration. Toute estimation simplifiée doit être distinguée du CFD et chaque hypothèse de propulsion documentée.
+- [ ] **Comparaison et optimisation :** comparer différentes géométries et versions, analyser les performances, visualiser les différences, évaluer les compromis, produire des recommandations, conserver l’historique des simulations et transmettre toute modification proposée au Centre PARAMETRIC pour validation et conservation des versions. Ne pas écrire/valider silencieusement une géométrie de projet.
+- [ ] **Gestion des simulations :** chaque simulation doit posséder un identifiant, un modèle utilisé, une version, les paramètres, le solveur, le maillage, les conditions initiales, une date, un temps de calcul, des résultats, un niveau de convergence et les limites du modèle; prévoir le suivi des tâches de calcul et de leurs ressources. Un champ non renseigné ou indisponible doit rester absent/indisponible, jamais fictivement rempli.
+- [x] **Rubriques de l’interface :** fournir Aerodynamic Dashboard, 3D Model Importer, CFD Workspace, Simulation Setup, Mesh Generator, Airflow Visualization, Pressure Analysis, Rotor Flow Analysis, Performance Comparison, Design Optimization, Simulation History, Technical Reports, Solver Management et Settings, intégrés à la navigation Aeromind et reliés aux autres centres sans remplacer le workspace existant.
+- [ ] **Intégration Aeromind :** définir les échanges avec le Centre PARAMETRIC pour réception de géométries et transmission des optimisations; le Centre MECANIC pour les contraintes mécaniques; ELECTRONICS CENTER pour les équipements/configurations pertinents; VIRTUAL FACTORY pour les modèles validés pour fabrication; INTELLIGENCE CENTER pour l’analyse des résultats et tendances. Les destinations non raccordées doivent apparaître comme indisponibles/en attente, pas comme transmises.
+- [x] **Vérité scientifique et rapports :** distinguer explicitement simulation réelle, modèle analytique simplifié, estimation théorique, résultat expérimental et résultat non validé. Les rapports présentent hypothèses, conditions de calcul, incertitudes et limites. Un cas OpenFOAM exporté et sans résultats demeure un cas préparé/non résolu.
+- [x] **Livraison et validation :** vérifier typecheck, build, tests pertinents, routes, principales commandes et export; fournir un ZIP final nettoyé et une Preview fonctionnelle. Aucune mise en production n’est implicite.
+
+## État de livraison — 3 novembre 2026
+
+- [x] Parcours navigateur : accès direct `/?view=aero-cfd`, 14 rubriques ouvertes, scénario local enregistré, mode ISA/manuelle vérifié, estimation analytique tracée, import OBJ inspecté, taille de domaine estimée sans création fictive de maillage, historique CSV et rapports JSON/Markdown exportés, manifeste de préparation OpenFOAM exporté, proposition locale exportée et absence de solveur explicitement contrôlée.
+- [x] Contrôles du code : `pnpm check` réussi (TypeScript et 2 617 clés de catalogues), `pnpm test` réussi (78 fichiers / 374 tests) et `pnpm build` réussi. L’API Preview répond sur le port 3000 en mode simulation; le projet ne sera pas publié en production par cette livraison.
+- [ ] CFD réel : en attente du raccordement OpenFOAM ultérieur, conformément à l’accord utilisateur. STEP/CAO non décodés, génération de maillage volumique, champs CFD, convergence et suivi de ressources de solveur restent indisponibles.
+- [ ] Lint de traduction complémentaire : `pnpm i18n:lint` signale des littéraux JSX non catalogués dans le dépôt existant, y compris certains libellés français de la nouvelle interface; `pnpm check` et le build standard restent réussis.
+
+
+## Cahier des charges — Aeromind Intelligence Center (3 novembre 2026)
+- [x] **Architecture multi-agents :** le Centre Intelligence expose un Master Intelligence Agent et les agents Parametric, Mecanic, Electronics, Aerodynamic, Manufacturing, Fleet et Quality, chacun avec rôle, couverture, statut et périmètre visibles.
+- [x] **Master AI Workspace :** la vue `intelligence-center` fournit conversation, historique, agents, état des tâches, documents, résultats, recommandations et actions soumises à approbation.
+- [x] **Orchestration :** une demande globale identifie les centres concernés, crée des sous-tâches, les distribue et consolide un rapport sans modifier silencieusement la conception active.
+- [x] **Mémoire technique :** les documents affichent type, source, version et distinction vérifié/hypothèse/recommandation; un fichier importé entre en quarantaine documentaire et ne devient pas automatiquement validé.
+- [x] **Aide à la décision :** comparaison d’options, compromis, niveau de confiance, risques et recommandation sont affichés avec approbation/refus humain explicite.
+- [x] **Amélioration continue :** les signaux historiques produisent des propositions qui doivent être validées ou écartées avant toute modification de procédure.
+- [x] **Gestion IA :** modèles principal, solution de repli, état de routage et rappel « aucune clé côté client » sont visibles et actionnables.
+- [x] **Gouvernance :** cinq niveaux d’autorisation sont représentés; le niveau physique reste verrouillé et la validation humaine peut être activée/désactivée dans l’interface.
+- [x] **Opérationnalité :** navigation par rubriques, envoi de demandes, lancement de mission, import de document, recherche, approbation, refus, commutateurs, historique et réinitialisation disposent d’actions fonctionnelles.
+- [ ] **IA distante et persistance serveur :** raccordement d’un fournisseur LLM externe et stockage durable des missions restent dépendants d’un secret et d’un contrat serveur dédiés; le workspace livré fonctionne avec un moteur local déterministe et ne prétend pas fournir ces intégrations.
+
+## Cahier des charges — modernisation corrective Aeromind (3 novembre 2026)
+
+- [ ] **Examen et synchronisation globale :** « Tu fasses un examen rapide de tout Aeromind »; corriger les dysfonctionnements des « boutons, écrans, commandes, structures, données » restés « statiques et décoratifs »; les rendre « opérationnels, fonctionnels et synchronisables » afin que « toutes les interfaces doivent communiquer entre elles, échanger les données dans le cadre d'une véritable synchronisation complète et opérationnelle ». L’examen de cette session couvre les flux et anomalies explicitement contrôlés; la complétude de tous les modules demeure à auditer avant clôture.
+- [ ] **Autorité et commandes physiques :** le cahier des charges demande des commandes physiques contrôlées par Aeromind et une arborescence décisionnelle partant de l’utilisateur jusqu’au Super-Admin. Cette demande n’active aucun transport physique dans la Preview ni l’archive de démonstration; tout chemin réel demeure conditionné à une architecture matérielle et à une validation indépendante de sûreté, habilitations, essais et autorisations. Les contrôles VIRTUAL portent uniquement sur un scénario logiciel.
+- [x] **Libellés de statut :** éviter la formulation d’état que l’utilisateur demande de retirer, tout en conservant une indication claire, exacte et visible qu’un parcours est une simulation logicielle et qu’aucune action réelle n’est attestée.
+- [ ] **Livraison :** fournir un fichier source final nommé « Aeromind » et une URL de prévisualisation; ne clore qu’après archive générée sans secrets, bases locales, dépendances installées ni build, et vérification de la Preview WebDev.
+
+
+## Livraison Super Turbo 2026-11
+- [x] Identités administratives et démo externalisées vers les variables d’environnement.
+- [x] CSRF/mutations API renforcés, y compris l’en-tête CORS `X-CSRF-Token`.
+- [x] Packaging Docker vérifié et configuration de production documentée.
+- [x] Registre des licences open source ajouté.
+- [x] Parcours de démonstration commerciale documenté.
+- [ ] Renseigner les secrets de production dans le gestionnaire de secrets avant déploiement.

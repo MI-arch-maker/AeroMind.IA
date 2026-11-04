@@ -131,7 +131,7 @@ export function decideInstitutionalGate05(
   if (actorRole !== "super_admin") return { workflow, error: "GATE 05 est une décision personnelle du Super-Administrateur." };
   if (workflow.status !== "awaiting_gate_05" || !workflow.transmissionVerified) return { workflow, error: "Vérifiez le code de transmission avant toute décision GATE 05." };
   const next: InstitutionalWorkflow = { ...workflow, gate05Decision: decision, status: decision === "approve" ? "approved_gate_05" : "refused" };
-  return { workflow: event(next, "GATE_05", "institutional.gate_05.decided", actorRole, decision === "approve" ? "allow" : "deny", decision === "approve" ? "GATE 05 approuvée localement; la sortie physique demeure désactivée." : "GATE 05 refusée localement par le Super-Administrateur.") };
+  return { workflow: event(next, "GATE_05", "institutional.gate_05.decided", actorRole, decision === "approve" ? "allow" : "deny", decision === "approve" ? "GATE 05 approuvée pour le scénario logiciel uniquement." : "GATE 05 refusée localement par le Super-Administrateur.") };
 }
 
 export function executeVirtualSimulation(

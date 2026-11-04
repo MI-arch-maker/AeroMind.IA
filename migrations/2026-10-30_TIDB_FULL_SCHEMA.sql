@@ -804,8 +804,8 @@ VALUES ('2026-10-30_TIDB_FULL_SCHEMA', MD5('2026-10-30_TIDB_FULL_SCHEMA_v1'));
 INSERT IGNORE INTO admin_accounts (id, email, data_json, created_at, updated_at)
 VALUES (
     'primary-super-admin',
-    'mcgregoralvin14@gmail.com',
-    '{"email":"mcgregoralvin14@gmail.com","role":"super_admin","level":"L4","accountStatus":"active","name":"Administrateur principal","loginMethod":"microsoft-entra"}',
+    'admin-configured@example.invalid',
+    '{"email":"admin-configured@example.invalid","role":"super_admin","level":"L4","accountStatus":"active","name":"Administrateur principal","loginMethod":"microsoft-entra"}',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 );

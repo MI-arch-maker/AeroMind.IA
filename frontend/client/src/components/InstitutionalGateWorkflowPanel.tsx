@@ -47,7 +47,7 @@ export function InstitutionalGateWorkflowPanel() {
         <b>SIMULATION UNIQUEMENT</b>
       </header>
       <p className="fom-institutional-note">
-        Ce panneau teste le parcours dans le navigateur. Le service serveur Aeromind applique la même séparation de rôles et journalise les décisions authentifiées. Aucun code ici n’ouvre de transport MAVLink, n’active une sortie physique, ne constitue une certification de sécurité ou une autorisation réglementaire.
+        Ce panneau teste le parcours dans le navigateur. Le service serveur Aeromind applique la même séparation de rôles et journalise les décisions authentifiées. Ce parcours se limite à des décisions de démonstration dans le navigateur; il ne décrit pas l’état d’un appareil et ne constitue ni une certification de sécurité ni une autorisation réglementaire.
       </p>
 
       <div className="fom-institutional-controls">
@@ -95,7 +95,7 @@ export function InstitutionalGateWorkflowPanel() {
           <small>{workflow.transmissionVerified ? "Transmission locale vérifiée — décision humaine attendue." : "La vérification de la transmission est obligatoire avant décision."}</small>
         </div>
         <div>
-          <button type="button" disabled={!workflow.transmissionVerified || activeRole !== "super_admin"} onClick={() => apply(decideInstitutionalGate05(workflow, "approve", activeRole), "GATE 05 approuvée localement; aucune sortie physique." )}>Approuver GATE 05</button>
+          <button type="button" disabled={!workflow.transmissionVerified || activeRole !== "super_admin"} onClick={() => apply(decideInstitutionalGate05(workflow, "approve", activeRole), "GATE 05 approuvée pour le scénario local simulé." )}>Approuver GATE 05</button>
           <button type="button" className="is-refuse" disabled={!workflow.transmissionVerified || activeRole !== "super_admin"} onClick={() => apply(decideInstitutionalGate05(workflow, "refuse", activeRole), "GATE 05 refusée localement.")}>Refuser GATE 05</button>
         </div>
       </section>
@@ -104,7 +104,7 @@ export function InstitutionalGateWorkflowPanel() {
         <div><strong>Journal institutionnel de démonstration</strong><span>Demande {workflow.requestId} · {workflow.events.length} événement(s) · exécution virtuelle {workflow.simulationExecutions}</span></div>
         {workflow.events.slice().reverse().slice(0, 8).map(item => <p key={item.id} className={item.decision === "allow" ? "is-allow" : "is-deny"}>
           <time>{new Date(item.at).toLocaleTimeString("fr-FR", { hour12: false })}</time>
-          <code>{item.gate}</code><b>{item.actorRole}</b><span>{item.message}</span><small>sortie physique : non</small>
+          <code>{item.gate}</code><b>{item.actorRole}</b><span>{item.message}</span><small>périmètre : simulation</small>
         </p>)}
       </div>
     </section>

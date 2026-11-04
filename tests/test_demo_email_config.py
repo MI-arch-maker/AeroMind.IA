@@ -5,8 +5,8 @@ SECRET = "s" * 48
 
 
 def test_demo_email_can_be_configured():
-    settings = Settings(session_secret=SECRET, default_demo_email="mcgregoralvin14@gmail.com", _env_file=None)
-    assert settings.default_demo_email == "mcgregoralvin14@gmail.com"
+    settings = Settings(session_secret=SECRET, default_demo_email="demo-owner@example.test", _env_file=None)
+    assert settings.default_demo_email == "demo-owner@example.test"
 
 
 def test_demo_email_can_be_cleared():
