@@ -47,7 +47,7 @@ EXPOSE 3000
 # HEALTHCHECK explicite pour les déploiements hors-Render (docker-compose, k8s,
 # etc.) ; Render s'appuie sur healthCheckPath dans render.yaml.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD-SHELL python -c "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT','3000') + '/api/ready', timeout=3).status == 200 else 1)"
+  CMD ["python", "-c", "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT','3000') + '/api/ready', timeout=3).status == 200 else 1)"]
 
 # CMD en forme exec (pas shell form) : permet à uvicorn de recevoir SIGTERM
 # directement pour un graceful shutdown. Workers/timings alignés avec les
