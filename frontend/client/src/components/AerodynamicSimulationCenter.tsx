@@ -208,15 +208,29 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
       setRenderStatus("Initialisation du renderer WebGL…");
 
       let renderer: THREE.WebGLRenderer;
+      let canvas: HTMLCanvasElement;
+      let context: WebGL2RenderingContext | null = null;
       try {
+        canvas = document.createElement("canvas");
+        context = canvas.getContext("webgl2", {
+          alpha: false,
+          antialias: true,
+          depth: true,
+          powerPreference: "high-performance",
+          failIfMajorPerformanceCaveat: false,
+          preserveDrawingBuffer: false,
+        });
+        if (!context) throw new Error("Contexte WebGL2 indisponible");
         renderer = new THREE.WebGLRenderer({
+          canvas,
+          context,
           antialias: true,
           alpha: false,
-          powerPreference: "low-power",
+          powerPreference: "high-performance",
           failIfMajorPerformanceCaveat: false,
-          preserveDrawingBuffer: true,
         });
       } catch (error) {
+        context?.getExtension("WEBGL_lose_context")?.loseContext();
         releaseSlot?.();
         releaseSlot = null;
         const detail = error instanceof Error ? ` (${error.message})` : "";
@@ -226,7 +240,6 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
         return;
       }
 
-      const canvas = renderer.domElement;
       rendererRef.current = renderer;
       setRenderStatus("");
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -271,7 +284,28 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
       });
       observer.observe(node);
       let frame = 0;
+      let contextLost = false;
+      const handleContextLost = (event: Event) => {
+        event.preventDefault();
+        contextLost = true;
+        window.cancelAnimationFrame(frame);
+        setRenderStatus("Contexte WebGL2 interrompu — récupération en cours…");
+        setRenderError("Le contexte WebGL2 a été interrompu par le navigateur. Le viewport va être recréé sans basculer vers un rendu 2D.");
+        setRendererFailed(true);
+      };
+      const handleContextRestored = () => {
+        if (disposed) return;
+        setRenderError("");
+        setRendererFailed(false);
+        setRenderStatus("Contexte WebGL2 récupéré — reconstruction du viewport…");
+        window.setTimeout(() => {
+          if (!disposed) setRetryRenderer(value => value + 1);
+        }, 0);
+      };
+      canvas.addEventListener("webglcontextlost", handleContextLost, false);
+      canvas.addEventListener("webglcontextrestored", handleContextRestored, false);
       const animate = () => {
+        if (contextLost || disposed) return;
         frame = window.requestAnimationFrame(animate);
         controls.update();
         renderer.render(scene, camera);
@@ -330,6 +364,8 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
         window.cancelAnimationFrame(frame);
         observer.disconnect();
         canvas.removeEventListener("dblclick", selectSurface);
+        canvas.removeEventListener("webglcontextlost", handleContextLost);
+        canvas.removeEventListener("webglcontextrestored", handleContextRestored);
         controls.dispose();
         renderer.dispose();
         rendererRef.current = null;
