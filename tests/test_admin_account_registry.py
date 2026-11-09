@@ -10,7 +10,7 @@ os.environ.setdefault("AEROMIND_SESSION_SECRET", "local-admin-registry-test-secr
 os.environ.setdefault("DATABASE_URL", f"sqlite:////tmp/aeromind-admin-registry-{os.getpid()}.db")
 
 from sqlalchemy import select
-from web.admin import account_for_email, account_for_identity, create_account, list_accounts, migrate_legacy_registry, update_account, verify_authorization_code
+from web.admin import account_for_email, account_for_identity, create_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, update_account, verify_authorization_code, verify_daily_totp_code
 from web.database import Base, SessionLocal, engine
 from web.models import AdminAccountEvent, AdminAccountRecord
 
@@ -43,6 +43,19 @@ class AdminAccountRegistryTest(unittest.TestCase):
             self.assertEqual(event.event_type, "account.created")
         update_account(actor, created["id"], {"accountStatus": "suspended"})
         self.assertIsNone(account_for_identity(email, "verified-entra-subject"))
+
+    def test_superadmin_can_issue_a_daily_labbench_code_without_persisting_plaintext(self):
+        email = f"labbench-superadmin-{uuid4()}@example.test"
+        actor = {"id": "admin-test", "email": "admin@example.test", "role": "super_admin"}
+        created = create_account(actor, email, "LabBench Super-Admin", "super_admin", "L4")
+        issued = issue_daily_totp_code(actor, created["id"])
+        self.assertEqual(len(issued["dailyTotpCode"]), 6)
+        self.assertTrue(issued["dailyTotpCode"].isdigit())
+        self.assertTrue(verify_daily_totp_code(email, issued["dailyTotpCode"]))
+        self.assertNotIn("dailyTotpCodeHash", issued)
+        self.assertEqual(account_for_email(email)["dailyTotpCodeLast4"], issued["dailyTotpCode"][-4:])
+        with self.assertRaises(ValueError):
+            issue_daily_totp_code({"id": "user", "email": "user@example.test", "role": "user"}, created["id"])
 
     def test_local_enrollment_requires_admin_invite_and_totp_then_sets_session(self):
         from starlette.requests import Request

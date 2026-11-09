@@ -208,26 +208,35 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
       setRenderStatus("Initialisation du renderer WebGL…");
 
       let renderer: THREE.WebGLRenderer;
-      let canvas: HTMLCanvasElement;
+      let canvas: HTMLCanvasElement | null = null;
       let context: WebGL2RenderingContext | null = null;
       try {
-        canvas = document.createElement("canvas");
-        context = canvas.getContext("webgl2", {
-          alpha: false,
-          antialias: true,
-          depth: true,
-          powerPreference: "high-performance",
-          failIfMajorPerformanceCaveat: false,
-          preserveDrawingBuffer: false,
-        });
-        if (!context) throw new Error("Contexte WebGL2 indisponible");
+        const contextProfiles: WebGLContextAttributes[] = [
+          { alpha: false, antialias: true, depth: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false, preserveDrawingBuffer: false },
+          { alpha: false, antialias: false, depth: true, stencil: false, powerPreference: "default", failIfMajorPerformanceCaveat: false, preserveDrawingBuffer: false },
+        ];
+        let lastFailure = "Contexte WebGL2 indisponible";
+        for (const profile of contextProfiles) {
+          const candidate = document.createElement("canvas");
+          try {
+            const candidateContext = candidate.getContext("webgl2", profile);
+            if (!candidateContext) {
+              lastFailure = "Le navigateur a refusé la création du contexte WebGL2";
+              continue;
+            }
+            canvas = candidate;
+            context = candidateContext;
+            break;
+          } catch (error) {
+            lastFailure = error instanceof Error ? error.message : lastFailure;
+            candidate.getContext("webgl2")?.getExtension("WEBGL_lose_context")?.loseContext();
+          }
+        }
+        if (!canvas || !context) throw new Error(lastFailure);
         renderer = new THREE.WebGLRenderer({
           canvas,
           context,
-          antialias: true,
           alpha: false,
-          powerPreference: "high-performance",
-          failIfMajorPerformanceCaveat: false,
         });
       } catch (error) {
         context?.getExtension("WEBGL_lose_context")?.loseContext();
@@ -247,7 +256,7 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
       const initialHeight = node.clientHeight || 400;
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(initialWidth, initialHeight);
-      canvas.dataset.renderer = "webgl";
+      canvas.dataset.renderer = "webgl2";
       node.replaceChildren(canvas);
       canvas.setAttribute("aria-label", "Viewport 3D WebGL interactif; glisser pour tourner, molette pour zoomer, clic pour sélectionner une face");
 

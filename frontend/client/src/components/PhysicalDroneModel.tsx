@@ -22,7 +22,9 @@ type PhysicalDroneModelProps = {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-const MAX_ACTIVE_WEBGL_CANVASES = 4;
+// Keep a conservative budget: embedded previews and browsers commonly expose
+// only a small number of reliable simultaneous WebGL contexts.
+const MAX_ACTIVE_WEBGL_CANVASES = 2;
 let activeWebGLCanvases = 0;
 let webGLWaitQueue: Array<() => void> = [];
 let webGL2Support: boolean | null = null;

@@ -244,6 +244,7 @@ def issue_daily_totp_code(actor: dict[str, Any], account_id: str) -> dict[str, A
     Super-Admin may transfer this short-lived daily access code, but the code
     itself is never persisted in clear text and is returned only on issuance.
     """
+    _assert_superadmin_actor(actor)
     day = _utc_day()
     with SessionLocal() as db:
         row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.id == account_id))
