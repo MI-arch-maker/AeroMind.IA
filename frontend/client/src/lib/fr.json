@@ -1968,6 +1968,7 @@
   "Connectez-vous avant de créer un projet.": "Connectez-vous avant de créer un projet.",
   "Connectez-vous et créez/sélectionnez un projet AeroMind pour initialiser le registre, archiver les runs N2 et produire un rapport avec empreinte.": "Connectez-vous et créez/sélectionnez un projet AeroMind pour initialiser le registre, archiver les runs N2 et produire un rapport avec empreinte.",
   "Connectez-vous pour accéder à votre journal d'audit privé. Chaque utilisateur dispose d'un journal indépendant et isolé.": "Connectez-vous pour accéder à votre journal d'audit privé. Chaque utilisateur dispose d'un journal indépendant et isolé.",
+  "Connectez-vous pour accéder à votre journal d'audit personnel. Chaque utilisateur dispose d'un journal indépendant et isolé.": "Connectez-vous pour accéder à votre journal d'audit personnel. Chaque utilisateur dispose d'un journal indépendant et isolé.",
   "Connectez-vous pour synchroniser AeroMind.": "Connectez-vous pour synchroniser AeroMind.",
   "Connection alone does not prove the sensor's identity nor the physical validity of the measurements.": "La connexion seule ne prouve ni l’identité du capteur ni la validité physique des mesures.",
   "Connection identifiers must be unique.": "Les identifiants de connexions doivent être uniques.",

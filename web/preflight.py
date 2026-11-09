@@ -31,7 +31,7 @@ from sqlalchemy import desc, select
 
 from .app_auth_helpers import current_user
 from .database import SessionLocal
-from .models import PreflightChecklist, AuditEvent
+from .models import PreflightChecklist, AuditEvent, Project, Drone
 
 
 router = APIRouter(prefix="/api/preflight", tags=["preflight-checklist"])
@@ -189,11 +189,24 @@ async def create_checklist(
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "items must be an array"}})
     checklist_id = str(uuid4())
     with SessionLocal() as db:
+        project_id = str(body.get("projectId") or "").strip() or None
+        drone_id = str(body.get("droneId") or "").strip() or None
+        owner_ids = {user["id"], user.get("subject")}
+        if project_id and db.scalar(select(Project.id).where(
+            Project.id == project_id, Project.user_id.in_(owner_ids)
+        )) is None:
+            return JSONResponse(status_code=404, content={"error": {"code": "NOT_FOUND", "message": "Project not found"}})
+        if drone_id:
+            drone_query = select(Drone.id).where(Drone.id == drone_id, Drone.user_id.in_(owner_ids))
+            if project_id:
+                drone_query = drone_query.where(Drone.project_id == project_id)
+            if db.scalar(drone_query) is None:
+                return JSONResponse(status_code=404, content={"error": {"code": "NOT_FOUND", "message": "Drone not found"}})
         c = PreflightChecklist(
             id=checklist_id,
             user_id=user["id"],
-            project_id=str(body.get("projectId") or "").strip() or None,
-            drone_id=str(body.get("droneId") or "").strip() or None,
+            project_id=project_id,
+            drone_id=drone_id,
             name=name,
             items_json=json.dumps(items, ensure_ascii=False),
             created_at=datetime.now(UTC),
@@ -218,20 +231,29 @@ async def execute_checklist(
     items_in = body.get("items") or []
     if not isinstance(items_in, list):
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "items must be an array"}})
-    # Required items must all be checked
-    passed = True
-    failed_items = []
-    for item in items_in:
-        if not isinstance(item, dict):
-            continue
-        if item.get("required") is True and item.get("checked") is not True:
-            passed = False
-            failed_items.append(item.get("id") or item.get("label"))
     with SessionLocal() as db:
         c = db.get(PreflightChecklist, checklist_id)
         if c is None or c.user_id != user["id"]:
             return JSONResponse(status_code=404, content={"error": {"code": "NOT_FOUND", "message": "Checklist not found"}})
-        c.items_json = json.dumps(items_in, ensure_ascii=False)
+        stored_items = json.loads(c.items_json or "[]")
+        submitted = {
+            str(item.get("id")): item
+            for item in items_in
+            if isinstance(item, dict) and item.get("id") is not None
+        }
+        canonical_items = []
+        failed_items = []
+        for stored in stored_items:
+            if not isinstance(stored, dict):
+                continue
+            item_id = str(stored.get("id") or "")
+            checked = submitted.get(item_id, {}).get("checked") is True
+            canonical = {**stored, "checked": checked}
+            canonical_items.append(canonical)
+            if stored.get("required") is True and not checked:
+                failed_items.append(item_id or stored.get("label"))
+        passed = bool(canonical_items) and not failed_items
+        c.items_json = json.dumps(canonical_items, ensure_ascii=False)
         c.executed_at = datetime.now(UTC)
         c.passed = passed
         db.add(AuditEvent(

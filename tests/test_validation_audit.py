@@ -25,7 +25,7 @@ class ValidationAuditTest(unittest.TestCase):
         self.client.__enter__()
         with SessionLocal() as db:
             db.add(User(id=self.user_id, email=self.email))
-            db.add(AdminAccountRecord(id=str(uuid4()), email=self.email, data_json=json.dumps({"id": self.user_id, "email": self.email, "role": "user", "accountStatus": "active", "level": "L1"})))
+            db.add(AdminAccountRecord(id=str(uuid4()), email=self.email, data_json=json.dumps({"id": self.user_id, "email": self.email, "role": "user", "accountStatus": "active", "level": "L2"})))
             db.flush()
             db.add(Project(id=self.project_id, user_id=self.user_id, name="Audit test", data_json="{}"))
             db.commit()

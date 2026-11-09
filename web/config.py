@@ -1,4 +1,5 @@
 from functools import lru_cache
+import ipaddress
 import os
 import re
 from typing import Literal
@@ -45,7 +46,7 @@ class Settings(BaseSettings):
         populate_by_name=True,
     )
 
-    app_name: str = 'AeroMind AI'
+    app_name: str = 'AeroMind.IA'
     environment: Literal['development', 'staging', 'production'] = Field('production', alias='AEROMIND_ENV', validation_alias='AEROMIND_ENV')
     port: int = Field(10000, alias='PORT', validation_alias='PORT')
     session_secret: str = Field(..., alias='AEROMIND_SESSION_SECRET', validation_alias='AEROMIND_SESSION_SECRET')
@@ -76,6 +77,11 @@ class Settings(BaseSettings):
     openai_api_key: str | None = Field(None, alias='OPENAI_API_KEY', validation_alias='OPENAI_API_KEY')
     openai_api_base: str = Field('https://api.openai.com/v1', alias='OPENAI_API_BASE', validation_alias='OPENAI_API_BASE')
     openai_model: str = Field('gpt-5-mini', alias='OPENAI_MODEL', validation_alias='OPENAI_MODEL')
+    llm_deployment: Literal['external', 'aeromind'] = Field('external', alias='AEROMIND_LLM_DEPLOYMENT', validation_alias='AEROMIND_LLM_DEPLOYMENT')
+    aeromind_llm_base: str | None = Field(None, alias='AEROMIND_LLM_BASE', validation_alias='AEROMIND_LLM_BASE')
+    aeromind_llm_api_key: str | None = Field(None, alias='AEROMIND_LLM_API_KEY', validation_alias='AEROMIND_LLM_API_KEY')
+    aeromind_llm_model: str | None = Field(None, alias='AEROMIND_LLM_MODEL', validation_alias='AEROMIND_LLM_MODEL')
+    aeromind_llm_allowed_hosts: str = Field('', alias='AEROMIND_LLM_ALLOWED_HOSTS', validation_alias='AEROMIND_LLM_ALLOWED_HOSTS')
 
     @field_validator('openai_api_base', mode='before')
     @classmethod
@@ -84,6 +90,16 @@ class Settings(BaseSettings):
         if value and not value.startswith(('http://', 'https://')):
             value = f'https://{value}'
         return value.rstrip('/') or 'https://api.openai.com/v1'
+
+    @field_validator('aeromind_llm_base', mode='before')
+    @classmethod
+    def normalize_aeromind_llm_base(cls, value: str | None) -> str | None:
+        value = str(value or '').strip().strip('"\'')
+        if not value:
+            return None
+        if not value.startswith(('http://', 'https://')):
+            value = f'https://{value}'
+        return value.rstrip('/')
 
     @field_validator('session_secret')
     @classmethod
@@ -101,6 +117,39 @@ class Settings(BaseSettings):
         if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', value):
             raise ValueError('DEFAULT_DEMO_EMAIL must be a valid email address')
         return value
+
+    @property
+    def llm_configured(self) -> bool:
+        if self.llm_deployment == 'aeromind':
+            if not (self.aeromind_llm_api_key and self.aeromind_llm_model and self.aeromind_llm_base):
+                return False
+            parsed = urlparse(self.aeromind_llm_base)
+            host = (parsed.hostname or '').casefold().rstrip('.')
+            netloc = parsed.netloc.casefold().rstrip('.')
+            if host in {'api.openai.com', 'openai.com', 'api.manus.im', 'manus.im'}:
+                return False
+            if parsed.username or parsed.password or parsed.query or parsed.fragment or not host:
+                return False
+            try:
+                address = ipaddress.ip_address(host)
+            except ValueError:
+                address = None
+            if address is not None and (
+                not address.is_private or address.is_multicast or address.is_reserved
+                or address.is_unspecified or address.is_link_local
+                or (address.is_loopback and self.environment != 'development')
+            ):
+                return False
+            if netloc not in {item.strip().casefold().rstrip('.') for item in self.aeromind_llm_allowed_hosts.split(',') if item.strip()}:
+                return False
+            if parsed.scheme != 'https' and not (
+                self.environment == 'development'
+                and parsed.scheme == 'http'
+                and host in {'localhost', '127.0.0.1', '::1'}
+            ):
+                return False
+            return True
+        return bool(self.openai_api_key)
 
     @property
     def origins(self) -> list[str]:

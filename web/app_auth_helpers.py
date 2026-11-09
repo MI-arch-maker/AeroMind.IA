@@ -17,12 +17,13 @@ def current_user(cookie: str | None, authorization: str | None = None):
         email = email.casefold()
         account = account_for_identity(email, subject)
         if account is None: return None
-        if get_settings().is_superadmin_email(email): account = {**account, 'role': 'super_admin', 'accountStatus': 'active'}
+        if get_settings().is_superadmin_email(email): account = {**account, 'role': 'super_admin', 'level': 'L5', 'accountStatus': 'active'}
         # Use the registry account id as the durable business owner. This
         # prevents projects from splitting when the same address changes
         # between Entra OIDC and local MFA sessions, while the verified
         # subject is still retained in the signed session validation above.
-        return {'id': account.get('accountId') or subject, 'subject': subject, 'email': email, 'name': account.get('name') or email, 'role': account.get('role', 'user'), 'level': account.get('level', 'L1'), 'accountStatus': account.get('accountStatus', 'active')}
+        owner_id = account.get('accountId') or subject
+        return {'id': owner_id, 'workspace_id': account.get('workspaceId') or owner_id, 'subject': subject, 'email': email, 'name': account.get('name') or email, 'role': account.get('role', 'user'), 'level': account.get('level', 'L1'), 'accountStatus': account.get('accountStatus', 'active')}
     except Exception:
         return None
 

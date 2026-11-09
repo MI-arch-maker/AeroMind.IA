@@ -64,7 +64,29 @@ def _code_hash(code: str) -> str:
 
 
 def _public_account(account: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in account.items() if key not in {"authorizationCodeHash", "localEnrollmentCodeHash", "localPasswordHash", "localTotpSecretEnc", "localLoginFailures", "localAuthPendingAt", "localTotpLastCounter", "localAuthGeneration", "localEnrollmentCodeIssuedAtEpoch", "dailyTotpCodeHash"}}
+    public = {key: value for key, value in account.items() if key not in {"authorizationCodeHash", "localEnrollmentCodeHash", "localPasswordHash", "localTotpSecretEnc", "localLoginFailures", "localAuthPendingAt", "localTotpLastCounter", "localAuthGeneration", "localEnrollmentCodeIssuedAtEpoch", "dailyTotpCodeHash"}}
+    public["level"] = effective_level(public)
+    return public
+
+
+def effective_level(account: dict[str, Any]) -> str:
+    """Resolve governance tier from role; never trust a stored tier alone."""
+    if account.get("role") == "super_admin":
+        return "L5"
+    if account.get("role") == "admin":
+        return "L4"
+    value = str(account.get("level", "L1"))
+    return value if value in {"L1", "L2", "L3"} else "L1"
+
+
+def _normalized_level(role: str, level: str) -> str:
+    if role == "super_admin":
+        return "L5"
+    if role == "admin":
+        return "L4"
+    if level in {"L1", "L2", "L3"}:
+        return level
+    return "L3" if level in {"L4", "L5"} else "L1"
 
 
 def _record_account(row: AdminAccountRecord) -> dict[str, Any]:
@@ -106,7 +128,7 @@ def _primary_account() -> dict[str, Any] | None:
     return {"id": "primary-super-admin", "name": "Administrateur principal", "email": email,
             "role": "super_admin", "requestedRole": "super_admin", "accountStatus": "active",
             "approvalStatus": "approved", "loginMethod": "microsoft-entra", "createdAt": None,
-            "lastSignedIn": None, "createdBy": None, "protected": True, "level": "L4"}
+            "lastSignedIn": None, "createdBy": None, "protected": True, "level": "L5"}
 
 
 def _all_accounts(db: Session) -> list[dict[str, Any]]:
@@ -155,7 +177,7 @@ def reconcile_primary_identity() -> dict[str, Any] | None:
             db.add(row)
         else:
             stored = _record_account(row)
-            stored.update({"email": primary["email"].casefold(), "role": "super_admin", "requestedRole": "super_admin", "accountStatus": "active", "approvalStatus": "approved", "level": "L4", "protected": True})
+            stored.update({"email": primary["email"].casefold(), "role": "super_admin", "requestedRole": "super_admin", "accountStatus": "active", "approvalStatus": "approved", "level": "L5", "protected": True})
             row.data_json = json.dumps(stored, ensure_ascii=False, separators=(",", ":"))
         db.commit()
     return primary
@@ -187,7 +209,8 @@ def account_for_identity(email: str, subject: str) -> dict[str, Any] | None:
     # ``id`` remains the authenticated subject for compatibility with the
     # identity layer; ``accountId`` is the stable owner key used by business
     # data so Entra and local MFA sessions share one isolated workspace.
-    return {**account, "id": subject, "accountId": account.get("id"), "email": email.strip().casefold()}
+    account = {**account, "level": effective_level(account)}
+    return {**account, "id": subject, "accountId": account.get("id"), "workspaceId": account.get("id"), "email": email.strip().casefold()}
 
 
 def bind_entra_identity(email: str, subject: str, tenant_id: str) -> dict[str, Any] | None:
@@ -291,7 +314,7 @@ def create_account(actor: dict[str, Any], email: str, name: str, requested_role:
         "id": str(uuid.uuid4()), "name": name.strip(), "email": email, "role": requested_role,
         "requestedRole": requested_role, "accountStatus": "active", "approvalStatus": "approved",
         "createdAt": now, "lastSignedIn": None, "createdBy": actor["id"],
-        "level": level if level in {"L1", "L2", "L3", "L4"} else "L1",
+        "level": _normalized_level(requested_role, level),
         "authorizationCodeHash": _code_hash(code), "authorizationCodeLast4": code[-4:],
         "authorizationCodeIssuedAt": now,
         "localEnrollmentCodeHash": _code_hash(local_enrollment_code),
@@ -376,8 +399,8 @@ def update_account(actor: dict[str, Any], account_id: str, changes: dict[str, An
             raise ValueError("Le compte Super-Admin principal ne peut pas être modifié")
         if changes.get("role") in ROLES:
             account["role"] = account["requestedRole"] = changes["role"]
-        if changes.get("level") in {"L1", "L2", "L3", "L4"}:
-            account["level"] = changes["level"]
+        if "level" in changes or "role" in changes:
+            account["level"] = _normalized_level(account.get("role", "user"), str(changes.get("level", account.get("level", "L1"))))
         if changes.get("accountStatus") in STATUSES:
             account["accountStatus"] = changes["accountStatus"]
             account["approvalStatus"] = "approved" if changes["accountStatus"] == "active" else changes["accountStatus"]
@@ -447,7 +470,7 @@ def update_superadmin_account(actor: dict[str, Any], account_id: str, changes: d
     Overrides the regular ``update_account`` security restriction. The actor
     must be ``super_admin`` (enforced by the dispatcher and re-checked here as
     defence-in-depth). Allowed changes: ``email``, ``name``, ``level`` (locked
-    to ``L4``) and ``accountStatus`` (locked to ``active``). The role remains
+    to ``L5``) and ``accountStatus`` (locked to ``active``). The role remains
     ``super_admin`` and cannot be changed. When the email changes, the new
     address is also written into the in-memory Super-Admin allowlist via
     ``set_runtime_superadmin_emails`` so subsequent role checks and the
@@ -467,8 +490,8 @@ def update_superadmin_account(actor: dict[str, Any], account_id: str, changes: d
         # other value is rejected so the caller cannot demote the account.
         if "role" in changes and changes.get("role") != "super_admin":
             raise ValueError("Le rôle Super-Admin ne peut pas être modifié")
-        if "level" in changes and changes.get("level") != "L4":
-            raise ValueError("Le niveau du compte Super-Admin doit rester L4")
+        if "level" in changes and changes.get("level") != "L5":
+            raise ValueError("Le niveau du compte Super-Admin doit rester L5")
         if "accountStatus" in changes and changes.get("accountStatus") != "active":
             raise ValueError("Le statut du compte Super-Admin doit rester actif")
 
@@ -491,8 +514,8 @@ def update_superadmin_account(actor: dict[str, Any], account_id: str, changes: d
             account["name"] = str(changes["name"]).strip()
             applied["name"] = account["name"]
         if "level" in changes:
-            account["level"] = "L4"
-            applied["level"] = "L4"
+            account["level"] = "L5"
+            applied["level"] = "L5"
         if "accountStatus" in changes:
             account["accountStatus"] = "active"
             account["approvalStatus"] = "approved"

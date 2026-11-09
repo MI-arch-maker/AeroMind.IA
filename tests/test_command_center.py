@@ -26,7 +26,7 @@ class HumanCommandCenterTest(unittest.TestCase):
         with SessionLocal() as db:
             email = f"{self.user_id}@example.test"
             db.add(User(id=self.user_id, email=email))
-            db.add(AdminAccountRecord(id=str(uuid4()), email=email, data_json=json.dumps({"id": str(uuid4()), "email": email, "name": "Test user", "role": "user", "accountStatus": "active", "level": "L1"})))
+            db.add(AdminAccountRecord(id=str(uuid4()), email=email, data_json=json.dumps({"id": self.user_id, "email": email, "name": "Test user", "role": "user", "accountStatus": "active", "level": "L2"})))
             db.commit()
 
     def tearDown(self):
@@ -68,7 +68,7 @@ class HumanCommandCenterTest(unittest.TestCase):
         alias_id = f"reviewer-alias-{uuid4()}"
         owner_email = f"{self.user_id}@example.test"
         with SessionLocal() as db:
-            db.add(AdminAccountRecord(id=str(uuid4()), email=reviewer_email, data_json=json.dumps({"id": reviewer_id, "name": "Réviseur", "email": reviewer_email, "role": "surveillant", "accountStatus": "active", "level": "L2"})))
+            db.add(AdminAccountRecord(id=str(uuid4()), email=reviewer_email, data_json=json.dumps({"id": reviewer_id, "name": "Réviseur", "email": reviewer_email, "role": "surveillant", "accountStatus": "active", "level": "L3"})))
             owner_account = db.query(AdminAccountRecord).filter(AdminAccountRecord.email == owner_email).first()
             owner_data = json.loads(owner_account.data_json)
             owner_data["role"] = "surveillant"
@@ -158,7 +158,7 @@ class HumanCommandCenterTest(unittest.TestCase):
         with SessionLocal() as db:
             other_email = f"{other_id}@example.test"
             db.add(User(id=other_id, email=other_email))
-            db.add(AdminAccountRecord(id=str(uuid4()), email=other_email, data_json=json.dumps({"id": other_id, "email": other_email, "role": "user", "accountStatus": "active", "level": "L1"})))
+            db.add(AdminAccountRecord(id=str(uuid4()), email=other_email, data_json=json.dumps({"id": other_id, "email": other_email, "role": "user", "accountStatus": "active", "level": "L2"})))
             db.commit()
         token = _signed(_b64(f"{other_id}|{other_id}@example.test".encode()))
         other = TestClient(app, headers={"host": "localhost", "cookie": f"aeromind_session={token}"})

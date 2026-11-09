@@ -12,6 +12,7 @@ custom items are persisted in the MaterialItem table.
 from __future__ import annotations
 
 import json
+import hashlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -25,6 +26,15 @@ from .models import MaterialItem
 
 
 router = APIRouter(prefix="/api/materials", tags=["material-library"])
+
+
+def _custom_item_storage_id(user_id: str, item_id: str) -> str:
+    """Namespace public item IDs by owner while preserving the API ID."""
+    if not item_id or len(item_id) > 60 or not item_id.isascii() or any(
+        not (character.isalnum() or character in "-_.") for character in item_id
+    ):
+        raise ValueError("id must be 1-60 ASCII letters, digits, dots, underscores or hyphens")
+    return f"u{hashlib.sha256(user_id.encode('utf-8')).hexdigest()[:12]}:{item_id}"
 
 
 # ===========================================================================
@@ -660,9 +670,11 @@ def catalog_endpoint(
     # Append user items from DB if authenticated
     if user:
         with SessionLocal() as db:
-            for row in db.scalars(select(MaterialItem).order_by(MaterialItem.category)):
+            for row in db.scalars(
+                select(MaterialItem).where(MaterialItem.user_id == user["id"]).order_by(MaterialItem.category)
+            ):
                 items.append({
-                    "id": row.id,
+                    "id": row.id.split(":", 1)[1] if row.user_id is not None and ":" in row.id else row.id,
                     "category": row.category,
                     "label": row.label,
                     "manufacturer": row.manufacturer,
@@ -716,6 +728,10 @@ async def add_custom_item(
     item_id = str(body.get("id") or "").strip()
     if not item_id:
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "id is required"}})
+    try:
+        storage_id = _custom_item_storage_id(user["id"], item_id)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": str(exc)}})
     category = str(body.get("category") or "").strip()
     if category not in [c["id"] for c in MATERIAL_CATEGORIES]:
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": f"category must be one of {[c['id'] for c in MATERIAL_CATEGORIES]}"}})
@@ -727,11 +743,12 @@ async def add_custom_item(
         return JSONResponse(status_code=403, content={"error": {"code": "WEAPONIZED_FORBIDDEN", "message": "AeroMind is a non-weaponized platform; weaponized items cannot be added"}})
     compatible_airframes = body.get("compatibleAirframes") or []
     with SessionLocal() as db:
-        existing = db.get(MaterialItem, item_id)
+        existing = db.get(MaterialItem, storage_id)
         if existing is not None:
             return JSONResponse(status_code=409, content={"error": {"code": "ALREADY_EXISTS", "message": f"Item with id {item_id} already exists"}})
         item = MaterialItem(
-            id=item_id,
+            id=storage_id,
+            user_id=user["id"],
             category=category,
             label=label,
             manufacturer=body.get("manufacturer"),
@@ -767,7 +784,13 @@ def delete_custom_item(
     if not user:
         return JSONResponse(status_code=401, content={"error": {"code": "UNAUTHORIZED", "message": "OIDC authentication required"}})
     with SessionLocal() as db:
-        item = db.get(MaterialItem, item_id)
+        try:
+            storage_id = _custom_item_storage_id(user["id"], item_id)
+        except ValueError:
+            return JSONResponse(status_code=404, content={"error": {"code": "NOT_FOUND", "message": "Item not found"}})
+        item = db.scalar(select(MaterialItem).where(
+            MaterialItem.id == storage_id, MaterialItem.user_id == user["id"]
+        ))
         if item is None:
             return JSONResponse(status_code=404, content={"error": {"code": "NOT_FOUND", "message": "Item not found"}})
         db.delete(item)

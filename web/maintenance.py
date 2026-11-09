@@ -11,16 +11,30 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Cookie, Header, Query, Request
+from fastapi import APIRouter, Cookie, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import desc, func, select
 
 from .app_auth_helpers import current_user
 from .database import SessionLocal
-from .models import MaintenanceRecord, BatteryCycle, AuditEvent
+from .models import MaintenanceRecord, BatteryCycle, AuditEvent, Project, Drone
 
 
 router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
+
+
+def _require_owned_links(db, user: dict, project_id: str | None, drone_id: str | None) -> None:
+    owner_ids = {user["id"], user.get("subject")}
+    if project_id and db.scalar(select(Project.id).where(
+        Project.id == project_id, Project.user_id.in_(owner_ids)
+    )) is None:
+        raise HTTPException(404, "Project not found")
+    if drone_id:
+        query = select(Drone.id).where(Drone.id == drone_id, Drone.user_id.in_(owner_ids))
+        if project_id:
+            query = query.where(Drone.project_id == project_id)
+        if db.scalar(query) is None:
+            raise HTTPException(404, "Drone not found")
 
 
 # ===========================================================================
@@ -93,11 +107,14 @@ async def create_maintenance_record(
         except ValueError:
             pass
     with SessionLocal() as db:
+        project_id = str(body.get("projectId") or "").strip() or None
+        drone_id = str(body.get("droneId") or "").strip() or None
+        _require_owned_links(db, user, project_id, drone_id)
         r = MaintenanceRecord(
             id=record_id,
             user_id=user["id"],
-            project_id=str(body.get("projectId") or "").strip() or None,
-            drone_id=str(body.get("droneId") or "").strip() or None,
+            project_id=project_id,
+            drone_id=drone_id,
             material_item_id=str(body.get("materialItemId") or "").strip() or None,
             maintenance_type=maintenance_type,
             description=str(body.get("description") or ""),
@@ -219,10 +236,13 @@ async def record_battery_cycle(
     if event_type not in {"charge", "discharge", "storage"}:
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "eventType must be charge / discharge / storage"}})
     with SessionLocal() as db:
+        project_id = str(body.get("projectId") or "").strip() or None
+        drone_id = str(body.get("droneId") or "").strip() or None
+        _require_owned_links(db, user, project_id, drone_id)
         c = BatteryCycle(
             user_id=user["id"],
-            project_id=str(body.get("projectId") or "").strip() or None,
-            drone_id=str(body.get("droneId") or "").strip() or None,
+            project_id=project_id,
+            drone_id=drone_id,
             battery_label=battery_label,
             event_type=event_type,
             voltage_v=float(body.get("voltageV")) if body.get("voltageV") is not None else None,

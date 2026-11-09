@@ -285,6 +285,7 @@ class MaterialItem(Base):
     """
     __tablename__ = "material_items"
     id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     category: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
     label: Mapped[str] = mapped_column(String(240), nullable=False)
     manufacturer: Mapped[str] = mapped_column(String(120), nullable=True)

@@ -229,7 +229,7 @@ export default function AuditJournal({ onAuthenticated }: Props) {
         <div className="max-w-md w-full rounded-2xl border border-slate-700 bg-slate-900/70 p-8 text-center">
           <ShieldCheck className="mx-auto mb-4 text-cyan-400" size={40} />
           <h1 className="text-2xl font-bold">{t("Journal d'audit personnel")}</h1>
-          <p className="mt-3 text-sm text-slate-400">{t("Connectez-vous pour accéder à votre journal d'audit privé. Chaque utilisateur dispose d'un journal indépendant et isolé.")}</p>
+          <p className="mt-3 text-sm text-slate-400">{t("Connectez-vous pour accéder à votre journal d'audit personnel. Chaque utilisateur dispose d'un journal indépendant et isolé.")}</p>
           <button onClick={() => startLogin()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-3 text-sm font-bold text-white hover:bg-cyan-400">
             {t("Se connecter")}
           </button>

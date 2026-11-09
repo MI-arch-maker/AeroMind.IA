@@ -288,7 +288,7 @@ const findDroneProfile = (id?: string) =>
 const DEFAULT_MISSION_BRIEF =
   "Inspection d’une ligne électrique sur 18 km, capteur stabilisé, retour supervisé.";
 
-type SessionUser = { email?: string; name?: string; role?: string };
+type SessionUser = { id?: string; workspace_id?: string; email?: string; name?: string; role?: string; level?: string };
 
 function SessionControls() {
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -7084,20 +7084,20 @@ function CopilotView({
     <div className="view-stack">
       <SectionHeading
         eyebrow="05 / INTELLIGENCE DE CONCEPTION"
-        title="Copilote AeroMind"
-        description="Une IA de raisonnement connectée au scénario actif : elle lit les résultats, questionne les hypothèses et propose la prochaine action vérifiable."
+        title="Intelligence AeroMind"
+        description="Le service d’ingénierie AeroMind analyse le scénario et propose des pistes vérifiables. Il reste consultatif : aucune action physique ni décision autonome."
         action={
           <span className="ai-live-badge">
             <span className="live-dot" />{" "}
             {aiStatusQuery.data?.providerConfigured
-              ? "LLM SERVEUR ACTIF"
-              : "IA LOCALE ACTIVE"}
+              ? aiStatusQuery.data?.deployment === "aeromind" ? "SERVICE IA AEROMIND ACTIF" : "FOURNISSEUR IA EXTERNE ACTIF"
+              : "MODE LOCAL HORS LIGNE"}
           </span>
         }
       />
       <div className="copilot-command-strip">
         <div>
-          <span className="eyebrow">AEROMIND AI / ORCHESTRATEUR</span>
+          <span className="eyebrow">AEROMIND.IA / INTELLIGENCE D’INGÉNIERIE</span>
           <strong>Brief → hypothèses → décision → preuve</strong>
         </div>
         <span className="copilot-command-status">
@@ -7107,6 +7107,7 @@ function CopilotView({
           <i /> RÉPONSE TRAÇABLE
         </span>
       </div>
+      {aiStatusQuery.data?.providerConfigured && aiStatusQuery.data?.deployment !== "aeromind" && <p className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-xs text-amber-100">Mode fournisseur externe : le contexte technique de ce workspace est transmis au service configuré côté serveur. Pour un traitement exclusivement hébergé par AeroMind, configurez le gateway interne approuvé.</p>}
       <section className="copilot-analysis-rail" aria-label="Chaîne de décision et preuves">
         <div><small>CONFIGURATION</small><strong>{config.designName || config.airframe || "À définir"}</strong><span>{config.motorCount ?? 0} moteur(s) · {formatNumber(config.wingspan, 2)} m</span></div>
         <div><small>RUN DE RÉFÉRENCE</small><strong>{simulation.runId}</strong><span>{formatNumber(simulation.totalMassKg)} kg · {formatNumber(simulation.enduranceH)} h</span></div>
@@ -7127,8 +7128,8 @@ function CopilotView({
             <div className="copilot-context-state">
               <span className="online-pulse" />{" "}
               {aiStatusQuery.data?.providerConfigured
-                ? "LLM serveur connecté"
-                : "Moteur local contrôlé"}
+                ? aiStatusQuery.data?.deployment === "aeromind" ? "Inference AeroMind connectée" : "Fournisseur externe connecté"
+                : "Moteur de continuité local (règles)"}
             </div>
           </div>
           <Suspense fallback={<div className="copilot-loading">Chargement du copilote…</div>}>
@@ -14240,7 +14241,7 @@ export default function Home() {
           </div>
           <div>
             <strong>
-              AEROMIND <b>IA</b>
+              AEROMIND.<b>IA</b>
             </strong>
             <span>ENGINEERING SYSTEMS</span>
           </div>
@@ -14320,15 +14321,15 @@ export default function Home() {
             </div>
             <span className="online-pulse" />
           </div>
-          {authenticatedUser?.role === "super_admin" && (
+          {(authenticatedUser?.role === "admin" || authenticatedUser?.role === "super_admin") && (
             <button
               className="nav-item"
               onClick={() => {
-                window.location.href = "/super-admin";
+                window.location.href = authenticatedUser.role === "super_admin" ? "/super-admin" : "/admin-console";
               }}
             >
               <ShieldCheck size={16} />
-              <span>Console Super-Admin</span>
+              <span>{authenticatedUser.role === "super_admin" ? "Console Super-Admin" : "Console Administrateur"}</span>
               <small>SECURE</small>
             </button>
           )}
@@ -14380,9 +14381,9 @@ export default function Home() {
               </strong>
               <small>
                 {serverProjectsQuery.isSuccess
-                  ? "Compte connecté · données serveur"
+                  ? `Espace personnel · ${authenticatedUser?.level ?? "L1"} · données serveur`
                   : authenticatedUser
-                    ? "Compte connecté · stockage local"
+                    ? `Espace personnel · ${authenticatedUser.level ?? "L1"} · stockage local`
                     : window.__MANUS_CONFIG__?.externalOidcEnabled
                       ? `Connexion ${window.__MANUS_CONFIG__.externalOidcProvider} indépendante`
                       : "SSO autonome non configuré · voir le guide de déploiement"}
@@ -14499,7 +14500,7 @@ export default function Home() {
             <div className="shared-sync-ribbon-cell"><small>MATÉRIAU SÉLECTIONNÉ / NOMENCLATURE</small><strong>{config.engineeringSelection?.materialLabel ?? "Aucun matériau sélectionné"}</strong><span>{config.installedMaterials?.length ?? 0} élément(s) installé(s) · {(config.constructionMassKg ?? 0).toFixed(2)} kg déclarés</span></div>
             <div className="shared-sync-ribbon-cell"><small>ÉCRITURES / COMMANDES</small><strong>{requirements.length} exigence(s) · {config.missionPlan?.waypoints.length ?? 0} waypoint(s)</strong><span>SIMULATION LOGICIELLE · commandes liées au scénario</span></div>
           </section>
-          <section className="digital-thread-rail" aria-label="Fil d’ingénierie AeroMind">
+          {activeView === "overview" && <section className="digital-thread-rail" aria-label="Fil d’ingénierie AeroMind">
             <div className="digital-thread-heading">
               <span className="digital-thread-kicker">AEROMIND / DIGITAL THREAD</span>
               <strong>{activeDroneLabel}</strong>
@@ -14520,7 +14521,7 @@ export default function Home() {
               ))}
             </div>
             <div className="digital-thread-proof"><span className="proof-dot" /> SIMULATION UNIQUEMENT <b>·</b> NON CERTIFIÉ <b>·</b> SORTIE MATÉRIELLE DÉSACTIVÉE</div>
-          </section>
+          </section>}
           <>
             <ActionCenter actions={actions} />
             {activeView === "overview" ? (

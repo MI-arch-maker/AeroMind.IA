@@ -189,13 +189,16 @@ def me(
         if not local_session_valid:
             raise HTTPException(401, 'Session locale révoquée ou invalide')
     role = 'super_admin' if get_settings().is_superadmin_email(email) else account.get('role', 'user')
+    level = 'L5' if role == 'super_admin' else ('L4' if role == 'admin' else account.get('level', 'L1'))
+    workspace_id = account.get('workspaceId') or account.get('accountId') or account.get('id')
     return {
         'authenticated': True,
         'subject': subject,
         'email': email,
         'name': account.get('name') or email,
         'role': role,
-        'level': account.get('level', 'L1'),
+        'level': level,
+        'workspace_id': workspace_id,
         'account_status': account.get('accountStatus', 'active'),
         'trial_access': get_settings().is_trial_email(email),
     }
@@ -227,7 +230,7 @@ def logout(
 
 
 @router.get('/login')
-async def login(request: Request, return_to: str = '/', reauth: bool = False):
+async def login(request: Request, return_to: str = '/', reauth: bool = False, console: str | None = None):
     cfg = _settings()
     async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
         metadata = (await client.get(f"{cfg['issuer']}/.well-known/openid-configuration")).raise_for_status()
@@ -236,9 +239,10 @@ async def login(request: Request, return_to: str = '/', reauth: bool = False):
     nonce = _b64(secrets.token_bytes(32))
     verifier = _b64(secrets.token_bytes(48))
     challenge = _b64(hashlib.sha256(verifier.encode()).digest())
-    safe_return_to = return_to if return_to.startswith('/') and not return_to.startswith('//') and '\\' not in return_to else '/'
+    admin_console = console == 'admin'
+    safe_return_to = '/admin-console' if admin_console else (return_to if return_to.startswith('/') and not return_to.startswith('//') and '\\' not in return_to else '/')
     return_token = _b64(safe_return_to.encode())
-    payload = f'{state}.{nonce}.{verifier}.{int(time.time())}.{return_token}'
+    payload = f'{state}.{nonce}.{verifier}.{int(time.time())}.{return_token}.{int(admin_console)}'
     token = _signed(_b64(payload.encode()))
     auth_params = {'client_id': cfg['client_id'], 'redirect_uri': cfg['redirect_uri'], 'response_type': 'code', 'scope': 'openid profile email', 'state': state, 'nonce': nonce, 'code_challenge': challenge, 'code_challenge_method': 'S256'}
     if reauth:
@@ -257,7 +261,15 @@ async def callback(request: Request, code: str, state: str, aeromind_oidc_state:
     try:
         signed_value = _verified(aeromind_oidc_state)
         raw = base64.urlsafe_b64decode(signed_value + '=' * (-len(signed_value) % 4)).decode()
-        expected_state, nonce, verifier, issued, return_token = raw.split('.', 4)
+        parts = raw.split('.')
+        if len(parts) == 5:  # Backward compatibility for in-flight legacy OIDC states.
+            expected_state, nonce, verifier, issued, return_token = parts
+            admin_console = False
+        elif len(parts) == 6:
+            expected_state, nonce, verifier, issued, return_token, admin_flag = parts
+            admin_console = admin_flag == '1'
+        else:
+            raise ValueError
         if not secrets.compare_digest(expected_state, state) or time.time() - int(issued) > 600:
             raise ValueError
     except (ValueError, TypeError):
@@ -295,7 +307,12 @@ async def callback(request: Request, code: str, state: str, aeromind_oidc_state:
     if not return_to.startswith('/') or return_to.startswith('//') or '\\' in return_to:
         return_to = '/'
     separator = '&' if '?' in return_to else '?'
-    response = RedirectResponse(f"{return_to}#aeromind_session={quote(session, safe='')}")
+    response = RedirectResponse(return_to if admin_console else f"{return_to}#aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')
-    response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security(request))
+    if admin_console:
+        response.set_cookie('aeromind_admin_session', session, max_age=28800, httponly=True,
+                            secure=_cookie_security(request)['secure'],
+                            samesite=_cookie_security(request)['samesite'], path='/api/admin-console')
+    else:
+        response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security(request))
     return response

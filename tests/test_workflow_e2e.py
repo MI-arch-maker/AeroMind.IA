@@ -23,7 +23,7 @@ class WorkflowE2ETest(unittest.TestCase):
         with TestClient(app, headers={"host": "localhost"}) as client:
             with SessionLocal() as db:
                 db.add(User(id=user_id, email="demo@example.com"))
-                db.add(AdminAccountRecord(id=str(uuid4()), email="demo@example.com", data_json='{"id":"workflow-e2e-user","email":"demo@example.com","role":"demo","accountStatus":"active","level":"L1"}'))
+                db.add(AdminAccountRecord(id=str(uuid4()), email="demo@example.com", data_json='{"id":"workflow-e2e-user","email":"demo@example.com","role":"user","accountStatus":"active","level":"L3"}'))
                 db.commit()
                 db.add(Project(id=project_id, user_id=user_id, name="Workflow E2E", data_json="{}"))
                 db.commit()

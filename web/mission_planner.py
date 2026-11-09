@@ -168,6 +168,11 @@ async def create_mission(
         return JSONResponse(status_code=400, content={"error": {"code": "BAD_REQUEST", "message": "waypoints must be an array"}})
     mission_id = str(uuid4())
     with SessionLocal() as db:
+        if project_id and db.scalar(select(Project).where(
+            Project.id == project_id,
+            Project.user_id.in_({user["id"], user.get("subject")}),
+        )) is None:
+            return JSONResponse(status_code=404, content={"error": {"code": "NOT_FOUND", "message": "Project not found"}})
         mission = Mission(
             id=mission_id,
             user_id=user["id"],

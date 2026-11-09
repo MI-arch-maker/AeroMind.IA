@@ -53,7 +53,7 @@ class LabBenchApiTest(unittest.TestCase):
                             "name": "LabBench test owner",
                             "role": "user",
                             "accountStatus": "active",
-                            "level": "L1",
+                            "level": "L3",
                         }
                     ),
                 )

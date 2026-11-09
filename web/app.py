@@ -16,13 +16,14 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from .config import get_settings
-from .copilot import router as copilot_router
+from .copilot import complete_chat as complete_copilot_chat, router as copilot_router
 from .engineering_extensions import router as engineering_extensions_router
 from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
 from .engineering_connectors_api import router as engineering_connectors_router
 from .admin import activity as admin_activity, clear_audit_logs, create_account, delete_account, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
+from .admin_console_api import router as admin_console_router
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
 from .local_auth import router as local_auth_router
@@ -73,6 +74,7 @@ from uuid import UUID, uuid4
 from sitl_modules.api import router as sitl_router
 from .mavlink_telemetry_api import router as mavlink_telemetry_router
 from .i18n import locale_from_accept_language, localized_message
+from .capability_policy import CapabilityMiddleware
 
 
 def _engine_status():
@@ -215,7 +217,7 @@ async def lifespan(_: FastAPI):
 
 
 settings = get_settings()
-app = FastAPI(title='AeroMind AI API', version='2.0.0', docs_url='/docs' if settings.environment != 'production' else None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title='AeroMind.IA API', version='2.0.0', docs_url='/docs' if settings.environment != 'production' else None, redoc_url=None, lifespan=lifespan)
 # P1-obs fix (INSPECT-DEVOPS F-9.5): rate limiting on auth endpoints
 try:
     from slowapi import Limiter
@@ -250,6 +252,7 @@ def _is_valid_workspace_key(key: str) -> bool:
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.hosts)
 if settings.origins:
     app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credentials=True, allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allow_headers=['Authorization', 'Content-Type', 'X-Request-ID', 'X-AeroMind-Workspace', 'X-CSRF-Token', 'Idempotency-Key'])
+app.add_middleware(CapabilityMiddleware)
 
 FRONTEND_DIR = Path('frontend/dist')
 FRONTEND_INDEX = FRONTEND_DIR / 'index.html'
@@ -270,6 +273,7 @@ app.include_router(business_router)
 app.include_router(hardware_router)
 app.include_router(operational_state_router)
 app.include_router(oidc_router)
+app.include_router(admin_console_router)
 app.include_router(local_auth_router)
 # Phase 1 modernization: self-registration with super-admin approval
 app.include_router(registration_router)
@@ -317,7 +321,6 @@ async def security_headers(request: Request, call_next):
             "/api/auth/local/enroll",
             "/api/auth/dev-login",
             "/api/local/workspace",  # workspace uses X-AeroMind-Workspace header instead
-            "/api/trpc",  # tRPC bridge has its own auth checks
         }
         if not any(_path.startswith(p) for p in _skip_paths):
             cookie_token = request.cookies.get("lab_csrf_token") or request.cookies.get("aeromind_lab_csrf")
@@ -548,7 +551,7 @@ async def dev_login(request: Request):
     except Exception:  # noqa: BLE001 — best-effort, must not block dev-login
         pass
     response = JSONResponse({
-        'user': {'id': dev_user_id, 'email': dev_email, 'name': primary.get('name', 'Administrateur principal'), 'role': 'super_admin', 'level': 'L4', 'accountStatus': 'active'},
+        'user': {'id': dev_user_id, 'email': dev_email, 'name': primary.get('name', 'Administrateur principal'), 'role': 'super_admin', 'level': 'L5', 'accountStatus': 'active'},
         'token': token,
     })
     # P-LOGOUT-5 fix: reduce dev-login cookie lifetime from 24h to 8h to
@@ -730,7 +733,16 @@ async def trpc_compat(
     elif name.endswith('identity.providers'):
         data = [{'id': 'entra', 'label': 'Microsoft Entra ID', 'domains': 'Microsoft 365 / Entra', 'note': 'Connexion OIDC sécurisée', 'configured': bool(settings.oidc)}, {'id': 'local-mfa', 'label': 'Accès local AeroMind', 'domains': 'Comptes préprovisionnés', 'note': 'Mot de passe + TOTP; invitation admin requise', 'configured': True}]
     elif name.endswith('ai.status'):
-        data = {'available': bool(settings.openai_api_key), 'provider': 'OpenAI-compatible' if settings.openai_api_key else 'local'}
+        data = {'available': settings.llm_configured, 'providerConfigured': settings.llm_configured, 'deployment': settings.llm_deployment, 'provider': 'AeroMind Intelligence' if settings.llm_deployment == 'aeromind' and settings.llm_configured else ('Fournisseur externe' if settings.llm_configured else 'continuité locale')}
+    elif name.endswith('ai.chat'):
+        if not current_user:
+            return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
+        messages = payload.get('messages', []) if isinstance(payload, dict) else []
+        context = payload.get('context') if isinstance(payload, dict) else None
+        try:
+            data = await complete_copilot_chat(messages if isinstance(messages, list) else [], context if isinstance(context, dict) else None)
+        except HTTPException as exc:
+            return _trpc_error(exc.status_code, 'LLM_REQUEST_FAILED', str(exc.detail))
     elif name.endswith('labBench.status'):
         data = labbench_service.status()
     elif name.endswith('labBench.runSimulation'):
@@ -850,9 +862,8 @@ async def trpc_compat(
         if current_user.get('role') == 'visitor':
             return _trpc_error(403, 'FORBIDDEN', 'Le rôle Visiteur ne peut pas créer de projet persistant')
         import json, traceback
-        project_id, drone_id = str(uuid4()), str(uuid4())
+        project_id = str(uuid4())
         config = payload.get('config', {}) if isinstance(payload.get('config', {}), dict) else {}
-        config = {**config, 'airframe': config.get('airframe') or 'quadcopter', 'motorCount': config.get('motorCount') or 4, 'massKg': config.get('massKg') or 1.2, 'batteryWh': config.get('batteryWh') or 100}
         project_data = {'project': payload.get('project', {}), 'config': config, 'requirements': payload.get('requirements', []), 'runId': payload.get('runId', 'SIM-000')}
         try:
             # V6.2 — use the app-level SessionLocal (patched in tests, the
@@ -871,10 +882,7 @@ async def trpc_compat(
                 db.add(Project(id=project_id, user_id=current_user['id'],
                                name=project_data['project'].get('name', 'Nouveau projet'),
                                data_json=json.dumps(project_data, ensure_ascii=False),
-                               active_drone_id=drone_id))
-                db.flush()  # ensure project exists before creating drone (FK)
-                db.add(Drone(id=drone_id, user_id=current_user['id'], project_id=project_id,
-                             name='Drone par défaut', config_json=json.dumps(project_data['config'], ensure_ascii=False)))
+                               active_drone_id=None))
                 db.commit()
         except Exception as exc:
             # V6.2 — log the full traceback so the operator can diagnose the
@@ -1448,8 +1456,8 @@ def home():
         return _frontend_file_response(FRONTEND_INDEX)
     return """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AeroMind AI</title></head><body style="font-family:system-ui;max-width:760px;margin:4rem auto;padding:0 1.5rem">
-<h1>AeroMind AI</h1><p>API d’ingénierie et de simulation opérationnelle.</p>
+<title>AeroMind.IA</title></head><body style="font-family:system-ui;max-width:760px;margin:4rem auto;padding:0 1.5rem">
+<h1>AeroMind.IA</h1><p>API d’ingénierie et de simulation opérationnelle.</p>
 <p id="auth">Vérification de la session…</p>
 <p><a href="/api/health">Health</a> · <a href="/api/capabilities">Capabilities</a> · <a href="/api/auth/oidc/login">Connexion Entra/OIDC</a></p>
 <script>fetch('/api/auth/oidc/me').then(r=>r.ok?r.json():null).then(x=>{document.getElementById('auth').textContent=x?'Session active : '+x.email:'Non authentifié';}).catch(()=>{document.getElementById('auth').textContent='Session non vérifiée';});</script>
@@ -1477,7 +1485,7 @@ def capabilities():
         'version': '2.0.0',
         'oidc': bool(settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer'])),
         'identity_provider': 'microsoft-entra' if settings.oidc and _is_microsoft_entra_issuer(settings.oidc['issuer']) else None,
-        'llm': bool(settings.openai_api_key),
+        'llm': settings.llm_configured,
         'sitl': True,
         'sitl_supported': True,
         'sitl_active': os.getenv('AEROMIND_SITL_ACTIVE', '').strip().lower() == 'true',

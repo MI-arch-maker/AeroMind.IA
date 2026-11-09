@@ -192,14 +192,22 @@ def _otp_uri(secret: str, email: str) -> str:
     return f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer)}&algorithm=SHA1&digits=6&period=30"
 
 
-def _session_response(account: dict, request: Request) -> JSONResponse:
+def _session_response(account: dict, request: Request, *, admin_console: bool = False) -> JSONResponse:
+    if admin_console and account.get("role") not in {"admin", "super_admin"} and not get_settings().is_superadmin_email(account.get("email")):
+        raise HTTPException(403, "Console réservée aux rôles admin et super_admin.")
     subject = f"local:{account['id']}:{int(account.get('localAuthGeneration', 0))}"
     email = _normalize_email(account["email"])
     token = _signed(_b64(f"{subject}|{email}".encode()))
     # P2-02/P2-03 fix: register the session in the server-side allowlist.
     register_primary_session(token, subject, email)
     response = JSONResponse({"authenticated": True, "email": email, "auth_method": "local-password-totp"})
-    response.set_cookie("aeromind_session", token, max_age=28_800, **_cookie_security(request))
+    if admin_console:
+        cookie = _cookie_security(request)
+        response.set_cookie("aeromind_admin_session", token, max_age=28_800,
+                            httponly=True, secure=cookie["secure"],
+                            samesite=cookie["samesite"], path="/api/admin-console")
+    else:
+        response.set_cookie("aeromind_session", token, max_age=28_800, **_cookie_security(request))
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -292,7 +300,7 @@ def confirm_enrollment(body: Confirmation, request: Request):
 
 @router.post("/login")
 @_limiter.limit("5/minute")
-def login(body: Login, request: Request):
+def login(body: Login, request: Request, console: str | None = None):
     email = _normalize_email(str(body.email))
     with SessionLocal() as db:
         row = _row_for_email(db, email, lock=True)
@@ -328,7 +336,7 @@ def login(body: Login, request: Request):
         row.data_json = json.dumps(stored, ensure_ascii=False, separators=(",", ":"))
         _audit(db, "account.local_auth_login", stored, {"auth_method": "password+totp", "client": request.client.host if request.client else None})
         db.commit()
-    return _session_response(account, request)
+    return _session_response(account, request, admin_console=console == "admin")
 
 
 @router.post("/admin/enrollment-invite")

@@ -16,6 +16,7 @@ import VirtualParametricFactory from "@/pages/VirtualParametricFactory";
 // integrated Home workspace. Keep the legacy URL as an alias to that same
 // shell so bookmarks cannot open a detached LabBench instance.
 const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
+const AdminConsole = lazy(() => import("@/pages/AdminConsole"));
 const AuditJournal = lazy(() => import("@/pages/AuditJournal"));
 
 function PageLoader() {
@@ -37,9 +38,14 @@ function Router() {
       <Route path="/labbench" component={Home} />
       <Route path="/engineering-hub" component={Home} />
       <Route path="/virtual-factory" component={VirtualParametricFactory} />
+      <Route path="/admin-console">
+        <Suspense fallback={<PageLoader />}>
+          <AdminConsole />
+        </Suspense>
+      </Route>
       <Route path="/admin">
         <Suspense fallback={<PageLoader />}>
-          <SuperAdmin />
+          <AdminConsole />
         </Suspense>
       </Route>
       <Route path="/super-admin">

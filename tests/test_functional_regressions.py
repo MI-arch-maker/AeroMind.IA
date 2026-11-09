@@ -55,8 +55,8 @@ def app_client(tmp_path, monkeypatch):
     monkeypatch.setattr(_db_mod, "engine", engine)
     monkeypatch.setattr(_db_mod, "SessionLocal", Session)
     # Patch module-level SessionLocal bindings in all modules that imported it
-    import web.admin, web.dashboard, web.labbench_canonical_api, web.voice_commands, web.app
-    for mod in (web.admin, web.dashboard, web.labbench_canonical_api, web.voice_commands, web.app):
+    import web.admin, web.admin_console_api, web.dashboard, web.labbench_canonical_api, web.voice_commands, web.preflight, web.app
+    for mod in (web.admin, web.admin_console_api, web.dashboard, web.labbench_canonical_api, web.voice_commands, web.preflight, web.app):
         if hasattr(mod, "SessionLocal"):
             monkeypatch.setattr(mod, "SessionLocal", Session)
     if hasattr(web.app, "engine"):
@@ -79,7 +79,7 @@ def app_client(tmp_path, monkeypatch):
             email=user_email,
             data_json=_json.dumps({
                 "id": user_id, "email": user_email, "name": "Test User",
-                "role": "user", "accountStatus": "active", "level": "L1",
+                "role": "user", "accountStatus": "active", "level": "L2",
             }),
         ))
         db.commit()
@@ -107,7 +107,7 @@ def app_client(tmp_path, monkeypatch):
 
 def test_project_creation_end_to_end(app_client):
     """Project creation via /api/trpc/projects.create must succeed and
-    persist the project + drone in the DB."""
+    persist an empty project without creating an implicit drone cell."""
     client, Session, user_id = app_client
     project_name = f"Functional Test Project {uuid4()}"
     response = client.post("/api/trpc/projects.create", json={
@@ -134,7 +134,8 @@ def test_project_creation_end_to_end(app_client):
         assert proj.user_id == user_id
         assert proj.name == project_name
         drone = db.scalar(select(Drone).where(Drone.project_id == proj.id))
-        assert drone is not None, "Default drone not created for project"
+        assert drone is None, "Project creation must not create an implicit drone"
+        assert proj.active_drone_id is None
 
 
 def test_project_read_modify_persist(app_client):
@@ -180,10 +181,7 @@ def test_project_read_modify_persist(app_client):
         assert data["project"]["name"] == updated_name, "Modification not persisted"
 
 
-@pytest.mark.skip(reason="V6.1 — TestClient cookie/header isolation for User B requires a " \
-    "real browser or a separate ASGI transport. The backend isolation is " \
-    "verified by the Project.user_id == current_user['id'] filter in " \
-    "web/app.py's projects.list handler, and by test_project_creation_end_to_end.")
+@pytest.mark.skip(reason="Le harness TestClient historique ne résout pas l’identité utilisateur B dans ce test multi-client.")
 def test_project_isolation_two_users(app_client, tmp_path, monkeypatch):
     """User A cannot see or modify User B's projects."""
     client, Session, user_a_id = app_client
@@ -256,6 +254,46 @@ def test_no_default_project_at_startup(app_client):
     assert len(projects) == 0, "Fresh user should have zero projects at startup"
 
 
+def test_admin_console_is_role_gated_and_workspace_scoped(app_client):
+    client, Session, user_id = app_client
+    session_token = _signed(_b64(f"{user_id}|{user_id}@example.test".encode()))
+    from web.primary_session_store import register_primary_session
+    register_primary_session(session_token, user_id, f"{user_id}@example.test")
+    main_app_cookie = client.get("/api/admin-console/overview", headers={"Cookie": f"aeromind_session={session_token}"})
+    assert main_app_cookie.status_code == 401
+    admin_cookie = {"Cookie": f"aeromind_admin_session={session_token}"}
+    denied = client.get("/api/admin-console/overview", headers=admin_cookie)
+    assert denied.status_code == 403
+    with Session() as db:
+        from web.models import AdminAccountRecord
+        account = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == f"{user_id}@example.test"))
+        data = json.loads(account.data_json)
+        data["role"] = "admin"
+        account.data_json = json.dumps(data)
+        db.commit()
+    allowed = client.get("/api/admin-console/overview", headers=admin_cookie)
+    assert allowed.status_code == 200, allowed.text
+    result = allowed.json()
+    assert result["role"] == "admin"
+    assert result["workspace"] == {"projects": 0, "cells": 0, "simulations": 0}
+
+
+def test_ai_chat_tRPC_is_authenticated_and_uses_gateway(app_client, monkeypatch):
+    client, _Session, _user_id = app_client
+    import web.app as app_module
+    async def fake_completion(messages, context=None):
+        assert messages[-1]["content"] == "Vérifie cette hypothèse"
+        assert context == {"project": "Projet privé"}
+        return {"provider": "test", "content": "Réponse consultative"}
+    monkeypatch.setattr(app_module, "complete_copilot_chat", fake_completion)
+    response = client.post("/api/trpc/ai.chat", json={"json": {
+        "messages": [{"role": "user", "content": "Vérifie cette hypothèse"}],
+        "context": {"project": "Projet privé"},
+    }})
+    assert response.status_code == 200, response.text
+    assert response.json()["result"]["data"]["json"]["content"] == "Réponse consultative"
+
+
 def test_workspace_visit_restore_and_sync_never_create_project(app_client):
     """Local workspace hydration/persistence is not project creation."""
     client, Session, _user_id = app_client
@@ -293,6 +331,66 @@ def test_workspace_visit_restore_and_sync_never_create_project(app_client):
     assert projects == []
     with Session() as db:
         assert db.scalar(select(Project)) is None
+
+
+def test_custom_material_catalog_is_owner_scoped(app_client, monkeypatch):
+    from fastapi.testclient import TestClient
+    from web import material_library
+    from web.models import AdminAccountRecord
+
+    client_a, Session, user_a_id = app_client
+    monkeypatch.setattr(material_library, "SessionLocal", Session)
+    created = client_a.post("/api/materials/items", json={
+        "id": "owner-only-component", "category": "propulsion", "label": "Owner-only motor",
+    })
+    assert created.status_code == 201, created.text
+
+    user_b_id = f"material-user-b-{uuid4()}"
+    email_b = f"{user_b_id}@example.test"
+    with Session() as db:
+        db.add(User(id=user_b_id, email=email_b))
+        db.add(AdminAccountRecord(id=str(uuid4()), email=email_b, data_json=json.dumps({
+            "id": user_b_id, "email": email_b, "role": "user", "accountStatus": "active", "level": "L2",
+        })))
+        db.commit()
+    token_b = _signed(_b64(f"{user_b_id}|{email_b}".encode()))
+    client_b = TestClient(client_a.app, headers={"host": "localhost", "cookie": f"aeromind_session={token_b}"})
+    try:
+        catalog_b = client_b.get("/api/materials/catalog")
+        assert catalog_b.status_code == 200
+        assert "owner-only-component" not in {item["id"] for item in catalog_b.json()["items"]}
+        assert client_b.delete("/api/materials/items/owner-only-component").status_code == 404
+        catalog_a = client_a.get("/api/materials/catalog")
+        assert "owner-only-component" in {item["id"] for item in catalog_a.json()["items"]}
+    finally:
+        client_b.close()
+        with Session() as db:
+            account = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == email_b))
+            if account is not None:
+                db.delete(account)
+            other_user = db.get(User, user_b_id)
+            if other_user is not None:
+                db.delete(other_user)
+            db.commit()
+
+
+def test_preflight_pass_uses_server_stored_required_items(app_client):
+    client, Session, user_id = app_client
+    with Session() as db:
+        from web.models import AdminAccountRecord
+        account = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == f"{user_id}@example.test"))
+        record = json.loads(account.data_json)
+        record["level"] = "L3"
+        account.data_json = json.dumps(record)
+        db.commit()
+    created = client.post("/api/preflight", json={"name": "Stored required checks", "items": [
+        {"id": "battery", "label": "Battery", "required": True},
+    ]})
+    assert created.status_code == 201, created.text
+    result = client.post(f"/api/preflight/{created.json()['id']}/execute", json={"items": []})
+    assert result.status_code == 200, result.text
+    assert result.json()["passed"] is False
+    assert result.json()["failedItems"] == ["battery"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
