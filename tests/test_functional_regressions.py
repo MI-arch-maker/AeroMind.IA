@@ -254,7 +254,7 @@ def test_no_default_project_at_startup(app_client):
     assert len(projects) == 0, "Fresh user should have zero projects at startup"
 
 
-def test_admin_console_is_role_gated_and_workspace_scoped(app_client):
+def test_admin_console_is_role_gated_and_workspace_scoped(app_client, monkeypatch):
     client, Session, user_id = app_client
     session_token = _signed(_b64(f"{user_id}|{user_id}@example.test".encode()))
     from web.primary_session_store import register_primary_session
@@ -276,6 +276,52 @@ def test_admin_console_is_role_gated_and_workspace_scoped(app_client):
     result = allowed.json()
     assert result["role"] == "admin"
     assert result["workspace"] == {"projects": 0, "cells": 0, "simulations": 0}
+    with Session() as db:
+        from datetime import datetime, timezone
+        from web.models import AdminAccountRecord, AuditEvent, Simulation
+        account = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == f"{user_id}@example.test"))
+        owner_id = result["account"]["id"]
+        if db.get(User, owner_id) is None:
+            db.add(User(id=owner_id, email=f"owner-{owner_id}@example.test"))
+        outsider_id = f"outsider-{uuid4()}"
+        db.add(User(id=outsider_id, email=f"{outsider_id}@example.test"))
+        own_project = Project(id=str(uuid4()), user_id=owner_id, name="Dossier administré", data_json='{"secret":"must-not-leak"}')
+        other_project = Project(id=str(uuid4()), user_id=outsider_id, name="Dossier étranger", data_json='{}')
+        db.add_all([own_project, other_project])
+        db.flush()
+        db.add_all([
+            Simulation(id=str(uuid4()), user_id=owner_id, project_id=own_project.id, data_json='{"status":"completed","privatePayload":"must-not-leak"}'),
+            Simulation(id=str(uuid4()), user_id=outsider_id, project_id=other_project.id, data_json='{"status":"completed"}'),
+            AuditEvent(id=str(uuid4()), project_id=own_project.id, user_id=owner_id, actor_role="admin", event_type="workspace.review", message="Contrôle propriétaire", payload_json='{}', occurred_at=datetime.now(timezone.utc)),
+            AuditEvent(id=str(uuid4()), project_id=other_project.id, user_id=outsider_id, actor_role="user", event_type="other.secret", message="Hors périmètre", payload_json='{}', occurred_at=datetime.now(timezone.utc)),
+        ])
+        db.commit()
+    records_response = client.get("/api/admin-console/workspace/records", headers=admin_cookie)
+    assert records_response.status_code == 200, records_response.text
+    records = records_response.json()
+    assert [row["name"] for row in records["projects"]] == ["Dossier administré"]
+    assert len(records["simulations"]) == 1
+    assert len(records["events"]) == 1
+    serialized = json.dumps(records)
+    assert "Dossier étranger" not in serialized
+    assert "must-not-leak" not in serialized
+    from types import SimpleNamespace
+    import web.copilot
+    internal_settings = SimpleNamespace(
+        llm_deployment="aeromind", llm_configured=True,
+        aeromind_llm_model="aeromind-test-model",
+        is_superadmin_email=lambda email: False,
+    )
+    monkeypatch.setattr("web.admin_console_api.get_settings", lambda: internal_settings)
+    async def fake_internal_completion(messages):
+        assert messages == [{"role": "user", "content": "Réponds uniquement par OK."}]
+        return {"provider": "aeromind-managed", "content": "OK"}
+    monkeypatch.setattr(web.copilot, "complete_chat", fake_internal_completion)
+    llm_response = client.post("/api/admin-console/llm/validate", headers=admin_cookie)
+    assert llm_response.status_code == 200, llm_response.text
+    assert llm_response.json() == {
+        "status": "connected", "deployment": "aeromind", "model": "aeromind-test-model"
+    }
 
 
 def test_ai_chat_tRPC_is_authenticated_and_uses_gateway(app_client, monkeypatch):

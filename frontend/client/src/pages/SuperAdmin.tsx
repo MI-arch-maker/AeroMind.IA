@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { Activity, AlertTriangle, Bell, ChevronDown, ClipboardCheck, Edit, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Plus, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Users, X, Eye } from "lucide-react";
+import { Activity, AlertTriangle, Bell, ChevronDown, ClipboardCheck, Edit, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Users, X, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { bearerHeaders, clearSessionToken } from "@/lib/sessionToken";
@@ -44,12 +44,13 @@ export default function SuperAdmin() {
   const [activeSection, setActiveSection] = useState<Section>("overview");
   const [pendingRegs, setPendingRegs] = useState<any[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
-  const [approvalDialog, setApprovalDialog] = useState<{ email: string; name: string; code?: string } | null>(null);
+  const [pendingError, setPendingError] = useState("");
   const [editSuperAdmin, setEditSuperAdmin] = useState<{ id: string; name: string; email: string } | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("email");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [sessionSeconds, setSessionSeconds] = useState(0);
+  const [refreshingAll, setRefreshingAll] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
@@ -124,18 +125,25 @@ export default function SuperAdmin() {
   const activity = trpc.superAdmin.activity.useQuery(undefined, { enabled: !!user, retry: false });
   const reports = trpc.reports.list.useQuery(undefined, { enabled: !!user, retry: false });
   const invalidate = async () => Promise.all([utils.superAdmin.accounts.invalidate(), utils.superAdmin.activity.invalidate(), utils.reports.list.invalidate()]);
+  const refreshConsole = async () => {
+    setRefreshingAll(true);
+    try { await Promise.all([invalidate(), fetchPending()]); toast.success(t("Registres actualisés")); }
+    catch { toast.error(t("Actualisation incomplète")); }
+    finally { setRefreshingAll(false); }
+  };
 
   const fetchPending = async () => {
     setPendingLoading(true);
+    setPendingError("");
     try {
       const response = await fetch("/api/auth/local/admin/pending-registrations", {
         credentials: "include", headers: bearerHeaders(),
       });
-      if (response.ok) {
-        const data = await response.json();
-        setPendingRegs(data.pending || []);
-      }
-    } catch { /* ignore */ } finally { setPendingLoading(false); }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || t("Chargement des demandes refusé."));
+      setPendingRegs(data.pending || []);
+    } catch (error: any) { setPendingError(error.message || t("Registre d'approbation indisponible.")); }
+    finally { setPendingLoading(false); }
   };
 
   const approveRegistration = async (email: string, name: string) => {
@@ -147,7 +155,7 @@ export default function SuperAdmin() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.detail || t("Approbation refusée."));
-      setApprovalDialog({ email, name, code: result.enrollment_code });
+      setAuthorizationCodeNotice({ email, localEnrollmentCode: result.enrollment_code });
       toast.success(t("Inscription approuvée"), { description: t("Code d'inscription généré. Transmettez-le à l'utilisateur.") });
       await fetchPending();
     } catch (error: any) {
@@ -397,6 +405,7 @@ export default function SuperAdmin() {
       <header className="sa-topbar flex min-h-16 items-center gap-4 border-b border-slate-200 bg-white px-5 py-3 md:px-9">
         <div className="text-sm text-slate-400">{t("Administration")} <span className="mx-2">/</span> <strong className="text-slate-700">{sectionTitle[activeSection]}</strong></div>
         <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={() => void refreshConsole()} disabled={refreshingAll} className="sa-refresh-button inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={14} className={refreshingAll ? "animate-spin" : ""} />{refreshingAll ? t("Actualisation…") : t("Actualiser")}</button>
           <button onClick={() => searchRef.current?.focus()} title={t("Rechercher")} aria-label={t("Rechercher")} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Search size={18} /></button>
           <div className="relative">
             <button onClick={() => setNotificationsOpen(v => !v)} title={t("Notifications")} aria-label={t("Notifications")} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
@@ -435,6 +444,7 @@ export default function SuperAdmin() {
             <button onClick={() => setAuthorizationCodeNotice(null)} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800">{t("Codes transmis / copiés")}</button>
           </div>
         )}
+        {(accounts.error || activity.error || reports.error) && <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><span>{t("Certaines données de gouvernance n’ont pas pu être chargées. Les actions affectées restent indisponibles jusqu’au prochain chargement.")}</span><button type="button" onClick={() => void refreshConsole()} className="font-bold underline">{t("Réessayer")}</button></div>}
         <div className="sa-page-heading mb-8 flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[.18em] text-blue-600">{t("Centre de gouvernance AeroMind")}</p>
@@ -486,7 +496,7 @@ export default function SuperAdmin() {
         </section>}
         {activeSection === "overview" && <div className="mb-7"><OperationModeCard /></div>}
 
-        <SectionPanel section={activeSection} totals={totals} activity={activity.data} reports={reports.data} reportsLoading={reports.isLoading} onCreate={() => setShowCreate(true)} onReports={() => { setShowReports(true); setActiveSection("reports"); }} onApprove={(id) => approve.mutate({ id })} onProjectAction={(id, action) => { if (action === "save") saveProject.mutate({ id }); else if (action === "observe") observeProject.mutate({ id }); else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id }); }} invalidate={async () => { await invalidate(); }} t={t} />
+        <SectionPanel section={activeSection} totals={totals} activity={activity.data} reports={reports.data} reportsLoading={reports.isLoading} pendingRegs={pendingRegs} pendingLoading={pendingLoading} pendingError={pendingError} onRefreshPending={() => void fetchPending()} onApproveRegistration={(email, name) => void approveRegistration(email, name)} onRejectRegistration={(email) => void rejectRegistration(email)} onCreate={() => setShowCreate(true)} onReports={() => { setShowReports(true); setActiveSection("reports"); }} onApprove={(id) => approve.mutate({ id })} onProjectAction={(id, action) => { if (action === "save") saveProject.mutate({ id }); else if (action === "observe") observeProject.mutate({ id }); else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id }); }} invalidate={async () => { await invalidate(); }} t={t} />
 
         {/* Accounts section — denser, sortable, Excel-like with sticky header */}
         <div className={`grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] ${activeSection !== "accounts" ? "hidden" : ""}`}>
@@ -659,9 +669,13 @@ function WatermarkSettings({ t }: { t: (text: string) => string }) {
   </WorkspaceCard>;
 }
 
-function SectionPanel({ section, totals, activity, reports, reportsLoading, onCreate, onReports, onApprove, onProjectAction, invalidate, t }: { section: Section; totals: any; activity: any; reports?: any[]; reportsLoading: boolean; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
+function SectionPanel({ section, totals, activity, reports, reportsLoading, pendingRegs, pendingLoading, pendingError, onRefreshPending, onApproveRegistration, onRejectRegistration, onCreate, onReports, onApprove, onProjectAction, invalidate, t }: { section: Section; totals: any; activity: any; reports?: any[]; reportsLoading: boolean; pendingRegs: any[]; pendingLoading: boolean; pendingError: string; onRefreshPending: () => void; onApproveRegistration: (email: string, name: string) => void; onRejectRegistration: (email: string) => void; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
   if (section === "accounts") return null;
-  if (section === "approvals") return null;
+  if (section === "approvals") return <WorkspaceCard title={t("Demandes d'accès en attente")} subtitle={t("Examinez les inscriptions préprovisionnées. Chaque décision est appliquée côté serveur et rattachée à la session Super-Admin.")} t={t}>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><strong className="block text-xs text-slate-800">{pendingRegs.length} {t("dossier(s) en attente")}</strong><small className="mt-1 block text-[11px] text-slate-500">{t("Les décisions de rejet demandent un motif; les invitations d’activation ne sont affichées qu’après approbation.")}</small></div><button type="button" onClick={onRefreshPending} disabled={pendingLoading} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={pendingLoading ? "animate-spin" : ""} />{pendingLoading ? t("Actualisation…") : t("Actualiser les demandes")}</button></div>
+    {pendingError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800"><span>{pendingError}</span><button type="button" onClick={onRefreshPending} className="font-bold underline">{t("Réessayer")}</button></div>}
+    {pendingLoading && pendingRegs.length === 0 ? <p role="status" className="rounded-lg bg-slate-50 p-6 text-center text-xs text-slate-500">{t("Chargement du registre d'approbation…")}</p> : pendingRegs.length ? <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">{t("Demandeur")}</th><th className="px-4 py-3">{t("Rôle demandé")}</th><th className="px-4 py-3">{t("Statut")}</th><th className="px-4 py-3">{t("Demandée le")}</th><th className="px-4 py-3 text-right">{t("Décision")}</th></tr></thead><tbody>{pendingRegs.map((item: any) => <tr key={item.email} className="border-t border-slate-100"><td className="px-4 py-3"><strong className="block text-xs text-slate-800">{item.name || t("Nom non renseigné")}</strong><small className="text-[11px] text-slate-500">{item.email}</small></td><td className="px-4 py-3 text-xs">{item.requested_role || t("Utilisateur")}</td><td className="px-4 py-3"><Pill tone={item.status === "pending_approval" ? "amber" : "blue"}>{item.status || t("En attente")}</Pill></td><td className="px-4 py-3 text-[11px] text-slate-500">{item.requested_at || item.created_at ? new Date(item.requested_at || item.created_at).toLocaleString("fr-FR") : "—"}</td><td className="px-4 py-3"><div className="flex justify-end gap-2"><button type="button" onClick={() => { if (window.confirm(t(`Approuver la demande de ${item.email} et émettre une invitation à usage unique ?`))) onApproveRegistration(item.email, item.name || ""); }} className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-800">{t("Approuver")}</button><button type="button" onClick={() => onRejectRegistration(item.email)} className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-red-700">{t("Rejeter")}</button></div></td></tr>)}</tbody></table></div> : <Empty title={t("Aucune demande en attente")} text={t("Les demandes locales préprovisionnées apparaîtront ici après vérification du registre.")} />}
+  </WorkspaceCard>;
   if (section === "settings") return <>
     <WorkspaceCard title={t("Paramètres")} subtitle={t("État opérationnel de la console Super-Admin.")} t={t}>
       <div className="grid gap-3 md:grid-cols-3">
@@ -730,7 +744,7 @@ function WorkspaceCard({ title, subtitle, children, t }: { title: string; subtit
 function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center"><strong className="block text-sm">{title}</strong><p className="mt-1 text-xs text-slate-400">{text}</p></div>; }
 
 function Nav({ icon, label, active = false, onClick, badge }: { icon: React.ReactNode; label: string; active?: boolean; onClick: () => void; badge?: number }) { return <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition ${active ? "bg-blue-500/15 font-semibold text-blue-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>{icon}<span>{label}</span>{badge !== undefined && badge > 0 && <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">{badge}</span>}</button>; }
-function Metric({ label, value, icon, tone, t }: { label: string; value: number; icon: React.ReactNode; tone: string; t: (text: string) => string }) { const colors: Record<string, string> = { blue: "bg-blue-50 text-blue-600", violet: "bg-violet-50 text-violet-600", amber: "bg-amber-50 text-amber-600", green: "bg-emerald-50 text-emerald-600" }; return <div className="sa-metric rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone] || colors.blue}`}>{icon}</span><span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">{t("En direct")}</span></div><strong className="mt-4 block text-2xl">{value}</strong><span className="text-xs text-slate-400">{label}</span></div>; }
+function Metric({ label, value, icon, tone, t }: { label: string; value: number; icon: React.ReactNode; tone: string; t: (text: string) => string }) { const colors: Record<string, string> = { blue: "bg-blue-50 text-blue-600", violet: "bg-violet-50 text-violet-600", amber: "bg-amber-50 text-amber-600", green: "bg-emerald-50 text-emerald-600" }; return <div className="sa-metric rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone] || colors.blue}`}>{icon}</span><span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{t("Données API")}</span></div><strong className="mt-4 block text-2xl">{value}</strong><span className="text-xs text-slate-400">{label}</span></div>; }
 function Info({ label, value, t }: { label: string; value: string; t: (text: string) => string }) { void t; return <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0"><span className="font-semibold text-slate-600">{label}</span><span className="max-w-[175px] text-right text-slate-400">{value}</span></div>; }
 
 function LocalAuthPanel({ onAuthenticated }: { onAuthenticated: () => Promise<void> }) {

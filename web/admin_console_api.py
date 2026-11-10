@@ -1,14 +1,31 @@
 """Restricted administrator workspace; never grants Super-Admin operations."""
+import json
+
 from fastapi import APIRouter, Cookie, HTTPException, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from .database import SessionLocal
-from .models import Project, Drone, Simulation
+from .models import AuditEvent, Project, Drone, Simulation
 from .admin import account_for_identity
 from .config import get_settings
 from .oidc import _check_local_generation, _verified
 from .primary_session_store import is_primary_session_active
 
 router = APIRouter(prefix="/api/admin-console", tags=["admin-console"])
+
+
+def _require_admin(token: str | None) -> dict:
+    actor = _admin_actor(token)
+    if actor.get("role") not in {"admin", "super_admin"}:
+        raise HTTPException(403, "Console réservée aux rôles admin et super_admin.")
+    return actor
+
+
+def _safe_json(value: str | None) -> dict:
+    try:
+        parsed = json.loads(value or "{}")
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError):
+        return {}
 
 
 def _admin_actor(token: str | None) -> dict:
@@ -38,9 +55,7 @@ def _admin_actor(token: str | None) -> dict:
 def overview(
     admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
 ):
-    actor = _admin_actor(admin_session)
-    if actor.get("role") not in {"admin", "super_admin"}:
-        raise HTTPException(403, "Console réservée aux rôles admin et super_admin.")
+    actor = _require_admin(admin_session)
     owner_id = actor["id"]
     with SessionLocal() as db:
         projects = db.scalar(select(func.count(Project.id)).where(Project.user_id == owner_id)) or 0
@@ -53,6 +68,54 @@ def overview(
         "billing": {"enabled": False, "mode": "private-governance"},
         "physicalOutput": {"enabled": False, "requiresHumanAuthorization": True},
     }
+
+
+@router.get("/workspace/records")
+def workspace_records(
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Return only metadata for the signed-in administrator's own workspace."""
+    actor = _require_admin(admin_session)
+    owner_id = actor["id"]
+    with SessionLocal() as db:
+        projects = list(db.scalars(
+            select(Project).where(Project.user_id == owner_id)
+            .order_by(Project.updated_at.desc()).limit(100)
+        ))
+        simulations = list(db.scalars(
+            select(Simulation).where(Simulation.user_id == owner_id)
+            .order_by(Simulation.created_at.desc()).limit(100)
+        ))
+        events = list(db.scalars(
+            select(AuditEvent).where(or_(AuditEvent.user_id == owner_id,
+                                         AuditEvent.project_id.in_(select(Project.id).where(Project.user_id == owner_id))))
+            .order_by(AuditEvent.created_at.desc()).limit(100)
+        ))
+        project_names = {project.id: project.name for project in projects}
+        return {
+            "projects": [{
+                "id": project.id,
+                "name": project.name,
+                "createdAt": project.created_at.isoformat() if project.created_at else None,
+                "updatedAt": project.updated_at.isoformat() if project.updated_at else None,
+                "hasCell": bool(project.active_drone_id),
+            } for project in projects],
+            "simulations": [{
+                "id": simulation.id,
+                "projectId": simulation.project_id,
+                "projectName": project_names.get(simulation.project_id, "Projet indisponible"),
+                "createdAt": simulation.created_at.isoformat() if simulation.created_at else None,
+                "status": str(_safe_json(simulation.data_json).get("status", "archivé"))[:40],
+            } for simulation in simulations],
+            "events": [{
+                "id": event.id,
+                "projectId": event.project_id,
+                "type": event.event_type,
+                "message": event.message[:240],
+                "occurredAt": event.occurred_at.isoformat() if event.occurred_at else None,
+            } for event in events],
+            "limits": {"perSection": 100, "payloadsIncluded": False},
+        }
 
 
 @router.post("/logout")
@@ -76,9 +139,7 @@ async def validate_internal_llm(
     The response intentionally omits the base URL, credential and model output.
     This endpoint only accepts the separate administrator-console session.
     """
-    actor = _admin_actor(admin_session)
-    if actor.get("role") not in {"admin", "super_admin"}:
-        raise HTTPException(403, "Validation du gateway réservée aux administrateurs.")
+    _require_admin(admin_session)
     settings = get_settings()
     if settings.llm_deployment != "aeromind":
         raise HTTPException(409, "Le déploiement AeroMind interne n’est pas sélectionné.")
