@@ -116,6 +116,10 @@ def capability_for(path: str, method: str) -> Capability | None:
             or (path.startswith("/api/missions/") and path.endswith("/upload"))):
         return _cap(4, "physical_or_live_data_boundary", physical=True)
 
+    # These endpoints expose service-wide counters/configuration, not a personal
+    # workspace or an administrator's tenant scope. Reserve them for L5.
+    if path in {"/api/ops/health", "/api/ops/capabilities"}:
+        return _cap(5, "operations_global_monitoring")
     if path == "/api/ops/mode" and method not in {"GET", "HEAD"}:
         return _cap(5, "operating_mode_change")
     if path == "/api/ops/cfd/prepare":

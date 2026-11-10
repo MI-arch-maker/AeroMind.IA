@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { Activity, AlertTriangle, Bell, ChevronDown, ClipboardCheck, Edit, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Users, X, Eye } from "lucide-react";
+import { Activity, AlertTriangle, Bell, ChevronDown, ClipboardCheck, Edit, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Moon, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Users, X, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { bearerHeaders, clearSessionToken } from "@/lib/sessionToken";
 import { startLogin } from "@/const";
 import { OperationModeCard } from "@/components/OperationModeCard";
+import { OperationalCapabilitiesPanel } from "@/components/OperationalCapabilitiesPanel";
+import { SystemHealthPanel } from "@/components/SystemHealthPanel";
+import { AuditEventExplorer } from "@/components/AuditEventExplorer";
 import { useLanguage } from "../contexts/LanguageContext";
 import "./super-admin.css";
 
 type Role = "user" | "demo" | "visitor" | "surveillant" | "admin";
 type AuthUser = { email: string; name?: string; role?: string; level?: string; account_status?: string };
-type Section = "overview" | "accounts" | "approvals" | "projects" | "reports" | "levels" | "audit" | "settings";
+type Section = "overview" | "operations" | "accounts" | "approvals" | "projects" | "reports" | "levels" | "audit" | "settings";
 type SortKey = "email" | "role" | "status" | "name";
 type SortDir = "asc" | "desc";
 
@@ -32,6 +35,7 @@ export default function SuperAdmin() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [logoutBusy, setLogoutBusy] = useState(false);
+  const [sleeping, setSleeping] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("user");
@@ -82,7 +86,9 @@ export default function SuperAdmin() {
     setAuthLoading(true);
     try {
       const response = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
-      setUser(response.ok ? (await response.json() as AuthUser) : null);
+      const authenticatedUser = response.ok ? (await response.json() as AuthUser) : null;
+      setUser(authenticatedUser);
+      if (authenticatedUser) setSleeping(false);
     } catch { setUser(null); } finally { setAuthLoading(false); }
   };
   useEffect(() => {
@@ -302,6 +308,21 @@ export default function SuperAdmin() {
       toast.success(t("Session fermée"));
     } finally { setLogoutBusy(false); }
   };
+  const sleepConsole = async () => {
+    setLogoutBusy(true);
+    try {
+      const response = await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
+      if (!response.ok) throw new Error("Le serveur n’a pas confirmé la révocation de la session.");
+      clearSessionToken();
+      setUser(null);
+      await utils.reset();
+      window.dispatchEvent(new Event("aeromind-auth-changed"));
+      setSleeping(true);
+      toast.info(t("Console en veille sécurisée"), { description: t("La session a été révoquée. Une reconnexion explicite est requise pour reprendre.") });
+    } catch (error) {
+      toast.error(t("Mise en veille impossible"), { description: error instanceof Error ? error.message : "Échec de fermeture de la session." });
+    } finally { setLogoutBusy(false); }
+  };
   const issueLocalInvite = async () => {
     if (!window.confirm(t("Cette action révoquera les identifiants locaux actuels, le cas échéant, et émettra une nouvelle invitation. L'accès Entra reste inchangé. Continuer ?"))) return;
     try {
@@ -347,6 +368,7 @@ export default function SuperAdmin() {
   const totals = activity.data?.totals || {};
   const sectionTitle: Record<Section, string> = {
     overview: t("Vue d'ensemble"),
+    operations: t("Centre d’opérations"),
     accounts: t("Comptes & accès"),
     approvals: t("Approbations"),
     projects: t("Projets"),
@@ -358,6 +380,7 @@ export default function SuperAdmin() {
 
   const navItems: { id: Section; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: "overview", label: t("Vue d'ensemble"), icon: <LayoutDashboard size={17} /> },
+    { id: "operations", label: t("Centre d’opérations"), icon: <Activity size={17} /> },
     { id: "accounts", label: t("Comptes & accès"), icon: <Users size={17} /> },
     { id: "approvals", label: t("Approbations"), icon: <ClipboardCheck size={17} />, badge: pendingRegs.length },
     { id: "projects", label: t("Projets"), icon: <FolderKanban size={17} /> },
@@ -368,6 +391,7 @@ export default function SuperAdmin() {
   ];
   const mobileNav: [Section, string][] = [
     ["overview", t("Vue d'ensemble")],
+    ["operations", t("Opérations")],
     ["accounts", t("Comptes")],
     ["approvals", t("Approbations")],
     ["projects", t("Projets")],
@@ -406,6 +430,8 @@ export default function SuperAdmin() {
         <div className="text-sm text-slate-400">{t("Administration")} <span className="mx-2">/</span> <strong className="text-slate-700">{sectionTitle[activeSection]}</strong></div>
         <div className="ml-auto flex items-center gap-2">
           <button type="button" onClick={() => void refreshConsole()} disabled={refreshingAll} className="sa-refresh-button inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={14} className={refreshingAll ? "animate-spin" : ""} />{refreshingAll ? t("Actualisation…") : t("Actualiser")}</button>
+          <button type="button" onClick={() => void sleepConsole()} disabled={logoutBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"><Moon size={14} />{t("Mise en veille")}</button>
+          <button type="button" onClick={() => void logout()} disabled={logoutBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><LogOut size={14} />{t("Déconnexion")}</button>
           <button onClick={() => searchRef.current?.focus()} title={t("Rechercher")} aria-label={t("Rechercher")} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Search size={18} /></button>
           <div className="relative">
             <button onClick={() => setNotificationsOpen(v => !v)} title={t("Notifications")} aria-label={t("Notifications")} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
@@ -475,26 +501,13 @@ export default function SuperAdmin() {
           </div>
         )}
 
-        {/* System health widget — conveys a real operations console, not a game */}
-        {activeSection === "overview" && (
-          <div className="mb-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-500">{t("Périmètre observé")}</p><h2 className="mt-1 font-bold">{t("État de la session")}</h2></div>
-              <Activity className="text-emerald-500" size={21} />
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs"><span className="block text-slate-500">{t("Session Super-Admin")}</span><strong className="mt-1 flex items-center gap-2 text-emerald-700"><span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />{t("Authentifiée")}</strong></div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs"><span className="block text-slate-500">{t("Comptes visibles")}</span><strong className="mt-1 block text-slate-700">{accounts.isLoading ? t("Chargement…") : accounts.data?.length ?? 0}</strong></div>
-              <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs"><span className="block text-slate-500">{t("Émetteur SITL")}</span><strong className="mt-1 block text-blue-700">{t("État non vérifié dans cette vue")}</strong></div>
-            </div>
-          </div>
-        )}
+        {activeSection === "overview" && <SystemHealthPanel />}
 
         {activeSection === "overview" && <section className="mb-7 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
           <div className="sa-hero-band rounded-2xl border border-blue-100 bg-gradient-to-br from-[#10243a] to-[#174b70] p-5 text-white shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-200">{t("Posture de gouvernance")}</p><h2 className="mt-2 text-xl font-bold">{t("Un espace par identité.")}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">{t("Les projets et données métier sont maintenant rattachés à l'identifiant stable du compte créé par le Super-Admin. Un changement de méthode de connexion ne change pas de propriétaire.")}</p></div><ShieldCheck className="shrink-0 text-cyan-300" size={27} /></div><div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Comptes actifs")}</span><strong className="mt-1 block text-lg">{totals.actifs ?? 0}</strong></div><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Propriétaires de projets")}</span><strong className="mt-1 block text-lg">{totals.proprietaires_projets ?? 0}</strong></div></div></div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-600">{t("Contrôles rapides")}</p><h2 className="mt-2 font-bold">{t("Centre de contrôle")}</h2></div><Activity className="text-emerald-500" size={21} /></div><div className="mt-4 space-y-3 text-xs"><div className="flex items-center justify-between"><span className="text-slate-500">{t("Isolation des projets")}</span><Pill tone="green">{t("ACTIVE")}</Pill></div><div className="flex items-center justify-between"><span className="text-slate-500">{t("Journal d'audit")}</span><Pill tone="green">{t("APPEND-ONLY")}</Pill></div><div className="flex items-center justify-between"><span className="text-slate-500">{t("Code LABBENCH 01")}</span><Pill tone="blue">{t("SUPER-ADMIN")}</Pill></div></div></div>
         </section>}
-        {activeSection === "overview" && <div className="mb-7"><OperationModeCard /></div>}
+        {activeSection === "operations" && <div className="mb-7 space-y-5"><section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-600">{t("SUPERVISION ET CONDUITE")}</p><h2 className="mt-1 text-lg font-bold text-slate-800">{t("État réel du runtime et modes autorisés")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("Les changements de mode passent par le backend, les gates applicables et les limites VIRTUAL ONLY. Les commandes matérielles ne sont pas lancées depuis ce catalogue.")}</p></div><OperationModeCard /></section><OperationalCapabilitiesPanel /></div>}
 
         <SectionPanel section={activeSection} totals={totals} activity={activity.data} reports={reports.data} reportsLoading={reports.isLoading} pendingRegs={pendingRegs} pendingLoading={pendingLoading} pendingError={pendingError} onRefreshPending={() => void fetchPending()} onApproveRegistration={(email, name) => void approveRegistration(email, name)} onRejectRegistration={(email) => void rejectRegistration(email)} onCreate={() => setShowCreate(true)} onReports={() => { setShowReports(true); setActiveSection("reports"); }} onApprove={(id) => approve.mutate({ id })} onProjectAction={(id, action) => { if (action === "save") saveProject.mutate({ id }); else if (action === "observe") observeProject.mutate({ id }); else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id }); }} invalidate={async () => { await invalidate(); }} t={t} />
 
@@ -670,7 +683,7 @@ function WatermarkSettings({ t }: { t: (text: string) => string }) {
 }
 
 function SectionPanel({ section, totals, activity, reports, reportsLoading, pendingRegs, pendingLoading, pendingError, onRefreshPending, onApproveRegistration, onRejectRegistration, onCreate, onReports, onApprove, onProjectAction, invalidate, t }: { section: Section; totals: any; activity: any; reports?: any[]; reportsLoading: boolean; pendingRegs: any[]; pendingLoading: boolean; pendingError: string; onRefreshPending: () => void; onApproveRegistration: (email: string, name: string) => void; onRejectRegistration: (email: string) => void; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
-  if (section === "accounts") return null;
+  if (section === "accounts" || section === "operations") return null;
   if (section === "approvals") return <WorkspaceCard title={t("Demandes d'accès en attente")} subtitle={t("Examinez les inscriptions préprovisionnées. Chaque décision est appliquée côté serveur et rattachée à la session Super-Admin.")} t={t}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><strong className="block text-xs text-slate-800">{pendingRegs.length} {t("dossier(s) en attente")}</strong><small className="mt-1 block text-[11px] text-slate-500">{t("Les décisions de rejet demandent un motif; les invitations d’activation ne sont affichées qu’après approbation.")}</small></div><button type="button" onClick={onRefreshPending} disabled={pendingLoading} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={pendingLoading ? "animate-spin" : ""} />{pendingLoading ? t("Actualisation…") : t("Actualiser les demandes")}</button></div>
     {pendingError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800"><span>{pendingError}</span><button type="button" onClick={onRefreshPending} className="font-bold underline">{t("Réessayer")}</button></div>}
@@ -690,7 +703,7 @@ function SectionPanel({ section, totals, activity, reports, reportsLoading, pend
   if (section === "overview") return <section className="mb-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-widest text-blue-600">{t("Vue d'ensemble active")}</p><h2 className="mt-2 text-2xl font-bold">{t("Bienvenue dans la gouvernance AeroMind")}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{t("Utilisez le menu de gauche pour ouvrir chaque espace. Les compteurs sont lus depuis le backend, tandis que les décisions sont journalisées.")}</p><div className="mt-5 flex flex-wrap gap-3"><button onClick={onCreate} className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-bold text-white">{t("Créer un compte")}</button><button onClick={onReports} className="rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700">{t("Ouvrir les rapports")}</button></div></section>;
   if (section === "projects") return <WorkspaceCard title={t("Projets")} subtitle={t("Vue globale des projets AeroMind persistés. Chaque action est contrôlée et journalisée.")} t={t}><div className="space-y-3">{(activity?.projects || []).length ? (activity.projects as any[]).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{p.name || t("Projet sans nom")}</strong><small className="text-xs text-slate-400">{t("Propriétaire")} : {p.userId} · {t("créé")} {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "—"}</small></div><div className="flex flex-wrap items-center gap-2"><Pill tone={p.controlStatus === "observed" ? "amber" : p.controlStatus === "saved" ? "blue" : "green"}>{p.controlStatus === "observed" ? t("Observation") : p.controlStatus === "saved" ? t("Sauvegardé") : t("Actif")}</Pill><button onClick={() => onProjectAction(String(p.id), "save")} className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-700"><Save size={13} /> {t("Sauvegarder")}</button><button onClick={() => onProjectAction(String(p.id), "observe")} className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1.5 text-[11px] font-semibold text-amber-700"><Eye size={13} /> {t("Observer")}</button><button onClick={() => onProjectAction(String(p.id), "delete")} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600"><Trash2 size={13} /> {t("Supprimer")}</button></div></div>) : <Empty title={t("Aucun projet persistant")} text={t("Les projets créés par les utilisateurs apparaîtront ici.")} />}</div></WorkspaceCard>;
   if (section === "reports") return <WorkspaceCard title={t("Rapports à valider")} subtitle={t("Les rapports suivent le circuit surveillant puis approbation Super-Admin.")} t={t}><div className="space-y-3">{reportsLoading ? <p className="text-sm text-slate-400">{t("Chargement des rapports…")}</p> : (reports || []).filter((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)).map((r: any) => <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{t("Rapport")} {String(r.id).slice(0, 8)}</strong><span className="text-xs text-slate-500">{t("Statut")} : {r.status}</span></div>{r.status === "reviewed_by_supervisor" ? <button onClick={() => onApprove(String(r.id))} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">{t("Approuver définitivement")}</button> : <Pill tone="amber">{t("En attente du surveillant")}</Pill>}</div>)}{!reportsLoading && !(reports || []).some((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)) && <Empty title={t("Aucun rapport en attente")} text={t("Les rapports soumis apparaîtront ici après contrôle.")} />}</div></WorkspaceCard>;
-  if (section === "levels") return <WorkspaceCard title={t("Niveaux & périmètres")} subtitle={t("L1–L3 sont des qualifications personnelles attribuées par le Super-Admin. L4 est réservé au rôle Admin, L5 au rôle Super-Admin; le backend normalise les rangs selon le rôle.")} t={t}><div className="grid gap-3 md:grid-cols-2">{([["L1", t("Découverte"), t("Qualification initiale · workspace personnel")], ["L2", t("Ingénieur"), t("Qualification ingénieur · workspace personnel")], ["L3", t("Avancé"), t("Qualification avancée · workspace personnel")], ["L4", t("Administration"), t("Rôle Admin · console limitée à son périmètre")], ["L5", t("Super-Admin"), t("Rôle Super-Admin · gouvernance globale")]] as [string, string, string][]).map(([id, label, text]) => <div key={id} className="rounded-xl border border-slate-200 p-4"><Pill tone="blue">{id}</Pill><strong className="mt-3 block text-sm">{label}</strong><p className="mt-1 text-xs text-slate-400">{text}</p></div>)}</div><p className="mt-4 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-500">{t("Chaque compte reçoit un workspaceId stable basé sur son identifiant de registre. Aucune cellule ou aucun projet n’est créé automatiquement à la connexion.")}</p></WorkspaceCard>;
+  if (section === "levels") return <WorkspaceCard title={t("Matrice de capacités & périmètres")} subtitle={t("L1–L3 qualifient un compte personnel. L4/L5 résultent des rôles Admin/Super-Admin; la politique backend et les gardes de chaque route demeurent la source d’autorisation.")} t={t}><div className="grid gap-3 md:grid-cols-2">{([["L1", t("Découverte"), t("Workspace personnel · lecture, brouillons et calculs virtuels de base")], ["L2", t("Ingénieur"), t("Workspace personnel · édition d’ingénierie et simulations virtuelles nominales")], ["L3", t("Avancé"), t("Workspace personnel · analyses avancées, workflows, preuves et exports")], ["L4", t("Administration"), t("Rôle Admin · opérations d’administration limitées par chaque route")], ["L5", t("Super-Admin"), t("Rôle Super-Admin · gouvernance globale avec contrôles de route")]] as [string, string, string][]).map(([id, label, text]) => <div key={id} className="rounded-xl border border-slate-200 p-4"><Pill tone="blue">{id}</Pill><strong className="mt-3 block text-sm">{label}</strong><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div>)}</div><div className="mt-4 overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[700px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">{t("Rang")}</th><th className="px-4 py-3">{t("Portée métier appliquée")}</th><th className="px-4 py-3">{t("Limite d’isolation")}</th></tr></thead><tbody>{[["L1", t("Lecture, brouillons, calculs virtuels de base"), t("Données de l’identité propriétaire uniquement")], ["L2", t("Édition d’ingénierie, simulation virtuelle nominale"), t("Aucune lecture/écriture inter-utilisateur")], ["L3", t("Analyse avancée, workflow, evidence et export"), t("Aucune élévation implicite au rôle admin")], ["L4", t("Actions d’administration autorisées par rôle et route"), t("Reste soumis aux contrôles locaux et au tenant")], ["L5", t("Gouvernance Super-Admin explicitement autorisée"), t("Aucune exemption des validations ou contrôles de sécurité")]].map(([rank, scope, boundary]) => <tr key={rank} className="border-t border-slate-100"><td className="px-4 py-3 font-bold text-blue-700">{rank}</td><td className="px-4 py-3 text-slate-700">{scope}</td><td className="px-4 py-3 text-slate-500">{boundary}</td></tr>)}</tbody></table></div><p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">{t("Frontière ferme : les opérations matérielles/temps réel ne sont jamais accordées par un niveau seul. Elles restent soumises aux gardes de route, rôles, approbations humaines et interverrouillages; le mode de démonstration demeure virtuel.")}</p><p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-500">{t("Chaque compte reçoit un workspaceId stable basé sur son identifiant de registre. Aucune cellule ou aucun projet n’est créé automatiquement à la connexion.")}</p></WorkspaceCard>;
   if (section === "audit") return <WorkspaceCard title={t("Journal d'audit")} subtitle={t("Historique des créations, promotions, évaluations et suppressions.")} t={t}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
       <div className="flex items-start gap-3">
@@ -736,7 +749,7 @@ function SectionPanel({ section, totals, activity, reports, reportsLoading, pend
         </Link>
       </div>
     </div>
-    <div className="space-y-3">{(activity?.adminEvents || []).length ? (activity.adminEvents as any[]).map(event => <div key={event.id} className="rounded-xl border border-slate-100 p-4"><div className="flex justify-between gap-3"><strong className="text-xs">{event.eventType}</strong><small className="text-[11px] text-slate-400">{event.createdAt ? new Date(event.createdAt).toLocaleString("fr-FR") : "—"}</small></div><p className="mt-1 text-xs text-slate-500">{t("Par")} {event.actorEmail}</p></div>) : <Empty title={t("Journal vide")} text={t("Les prochaines décisions seront enregistrées ici.")} />}</div>
+    <AuditEventExplorer events={(activity?.adminEvents || []) as any[]} />
   </WorkspaceCard>;
   return <WorkspaceCard title={t("Paramètres")} subtitle={t("État opérationnel de la console Super-Admin.")} t={t}><div className="grid gap-3 md:grid-cols-3"><Info label={t("Comptes actifs")} value={String(totals.actifs ?? 0)} t={t} /><Info label={t("Décisions journalisées")} value={String(totals.decisions ?? 0)} t={t} /><Info label={t("Session")} value={t("OIDC sécurisée")} t={t} /></div><p className="mt-5 rounded-lg bg-slate-50 p-4 text-xs leading-5 text-slate-500">{t("Les paramètres sensibles de déploiement et de fournisseur OIDC restent protégés côté serveur.")}</p></WorkspaceCard>;
 }

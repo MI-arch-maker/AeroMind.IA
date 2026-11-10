@@ -997,6 +997,43 @@ def test_ops_health_and_capabilities_are_virtual_only_honest(monkeypatch):
     assert endpoints["/api/telemetry/mavlink/status"]["available"] is False
 
 
+def test_ops_health_reports_real_db_failure_and_redacts_internal_llm(monkeypatch):
+    from types import SimpleNamespace
+    from starlette.requests import Request
+    from web import ops_control_api
+
+    monkeypatch.setattr(ops_control_api, "current_user_or_401", lambda _request: {"id": "root", "role": "super_admin"})
+    monkeypatch.setattr(ops_control_api, "get_settings", lambda: SimpleNamespace(
+        environment="test", entra_tenant_id="tenant", entra_client_id="client",
+        llm_deployment="aeromind", llm_configured=True,
+        aeromind_llm_base="https://llm.private.invalid/v1",
+        aeromind_llm_api_key="test-secret-must-not-appear",
+    ))
+
+    class UnavailableSession:
+        def __enter__(self):
+            raise RuntimeError("isolated health test")
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(ops_control_api, "SessionLocal", lambda: UnavailableSession())
+    request = Request({
+        "type": "http", "http_version": "1.1", "method": "GET",
+        "scheme": "http", "path": "/api/ops/health", "raw_path": b"/api/ops/health",
+        "query_string": b"", "root_path": "", "headers": [],
+        "client": ("127.0.0.1", 1234), "server": ("testserver", 80),
+    })
+
+    health = ops_control_api.get_system_health(request)
+    serialized = repr(health)
+    assert health["api_status"] == "operational"
+    assert health["database_status"] == "unavailable"
+    assert health["status"] == "degraded"
+    assert health["internal_llm_configuration_status"] == "configured"
+    assert "test-secret-must-not-appear" not in serialized
+    assert "llm.private.invalid" not in serialized
+
+
 def test_virtual_only_rejects_sitl_transition_and_autostart(monkeypatch):
     from fastapi import HTTPException
     from starlette.requests import Request

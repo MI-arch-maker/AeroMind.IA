@@ -27,6 +27,14 @@ def _client_for(monkeypatch, level: str, role: str = "user") -> TestClient:
     def physical_command():
         return {"ok": True}
 
+    @app.get("/api/ops/health")
+    def system_health():
+        return {"ok": True}
+
+    @app.get("/api/ops/capabilities")
+    def system_capabilities():
+        return {"ok": True}
+
     return TestClient(app)
 
 
@@ -68,6 +76,8 @@ def test_tier_matrix_maps_expected_domains_and_default_denials():
     assert capability_for("/api/workflow/runs/r1/replay", "POST").minimum == 3
     assert capability_for("/api/lab/runs", "POST").minimum == 2
     assert capability_for("/api/missions/m1/upload", "POST").minimum == 4
+    assert capability_for("/api/ops/health", "GET").minimum == 5
+    assert capability_for("/api/ops/capabilities", "GET").minimum == 5
 
 
 def test_internal_llm_uses_only_its_dedicated_credential_and_model(monkeypatch):
@@ -110,3 +120,13 @@ def test_internal_llm_uses_only_its_dedicated_credential_and_model(monkeypatch):
     assert captured["url"] == "https://llm.internal.example/v1/chat/completions"
     assert captured["headers"]["Authorization"] == "Bearer internal-only-secret"
     assert captured["payload"]["model"] == "aeromind-private-model"
+
+
+
+def test_system_wide_observability_is_reserved_for_admin_levels(monkeypatch):
+    assert _client_for(monkeypatch, "L3").get("/api/ops/health").status_code == 403
+    assert _client_for(monkeypatch, "L3").get("/api/ops/capabilities").status_code == 403
+    assert _client_for(monkeypatch, "L4", role="admin").get("/api/ops/health").status_code == 403
+    assert _client_for(monkeypatch, "L4", role="admin").get("/api/ops/capabilities").status_code == 403
+    assert _client_for(monkeypatch, "L5", role="super_admin").get("/api/ops/health").status_code == 200
+    assert _client_for(monkeypatch, "L5", role="super_admin").get("/api/ops/capabilities").status_code == 200

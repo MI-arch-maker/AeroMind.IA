@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "wouter";
-import { Activity, AlertCircle, ArrowDownToLine, ArrowLeft, Check, ChevronRight, Clock3, Cpu, FileClock, FolderKanban, FolderLock, LayoutDashboard, LockKeyhole, LogOut, RefreshCw, Search, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { Activity, AlertCircle, ArrowDownToLine, ArrowLeft, Check, ChevronRight, Clock3, Cpu, FileClock, FolderKanban, FolderLock, LayoutDashboard, LockKeyhole, LogOut, Moon, RefreshCw, Search, ShieldCheck, Sparkles, Users } from "lucide-react";
 import "./admin-console.css";
 
 type Overview = {
@@ -40,6 +40,7 @@ export default function AdminConsole() {
   const [localBusy, setLocalBusy] = useState(false);
   const [llmBusy, setLlmBusy] = useState(false);
   const [llmResult, setLlmResult] = useState<{ text: string; ok: boolean } | null>(null);
+  const [sessionActionBusy, setSessionActionBusy] = useState(false);
 
   const loadConsole = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true); else setLoading(true);
@@ -82,10 +83,16 @@ export default function AdminConsole() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Connexion locale refusée."); }
     finally { setLocalBusy(false); }
   };
-  const logout = async () => {
-    await fetch("/api/admin-console/logout", { method: "POST", credentials: "include" });
-    setData(null); setRecords(null);
-    setError("Session de console terminée. Le cockpit AeroMind n’a pas été connecté.");
+  const endConsoleSession = async (sleep = false) => {
+    setSessionActionBusy(true);
+    try {
+      const response = await fetch("/api/admin-console/logout", { method: "POST", credentials: "include" });
+      if (!response.ok) throw new Error("Le serveur n’a pas confirmé la fermeture de la session.");
+      setData(null); setRecords(null); setLlmResult(null);
+      setError(sleep ? "Console en veille sécurisée : session révoquée. Une reconnexion explicite est requise pour la reprendre." : "Session de console terminée. Le cockpit AeroMind n’a pas été connecté.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Impossible de fermer la session de console.");
+    } finally { setSessionActionBusy(false); }
   };
   const validateLlm = async () => {
     setLlmBusy(true); setLlmResult(null);
@@ -122,7 +129,10 @@ export default function AdminConsole() {
       <div className="admin-console-topbar">
         <Link href="/" className="admin-console-brand"><span className="admin-console-mark" aria-hidden="true">A</span><span><strong>AEROMIND.IA</strong><small>Gouvernance opérationnelle</small></span></Link>
         <div className="admin-console-top-actions">
+          {!loading && !data && <button type="button" onClick={login} className="admin-console-button admin-console-button-primary"><ShieldCheck size={14} /> Connexion</button>}
           {data && <button type="button" onClick={() => void loadConsole(true)} disabled={refreshing} className="admin-console-button admin-console-refresh"><RefreshCw size={14} className={refreshing ? "admin-console-spin" : ""} />{refreshing ? "Actualisation…" : "Actualiser"}</button>}
+          {data && <button type="button" onClick={() => void endConsoleSession(true)} disabled={sessionActionBusy} className="admin-console-button admin-console-standby"><Moon size={14} />{sessionActionBusy ? "Fermeture…" : "Mise en veille"}</button>}
+          {data && <button type="button" onClick={() => void endConsoleSession(false)} disabled={sessionActionBusy} className="admin-console-button admin-console-logout-top"><LogOut size={14} />{sessionActionBusy ? "Fermeture…" : "Déconnexion"}</button>}
           <Link href="/" className="admin-console-back"><ArrowLeft size={15} /> Retour au cockpit</Link>
         </div>
       </div>
@@ -171,7 +181,7 @@ export default function AdminConsole() {
 
             {view === "journal" && <section className="admin-console-card"><div className="admin-console-card-head"><div><p className="admin-console-eyebrow">TRAÇABILITÉ DU WORKSPACE</p><h3>Événements d’audit</h3><p>Événements filtrés par propriétaire ou par projet appartenant à ce compte. Le journal global est réservé au Super-Admin.</p></div><FileClock size={19} color="#087e83" /></div><div className="admin-console-record-list">{(records?.events ?? []).map(item => <article className="admin-console-record admin-console-event" key={item.id}><span className="admin-console-record-icon"><FileClock size={16} /></span><div className="admin-console-record-main"><strong>{item.type}</strong><small>{item.message}</small>{item.projectId && <small>Projet : {item.projectId}</small>}</div><time>{time(item.occurredAt)}</time></article>)}{!records?.events.length && <EmptyState title="Journal vide" text="Aucun événement disponible dans le périmètre de cette identité." />}</div></section>}
 
-            {view === "security" && <div className="admin-console-security-grid"><section className="admin-console-card"><div className="admin-console-card-head"><div><p className="admin-console-eyebrow">IDENTITÉ DE SESSION</p><h3>Compte & autorisations</h3><p>Session d’administration à cookie dédié, distincte de la session cockpit.</p></div><Users size={19} color="#087e83" /></div><div className="admin-console-card-body"><div className="admin-console-security-row"><span>Nom</span><strong>{data.account.name || "Non renseigné"}</strong></div><div className="admin-console-security-row"><span>Adresse de compte</span><strong>{data.account.email}</strong></div><div className="admin-console-security-row"><span>Rôle autorisé</span><strong>{roleName}</strong></div><div className="admin-console-security-row"><span>Identifiant de workspace</span><code>{data.account.id || "—"}</code></div><button type="button" onClick={() => void logout()} className="admin-console-button admin-console-button-dark admin-console-logout"><LogOut size={14} /> Fermer cette session console</button><p className="admin-console-data-note">La révocation de cette session ne connecte ni ne déconnecte automatiquement le cockpit.</p></div></section>
+            {view === "security" && <div className="admin-console-security-grid"><section className="admin-console-card"><div className="admin-console-card-head"><div><p className="admin-console-eyebrow">IDENTITÉ DE SESSION</p><h3>Compte & autorisations</h3><p>Session d’administration à cookie dédié, distincte de la session cockpit.</p></div><Users size={19} color="#087e83" /></div><div className="admin-console-card-body"><div className="admin-console-security-row"><span>Nom</span><strong>{data.account.name || "Non renseigné"}</strong></div><div className="admin-console-security-row"><span>Adresse de compte</span><strong>{data.account.email}</strong></div><div className="admin-console-security-row"><span>Rôle autorisé</span><strong>{roleName}</strong></div><div className="admin-console-security-row"><span>Identifiant de workspace</span><code>{data.account.id || "—"}</code></div><button type="button" onClick={() => void endConsoleSession(false)} disabled={sessionActionBusy} className="admin-console-button admin-console-button-dark admin-console-logout"><LogOut size={14} /> Déconnexion de cette console</button><p className="admin-console-data-note">La révocation de cette session ne connecte ni ne déconnecte automatiquement le cockpit.</p></div></section>
                 <section className="admin-console-card"><div className="admin-console-card-head"><div><p className="admin-console-eyebrow">SERVICE IA</p><h3>Gateway interne AeroMind</h3><p>Test réel, minimal et contrôlé du déploiement interne configuré.</p></div><Cpu size={19} color="#087e83" /></div><div className="admin-console-card-body"><p className="admin-console-muted">L’URL du gateway et son secret ne sont jamais transmis à l’interface. Le résultat n’affiche que le mode de déploiement et l’identifiant de modèle.</p><button type="button" onClick={() => void validateLlm()} disabled={llmBusy} className="admin-console-button admin-console-button-primary"><Sparkles size={15} />{llmBusy ? "Test du gateway en cours…" : "Tester la connexion au gateway"}</button>{llmResult && <p role="status" className={`admin-console-result ${llmResult.ok ? "is-success" : "is-failure"}`}>{llmResult.ok ? <Check size={15} /> : <AlertCircle size={15} />}{llmResult.text}</p>}</div></section>
                 <section className="admin-console-card"><div className="admin-console-card-head"><div><p className="admin-console-eyebrow">GOUVERNANCE PRIVÉE</p><h3>Facturation & sortie physique</h3><p>Politiques exposées par le backend de gouvernance.</p></div><ShieldCheck size={19} color="#087e83" /></div><div className="admin-console-card-body"><div className="admin-console-security-row"><span>Mode de déploiement</span><strong>{data.billing.mode}</strong></div><div className="admin-console-security-row"><span>Facturation applicative AeroMind</span><strong>{data.billing.enabled ? "Activée" : "Désactivée"}</strong></div><div className="admin-console-security-row"><span>Sortie physique</span><strong>{data.physicalOutput.enabled ? "Activée" : "Désactivée"}</strong></div><div className="admin-console-security-row"><span>Autorisation humaine requise</span><strong>{data.physicalOutput.requiresHumanAuthorization ? "Oui" : "Non"}</strong></div></div></section></div>}
           </section>

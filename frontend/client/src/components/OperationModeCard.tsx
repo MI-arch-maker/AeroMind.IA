@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, Cpu, Gauge, Power, RefreshCw, Zap } from "lucide-react";
+import { Cpu, Gauge, Power, RefreshCw, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { bearerHeaders } from "@/lib/sessionToken";
 
@@ -274,32 +274,6 @@ export function OperationModeCard() {
         </button>
       </div>
 
-      {/* Capabilities link */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Activity size={18} className="text-blue-600" />
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Capacités opérationnelles</h3>
-        </div>
-        <p className="mt-2 text-xs text-slate-500">
-          La liste complète des endpoints opérationnels et leur disponibilité est accessible via{" "}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">GET /api/ops/capabilities</code>.
-        </p>
-        <button
-          onClick={async () => {
-            try {
-              const r = await fetch("/api/ops/capabilities", { credentials: "include", headers: bearerHeaders() });
-              const data = await r.json();
-              console.log("Capabilities:", data);
-              toast.success(`${data.capabilities?.length || 0} catégories d'endpoints disponibles`);
-            } catch {
-              toast.error("Impossible de récupérer les capacités");
-            }
-          }}
-          className="mt-3 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-        >
-          Voir les capacités (console)
-        </button>
-      </div>
     </div>
   );
 }

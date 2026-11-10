@@ -15,11 +15,12 @@ Safety constraints:
 from __future__ import annotations
 
 import os
+from time import perf_counter
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from .app_auth_helpers import current_user_or_401
 from .config import get_settings
@@ -146,6 +147,8 @@ def get_system_health(request: Request):
     mode = _current_mode_status()
     # Count DB entities
     stats: dict = {}
+    database_status = "unavailable"
+    database_latency_ms = None
     try:
         from .models import Project, Drone, Mission
         from .canonical_models import (
@@ -153,6 +156,10 @@ def get_system_health(request: Request):
             GeofenceRecord, GateValidation, AuditEventExt, EventOutbox,
         )
         with SessionLocal() as db:
+            probe_started = perf_counter()
+            db.execute(text("SELECT 1"))
+            database_latency_ms = round((perf_counter() - probe_started) * 1000, 2)
+            database_status = "connected"
             stats["projects"] = db.scalar(select(func.count()).select_from(Project)) or 0
             stats["drones"] = db.scalar(select(func.count()).select_from(Drone)) or 0
             stats["missions"] = db.scalar(select(func.count()).select_from(Mission)) or 0
@@ -174,6 +181,9 @@ def get_system_health(request: Request):
     # Health checks
     health: dict = {
         "status": "healthy",
+        "api_status": "operational",
+        "database_status": database_status,
+        "database_latency_ms": database_latency_ms,
         "mode": mode.mode.value,
         "environment": settings.environment,
         "virtual_only": virtual_only_mode(),
@@ -181,13 +191,18 @@ def get_system_health(request: Request):
         "physical_output_enabled": False if virtual_only_mode() else _env_truthy("HARDWARE_CONTROL"),
         "database_url_configured": bool(os.getenv("DATABASE_URL")),
         "oidc_configured": bool(settings.entra_tenant_id and settings.entra_client_id),
+        "internal_llm_configuration_status": (
+            "not_selected" if settings.llm_deployment != "aeromind"
+            else "configured" if settings.llm_configured
+            else "incomplete"
+        ),
         "sentry_configured": bool(os.getenv("SENTRY_DSN")),
         "stats": stats,
         "timestamp": datetime.now(UTC).isoformat(),
     }
-    if stats.get("core_stats_status") == "unavailable" or stats.get("canonical_stats_status") == "unavailable":
+    if database_status != "connected" or stats.get("core_stats_status") == "unavailable" or stats.get("canonical_stats_status") == "unavailable":
         health["status"] = "degraded"
-        health["warnings"] = ["Certaines statistiques de base de données sont indisponibles"]
+        health["warnings"] = ["Base de données ou certaines statistiques indisponibles"]
     if not health["oidc_configured"]:
         health["status"] = "degraded"
         warnings = health.get("warnings")

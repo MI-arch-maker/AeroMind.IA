@@ -162,3 +162,11 @@
 - [x] Registre des licences open source ajouté.
 - [x] Parcours de démonstration commerciale documenté.
 - [ ] Renseigner les secrets de production dans le gestionnaire de secrets avant déploiement.
+
+
+## Modernisation — supervision, audit et matrice de capacités des consoles (10 novembre 2026)
+
+- [x] **Supervision réelle :** remplacer les états déclaratifs par API authentifiée, ping SQL `SELECT 1`, état de configuration OIDC/LLM sans fuite d’URL/secret, latence et compteurs non identifiants; actualisation à 30 s et manuelle. La présence des paramètres LLM ne doit jamais être décrite comme une disponibilité du fournisseur.
+- [x] **Journal exploitable :** recherche texte, acteur/cible, type, filtres date, pagination responsive et export CSV des seules métadonnées filtrées; neutraliser les cellules CSV susceptibles d’être interprétées comme formules; ne supprimer aucune entrée par filtrage.
+- [x] **Matrice L1–L5 lisible :** rendre les capacités métiers compréhensibles et rappeler la primauté des règles backend, du propriétaire, du rôle, des approbations et de la frontière physique; ne pas ajouter de privilèges.
+- [x] **Non-régression :** test de sonde DB défaillante et de non-divulgation LLM, tests existants ciblés, `pnpm check`, tests Vitest et `pnpm build`; livraison de l’archive source et rapport mis à jour.
