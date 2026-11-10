@@ -7,6 +7,7 @@ import { bearerHeaders, clearSessionToken } from "@/lib/sessionToken";
 import { startLogin } from "@/const";
 import { OperationModeCard } from "@/components/OperationModeCard";
 import { useLanguage } from "../contexts/LanguageContext";
+import "./super-admin.css";
 
 type Role = "user" | "demo" | "visitor" | "surveillant" | "admin";
 type AuthUser = { email: string; name?: string; role?: string; level?: string; account_status?: string };
@@ -336,7 +337,6 @@ export default function SuperAdmin() {
   if (denied) return <AuthShell><ShieldCheck className="mb-4 text-red-500" size={38} /><h1 className="text-2xl font-bold">{t("Accès refusé")}</h1><p className="mt-3 text-sm leading-6 text-slate-500">{t("Cette session n'est pas le Super-Admin autorisé.")}</p><button onClick={() => void logout()} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700"><LogOut size={16} /> {t("Se déconnecter")}</button></AuthShell>;
 
   const totals = activity.data?.totals || {};
-  const databaseType = (accounts.data?.length || 0) > 0 ? "SQLite / PostgreSQL" : "SQLite";
   const sectionTitle: Record<Section, string> = {
     overview: t("Vue d'ensemble"),
     accounts: t("Comptes & accès"),
@@ -369,9 +369,9 @@ export default function SuperAdmin() {
     ["settings", t("Paramètres")],
   ];
 
-  return <main className="min-h-screen bg-[#f5f7fa] text-[#10243a]"><div className="flex min-h-screen">
-    <aside className="hidden w-64 shrink-0 flex-col bg-[#10243a] px-5 py-6 text-white lg:flex">
-      <Link href="/" className="flex items-center gap-3"><span className="grid h-9 w-9 skew-x-[-8deg] place-items-center border border-blue-300 text-2xl italic text-blue-300">A</span><span><strong className="block tracking-[.18em]">AEROMIND</strong><small className="text-[9px] uppercase tracking-[.22em] text-blue-200">{t("Console Super-Admin")}</small></span></Link>
+  return <main className="sa-shell min-h-screen bg-[#f5f7fa] text-[#10243a]"><div className="flex min-h-screen">
+    <aside className="sa-sidebar hidden w-64 shrink-0 flex-col bg-[#10243a] px-5 py-6 text-white lg:flex">
+      <Link href="/" className="flex items-center gap-3"><span className="sa-mark grid h-9 w-9 skew-x-[-8deg] place-items-center border border-blue-300 text-2xl italic text-blue-300">A</span><span><strong className="block tracking-[.18em]">AEROMIND</strong><small className="text-[9px] uppercase tracking-[.22em] text-blue-200">{t("Console Super-Admin")}</small></span></Link>
       <div className="my-8 h-px bg-white/10" />
       <nav className="space-y-1 text-sm">{navItems.map(item => <Nav key={item.id} active={activeSection === item.id} icon={item.icon} label={item.label} onClick={() => { setActiveSection(item.id); if (item.id === "reports") setShowReports(true); }} badge={item.badge} />)}</nav>
       <div className="mt-auto rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
@@ -386,16 +386,15 @@ export default function SuperAdmin() {
       </div>
     </aside>
     <section className="min-w-0 flex-1">
-      {/* Thin top status bar — gives the console a "live session" feel */}
-      <div className="flex items-center gap-3 border-b border-slate-800 bg-[#0b1a2c] px-5 py-1.5 text-[11px] text-slate-300 md:px-9">
-        <span className="inline-flex items-center gap-1.5"><span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />{t("Backend")}: <strong className="text-emerald-300">{t("En ligne")}</strong></span>
+      <div className="sa-statusbar flex items-center gap-3 border-b border-slate-800 bg-[#0b1a2c] px-5 py-1.5 text-[11px] text-slate-300 md:px-9">
+        <span className="inline-flex items-center gap-1.5"><span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />{t("Session Super-Admin")}: <strong className="text-emerald-300">{t("Authentifiée")}</strong></span>
         <span className="text-slate-600">·</span>
         <span>{t("Session")}: <strong className="font-mono text-slate-100">{formatHMS(sessionSeconds)}</strong></span>
         <span className="text-slate-600">·</span>
         <span className="hidden sm:inline">{t("Adresse")}: <strong className="break-all text-slate-200">{user.email}</strong></span>
         <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2 py-0.5 font-bold tracking-wider text-blue-200">{t("SUPER-ADMIN")}</span>
       </div>
-      <header className="flex min-h-16 items-center gap-4 border-b border-slate-200 bg-white px-5 py-3 md:px-9">
+      <header className="sa-topbar flex min-h-16 items-center gap-4 border-b border-slate-200 bg-white px-5 py-3 md:px-9">
         <div className="text-sm text-slate-400">{t("Administration")} <span className="mx-2">/</span> <strong className="text-slate-700">{sectionTitle[activeSection]}</strong></div>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => searchRef.current?.focus()} title={t("Rechercher")} aria-label={t("Rechercher")} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Search size={18} /></button>
@@ -422,8 +421,8 @@ export default function SuperAdmin() {
           <button onClick={() => void logout()} disabled={logoutBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:hidden"><LogOut size={14} /> {t("Sortir")}</button>
         </div>
       </header>
-      <div className="flex gap-2 overflow-auto border-b border-slate-200 bg-white px-4 py-2 lg:hidden">{mobileNav.map(([id, label]) => <button key={id} onClick={() => { setActiveSection(id); if (id === "reports") setShowReports(true); }} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${activeSection === id ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>{label}</button>)}</div>
-      <div className="mx-auto max-w-[1500px] p-5 md:p-9">
+      <div className="sa-mobile-nav flex gap-2 overflow-auto border-b border-slate-200 bg-white px-4 py-2 lg:hidden">{mobileNav.map(([id, label]) => <button key={id} onClick={() => { setActiveSection(id); if (id === "reports") setShowReports(true); }} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${activeSection === id ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>{label}</button>)}</div>
+      <div className="sa-content mx-auto max-w-[1500px] p-5 md:p-9">
         {authorizationCodeNotice && (
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
             <div>
@@ -436,7 +435,7 @@ export default function SuperAdmin() {
             <button onClick={() => setAuthorizationCodeNotice(null)} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800">{t("Codes transmis / copiés")}</button>
           </div>
         )}
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
+        <div className="sa-page-heading mb-8 flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[.18em] text-blue-600">{t("Centre de gouvernance AeroMind")}</p>
             <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{t("Une administration claire.")}<br /><span className="text-blue-600">{t("Un contrôle total.")}</span></h1>
@@ -444,8 +443,8 @@ export default function SuperAdmin() {
             <p className="mt-2 text-[11px] text-slate-400"><kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px]">F5</kbd> {t("Rafraîchir")} · <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px]">/</kbd> {t("Rechercher")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => void issueLocalInvite()} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 hover:bg-emerald-100"><ShieldCheck size={16} /> {t("Préparer mon accès local MFA")}</button>
-            <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700"><Plus size={17} /> {t("Créer un compte")}</button>
+            <button onClick={() => void issueLocalInvite()} className="sa-action-button inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 hover:bg-emerald-100"><ShieldCheck size={16} /> {t("Préparer mon accès local MFA")}</button>
+            <button onClick={() => setShowCreate(true)} className="sa-action-button inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700"><Plus size={17} /> {t("Créer un compte")}</button>
           </div>
         </div>
 
@@ -470,19 +469,19 @@ export default function SuperAdmin() {
         {activeSection === "overview" && (
           <div className="mb-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-500">{t("État du système")}</p><h2 className="mt-1 font-bold">{t("Santé opérationnelle")}</h2></div>
+              <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-slate-500">{t("Périmètre observé")}</p><h2 className="mt-1 font-bold">{t("État de la session")}</h2></div>
               <Activity className="text-emerald-500" size={21} />
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs"><span className="block text-slate-500">{t("Backend")}</span><strong className="mt-1 flex items-center gap-2 text-emerald-700"><span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-emerald-500" />{t("En ligne")}</strong></div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs"><span className="block text-slate-500">{t("Base de données")}</span><strong className="mt-1 block text-slate-700">{databaseType}</strong></div>
-              <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs"><span className="block text-slate-500">{t("Émetteur SITL")}</span><strong className="mt-1 block text-blue-700">{t("Disponible")}</strong></div>
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs"><span className="block text-slate-500">{t("Session Super-Admin")}</span><strong className="mt-1 flex items-center gap-2 text-emerald-700"><span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />{t("Authentifiée")}</strong></div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs"><span className="block text-slate-500">{t("Comptes visibles")}</span><strong className="mt-1 block text-slate-700">{accounts.isLoading ? t("Chargement…") : accounts.data?.length ?? 0}</strong></div>
+              <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs"><span className="block text-slate-500">{t("Émetteur SITL")}</span><strong className="mt-1 block text-blue-700">{t("État non vérifié dans cette vue")}</strong></div>
             </div>
           </div>
         )}
 
         {activeSection === "overview" && <section className="mb-7 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-[#10243a] to-[#174b70] p-5 text-white shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-200">{t("Posture de gouvernance")}</p><h2 className="mt-2 text-xl font-bold">{t("Un espace par identité.")}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">{t("Les projets et données métier sont maintenant rattachés à l'identifiant stable du compte créé par le Super-Admin. Un changement de méthode de connexion ne change pas de propriétaire.")}</p></div><ShieldCheck className="shrink-0 text-cyan-300" size={27} /></div><div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Comptes actifs")}</span><strong className="mt-1 block text-lg">{totals.actifs ?? 0}</strong></div><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Propriétaires de projets")}</span><strong className="mt-1 block text-lg">{totals.proprietaires_projets ?? 0}</strong></div></div></div>
+          <div className="sa-hero-band rounded-2xl border border-blue-100 bg-gradient-to-br from-[#10243a] to-[#174b70] p-5 text-white shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-200">{t("Posture de gouvernance")}</p><h2 className="mt-2 text-xl font-bold">{t("Un espace par identité.")}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">{t("Les projets et données métier sont maintenant rattachés à l'identifiant stable du compte créé par le Super-Admin. Un changement de méthode de connexion ne change pas de propriétaire.")}</p></div><ShieldCheck className="shrink-0 text-cyan-300" size={27} /></div><div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Comptes actifs")}</span><strong className="mt-1 block text-lg">{totals.actifs ?? 0}</strong></div><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Propriétaires de projets")}</span><strong className="mt-1 block text-lg">{totals.proprietaires_projets ?? 0}</strong></div></div></div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-600">{t("Contrôles rapides")}</p><h2 className="mt-2 font-bold">{t("Centre de contrôle")}</h2></div><Activity className="text-emerald-500" size={21} /></div><div className="mt-4 space-y-3 text-xs"><div className="flex items-center justify-between"><span className="text-slate-500">{t("Isolation des projets")}</span><Pill tone="green">{t("ACTIVE")}</Pill></div><div className="flex items-center justify-between"><span className="text-slate-500">{t("Journal d'audit")}</span><Pill tone="green">{t("APPEND-ONLY")}</Pill></div><div className="flex items-center justify-between"><span className="text-slate-500">{t("Code LABBENCH 01")}</span><Pill tone="blue">{t("SUPER-ADMIN")}</Pill></div></div></div>
         </section>}
         {activeSection === "overview" && <div className="mb-7"><OperationModeCard /></div>}
@@ -501,11 +500,11 @@ export default function SuperAdmin() {
               <table className="w-full min-w-[860px] text-left text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="cursor-pointer px-5 py-3 font-semibold hover:text-slate-700" onClick={() => toggleSort("name")}>{t("Compte")} {sortBy === "name" && (sortDir === "asc" ? "▲" : "▼")}</th>
-                    <th className="cursor-pointer font-semibold hover:text-slate-700" onClick={() => toggleSort("role")}>{t("Rôle")} {sortBy === "role" && (sortDir === "asc" ? "▲" : "▼")}</th>
-                    <th>{t("Grade / niveau")}</th>
-                    <th className="cursor-pointer font-semibold hover:text-slate-700" onClick={() => toggleSort("status")}>{t("Statut")} {sortBy === "status" && (sortDir === "asc" ? "▲" : "▼")}</th>
-                    <th className="pr-5 text-right">{t("Actions")}</th>
+                    <th scope="col" aria-sort={sortBy === "name" ? sortDir === "asc" ? "ascending" : "descending" : "none"} className="px-5 py-3 font-semibold"><button type="button" className="sa-sort-button" onClick={() => toggleSort("name")}>{t("Compte")} <span aria-hidden="true">{sortBy === "name" ? sortDir === "asc" ? "▲" : "▼" : "↕"}</span></button></th>
+                    <th scope="col" aria-sort={sortBy === "role" ? sortDir === "asc" ? "ascending" : "descending" : "none"} className="font-semibold"><button type="button" className="sa-sort-button" onClick={() => toggleSort("role")}>{t("Rôle")} <span aria-hidden="true">{sortBy === "role" ? sortDir === "asc" ? "▲" : "▼" : "↕"}</span></button></th>
+                    <th scope="col">{t("Grade / niveau")}</th>
+                    <th scope="col" aria-sort={sortBy === "status" ? sortDir === "asc" ? "ascending" : "descending" : "none"} className="font-semibold"><button type="button" className="sa-sort-button" onClick={() => toggleSort("status")}>{t("Statut")} <span aria-hidden="true">{sortBy === "status" ? sortDir === "asc" ? "▲" : "▼" : "↕"}</span></button></th>
+                    <th scope="col" className="pr-5 text-right">{t("Actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -731,7 +730,7 @@ function WorkspaceCard({ title, subtitle, children, t }: { title: string; subtit
 function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center"><strong className="block text-sm">{title}</strong><p className="mt-1 text-xs text-slate-400">{text}</p></div>; }
 
 function Nav({ icon, label, active = false, onClick, badge }: { icon: React.ReactNode; label: string; active?: boolean; onClick: () => void; badge?: number }) { return <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition ${active ? "bg-blue-500/15 font-semibold text-blue-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>{icon}<span>{label}</span>{badge !== undefined && badge > 0 && <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">{badge}</span>}</button>; }
-function Metric({ label, value, icon, tone, t }: { label: string; value: number; icon: React.ReactNode; tone: string; t: (text: string) => string }) { const colors: Record<string, string> = { blue: "bg-blue-50 text-blue-600", violet: "bg-violet-50 text-violet-600", amber: "bg-amber-50 text-amber-600", green: "bg-emerald-50 text-emerald-600" }; return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone] || colors.blue}`}>{icon}</span><span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">{t("En direct")}</span></div><strong className="mt-4 block text-2xl">{value}</strong><span className="text-xs text-slate-400">{label}</span></div>; }
+function Metric({ label, value, icon, tone, t }: { label: string; value: number; icon: React.ReactNode; tone: string; t: (text: string) => string }) { const colors: Record<string, string> = { blue: "bg-blue-50 text-blue-600", violet: "bg-violet-50 text-violet-600", amber: "bg-amber-50 text-amber-600", green: "bg-emerald-50 text-emerald-600" }; return <div className="sa-metric rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone] || colors.blue}`}>{icon}</span><span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">{t("En direct")}</span></div><strong className="mt-4 block text-2xl">{value}</strong><span className="text-xs text-slate-400">{label}</span></div>; }
 function Info({ label, value, t }: { label: string; value: string; t: (text: string) => string }) { void t; return <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0"><span className="font-semibold text-slate-600">{label}</span><span className="max-w-[175px] text-right text-slate-400">{value}</span></div>; }
 
 function LocalAuthPanel({ onAuthenticated }: { onAuthenticated: () => Promise<void> }) {

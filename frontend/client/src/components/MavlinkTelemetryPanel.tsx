@@ -33,8 +33,8 @@ function classifyResponse(response: Response): "ok" | "unauthorized" | "offline"
 
 // ─── Local read-only simulation source (last-resort fallback) ────────────
 //
-// The preferred path is REAL MAVLink telemetry: the panel triggers dev-login
-// (in development) → POST /api/telemetry/mavlink/consent → polls
+// The preferred path is REAL MAVLink telemetry: an already-authenticated
+// operator grants telemetry consent → the panel polls
 // /api/telemetry/mavlink/status, which calls pymavlink to connect to a real
 // autopilot (a SITL emitter in dev, a physical vehicle in prod). When the
 // backend is reachable and the SITL/vehicle is up, the panel shows genuine
@@ -87,9 +87,8 @@ export function MavlinkTelemetryPanel({ mapCenter = { lat: 0, lng: 0 } }: Mavlin
   const [source, setSource] = useState<"real" | "sim">("sim");
   const mapCenterRef = useRef<Coordinate>(mapCenter);
   mapCenterRef.current = mapCenter;
-  // Track whether we've already attempted the dev-login + consent bootstrap
-  // so we don't repeat those POSTs on every poll cycle.
-  const bootstrapRef = useRef<{ triedLogin: boolean; triedConsent: boolean }>({ triedLogin: false, triedConsent: false });
+  // Track consent bootstrap only; authentication is never attempted here.
+  const bootstrapRef = useRef<{ triedConsent: boolean }>({ triedConsent: false });
 
   useEffect(() => {
     let active = true;

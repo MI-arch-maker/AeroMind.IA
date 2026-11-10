@@ -508,9 +508,8 @@ def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> 
         return False
 
 
-def _workspace_db_delete(key: str) -> None:
-    """Delete one anonymous workspace from cache and canonical storage."""
-    _local_workspaces.pop(key, None)
+def _workspace_db_delete(key: str) -> bool:
+    """Delete one anonymous workspace and report canonical persistence."""
     try:
         from .database import SessionLocal
         from .models import AnonymousWorkspace
@@ -518,20 +517,23 @@ def _workspace_db_delete(key: str) -> None:
         with SessionLocal() as db:
             db.execute(delete(AnonymousWorkspace).where(AnonymousWorkspace.id == key))
             db.commit()
+        _local_workspaces.pop(key, None)
+        return True
     except Exception as exc:  # noqa: BLE001
         print(f"WARNING: anonymous workspace delete failed ({type(exc).__name__})", flush=True)
+        return False
 
 
 @app.post('/api/auth/dev-login')
 async def dev_login(request: Request):
-    """Development-only login — bypasses OIDC for local development.
+    """Explicit opt-in development login — disabled by default.
 
     Creates or reuses a dev user in admin_accounts, signs a session token,
-    and returns it. Only available when AEROMIND_ENV=development.
+    and returns it. Requires both development mode and AEROMIND_DEV_LOGIN_ENABLED=true.
     """
     # P1-obs TODO: rate-limit this endpoint with slowapi (5/minute) — see inspection report F-9.5
-    if settings.environment != 'development':
-        return JSONResponse(status_code=403, content={'error': {'code': 'DEV_LOGIN_FORBIDDEN', 'message': 'Connexion développement disponible uniquement en mode développement.'}})
+    if settings.environment != 'development' or os.getenv('AEROMIND_DEV_LOGIN_ENABLED', '').strip().lower() != 'true':
+        return JSONResponse(status_code=403, content={'error': {'code': 'DEV_LOGIN_FORBIDDEN', 'message': 'Connexion développement désactivée. Elle exige AEROMIND_ENV=development et AEROMIND_DEV_LOGIN_ENABLED=true.'}})
     import json as _json
     from .oidc import _signed, _b64, _cookie_security
     from .admin import reconcile_primary_identity
@@ -565,7 +567,7 @@ async def dev_login(request: Request):
 async def dev_status():
     """Check if development login is available."""
     return {
-        'devLoginAvailable': settings.environment == 'development',
+        'devLoginAvailable': settings.environment == 'development' and os.getenv('AEROMIND_DEV_LOGIN_ENABLED', '').strip().lower() == 'true',
         'oidcConfigured': bool(settings.oidc),
         'environment': settings.environment,
     }
@@ -656,16 +658,60 @@ async def put_local_workspace(request: Request):
 
 
 @app.delete('/api/local/workspace')
-async def delete_local_workspace(request: Request):
-    """Clear the current anonymous browser workspace on logout."""
+async def delete_local_workspace(request: Request, project_id: str | None = None):
+    """Delete one anonymous project, or the full workspace when no ID is given."""
     raw_key = request.headers.get('X-AeroMind-Workspace', '').strip()
     if not raw_key or not _is_valid_workspace_key(raw_key):
         return JSONResponse(status_code=400, content={'error': {
             'code': 'WORKSPACE_KEY_REQUIRED',
             'message': 'Un identifiant de workspace valide est requis.',
         }}, headers={'Cache-Control': 'no-store'})
-    _workspace_db_delete(raw_key)
-    return {'deleted': True, 'source': 'LOCAL'}
+    if not project_id:
+        if not _workspace_db_delete(raw_key):
+            return JSONResponse(status_code=503, content={'error': {
+                'code': 'WORKSPACE_PERSISTENCE_FAILED',
+                'message': 'La suppression du workspace local n’a pas été confirmée dans le stockage canonique.',
+            }}, headers={'Cache-Control': 'no-store'})
+        return {'deleted': True, 'remainingProjects': 0, 'source': 'LOCAL'}
+
+    workspace = _workspace_db_get(raw_key)
+    if not isinstance(workspace, dict):
+        return {'deleted': True, 'remainingProjects': 0, 'source': 'LOCAL'}
+    projects = workspace.get('projects')
+    if not isinstance(projects, list):
+        projects = []
+    remaining = [item for item in projects if not isinstance(item, dict) or str(item.get('id', '')) != project_id]
+    if len(remaining) == len(projects):
+        return {'deleted': True, 'remainingProjects': len(remaining), 'source': 'LOCAL'}
+    if not remaining:
+        if not _workspace_db_delete(raw_key):
+            return JSONResponse(status_code=503, content={'error': {
+                'code': 'WORKSPACE_PERSISTENCE_FAILED',
+                'message': 'La suppression du workspace local n’a pas été confirmée dans le stockage canonique.',
+            }}, headers={'Cache-Control': 'no-store'})
+        return {'deleted': True, 'remainingProjects': 0, 'source': 'LOCAL'}
+
+    active_id = str(workspace.get('activeProjectId') or '')
+    active = next((item for item in remaining if isinstance(item, dict) and item.get('id') == active_id), remaining[0])
+    from datetime import UTC, datetime
+    workspace.update({
+        'projects': remaining,
+        'activeProjectId': str(active.get('id', '')),
+        'id': str(active.get('id', '')),
+        'project': active.get('project', {}),
+        'requirements': active.get('requirements', []),
+        'config': active.get('config', {}),
+        'runId': active.get('runId', 'SIM-000'),
+        'updatedAt': datetime.now(UTC).isoformat(),
+        'physicalOutputEnabled': False,
+    })
+    origin_ip = request.client.host if request.client else None
+    if not _workspace_db_put(raw_key, workspace, origin_ip=origin_ip):
+        return JSONResponse(status_code=503, content={'error': {
+            'code': 'WORKSPACE_PERSISTENCE_FAILED',
+            'message': 'La suppression du projet local n’a pas été confirmée dans le stockage canonique.',
+        }}, headers={'Cache-Control': 'no-store'})
+    return {'deleted': True, 'remainingProjects': len(remaining), 'source': 'LOCAL'}
 
 
 def _current_user(aeromind_session: str | None, authorization: str | None = None):

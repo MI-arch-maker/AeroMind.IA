@@ -9951,5 +9951,11 @@
   " · activation : ": " · activation: ",
   " · armement : ": " · arming: ",
   " · sorties physiques : ": " · physical outputs: ",
-  " · virtuel uniquement": " · virtual only"
+  " · virtuel uniquement": " · virtual only",
+  "Session Super-Admin": "Super-Admin session",
+  "Authentifiée": "Authenticated",
+  "Périmètre observé": "Observed scope",
+  "État de la session": "Session status",
+  "Comptes visibles": "Visible accounts",
+  "État non vérifié dans cette vue": "Status not verified in this view"
 }

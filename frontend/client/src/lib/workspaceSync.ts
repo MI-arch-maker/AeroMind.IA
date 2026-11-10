@@ -13,6 +13,7 @@ export function createSerialWriteQueue() {
 }
 export type WorkspaceSyncMessage =
   | { type: "workspace"; payload: ProjectWorkspace }
+  | { type: "project-deleted"; projectId: string; updatedAt: string }
   | { type: "view"; view: string }
   | { type: "labbench"; payload: unknown };
 

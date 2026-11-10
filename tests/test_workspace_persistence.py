@@ -201,6 +201,35 @@ def test_workspace_update_in_place(workspace_db):
     assert fetched["draft"] == "v3"
 
 
+def test_local_workspace_deletes_one_project_and_persists_remaining(workspace_db):
+    from fastapi.testclient import TestClient
+
+    key = _key("P")
+    headers = {"X-AeroMind-Workspace": key}
+    first = {"id": "project-delete-me", "project": {"name": "À supprimer"}, "requirements": [], "config": {}, "runId": "SIM-000"}
+    second = {"id": "project-keep-me", "project": {"name": "À conserver"}, "requirements": [], "config": {}, "runId": "SIM-000"}
+    workspace = {
+        "physicalOutputEnabled": False,
+        "id": first["id"],
+        "project": first["project"],
+        "requirements": [],
+        "config": {},
+        "runId": "SIM-000",
+        "projects": [first, second],
+        "activeProjectId": first["id"],
+    }
+    client = TestClient(app_mod.app, base_url="http://localhost")
+    assert client.put("/api/local/workspace", headers=headers, json={"workspace": workspace}).status_code == 200
+    deleted = client.delete(f"/api/local/workspace?project_id={first['id']}", headers=headers)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["remainingProjects"] == 1
+    app_mod._local_workspaces.clear()  # Require the canonical database on the next read.
+    restored = client.get("/api/local/workspace", headers=headers).json()["workspace"]
+    assert [item["id"] for item in restored["projects"]] == [second["id"]]
+    assert restored["activeProjectId"] == second["id"]
+    assert restored["project"] == second["project"]
+
+
 def test_workspace_quota_enforced_in_memory(workspace_db, monkeypatch):
     """V5 LOT B / R-04 — the in-memory cache is bounded to MAX_ANONYMOUS_WORKSPACES."""
     # Set a low cap for testing
@@ -252,3 +281,18 @@ def test_workspace_put_returns_503_when_canonical_store_is_unavailable(workspace
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "WORKSPACE_PERSISTENCE_FAILED"
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_workspace_delete_returns_503_when_canonical_store_is_unavailable(workspace_db, monkeypatch):
+    from fastapi.testclient import TestClient
+    from web import database as _db_mod
+
+    key = _key("Z")
+    app_mod._local_workspaces[key] = _payload("must-not-claim-deleted")
+    monkeypatch.setattr(_db_mod, "SessionLocal", lambda: (_ for _ in ()).throw(RuntimeError("DB unavailable")))
+    response = TestClient(app_mod.app, base_url="http://localhost").delete(
+        "/api/local/workspace", headers={"X-AeroMind-Workspace": key}
+    )
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "WORKSPACE_PERSISTENCE_FAILED"
+    assert app_mod._local_workspaces[key]["draft"] == "must-not-claim-deleted"

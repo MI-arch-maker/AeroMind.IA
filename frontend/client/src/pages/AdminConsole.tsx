@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "wouter";
-import { Activity, ArrowLeft, FolderLock, ShieldCheck } from "lucide-react";
+import { Activity, ArrowLeft, Cpu, FolderLock, LockKeyhole, LogOut, ShieldCheck, Sparkles, Users } from "lucide-react";
+import "./admin-console.css";
 
 type Overview = {
   role: "admin" | "super_admin";
@@ -20,6 +21,7 @@ export default function AdminConsole() {
   const [localBusy, setLocalBusy] = useState(false);
   const [llmBusy, setLlmBusy] = useState(false);
   const [llmResult, setLlmResult] = useState("");
+
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/admin-console/overview", { credentials: "include", signal: controller.signal })
@@ -33,6 +35,7 @@ export default function AdminConsole() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, []);
+
   const login = () => { window.location.assign(`/api/auth/oidc/login?console=admin&return_to=${encodeURIComponent("/admin-console")}`); };
   const localLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setLocalBusy(true); setError("");
@@ -55,24 +58,74 @@ export default function AdminConsole() {
       const response = await fetch("/api/admin-console/llm/validate", { method: "POST", credentials: "include" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error?.message || body.detail || "Échec de validation du gateway interne.");
-      setLlmResult(`Connecté · déploiement ${body.deployment} · modèle ${body.model}`);
+      setLlmResult(`Connexion validée · déploiement ${body.deployment} · modèle ${body.model}`);
     } catch (reason) {
       setLlmResult(reason instanceof Error ? reason.message : "Échec de validation du gateway interne.");
     } finally { setLlmBusy(false); }
   };
-  return <main className="min-h-screen bg-slate-950 px-5 py-10 text-slate-100">
-    <div className="mx-auto max-w-4xl">
-      <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft size={16}/>Retour à AeroMind</Link>
-      <header className="mt-8 flex items-start gap-4 border-b border-slate-800 pb-7"><ShieldCheck className="mt-1 text-cyan-300" size={30}/><div><p className="text-xs uppercase tracking-[.2em] text-cyan-300">Gouvernance AeroMind · accès contrôlé</p><h1 className="mt-2 text-3xl font-semibold">Console administrateur</h1><p className="mt-2 text-sm text-slate-400">Vue limitée à votre espace. Les opérations super-admin restent dans leur console dédiée.</p></div></header>
-      {loading && <p className="py-10 text-slate-400">Vérification des autorisations…</p>}
-      {!loading && error && <section className="mt-8 rounded-xl border border-amber-700/50 bg-amber-950/30 p-6"><h2 className="font-semibold">Accès non établi</h2><p className="mt-2 text-sm text-amber-100">{error}</p><button onClick={login} className="mt-5 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950">Se connecter explicitement avec Entra</button><form onSubmit={localLogin} className="mt-6 grid max-w-md gap-3 border-t border-amber-900/50 pt-5"><label className="grid gap-1 text-sm">Adresse professionnelle<input required type="email" autoComplete="username" value={localEmail} onChange={event => setLocalEmail(event.target.value)} className="rounded border border-slate-700 bg-slate-900 p-2"/></label><label className="grid gap-1 text-sm">Mot de passe MFA local<input required type="password" autoComplete="current-password" value={localPassword} onChange={event => setLocalPassword(event.target.value)} className="rounded border border-slate-700 bg-slate-900 p-2"/></label><label className="grid gap-1 text-sm">Code TOTP à six chiffres<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={localOtp} onChange={event => setLocalOtp(event.target.value)} className="rounded border border-slate-700 bg-slate-900 p-2"/></label><button disabled={localBusy} className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold">{localBusy ? "Vérification…" : "Se connecter avec MFA local"}</button></form></section>}
-      {data && <>
-        <div className="mt-6 flex items-center justify-between gap-4"><p className="text-sm text-slate-400">Session console {data.role} · {data.account.name || data.account.email}</p><button onClick={() => void logout()} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300">Fermer la session console</button></div>
-        <section className="mt-5 grid gap-4 sm:grid-cols-3">{[["Projets personnels", data.workspace.projects], ["Cellules créées explicitement", data.workspace.cells], ["Simulations", data.workspace.simulations]].map(([label, value]) => <article key={String(label)} className="rounded-xl border border-slate-800 bg-slate-900 p-5"><FolderLock className="mb-4 text-cyan-300" size={20}/><p className="text-sm text-slate-400">{label}</p><strong className="mt-1 block text-3xl">{value}</strong></article>)}</section>
-        <section className="mt-5 rounded-xl border border-slate-800 bg-slate-900 p-5"><h2 className="flex items-center gap-2 font-semibold"><Activity size={17}/>Gouvernance et garde-fous</h2><ul className="mt-4 space-y-2 text-sm text-slate-300"><li>Déploiement AeroMind sans abonnement ni prélèvement intégré.</li><li>Sortie physique désactivée par défaut; toute action sensible exige une autorisation humaine.</li><li>Cette console ne donne pas accès à la gestion des comptes globaux ni aux décisions super-admin.</li></ul></section>
-        <section className="mt-5 rounded-xl border border-slate-800 bg-slate-900 p-5"><h2 className="font-semibold">Gateway IA interne</h2><p className="mt-2 text-sm text-slate-400">Envoie une requête de test minimale au modèle configuré. L’URL et le secret ne sont jamais renvoyés au navigateur.</p><button onClick={() => void validateLlm()} disabled={llmBusy} className="mt-4 rounded-lg border border-cyan-700 px-4 py-2 text-sm font-semibold text-cyan-200 disabled:opacity-50">{llmBusy ? "Test en cours…" : "Tester la connexion interne"}</button>{llmResult && <p role="status" className="mt-3 text-sm text-slate-300">{llmResult}</p>}</section>
-        {data.role === "super_admin" && <Link href="/super-admin" className="mt-6 inline-block text-sm font-semibold text-cyan-300">Ouvrir la console Super-Admin complète</Link>}
+
+  const roleName = data?.role === "super_admin" ? "Super-Admin" : "Administrateur";
+  return <main className="admin-console-shell">
+    <div className="admin-console-frame">
+      <div className="admin-console-topbar">
+        <Link href="/" className="admin-console-brand"><span className="admin-console-mark" aria-hidden="true">A</span><span><strong>AEROMIND.IA</strong><small>Gouvernance opérationnelle</small></span></Link>
+        <Link href="/" className="admin-console-back"><ArrowLeft size={15} /> Retour au cockpit</Link>
+      </div>
+
+      <header className="admin-console-hero">
+        <div><p className="admin-console-eyebrow">Console de gouvernance · accès contrôlé</p><h1>Administration<br />de l’espace AeroMind.</h1><p>Vue de pilotage limitée à l’identité et au périmètre de travail autorisés. Les opérations globales restent séparées dans la console Super-Admin.</p></div>
+        {!loading && data && <div className="admin-console-session"><i aria-hidden="true" /> SESSION {roleName.toUpperCase()} ACTIVE</div>}
+      </header>
+
+      {loading && <section className="admin-console-card admin-console-card-body" role="status"><p className="admin-console-eyebrow">Contrôle de session</p><h2 style={{ margin: "8px 0 0", fontSize: 18 }}>Vérification des autorisations…</h2><p style={{ color: "#657a87", fontSize: 12 }}>Aucune action d’administration n’est exécutée pendant cette vérification.</p></section>}
+
+      {!loading && error && <section className="admin-console-alert" aria-labelledby="admin-access-title">
+        <h2 id="admin-access-title">Accès non établi</h2><p>{error}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}><button type="button" onClick={login} className="admin-console-button admin-console-button-primary"><ShieldCheck size={15} /> Se connecter avec Microsoft Entra</button></div>
+        <form onSubmit={localLogin} className="admin-console-form">
+          <p className="admin-console-eyebrow">Authentification locale renforcée</p>
+          <label>Adresse professionnelle<input required type="email" autoComplete="username" value={localEmail} onChange={event => setLocalEmail(event.target.value)} /></label>
+          <label>Mot de passe MFA local<input required type="password" autoComplete="current-password" value={localPassword} onChange={event => setLocalPassword(event.target.value)} /></label>
+          <label>Code TOTP à six chiffres<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={localOtp} onChange={event => setLocalOtp(event.target.value.replace(/\D/g, ""))} /></label>
+          <button disabled={localBusy} className="admin-console-button">{localBusy ? "Vérification en cours…" : "Se connecter avec MFA local"}</button>
+        </form>
+      </section>}
+
+      {!loading && data && <>
+        <div className="admin-console-layout">
+          <div className="admin-console-main">
+            <section className="admin-console-card">
+              <div className="admin-console-card-head"><div><h2>Synthèse de l’espace de travail</h2><p>Indicateurs de l’espace associé au compte courant, sans agrégation d’autres utilisateurs.</p></div><FolderLock size={19} color="#087e83" /></div>
+              <div className="admin-console-card-body"><div className="admin-console-metrics">
+                <article className="admin-console-metric"><span>Projets personnels</span><strong>{data.workspace.projects}</strong><small>Dans le périmètre du compte</small></article>
+                <article className="admin-console-metric"><span>Cellules créées explicitement</span><strong>{data.workspace.cells}</strong><small>Aucune création implicite</small></article>
+                <article className="admin-console-metric"><span>Simulations</span><strong>{data.workspace.simulations}</strong><small>Traçabilité de l’espace</small></article>
+              </div></div>
+            </section>
+
+            <section className="admin-console-card">
+              <div className="admin-console-card-head"><div><h2>Garde-fous opérationnels</h2><p>Les règles affichées reflètent les capacités et limites déclarées par la console.</p></div><ShieldCheck size={19} color="#087e83" /></div>
+              <div className="admin-console-card-body"><ul className="admin-console-policy-list">
+                <li><LockKeyhole size={16} /><span>Les opérations restent limitées à l’espace personnel et au rôle autorisé.</span></li>
+                <li><ShieldCheck size={16} /><span>La sortie physique est désactivée par défaut et exige une autorisation humaine.</span></li>
+                <li><Users size={16} /><span>La gestion globale des comptes et les décisions de gouvernance Super-Admin restent hors de cette console.</span></li>
+                <li><Activity size={16} /><span>Aucune offre, aucun abonnement ni prélèvement n’est piloté depuis cet espace.</span></li>
+              </ul></div>
+            </section>
+
+            <section className="admin-console-card">
+              <div className="admin-console-card-head"><div><h2>Validation du service IA interne</h2><p>Test contrôlé du gateway configuré. L’URL et le secret ne sont jamais transmis à l’interface.</p></div><Cpu size={19} color="#087e83" /></div>
+              <div className="admin-console-card-body"><button type="button" onClick={() => void validateLlm()} disabled={llmBusy} className="admin-console-button admin-console-button-primary"><Sparkles size={15} />{llmBusy ? "Test du gateway en cours…" : "Tester la connexion au gateway interne"}</button>{llmResult && <p role="status" className="admin-console-result">{llmResult}</p>}</div>
+            </section>
+          </div>
+
+          <aside className="admin-console-side">
+            <section className="admin-console-scope"><h2>Identité & périmètre</h2><p>La session de cette console est séparée de la session du cockpit. Sa fermeture n’ouvre ni ne ferme automatiquement l’autre parcours.</p><div className="scope-meta"><span>Rôle</span><strong>{roleName}</strong></div><div className="scope-meta"><span>Compte</span><strong style={{ maxWidth: 170, overflowWrap: "anywhere", textAlign: "right" }}>{data.account.name || data.account.email}</strong></div><button type="button" onClick={() => void logout()} className="admin-console-button admin-console-button-dark" style={{ width: "100%", marginTop: 16 }}><LogOut size={14} /> Fermer la session console</button></section>
+            <section className="admin-console-card"><div className="admin-console-card-head"><div><h2>Mode de déploiement</h2><p>Facturation applicative</p></div></div><div className="admin-console-card-body"><span className="admin-console-session" style={{ fontSize: 9 }}>SANS ABONNEMENT</span><p style={{ margin: "12px 0 0", color: "#657a87", fontSize: 11, lineHeight: 1.65 }}>Mode : {data.billing.mode}. Aucun prélèvement n’est initié par AeroMind.</p></div></section>
+          </aside>
+        </div>
       </>}
+      <footer className="admin-console-footer"><strong>AEROMIND.IA · GOVERNANCE</strong><span>Accès minimum nécessaire · Session contrôlée</span></footer>
     </div>
   </main>;
 }

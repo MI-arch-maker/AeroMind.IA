@@ -333,6 +333,17 @@ def test_workspace_visit_restore_and_sync_never_create_project(app_client):
         assert db.scalar(select(Project)) is None
 
 
+def test_development_superadmin_login_is_disabled_unless_explicitly_opted_in(app_client, monkeypatch):
+    client, _Session, _user_id = app_client
+    monkeypatch.delenv("AEROMIND_DEV_LOGIN_ENABLED", raising=False)
+    status = client.get("/api/auth/dev-status")
+    assert status.status_code == 200
+    assert status.json()["devLoginAvailable"] is False
+    response = client.post("/api/auth/dev-login", json={})
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "DEV_LOGIN_FORBIDDEN"
+
+
 def test_custom_material_catalog_is_owner_scoped(app_client, monkeypatch):
     from fastapi.testclient import TestClient
     from web import material_library

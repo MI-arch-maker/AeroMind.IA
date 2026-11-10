@@ -9854,5 +9854,11 @@
   " · activation : ": " · activation : ",
   " · armement : ": " · armement : ",
   " · sorties physiques : ": " · sorties physiques : ",
-  " · virtuel uniquement": " · virtuel uniquement"
+  " · virtuel uniquement": " · virtuel uniquement",
+  "Session Super-Admin": "Session Super-Admin",
+  "Authentifiée": "Authentifiée",
+  "Périmètre observé": "Périmètre observé",
+  "État de la session": "État de la session",
+  "Comptes visibles": "Comptes visibles",
+  "État non vérifié dans cette vue": "État non vérifié dans cette vue"
 }

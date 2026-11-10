@@ -33,7 +33,7 @@ import { normalizeLegacyStudioLayers } from "../lib/studioLayerCommands";
 import { buildManufacturingPackage } from "../lib/manufacturing";
 import { buildEngineeringReview } from "../lib/engineeringReview";
 import { nextLocalSimulationRunId } from "../lib/simulationRunId";
-import { startLogin, devLogin, checkDevLoginAvailable } from "../const";
+import { startLogin } from "../const";
 import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
 import { adaptExternalDroneToCatalog, deleteImportedDroneProfile, getMeshDimensions, initializeImportedDroneProfile, loadImportedDroneProfiles, loadImportedDroneProfilesDurable, normalizeImportedDroneProfile, parseExternalDroneMesh, saveImportedDroneProfile, transitionImportedDroneProfile, type Axis, type AxisMapping, type ImportArchitecture, type ImportedDroneProfile, type ImportedDroneReviewStatus } from "../lib/externalDroneImport";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
@@ -294,8 +294,6 @@ function SessionControls() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [devLoginAvailable, setDevLoginAvailable] = useState(false);
-  const [devLoginBusy, setDevLoginBusy] = useState(false);
   const [loginMethod, setLoginMethod] = useState<"entra" | "mfa">("entra");
   // P-LOGOUT-1 fix: access the React Query cache so logout can invalidate
   // the trpc.auth.me query. Without this, the stale user record wins at
@@ -316,7 +314,6 @@ function SessionControls() {
 
   useEffect(() => {
     void refresh();
-    void checkDevLoginAvailable().then(setDevLoginAvailable);
     const onSessionChanged = () => void refresh();
     window.addEventListener("aeromind-auth-changed", onSessionChanged);
     return () => window.removeEventListener("aeromind-auth-changed", onSessionChanged);
@@ -13330,14 +13327,16 @@ export default function Home() {
       });
       lastWorkspaceUpdatedAt.current = payload.updatedAt;
       setSyncNotice("");
-      writeWorkspaceStorage(payload);
-      if (suppressSyncBroadcast.current) {
-        suppressSyncBroadcast.current = false;
-      } else {
-        publishWorkspaceMessage(syncChannelRef.current, {
-          type: "workspace",
-          payload,
-        });
+      if (!authenticatedUser) {
+        writeWorkspaceStorage(payload);
+        if (suppressSyncBroadcast.current) {
+          suppressSyncBroadcast.current = false;
+        } else {
+          publishWorkspaceMessage(syncChannelRef.current, {
+            type: "workspace",
+            payload,
+          });
+        }
       }
       if (!authenticatedUser && localServerHydrated.current) {
         // P0-05 fix — send the per-browser anonymous workspace key in the
@@ -13418,7 +13417,18 @@ export default function Home() {
   ]);
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== WORKSPACE_KEY || !event.newValue) return;
+      if (event.key !== WORKSPACE_KEY) return;
+      if (!event.newValue) {
+        suppressSyncBroadcast.current = true;
+        setProjects([]);
+        setActiveProjectId("");
+        setProject(emptyProject);
+        setRequirements([]);
+        setConfig(normalizeConcept(blankConcept));
+        setRunId("SIM-000");
+        setWorkspaceRevision(current => current + 1);
+        return;
+      }
       const parsed = parseWorkspaceMessage(event.newValue);
       if (!parsed.ok) {
         console.error("AeroMind: snapshot externe refusé", parsed.message);
@@ -13624,10 +13634,37 @@ export default function Home() {
         serverProjectsQuery.isSuccess &&
         !activeProjectId.startsWith("project-")
     );
+    const deletedProjectId = activeProjectId;
+    const remaining = projects.filter(item => item.id !== deletedProjectId);
+    const target = remaining[0];
+    if (!authenticatedUser && !localServerHydrated.current) {
+      setAction("project", {
+        status: "error",
+        message: "Le workspace local est encore en cours de chargement. Réessayez la suppression dans un instant.",
+      });
+      return;
+    }
     if (isRemoteProject) {
       try {
-        await deleteProjectMutation.mutateAsync(activeProjectId);
-        void serverProjectsQuery.refetch();
+        await deleteProjectMutation.mutateAsync(deletedProjectId);
+        // Remove any legacy copy made by earlier builds from the browser cache.
+        const cached = readWorkspaceStorage();
+        if (cached?.ok) {
+          const cachedProjects = cached.value.projects.filter(item => item.id !== deletedProjectId);
+          if (!cachedProjects.length) {
+            window.localStorage.removeItem(WORKSPACE_KEY);
+          } else {
+            const cachedActive = cachedProjects.find(item => item.id === cached.value.activeProjectId) ?? cachedProjects[0];
+            writeWorkspaceStorage(createWorkspaceSnapshot({
+              ...cachedActive,
+              projects: cachedProjects,
+              activeProjectId: cachedActive.id,
+              source: "LOCAL",
+              syncStatus: "LOCAL",
+            }));
+          }
+        }
+        await serverProjectsQuery.refetch();
       } catch {
         setAction("project", {
           status: "error",
@@ -13636,10 +13673,55 @@ export default function Home() {
         });
         return;
       }
+    } else {
+      const generation = ++workspaceSaveGeneration.current;
+      const headers = anonymousWorkspaceHeaders();
+      if (localServerHydrated.current && !headers) {
+        setAction("project", {
+          status: "error",
+          message: "Suppression locale non confirmée : l’identifiant du workspace est indisponible.",
+        });
+        return;
+      }
+      try {
+        if (localServerHydrated.current && headers) {
+          await workspaceSaveQueue(async () => {
+            if (generation !== workspaceSaveGeneration.current) return;
+            const response = await fetch(`/api/local/workspace?project_id=${encodeURIComponent(deletedProjectId)}`, {
+              method: "DELETE",
+              headers,
+              credentials: "include",
+            });
+            if (!response.ok) {
+              const body = await response.json().catch(() => null);
+              throw new Error(body?.error?.message ?? `Suppression du workspace refusée (${response.status}).`);
+            }
+          });
+        }
+        if (remaining.length && target) {
+          const payload = createWorkspaceSnapshot({
+            ...target,
+            projects: remaining,
+            activeProjectId: target.id,
+            source: "LOCAL",
+            syncStatus: "LOCAL",
+          });
+          lastWorkspaceUpdatedAt.current = payload.updatedAt;
+          writeWorkspaceStorage(payload);
+          publishWorkspaceMessage(syncChannelRef.current, { type: "workspace", payload });
+        } else {
+          window.localStorage.removeItem(WORKSPACE_KEY);
+        }
+      } catch (error) {
+        setAction("project", {
+          status: "error",
+          message: error instanceof Error ? `Suppression non confirmée : ${error.message}` : "Suppression locale non confirmée.",
+        });
+        return;
+      }
     }
-    if (projects.length === 1) {
+    if (!remaining.length) {
       setProjects([]);
-      window.localStorage.removeItem(WORKSPACE_KEY);
       setActiveProjectId("");
       setProject(emptyProject);
       setRequirements([]);
@@ -13654,8 +13736,6 @@ export default function Home() {
       });
       return;
     }
-    const remaining = projects.filter(item => item.id !== activeProjectId);
-    const target = remaining[0];
     setProjects(remaining);
     setActiveProjectId(target.id);
     setProject(target.project);
@@ -14797,9 +14877,11 @@ export default function Home() {
                           const generation = ++workspaceSaveGeneration.current;
                           lastWorkspaceUpdatedAt.current = payload.updatedAt;
                           setSyncNotice("");
-                          writeWorkspaceStorage(payload);
-                          if (suppressSyncBroadcast.current) suppressSyncBroadcast.current = false;
-                          else publishWorkspaceMessage(syncChannelRef.current, { type: "workspace", payload });
+                          if (!authenticatedUser) {
+                            writeWorkspaceStorage(payload);
+                            if (suppressSyncBroadcast.current) suppressSyncBroadcast.current = false;
+                            else publishWorkspaceMessage(syncChannelRef.current, { type: "workspace", payload });
+                          }
 
                           if (!authenticatedUser && localServerHydrated.current) {
                             const headers = anonymousWorkspaceHeaders();
