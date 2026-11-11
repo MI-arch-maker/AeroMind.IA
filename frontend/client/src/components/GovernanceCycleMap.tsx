@@ -1,7 +1,7 @@
 import { ArrowUpRight, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
-const STAGES = [
+export const GOVERNANCE_STAGES = [
   { code: "G01", label: "Exigences", detail: "Cadre de la demande" },
   { code: "G02", label: "Identité", detail: "Habilitation vérifiée" },
   { code: "G03", label: "Équipements", detail: "Revue du périmètre" },
@@ -22,11 +22,11 @@ export function GovernanceCycleMap({ onOpenLevels, t }: { onOpenLevels: () => vo
       </header>
 
       <div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-5">
-        {STAGES.map((stage, index) => (
+        {GOVERNANCE_STAGES.map((stage, index) => (
           <article key={stage.code} className="relative min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex items-center justify-between gap-2">
               <span className="rounded-md border border-cyan-100 bg-cyan-50 px-2 py-1 font-mono text-[10px] font-bold text-cyan-800">{stage.code}</span>
-              {index < STAGES.length - 1 && <span className="hidden text-slate-300 xl:inline" aria-hidden="true">→</span>}
+              {index < GOVERNANCE_STAGES.length - 1 && <span className="hidden text-slate-300 xl:inline" aria-hidden="true">→</span>}
             </div>
             <strong className="mt-3 block text-xs text-slate-800">{t(stage.label)}</strong>
             <span className="mt-1 block text-[10px] leading-4 text-slate-500">{t(stage.detail)}</span>

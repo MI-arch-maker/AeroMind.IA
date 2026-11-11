@@ -33,6 +33,7 @@
     {"path":"/labbench","title":"AeroMind LabBench"},
     {"path":"/engineering-hub","title":"AeroMind — Centre d’ingénierie"},
     {"path":"/admin","title":"AeroMind — Administration"},
+    {"path":"/admin-console","title":"AeroMind — Console Administrateur"},
     {"path":"/super-admin","title":"AeroMind — Super-Admin"},
     {"path":"/audit-journal","title":"AeroMind — Journal d’audit"}
   ]

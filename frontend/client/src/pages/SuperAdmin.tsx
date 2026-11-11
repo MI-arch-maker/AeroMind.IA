@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { Activity, AlertTriangle, Bell, ChevronDown, ClipboardCheck, Edit, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Moon, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Users, X, Eye } from "lucide-react";
+import { Activity, AlertTriangle, Bell, ClipboardCheck, Edit, ExternalLink, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Moon, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Users, X, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { bearerHeaders, clearSessionToken } from "@/lib/sessionToken";
@@ -10,6 +10,7 @@ import { OperationalCapabilitiesPanel } from "@/components/OperationalCapabiliti
 import { SystemHealthPanel } from "@/components/SystemHealthPanel";
 import { AuditEventExplorer } from "@/components/AuditEventExplorer";
 import { GovernanceCycleMap } from "@/components/GovernanceCycleMap";
+import { GovernanceCapabilityMatrix } from "@/components/GovernanceCapabilityMatrix";
 import { useLanguage } from "../contexts/LanguageContext";
 import "./super-admin.css";
 
@@ -22,13 +23,6 @@ type SortDir = "asc" | "desc";
 function Pill({ children, tone = "slate" }: { children: React.ReactNode; tone?: string }) {
   const tones: Record<string, string> = { blue: "bg-blue-50 text-blue-700", violet: "bg-violet-50 text-violet-700", amber: "bg-amber-50 text-amber-700", green: "bg-emerald-50 text-emerald-700", red: "bg-red-50 text-red-700", slate: "bg-slate-100 text-slate-600" };
   return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone] || tones.slate}`}>{children}</span>;
-}
-
-function formatHMS(seconds: number): string {
-  const h = Math.floor(seconds / 3600).toString().padStart(2, "0");
-  const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, "0");
-  const s = Math.floor(seconds % 60).toString().padStart(2, "0");
-  return `${h}:${m}:${s}`;
 }
 
 export default function SuperAdmin() {
@@ -54,7 +48,6 @@ export default function SuperAdmin() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("email");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [sessionSeconds, setSessionSeconds] = useState(0);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
@@ -97,15 +90,6 @@ export default function SuperAdmin() {
     const handler = () => void refreshSession();
     window.addEventListener("aeromind-auth-changed", handler);
     return () => window.removeEventListener("aeromind-auth-changed", handler);
-  }, []);
-
-  // Live session timer — gives the console a real "active session" feel.
-  useEffect(() => {
-    const start = Date.now();
-    const tick = () => setSessionSeconds(Math.floor((Date.now() - start) / 1000));
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
   }, []);
 
   // Keyboard shortcuts: F5 to refresh queries, "/" to focus the search input.
@@ -364,6 +348,7 @@ export default function SuperAdmin() {
   const adminEvents = (activity.data?.adminEvents || activity.data?.activity || []) as any[];
   const recentAdminEvents = adminEvents.slice(0, 5);
   const notificationEvents = adminEvents.slice(0, 3);
+  const displayName = user?.name || user?.email || t("SUPER-ADMIN");
 
   if (authLoading) return <AuthShell><p className="text-sm text-slate-500">{t("Vérification de la session Super-Admin…")}</p></AuthShell>;
   if (!user) return <AuthShell><ShieldCheck className="mb-4 text-blue-600" size={38} /><h1 className="text-2xl font-bold">{t("Connexion console AeroMind")}</h1><p className="mt-3 text-sm leading-6 text-slate-500">{t("Choisissez Microsoft Entra ou l'accès local sécurisé préalablement activé par le Super-Admin. Les comptes locaux exigent un mot de passe et un code d'application TOTP.")}</p><button onClick={() => startLogin()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"><LogIn size={17} />{t("Continuer avec Microsoft Entra")}</button><div className="my-5 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" />{t("OU ACCÈS LOCAL MFA")}<span className="h-px flex-1 bg-slate-200" /></div><LocalAuthPanel onAuthenticated={refreshSession} /><Link href="/" className="mt-5 block text-center text-xs font-semibold text-slate-500 hover:text-blue-600">{t("Retour au cockpit")}</Link></AuthShell>;
@@ -405,10 +390,54 @@ export default function SuperAdmin() {
     ["settings", t("Paramètres")],
   ];
 
-  return <main className="sa-shell min-h-screen bg-[#f5f7fa] text-[#10243a]"><div className="flex min-h-screen">
+  const sectionPanelProps = {
+    totals,
+    activity: activity.data,
+    reports: reports.data,
+    reportsLoading: reports.isLoading,
+    pendingRegs,
+    pendingLoading,
+    pendingError,
+    onRefreshPending: () => void fetchPending(),
+    onApproveRegistration: (address: string, requestedName: string) => void approveRegistration(address, requestedName),
+    onRejectRegistration: (address: string) => void rejectRegistration(address),
+    onCreate: () => setShowCreate(true),
+    onReports: () => { setShowReports(true); setActiveSection("reports"); },
+    onApprove: (id: string) => approve.mutate({ id }),
+    onProjectAction: (id: string, action: "save" | "observe" | "delete") => {
+      if (action === "save") saveProject.mutate({ id });
+      else if (action === "observe") observeProject.mutate({ id });
+      else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id });
+    },
+    invalidate: async () => { await invalidate(); },
+    t,
+  };
+
+  return <main className="sa-shell text-[#10243a]">
+    <header className="sa-global-header">
+      <Link href="/" className="sa-global-brand"><span className="sa-mark">A</span><span><strong>{t("AEROMIND.IA")}</strong><small>{t("PLAN DE CONTRÔLE · SUPER-ADMIN")}</small></span></Link>
+      <div className="sa-global-identity"><span className="sa-global-level">{t("L5 ·")} {t("SUPER-ADMIN")}</span><span>{t("Session vérifiée")}</span><span>{t("Aucune connexion automatique")}</span><span>{t("AUCUNE COMMANDE PHYSIQUE DEPUIS CE CENTRE")}</span></div>
+      <div className="sa-global-actions">
+        <button type="button" onClick={() => void refreshConsole()} disabled={refreshingAll} className="sa-global-action sa-global-refresh" title={refreshingAll ? t("Actualisation…") : t("Actualiser")} aria-label={refreshingAll ? t("Actualisation…") : t("Actualiser")}><RefreshCw size={15} className={refreshingAll ? "animate-spin" : ""} /><span>{refreshingAll ? t("Actualisation…") : t("Actualiser")}</span></button>
+        <button type="button" onClick={() => void sleepConsole()} disabled={logoutBusy} className="sa-global-action is-standby" title={t("Mise en veille")} aria-label={t("Mise en veille")}><Moon size={15} /><span>{t("Mise en veille")}</span></button>
+        <button type="button" onClick={() => void logout()} disabled={logoutBusy} className="sa-global-action is-logout" title={t("Déconnexion")} aria-label={t("Déconnexion")}><LogOut size={15} /><span>{t("Déconnexion")}</span></button>
+        <button type="button" onClick={() => { if (activeSection !== "accounts") setActiveSection("accounts"); window.setTimeout(() => searchRef.current?.focus(), 0); }} title={t("Rechercher")} aria-label={t("Rechercher")} className="sa-global-icon-action"><Search size={17} /></button>
+        <div className="sa-global-notifications">
+          <button type="button" onClick={() => setNotificationsOpen(v => !v)} title={t("Notifications")} aria-label={t("Notifications")} aria-expanded={notificationsOpen} className="sa-global-icon-action">
+            <Bell size={17} />{notificationEvents.length > 0 && <span className="sa-global-notification-dot" aria-hidden="true" />}
+          </button>
+          {notificationsOpen && <div className="sa-global-notification-menu" role="dialog" aria-label={t("Notifications admin")}>
+            <div className="sa-global-notification-heading"><strong>{t("Notifications admin")}</strong><button type="button" onClick={() => setNotificationsOpen(false)} aria-label={t("Fermer")}><X size={14} /></button></div>
+            {notificationEvents.length === 0 ? <p>{t("Aucune nouvelle notification")}</p> : <ul>{notificationEvents.map((ev: any) => <li key={ev.id}><div><strong>{ev.eventType}</strong><time>{ev.createdAt ? new Date(ev.createdAt).toLocaleTimeString("fr-FR") : "—"}</time></div><small>{t("Par")} {ev.actorEmail}</small></li>)}</ul>}
+          </div>}
+        </div>
+        <div className="sa-global-user"><span className="sa-global-dot" aria-hidden="true" /><span><strong>{displayName}</strong><small>{user.email}</small></span></div>
+      </div>
+    </header>
+    <div className="sa-application-shell flex min-h-screen">
     <aside className="sa-sidebar hidden w-64 shrink-0 flex-col bg-[#10243a] px-5 py-6 text-white lg:flex">
-      <Link href="/" className="flex items-center gap-3"><span className="sa-mark grid h-9 w-9 skew-x-[-8deg] place-items-center border border-blue-300 text-2xl italic text-blue-300">A</span><span><strong className="block tracking-[.18em]">AEROMIND</strong><small className="text-[9px] uppercase tracking-[.22em] text-blue-200">{t("Console Super-Admin")}</small></span></Link>
-      <div className="my-8 h-px bg-white/10" />
+      <div className="sa-sidebar-heading"><span>{t("NAVIGATION GOUVERNANCE")}</span><strong>{t("ESPACE L5")}</strong></div>
+      <div className="my-5 h-px bg-white/10" />
       <nav className="space-y-1 text-sm">{navItems.map(item => <Nav key={item.id} active={activeSection === item.id} icon={item.icon} label={item.label} onClick={() => { setActiveSection(item.id); if (item.id === "reports") setShowReports(true); }} badge={item.badge} />)}</nav>
       <div className="mt-auto rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
         <div className="flex items-center gap-2 font-semibold">
@@ -418,48 +447,10 @@ export default function SuperAdmin() {
         </div>
         <p className="mt-2 break-all leading-5 text-slate-400">{user.email}</p>
         <span className="mt-2 inline-flex rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold tracking-wider text-blue-200">{t("SUPER-ADMIN")}</span>
-        <button onClick={() => void logout()} disabled={logoutBusy} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10"><LogOut size={14} />{logoutBusy ? t("Déconnexion…") : t("Se déconnecter")}</button>
+        <small className="sa-sidebar-session-note">{t("La session reste contrôlée côté serveur.")}</small>
       </div>
     </aside>
     <section className="min-w-0 flex-1">
-      <div className="sa-statusbar flex items-center gap-3 border-b border-slate-800 bg-[#0b1a2c] px-5 py-1.5 text-[11px] text-slate-300 md:px-9">
-        <span className="inline-flex items-center gap-1.5"><span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />{t("Session Super-Admin")}: <strong className="text-emerald-300">{t("Authentifiée")}</strong></span>
-        <span className="text-slate-600">·</span>
-        <span>{t("Session")}: <strong className="font-mono text-slate-100">{formatHMS(sessionSeconds)}</strong></span>
-        <span className="text-slate-600">·</span>
-        <span className="hidden sm:inline">{t("Adresse")}: <strong className="break-all text-slate-200">{user.email}</strong></span>
-        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-2 py-0.5 font-bold tracking-wider text-blue-200">{t("SUPER-ADMIN")}</span>
-      </div>
-      <header className="sa-topbar flex min-h-16 items-center gap-4 border-b border-slate-200 bg-white px-5 py-3 md:px-9">
-        <div className="text-sm text-slate-400">{t("Administration")} <span className="mx-2">/</span> <strong className="text-slate-700">{sectionTitle[activeSection]}</strong></div>
-        <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => void refreshConsole()} disabled={refreshingAll} className="sa-refresh-button inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={14} className={refreshingAll ? "animate-spin" : ""} />{refreshingAll ? t("Actualisation…") : t("Actualiser")}</button>
-          <button type="button" onClick={() => void sleepConsole()} disabled={logoutBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"><Moon size={14} />{t("Mise en veille")}</button>
-          <button type="button" onClick={() => void logout()} disabled={logoutBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><LogOut size={14} />{t("Déconnexion")}</button>
-          <button onClick={() => searchRef.current?.focus()} title={t("Rechercher")} aria-label={t("Rechercher")} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Search size={18} /></button>
-          <div className="relative">
-            <button onClick={() => setNotificationsOpen(v => !v)} title={t("Notifications")} aria-label={t("Notifications")} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
-              <Bell size={18} />
-              {notificationEvents.length > 0 && <span className="absolute right-1 top-1 inline-flex h-2 w-2 rounded-full bg-amber-500" />}
-            </button>
-            {notificationsOpen && (
-              <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
-                <div className="mb-2 flex items-center justify-between">
-                  <strong className="text-xs uppercase tracking-wider text-slate-500">{t("Notifications admin")}</strong>
-                  <button onClick={() => setNotificationsOpen(false)} aria-label={t("Fermer")} className="rounded p-1 text-slate-400 hover:bg-slate-100"><X size={14} /></button>
-                </div>
-                {notificationEvents.length === 0 ? <p className="text-xs text-slate-400">{t("Aucune nouvelle notification")}</p> : <ul className="space-y-2">{notificationEvents.map((ev: any) => <li key={ev.id} className="rounded-lg bg-slate-50 p-2 text-[11px]"><div className="flex justify-between gap-2"><strong className="text-slate-700">{ev.eventType}</strong><small className="text-slate-400">{ev.createdAt ? new Date(ev.createdAt).toLocaleTimeString("fr-FR") : "—"}</small></div><p className="mt-0.5 text-slate-500">{t("Par")} {ev.actorEmail}</p></li>)}</ul>}
-              </div>
-            )}
-          </div>
-          <div className="hidden items-center gap-2 border-l border-slate-200 pl-4 sm:flex">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">MA</span>
-            <span><strong className="block text-xs">{user.name || t("SUPER-ADMIN")}</strong><small className="break-all text-[10px] text-slate-400">{user.email}</small></span>
-            <ChevronDown size={14} className="text-slate-400" />
-          </div>
-          <button onClick={() => void logout()} disabled={logoutBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:hidden"><LogOut size={14} /> {t("Sortir")}</button>
-        </div>
-      </header>
       <div className="sa-mobile-nav flex gap-2 overflow-auto border-b border-slate-200 bg-white px-4 py-2 lg:hidden">{mobileNav.map(([id, label]) => <button key={id} onClick={() => { setActiveSection(id); if (id === "reports") setShowReports(true); }} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${activeSection === id ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>{label}</button>)}</div>
       <div className="sa-content mx-auto max-w-[1500px] p-5 md:p-9">
         {authorizationCodeNotice && (
@@ -475,45 +466,74 @@ export default function SuperAdmin() {
           </div>
         )}
         {(accounts.error || activity.error || reports.error) && <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><span>{t("Certaines données de gouvernance n’ont pas pu être chargées. Les actions affectées restent indisponibles jusqu’au prochain chargement.")}</span><button type="button" onClick={() => void refreshConsole()} className="font-bold underline">{t("Réessayer")}</button></div>}
-        <div className="sa-page-heading mb-8 flex flex-wrap items-end justify-between gap-5">
+        {activeSection !== "overview" && <div className="sa-page-heading">
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[.18em] text-blue-600">{t("Centre de gouvernance AeroMind")}</p>
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{t("Une administration claire.")}<br /><span className="text-blue-600">{t("Un contrôle total.")}</span></h1>
-            <p className="mt-3 max-w-xl text-sm text-slate-500">{t("Session active. Chaque décision ci-dessous est envoyée au backend et journalisée.")}</p>
-            <p className="mt-2 text-[11px] text-slate-400"><kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px]">F5</kbd> {t("Rafraîchir")} · <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px]">/</kbd> {t("Rechercher")}</p>
+            <p className="sa-page-kicker">{t("GOUVERNANCE · SESSION SUPER-ADMIN")}</p>
+            <h1>{sectionTitle[activeSection]}</h1>
+            <p>{t("Données et commandes restent soumises aux autorisations backend et à la trace d’audit.")}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => void issueLocalInvite()} className="sa-action-button inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 hover:bg-emerald-100"><ShieldCheck size={16} /> {t("Préparer mon accès local MFA")}</button>
-            <button onClick={() => setShowCreate(true)} className="sa-action-button inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700"><Plus size={17} /> {t("Créer un compte")}</button>
+          {activeSection === "accounts" && <div className="sa-page-actions">
+            <button onClick={() => void issueLocalInvite()} className="sa-action-button sa-outline-action"><ShieldCheck size={15} /> {t("Préparer mon accès local MFA")}</button>
+            <button onClick={() => setShowCreate(true)} className="sa-action-button sa-primary-action"><Plus size={16} /> {t("Créer un compte")}</button>
+          </div>}
+        </div>}
+
+        {activeSection === "overview" && <div className="sa-control-plane">
+          <div className="sa-overview-metrics" role="group" aria-label={t("Indicateurs de gouvernance issus des API")}>
+            <Metric label={t("Comptes autorisés")} value={accounts.isLoading || accounts.error ? "—" : accounts.data?.length ?? "—"} icon={<Users size={16} />} tone="blue" t={t} />
+            <Metric label={t("Inscriptions en attente")} value={pendingLoading || pendingError ? "—" : pendingRegs.length} icon={<ClipboardCheck size={16} />} tone="amber" t={t} />
+            <Metric label={t("Événements chargés")} value={activity.isLoading || activity.error ? "—" : adminEvents.length} icon={<Activity size={16} />} tone="green" t={t} />
+            <Metric label={t("Rapports retournés")} value={reports.isLoading || reports.error ? "—" : reports.data?.length ?? "—"} icon={<FileText size={16} />} tone="violet" t={t} />
           </div>
-        </div>
-
-        <div className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label={t("Comptes actifs")} value={totals.actifs ?? 0} icon={<Users size={18} />} tone="blue" t={t} />
-          <Metric label={t("Projets en cours")} value={activity.data?.projects?.length ?? 0} icon={<FolderKanban size={18} />} tone="violet" t={t} />
-          <Metric label={t("Rapports à approuver")} value={(reports.data || []).filter((report: any) => ["submitted", "reviewed_by_supervisor"].includes(report.status)).length} icon={<ClipboardCheck size={18} />} tone="amber" t={t} />
-          <Metric label={t("Sous évaluation")} value={totals.en_attente ?? 0} icon={<Activity size={18} />} tone="green" t={t} />
-          <Metric label={t("Espaces isolés")} value={totals.proprietaires_projets ?? 0} icon={<ShieldCheck size={18} />} tone="violet" t={t} />
-        </div>
-
-        {activeSection === "overview" && (
-          <div className="mb-7 grid grid-cols-2 gap-4 md:grid-cols-4">
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="text-2xl font-bold text-slate-800">{accounts.data?.length || 0}</div><div className="text-xs text-slate-500">{t("Comptes totaux")}</div></div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><div className="text-2xl font-bold text-amber-700">{pendingRegs.length}</div><div className="text-xs text-slate-500">{t("En attente")}</div></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="text-2xl font-bold text-slate-800">{adminEvents.length}</div><div className="text-xs text-slate-500">{t("Événements récents")}</div></div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4"><div className="text-2xl font-bold text-slate-800">{reports.data?.length || 0}</div><div className="text-xs text-slate-500">{t("Rapports")}</div></div>
+          <div className="sa-control-plane-top-grid">
+            <GovernanceCapabilityMatrix />
+            <section className="sa-isolation-panel">
+              <header><p>{t("ISOLATION DES IDENTITÉS")}</p><h2>{t("Périmètres de gouvernance")}</h2><span>{t("La qualification ne remplace jamais le propriétaire ni le rôle serveur.")}</span></header>
+              <div className="sa-isolation-lanes">
+                <article><strong>L1–L3</strong><div><b>{t("Espaces personnels")}</b><small>{t("Données métier rattachées à l’identifiant stable du propriétaire.")}</small></div></article>
+                <article><strong>L4</strong><div><b>{t("Administration à périmètre borné")}</b><small>{t("Chaque route vérifie le rôle Admin et son périmètre; pas de compteurs globaux.")}</small></div></article>
+                <article><strong>L5</strong><div><b>{t("Gouvernance Super-Admin")}</b><small>{t("Les registres globaux autorisés restent soumis aux gardes route-locales et à l’audit.")}</small></div></article>
+              </div>
+              <div className="sa-isolation-counts">
+                <div><span>{t("Comptes retournés par l’API")}</span><strong>{accounts.data?.length ?? 0}</strong></div>
+                <div><span>{t("Propriétaires distincts de projets")}</span><strong>{totals.proprietaires_projets ?? 0}</strong></div>
+              </div>
+              <footer>
+                <button type="button" onClick={() => setActiveSection("accounts")}>{t("Ouvrir le registre des comptes")} <ExternalLink size={12} /></button>
+                <button type="button" onClick={() => setActiveSection("levels")}>{t("Lire la matrice L1–L5")} <ExternalLink size={12} /></button>
+              </footer>
+            </section>
           </div>
-        )}
 
-        {activeSection === "overview" && <SystemHealthPanel />}
+          <div className="sa-control-plane-middle-grid">
+            <section className="sa-overview-approvals"><SectionPanel section="approvals" {...sectionPanelProps} /></section>
+            <section className="sa-overview-audit">
+              <header className="sa-overview-panel-heading"><div><p>{t("JOURNAL DE GOUVERNANCE")}</p><h2>{t("Événements récents")}</h2><span>{adminEvents.length} · {t("événements fournis par l’API")}</span></div><button type="button" onClick={() => setActiveSection("audit")}>{t("Ouvrir l’audit")} <ExternalLink size={12} /></button></header>
+              <AuditEventExplorer events={adminEvents} />
+            </section>
+          </div>
 
-        {activeSection === "overview" && <section className="mb-7 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <div className="sa-hero-band rounded-2xl border border-blue-100 bg-gradient-to-br from-[#10243a] to-[#174b70] p-5 text-white shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-200">{t("Posture de gouvernance")}</p><h2 className="mt-2 text-xl font-bold">{t("Un espace par identité.")}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">{t("Les projets et données métier sont maintenant rattachés à l'identifiant stable du compte créé par le Super-Admin. Un changement de méthode de connexion ne change pas de propriétaire.")}</p></div><ShieldCheck className="shrink-0 text-cyan-300" size={27} /></div><div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Comptes actifs")}</span><strong className="mt-1 block text-lg">{totals.actifs ?? 0}</strong></div><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Propriétaires de projets")}</span><strong className="mt-1 block text-lg">{totals.proprietaires_projets ?? 0}</strong></div></div></div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-600">{t("Contrôles rapides")}</p><h2 className="mt-2 font-bold">{t("Centre de contrôle")}</h2></div><Activity className="text-emerald-500" size={21} /></div><div className="mt-4 space-y-3 text-xs"><div className="flex items-center justify-between"><span className="text-slate-500">{t("Isolation des projets")}</span><Pill tone="green">{t("ACTIVE")}</Pill></div><div className="flex items-center justify-between"><span className="text-slate-500">{t("Journal d'audit")}</span><Pill tone="green">{t("APPEND-ONLY")}</Pill></div><div className="flex items-center justify-between"><span className="text-slate-500">{t("Code LABBENCH 01")}</span><Pill tone="blue">{t("SUPER-ADMIN")}</Pill></div></div></div>
-        </section>}
-        {activeSection === "operations" && <div className="mb-7 space-y-5"><GovernanceCycleMap onOpenLevels={() => { setActiveSection("levels"); window.scrollTo({ top: 0, behavior: "smooth" }); }} t={t} /><section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-600">{t("SUPERVISION ET CONDUITE")}</p><h2 className="mt-1 text-lg font-bold text-slate-800">{t("État réel du runtime et modes autorisés")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("Les changements de mode passent par le backend, les gates applicables et les limites VIRTUAL ONLY. Les commandes matérielles ne sont pas lancées depuis ce catalogue.")}</p></div><OperationModeCard /></section><OperationalCapabilitiesPanel /></div>}
+          <div className="sa-control-plane-bottom-grid">
+            <div className="sa-overview-cycle"><GovernanceCycleMap onOpenLevels={() => { setActiveSection("levels"); window.scrollTo({ top: 0, behavior: "smooth" }); }} t={t} /></div>
+            <section className="sa-llm-validation-panel">
+              <div className="sa-llm-validation-mark"><Activity size={16} /></div>
+              <p>{t("CONNECTIVITÉ INTERNE · TEST EXPLICITE")}</p>
+              <h2>{t("Gateway LLM AeroMind")}</h2>
+              <span>{t("La santé indique uniquement la configuration; la connectivité se vérifie par une action ponctuelle dans la console Admin dédiée.")}</span>
+              <Link href="/admin-console" className="sa-llm-validation-link">{t("Ouvrir la console de validation")} <ExternalLink size={13} /></Link>
+              <small>{t("Une authentification explicite sur cette console peut être requise. Aucun secret n’est affiché ici.")}</small>
+            </section>
+          </div>
+        </div>}
 
-        <SectionPanel section={activeSection} totals={totals} activity={activity.data} reports={reports.data} reportsLoading={reports.isLoading} pendingRegs={pendingRegs} pendingLoading={pendingLoading} pendingError={pendingError} onRefreshPending={() => void fetchPending()} onApproveRegistration={(email, name) => void approveRegistration(email, name)} onRejectRegistration={(email) => void rejectRegistration(email)} onCreate={() => setShowCreate(true)} onReports={() => { setShowReports(true); setActiveSection("reports"); }} onApprove={(id) => approve.mutate({ id })} onProjectAction={(id, action) => { if (action === "save") saveProject.mutate({ id }); else if (action === "observe") observeProject.mutate({ id }); else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id }); }} invalidate={async () => { await invalidate(); }} t={t} />
+        {activeSection === "operations" && <div className="mb-7 space-y-5">
+          <GovernanceCycleMap onOpenLevels={() => { setActiveSection("levels"); window.scrollTo({ top: 0, behavior: "smooth" }); }} t={t} />
+          <SystemHealthPanel />
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-600">{t("SUPERVISION ET CONDUITE")}</p><h2 className="mt-1 text-lg font-bold text-slate-800">{t("État réel du runtime et modes autorisés")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("Les changements de mode passent par le backend, les gates applicables et les limites VIRTUAL ONLY. Les commandes matérielles ne sont pas lancées depuis ce catalogue.")}</p></div><OperationModeCard /></section>
+          <OperationalCapabilitiesPanel />
+        </div>}
+
+        {activeSection !== "overview" && <SectionPanel section={activeSection} {...sectionPanelProps} />}
 
         {/* Accounts section — denser, sortable, Excel-like with sticky header */}
         <div className={`grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] ${activeSection !== "accounts" ? "hidden" : ""}`}>
@@ -618,7 +638,7 @@ export default function SuperAdmin() {
         <label className="mb-4 block text-xs font-semibold text-slate-600">{t("Adresse e-mail")}<input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm outline-none focus:border-blue-500" /></label>
         <div className="grid grid-cols-2 gap-3">
           <label className="text-xs font-semibold text-slate-600">{t("Rôle")}<select value={role} onChange={e => { const nextRole = e.target.value as Role; setRole(nextRole); if (nextRole === "admin") setLevel("L4"); else if (level === "L4" || level === "L5") setLevel("L1"); }} className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm"><option value="user">{t("Utilisateur")}</option><option value="demo">{t("Démo")}</option><option value="visitor">{t("Visiteur")}</option><option value="surveillant">{t("Surveillant")}</option><option value="admin">{t("ADMIN")}</option></select></label>
-          <label className="text-xs font-semibold text-slate-600">{t("Niveau")}<select value={role === "admin" ? "L4" : level} disabled={role === "admin"} onChange={e => setLevel(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm disabled:bg-slate-100"><option value="L1">L1 · {t("Découverte")}</option><option value="L2">L2 · {t("Ingénieur")}</option><option value="L3">L3 · {t("Avancé")}</option>{role === "admin" && <option value="L4">L4 · {t("Administration")}</option>}</select></label>
+          <label className="text-xs font-semibold text-slate-600">{t("Niveau")}<select value={role === "admin" ? "L4" : level} disabled={role === "admin"} onChange={e => setLevel(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm disabled:bg-slate-100"><option value="L1">{t("L1 ·")} {t("Découverte")}</option><option value="L2">{t("L2 ·")} {t("Ingénieur")}</option><option value="L3">{t("L3 ·")} {t("Avancé")}</option>{role === "admin" && <option value="L4">{t("L4 ·")} {t("Administration")}</option>}</select></label>
         </div>
         <p className="mt-4 rounded-lg bg-blue-50 p-3 text-xs leading-5 text-blue-800">{t("Cette action autorise l'adresse dans AeroMind. L'utilisateur peut soit se connecter via Entra, soit activer un accès local avec l'invitation à usage unique affichée après création, un mot de passe robuste et une application TOTP.")}</p>
         <button disabled={create.isPending} className="mt-5 w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50">{create.isPending ? t("Création…") : t("Créer le compte")}</button>
@@ -761,7 +781,7 @@ function WorkspaceCard({ title, subtitle, children, t }: { title: string; subtit
 function Empty({ title, text }: { title: string; text: string }) { return <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center"><strong className="block text-sm">{title}</strong><p className="mt-1 text-xs text-slate-400">{text}</p></div>; }
 
 function Nav({ icon, label, active = false, onClick, badge }: { icon: React.ReactNode; label: string; active?: boolean; onClick: () => void; badge?: number }) { return <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition ${active ? "bg-blue-500/15 font-semibold text-blue-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>{icon}<span>{label}</span>{badge !== undefined && badge > 0 && <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">{badge}</span>}</button>; }
-function Metric({ label, value, icon, tone, t }: { label: string; value: number; icon: React.ReactNode; tone: string; t: (text: string) => string }) { const colors: Record<string, string> = { blue: "bg-blue-50 text-blue-600", violet: "bg-violet-50 text-violet-600", amber: "bg-amber-50 text-amber-600", green: "bg-emerald-50 text-emerald-600" }; return <div className="sa-metric rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone] || colors.blue}`}>{icon}</span><span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{t("Données API")}</span></div><strong className="mt-4 block text-2xl">{value}</strong><span className="text-xs text-slate-400">{label}</span></div>; }
+function Metric({ label, value, icon, tone, t }: { label: string; value: number | string; icon: React.ReactNode; tone: string; t: (text: string) => string }) { const colors: Record<string, string> = { blue: "bg-blue-50 text-blue-600", violet: "bg-violet-50 text-violet-600", amber: "bg-amber-50 text-amber-600", green: "bg-emerald-50 text-emerald-600" }; return <div className="sa-metric rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><span className={`grid h-9 w-9 place-items-center rounded-lg ${colors[tone] || colors.blue}`}>{icon}</span><span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{t("Données API")}</span></div><strong className="mt-4 block text-2xl">{value}</strong><span className="text-xs text-slate-400">{label}</span></div>; }
 function Info({ label, value, t }: { label: string; value: string; t: (text: string) => string }) { void t; return <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0"><span className="font-semibold text-slate-600">{label}</span><span className="max-w-[175px] text-right text-slate-400">{value}</span></div>; }
 
 function LocalAuthPanel({ onAuthenticated }: { onAuthenticated: () => Promise<void> }) {

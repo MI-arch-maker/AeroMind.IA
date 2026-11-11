@@ -35,3 +35,20 @@ Aucune route backend, règle L1–L5, session, migration ou permission n’a ét
 ## Non effectué
 
 Aucun déploiement Render ou autre déploiement de production n’a été lancé. La connectivité réelle au gateway LLM n’a pas été retestée dans cette tranche. Aucun essai E2E navigateur authentifié des workflows de décision ou de révocation n’a été exécuté. La livraison vérifie la compilation, les tests existants et les contrôles backend; elle ne constitue pas une garantie absolue de fonctionnement parfait de chaque commande préexistante de toute la plateforme.
+
+
+## Addendum — correction après comparaison A+B+C
+
+Après le retour signalant un écart visuel, les pages existantes ont été recomposées dans leurs hiérarchies approuvées. L’ADMIN présente désormais un rail de navigation, un bandeau propriétaire/session, un canevas central de visualisation conceptuelle non persistante, un arbre de projets, un inspecteur à onglets et des panneaux inférieurs d’actions, métadonnées et activité. Le SUPER-ADMIN présente un bandeau commandement, un rail de gouvernance, quatre compteurs issus des API, une matrice L1–L5 et une vue d’ensemble d’isolation, approbations, audit, parcours G01–G05 informatif et accès au test explicite du gateway. Les handlers/API existants ont été conservés; les noms restent traduisibles en FR/EN et la matrice possède maintenant des tests dédiés des seuils.
+
+### Contrôles complémentaires
+
+- `pnpm check` réussi après les derniers changements; catalogues FR/EN synchronisés et TypeScript sans erreur.
+- Vitest : **80 fichiers / 381 tests réussis**.
+- `pnpm build` réussi. Avertissement préexistant du bundler : certaines charges minifiées dépassent 1,5 Mo.
+- L’audit `pnpm i18n:lint` reste en échec au niveau du produit (1 769 diagnostics relevés), mais ne signale plus aucun diagnostic dans les fichiers de cette correction (`AdminConsole.tsx`, `SuperAdmin.tsx`, `GovernanceCapabilityMatrix.tsx`, `GovernanceCycleMap.tsx`). Il reste des chaînes codées en dur dans d’autres écrans, dont VirtualParametricFactory.
+- Preview HTTP : `/`, `/admin-console`, `/super-admin` et `/manus-routes.json` répondent 200; les 36 routes du manifeste incluent les deux consoles et Virtual Factory. Le navigateur confirme que la console Admin demande explicitement une connexion, et que le Super-Admin présente l’écran Entra/MFA sans session automatique.
+
+### Limites non validées
+
+Le compte de test autorisé n’étant pas fourni et aucune connexion n’ayant été enclenchée, les vues complètes post-authentification (canevas Admin peuplé, données de registre, commandes Super-Admin) n’ont pas été exercées dans le navigateur. L’identité du projet WebDev n’était pas disponible pour la capture responsive automatisée et le navigateur de Preview a ignoré `window.resizeTo`; la conformité mobile/tablette demeure donc à vérifier dans une session visuelle avec viewport contrôlable. Aucun test E2E authentifié, aucune connectivité réelle du gateway et aucun déploiement Render/production ne sont revendiqués. « 100 % opérationnel » n’est pas attesté par ces validations.
