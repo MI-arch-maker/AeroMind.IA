@@ -170,3 +170,23 @@
 - [x] **Journal exploitable :** recherche texte, acteur/cible, type, filtres date, pagination responsive et export CSV des seules métadonnées filtrées; neutraliser les cellules CSV susceptibles d’être interprétées comme formules; ne supprimer aucune entrée par filtrage.
 - [x] **Matrice L1–L5 lisible :** rendre les capacités métiers compréhensibles et rappeler la primauté des règles backend, du propriétaire, du rôle, des approbations et de la frontière physique; ne pas ajouter de privilèges.
 - [x] **Non-régression :** test de sonde DB défaillante et de non-divulgation LLM, tests existants ciblés, `pnpm check`, tests Vitest et `pnpm build`; livraison de l’archive source et rapport mis à jour.
+
+
+## Consoles — combinaison des concepts approuvée (11 novembre 2026)
+
+- [x] **Console ADMIN L4 — workspace d’ingénierie isolé :** intégration visuelle du poste d’ingénierie virtuelle au workspace existant; registres filtrés par le backend, lignes projet sélectionnables souris/clavier pour consulter les seules métadonnées autorisées; liens vers `/virtual-factory`; sessions Connexion/Déconnexion/Veille préservées; aucune cellule/drone créée automatiquement.
+- [x] **Console SUPER-ADMIN L5 — plan de contrôle :** frise G01–G05 clairement informative; navigation effective vers la matrice L1–L5, le cockpit et l’ingénierie virtuelle; supervision, audit, comptes, niveaux, approbations et sessions existants préservés. Aucun faux état de gate ou privilège ajouté.
+- [x] **Fonctionnalité et sûreté :** chaque nouveau bouton déclenche une navigation, une sélection inspectable ou un export CSV protégé contre l’injection de formule; l’API existante et les gardes backend restent souveraines. Le parcours G01–G05 accessible depuis la frise est explicitement une simulation locale, sans contournement step-up ni sortie matérielle.
+- [x] **Préservation et non-régression :** interfaces existantes conservées, sans réécriture backend; `pnpm check`, 79 suites de fichiers/378 tests Vitest et build de production réussis; aucune mise en production prétendue.
+
+### Preuves de validation — 11 novembre 2026
+
+- Backend : **331 tests réussis, 14 ignorés, 3 avertissements non bloquants**. Frontend : `pnpm check` réussi (catalogues et TypeScript); Vitest : **79 fichiers, 378 tests réussis**; `pnpm build` réussi.
+- Vite signale encore des bundles principaux de grande taille (>1,5 Mo après minification); cela n’interrompt pas le build et n’a pas été élargi dans cette tranche.
+- `pnpm i18n:lint` conserve des alertes historiques de libellés hardcodés dans plusieurs pages, dont l’Admin préexistante; les nouveaux libellés ajoutés par cette tranche ont été ajoutés aux catalogues, sans diagnostic ciblé restant.
+- La frise G01–G05 reste explicitement informative. Son lien ouvre la simulation locale existante `/?view=mission-center`; aucune file de demandes live ou mutation de l’API step-up `/api/institutional` n’a été ajoutée.
+
+
+### Audit complémentaire des commandes Admin — 11 novembre 2026
+
+La revue statique a révélé que la déconnexion Super-Admin effaçait l’état local même si l’endpoint OIDC répondait en erreur. Le handler vérifie désormais `response.ok` et ne réinitialise la session UI qu’après confirmation serveur; l’échec produit une notification et laisse l’identité affichée. `pnpm check`, 79 fichiers / 378 tests Vitest, puis `pnpm build` réussissent après ce correctif. **Non validé :** aucun test E2E navigateur authentifié n’a encore exercé la révocation, les flux Entra/MFA, le gateway réel ou les opérations de décision live. La formule « 100 % fonctionnel » reste donc non démontrée jusqu’à une campagne E2E par rôle et intégrations réelles.

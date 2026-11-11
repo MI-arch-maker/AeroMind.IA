@@ -9,6 +9,7 @@ import { OperationModeCard } from "@/components/OperationModeCard";
 import { OperationalCapabilitiesPanel } from "@/components/OperationalCapabilitiesPanel";
 import { SystemHealthPanel } from "@/components/SystemHealthPanel";
 import { AuditEventExplorer } from "@/components/AuditEventExplorer";
+import { GovernanceCycleMap } from "@/components/GovernanceCycleMap";
 import { useLanguage } from "../contexts/LanguageContext";
 import "./super-admin.css";
 
@@ -298,7 +299,8 @@ export default function SuperAdmin() {
   const logout = async () => {
     setLogoutBusy(true);
     try {
-      await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
+      const response = await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
+      if (!response.ok) throw new Error(t("Le serveur n’a pas confirmé la révocation de la session."));
       clearSessionToken();
       setUser(null);
       await utils.reset();
@@ -306,6 +308,8 @@ export default function SuperAdmin() {
       // tabs/components (e.g. an open Home tab) refresh their session state.
       window.dispatchEvent(new Event("aeromind-auth-changed"));
       toast.success(t("Session fermée"));
+    } catch (error) {
+      toast.error(t("Déconnexion impossible"), { description: error instanceof Error ? error.message : t("Échec de fermeture de la session.") });
     } finally { setLogoutBusy(false); }
   };
   const sleepConsole = async () => {
@@ -507,7 +511,7 @@ export default function SuperAdmin() {
           <div className="sa-hero-band rounded-2xl border border-blue-100 bg-gradient-to-br from-[#10243a] to-[#174b70] p-5 text-white shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-200">{t("Posture de gouvernance")}</p><h2 className="mt-2 text-xl font-bold">{t("Un espace par identité.")}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">{t("Les projets et données métier sont maintenant rattachés à l'identifiant stable du compte créé par le Super-Admin. Un changement de méthode de connexion ne change pas de propriétaire.")}</p></div><ShieldCheck className="shrink-0 text-cyan-300" size={27} /></div><div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Comptes actifs")}</span><strong className="mt-1 block text-lg">{totals.actifs ?? 0}</strong></div><div className="rounded-xl border border-white/10 bg-white/10 p-3"><span className="block text-blue-200">{t("Propriétaires de projets")}</span><strong className="mt-1 block text-lg">{totals.proprietaires_projets ?? 0}</strong></div></div></div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-600">{t("Contrôles rapides")}</p><h2 className="mt-2 font-bold">{t("Centre de contrôle")}</h2></div><Activity className="text-emerald-500" size={21} /></div><div className="mt-4 space-y-3 text-xs"><div className="flex items-center justify-between"><span className="text-slate-500">{t("Isolation des projets")}</span><Pill tone="green">{t("ACTIVE")}</Pill></div><div className="flex items-center justify-between"><span className="text-slate-500">{t("Journal d'audit")}</span><Pill tone="green">{t("APPEND-ONLY")}</Pill></div><div className="flex items-center justify-between"><span className="text-slate-500">{t("Code LABBENCH 01")}</span><Pill tone="blue">{t("SUPER-ADMIN")}</Pill></div></div></div>
         </section>}
-        {activeSection === "operations" && <div className="mb-7 space-y-5"><section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-600">{t("SUPERVISION ET CONDUITE")}</p><h2 className="mt-1 text-lg font-bold text-slate-800">{t("État réel du runtime et modes autorisés")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("Les changements de mode passent par le backend, les gates applicables et les limites VIRTUAL ONLY. Les commandes matérielles ne sont pas lancées depuis ce catalogue.")}</p></div><OperationModeCard /></section><OperationalCapabilitiesPanel /></div>}
+        {activeSection === "operations" && <div className="mb-7 space-y-5"><GovernanceCycleMap onOpenLevels={() => { setActiveSection("levels"); window.scrollTo({ top: 0, behavior: "smooth" }); }} t={t} /><section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-600">{t("SUPERVISION ET CONDUITE")}</p><h2 className="mt-1 text-lg font-bold text-slate-800">{t("État réel du runtime et modes autorisés")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("Les changements de mode passent par le backend, les gates applicables et les limites VIRTUAL ONLY. Les commandes matérielles ne sont pas lancées depuis ce catalogue.")}</p></div><OperationModeCard /></section><OperationalCapabilitiesPanel /></div>}
 
         <SectionPanel section={activeSection} totals={totals} activity={activity.data} reports={reports.data} reportsLoading={reports.isLoading} pendingRegs={pendingRegs} pendingLoading={pendingLoading} pendingError={pendingError} onRefreshPending={() => void fetchPending()} onApproveRegistration={(email, name) => void approveRegistration(email, name)} onRejectRegistration={(email) => void rejectRegistration(email)} onCreate={() => setShowCreate(true)} onReports={() => { setShowReports(true); setActiveSection("reports"); }} onApprove={(id) => approve.mutate({ id })} onProjectAction={(id, action) => { if (action === "save") saveProject.mutate({ id }); else if (action === "observe") observeProject.mutate({ id }); else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id }); }} invalidate={async () => { await invalidate(); }} t={t} />
 
