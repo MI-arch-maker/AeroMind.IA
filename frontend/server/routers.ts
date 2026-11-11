@@ -79,6 +79,8 @@ export type AppRouter = {
   };
   superAdmin: RouterShape & {
     accounts: Procedure;
+    qualificationActivity: Procedure;
+    projectMechanicalPreview: Procedure;
     deleteAccount: Procedure;
   };
 };

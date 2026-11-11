@@ -285,7 +285,7 @@ def test_admin_console_is_role_gated_and_workspace_scoped(app_client, monkeypatc
             db.add(User(id=owner_id, email=f"owner-{owner_id}@example.test"))
         outsider_id = f"outsider-{uuid4()}"
         db.add(User(id=outsider_id, email=f"{outsider_id}@example.test"))
-        own_project = Project(id=str(uuid4()), user_id=owner_id, name="Dossier administré", data_json='{"secret":"must-not-leak"}')
+        own_project = Project(id=str(uuid4()), user_id=owner_id, name="Dossier administré", data_json=json.dumps({"secret": "must-not-leak", "config": {"airframe": "quadcopter", "modelType": "multirotor", "platformProfile": "nimbus-02", "wingspan": 2.4, "chord": 0.3, "fuselageLength": 0.8, "secret": "private-config"}}))
         other_project = Project(id=str(uuid4()), user_id=outsider_id, name="Dossier étranger", data_json='{}')
         db.add_all([own_project, other_project])
         db.flush()
@@ -305,6 +305,16 @@ def test_admin_console_is_role_gated_and_workspace_scoped(app_client, monkeypatc
     serialized = json.dumps(records)
     assert "Dossier étranger" not in serialized
     assert "must-not-leak" not in serialized
+    preview_response = client.get(f"/api/admin-console/workspace/projects/{own_project.id}/mechanical-preview", headers=admin_cookie)
+    assert preview_response.status_code == 200, preview_response.text
+    preview = preview_response.json()
+    assert preview["readOnly"] is True
+    assert preview["configuration"]["airframe"] == "quadcopter"
+    assert preview["configuration"]["platformProfile"] == "nimbus-02"
+    assert preview["configuration"]["fuselageLength"] == 0.8
+    assert "private-config" not in json.dumps(preview)
+    outsider_preview = client.get(f"/api/admin-console/workspace/projects/{other_project.id}/mechanical-preview", headers=admin_cookie)
+    assert outsider_preview.status_code == 404
     from types import SimpleNamespace
     import web.copilot
     internal_settings = SimpleNamespace(
@@ -322,6 +332,71 @@ def test_admin_console_is_role_gated_and_workspace_scoped(app_client, monkeypatc
     assert llm_response.json() == {
         "status": "connected", "deployment": "aeromind", "model": "aeromind-test-model"
     }
+
+
+def test_admin_qualification_activity_is_server_filtered_and_payload_free(app_client):
+    client, Session, user_id = app_client
+    session_token = _signed(_b64(f"{user_id}|{user_id}@example.test".encode()))
+    from web.primary_session_store import register_primary_session
+    register_primary_session(session_token, user_id, f"{user_id}@example.test")
+    admin_cookie = {"Cookie": f"aeromind_admin_session={session_token}"}
+    with Session() as db:
+        from datetime import datetime, timezone
+        from web.models import AdminAccountRecord, AuditEvent
+        from web.canonical_models import AuditEventExt
+        admin_record = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.email == f"{user_id}@example.test"))
+        admin_data = json.loads(admin_record.data_json)
+        admin_data["role"] = "admin"
+        admin_record.data_json = json.dumps(admin_data)
+        for tier in ("L1", "L2", "L3"):
+            account_id = f"acct-{tier}-{uuid4()}"
+            email = f"{account_id}@example.test"
+            db.add(User(id=account_id, email=email))
+            db.add(AdminAccountRecord(id=account_id, email=email, data_json=json.dumps({
+                "id": account_id, "email": email, "name": f"Compte {tier}", "role": "user",
+                "level": tier, "accountStatus": "active", "approvalStatus": "approved",
+            })))
+            db.add(AuditEvent(
+                id=str(uuid4()), user_id=account_id, project_id=None, actor_role="user",
+                event_type=f"{tier.lower()}.workspace.opened", message="journal sans payload",
+                payload_json='{"secret":"do-not-return"}', occurred_at=datetime.now(timezone.utc),
+            ))
+            db.add(AuditEventExt(
+                id=str(uuid4()), actor_id=account_id, actor_role="user", action=f"{tier.lower()}.simulation.reviewed",
+                resource_id=None, decision="allow", project_id=None, drone_id=None,
+                correlation_id=str(uuid4()), message="journal canonique", payload_json='{"secret":"do-not-return"}',
+                occurred_at=datetime.now(timezone.utc), prev_hash=None, chain_hash=None,
+            ))
+        db.commit()
+    response = client.get("/api/admin-console/qualification-activity?level=L1", headers=admin_cookie)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["level"] == "L1"
+    assert {item["level"] for item in body["events"]} == {"L1"}
+    assert len(body["events"]) == 2
+    assert body["payloadsIncluded"] is False
+    assert "do-not-return" not in json.dumps(body)
+    all_levels = client.get("/api/admin-console/qualification-activity?level=all", headers=admin_cookie)
+    assert all_levels.status_code == 200
+    assert {item["level"] for item in all_levels.json()["events"]} == {"L1", "L2", "L3"}
+    rejected_level = client.get("/api/admin-console/qualification-activity?level=L5", headers=admin_cookie)
+    assert rejected_level.status_code == 400
+
+
+def test_superadmin_monitor_and_project_preview_remain_l5_gated(app_client):
+    client, _Session, user_id = app_client
+    session_token = _signed(_b64(f"{user_id}|{user_id}@example.test".encode()))
+    from web.primary_session_store import register_primary_session
+    register_primary_session(session_token, user_id, f"{user_id}@example.test")
+    user_cookie = {"Cookie": f"aeromind_session={session_token}"}
+    activity_response = client.get("/api/trpc/superAdmin.qualificationActivity", params={
+        "input": json.dumps({"json": {"level": "L1"}}),
+    }, headers=user_cookie)
+    preview_response = client.get("/api/trpc/superAdmin.projectMechanicalPreview", params={
+        "input": json.dumps({"json": {"id": "not-a-project"}}),
+    }, headers=user_cookie)
+    assert activity_response.status_code == 403
+    assert preview_response.status_code == 403
 
 
 def test_ai_chat_tRPC_is_authenticated_and_uses_gateway(app_client, monkeypatch):

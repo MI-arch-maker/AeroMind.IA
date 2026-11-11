@@ -743,6 +743,7 @@ async def trpc_compat(
     current_user = _current_user(aeromind_session, authorization)
     if any(name.endswith(suffix) for suffix in (
         'superAdmin.accounts', 'superAdmin.activity',
+        'superAdmin.qualificationActivity', 'superAdmin.projectMechanicalPreview',
         'superAdmin.createAccount', 'superAdmin.updateAccount',
         'superAdmin.deleteAccount', 'superAdmin.rotateAuthorizationCode', 'superAdmin.resetLocalAuth', 'superAdmin.issueDailyTotpCode', 'superAdmin.saveProject', 'superAdmin.observeProject', 'superAdmin.deleteProject',
         'superAdmin.updateSuperadminAccount', 'superAdmin.updateSuperadminEmail',
@@ -827,6 +828,23 @@ async def trpc_compat(
         data = list_accounts()
     elif name.endswith('superAdmin.activity'):
         data = admin_activity()
+    elif name.endswith('superAdmin.qualificationActivity'):
+        from .admin import qualification_activity
+        request_payload = payload if isinstance(payload, dict) else {}
+        try:
+            data = qualification_activity(current_user, str(request_payload.get('level', 'all')),
+                                         int(request_payload.get('limit', 100)))
+        except (TypeError, ValueError) as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+    elif name.endswith('superAdmin.projectMechanicalPreview'):
+        from .admin import project_mechanical_preview
+        request_payload = payload if isinstance(payload, dict) else {}
+        try:
+            data = project_mechanical_preview(str(request_payload.get('id', '')), actor=current_user)
+        except ValueError as exc:
+            return _trpc_error(400, 'BAD_REQUEST', str(exc))
+        if data is None:
+            return _trpc_error(404, 'NOT_FOUND', 'Projet introuvable')
     elif name.endswith('superAdmin.createAccount'):
         try:
             data = create_account(current_user, payload.get('email', ''), payload.get('name', ''), payload.get('role', 'user'), payload.get('level', 'L1'))

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import {
   Activity, AlertCircle, ArrowDownToLine, ArrowLeft, Check, ChevronRight,
@@ -6,10 +6,9 @@ import {
   LockKeyhole, LogOut, Moon, RefreshCw, Search, ShieldCheck, Sparkles,
   Users,
 } from "lucide-react";
-import { PhysicalDroneModel } from "@/components/PhysicalDroneModel";
+import { AdminMechanicalPreview } from "@/components/AdminMechanicalPreview";
 import { GOVERNANCE_STAGES } from "@/components/GovernanceCycleMap";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { droneCatalog } from "@/lib/droneCatalog";
 import "./admin-console.css";
 
 export type Overview = {
@@ -23,7 +22,10 @@ export type ProjectRecord = { id: string; name: string; createdAt?: string | nul
 export type SimulationRecord = { id: string; projectId: string; projectName: string; createdAt?: string | null; status: string };
 export type AuditRecord = { id: string; projectId?: string | null; type: string; message: string; occurredAt?: string | null };
 export type Records = { projects: ProjectRecord[]; simulations: SimulationRecord[]; events: AuditRecord[]; limits: { perSection: number; payloadsIncluded: boolean } };
-export type View = "overview" | "projects" | "simulations" | "journal" | "security";
+type QualificationEvent = { id: string; level: string; actor: string; actorRef: string; action: string; decision: string; projectId?: string | null; occurredAt?: string | null; source: string };
+type QualificationActivity = { level: string; events: QualificationEvent[]; updatedAt: string; payloadsIncluded: false; refreshMode: string };
+type MechanicalPreviewPayload = { projectId: string; projectName: string; configuration: unknown; readOnly: true; source: string };
+export type View = "overview" | "projects" | "simulations" | "journal" | "activity" | "security";
 type InspectorTab = "details" | "simulations" | "journal";
 
 const nav: { id: View; labelKey: string; icon: typeof LayoutDashboard }[] = [
@@ -31,12 +33,9 @@ const nav: { id: View; labelKey: string; icon: typeof LayoutDashboard }[] = [
   { id: "projects", labelKey: "Projets", icon: FolderKanban },
   { id: "simulations", labelKey: "Simulations", icon: Activity },
   { id: "journal", labelKey: "Journal", icon: FileClock },
+  { id: "activity", labelKey: "Activités L1–L3", icon: Users },
   { id: "security", labelKey: "Sécurité & accès", icon: ShieldCheck },
 ];
-
-const conceptDesign = droneCatalog.find(item => item.id === "nimbus-04")
-  ?? droneCatalog.find(item => item.key === "quadcopter")
-  ?? droneCatalog[0];
 
 const time = (value?: string | null) => {
   if (!value) return "—";
@@ -50,6 +49,13 @@ export default function AdminConsole() {
   const { t } = useLanguage();
   const [data, setData] = useState<Overview | null>(null);
   const [records, setRecords] = useState<Records | null>(null);
+  const [qualificationActivity, setQualificationActivity] = useState<QualificationActivity | null>(null);
+  const [qualificationActivityError, setQualificationActivityError] = useState("");
+  const [qualificationActivityLoading, setQualificationActivityLoading] = useState(false);
+  const [qualificationLevel, setQualificationLevel] = useState("all");
+  const [mechanicalPreview, setMechanicalPreview] = useState<MechanicalPreviewPayload | null>(null);
+  const [mechanicalPreviewError, setMechanicalPreviewError] = useState("");
+  const [mechanicalPreviewLoading, setMechanicalPreviewLoading] = useState(false);
   const [error, setError] = useState("");
   const [recordsError, setRecordsError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -65,6 +71,7 @@ export default function AdminConsole() {
   const [llmBusy, setLlmBusy] = useState(false);
   const [llmResult, setLlmResult] = useState<{ text: string; ok: boolean } | null>(null);
   const [sessionActionBusy, setSessionActionBusy] = useState(false);
+  const activityRequestSequence = useRef(0);
 
   const loadConsole = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true); else setLoading(true);
@@ -95,6 +102,35 @@ export default function AdminConsole() {
   }, [t]);
 
   useEffect(() => { void loadConsole(); }, [loadConsole]);
+  const loadQualificationActivity = useCallback(async (quiet = false) => {
+    if (!data || view !== "activity") return;
+    const requestSequence = ++activityRequestSequence.current;
+    if (!quiet) setQualificationActivityLoading(true);
+    setQualificationActivityError("");
+    try {
+      const params = new URLSearchParams({ level: qualificationLevel, limit: "100" });
+      const response = await fetch(`/api/admin-console/qualification-activity?${params}`, { credentials: "include", cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || t("Le registre d’activités L1–L3 est indisponible."));
+      if (requestSequence === activityRequestSequence.current) setQualificationActivity(body as QualificationActivity);
+    } catch (reason) {
+      if (requestSequence === activityRequestSequence.current) setQualificationActivityError(reason instanceof Error ? reason.message : t("Le registre d’activités L1–L3 est indisponible."));
+    } finally {
+      if (requestSequence === activityRequestSequence.current && !quiet) setQualificationActivityLoading(false);
+    }
+  }, [data, view, qualificationLevel, t]);
+
+  useEffect(() => {
+    if (!data || view !== "activity") return;
+    void loadQualificationActivity(false);
+    const timer = window.setInterval(() => void loadQualificationActivity(true), 15_000);
+    return () => {
+      window.clearInterval(timer);
+      activityRequestSequence.current += 1;
+      setQualificationActivityLoading(false);
+    };
+  }, [data, view, loadQualificationActivity]);
+
   useEffect(() => {
     if (selectedProjectId && records && !records.projects.some(item => item.id === selectedProjectId)) {
       setSelectedProjectId(null);
@@ -134,7 +170,8 @@ export default function AdminConsole() {
       if (!response.ok) throw new Error(t("Le serveur n’a pas confirmé la fermeture de la session."));
       setData(null);
       setRecords(null);
-      setLlmResult(null);
+      setQualificationActivity(null);
+      setMechanicalPreview(null);
       setError(sleep
         ? t("Console en veille sécurisée : session révoquée. Une reconnexion explicite est requise pour la reprendre.")
         : t("Session de console terminée. Le cockpit AeroMind n’a pas été connecté."));
@@ -198,6 +235,31 @@ export default function AdminConsole() {
   const SectionIcon = section.icon;
   const selectedProjectSimulations = records?.simulations.filter(item => item.projectId === selectedProjectId) ?? [];
   const selectedProjectEvents = records?.events.filter(item => item.projectId === selectedProjectId) ?? [];
+
+  useEffect(() => {
+    if (!data || !selectedProject) {
+      setMechanicalPreview(null);
+      setMechanicalPreviewError("");
+      setMechanicalPreviewLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setMechanicalPreview(null);
+    setMechanicalPreviewError("");
+    setMechanicalPreviewLoading(true);
+    fetch(`/api/admin-console/workspace/projects/${encodeURIComponent(selectedProject.id)}/mechanical-preview`, {
+      credentials: "include", cache: "no-store", signal: controller.signal,
+    }).then(async response => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || t("Le jumeau mécanique du projet est indisponible."));
+      setMechanicalPreview(body as MechanicalPreviewPayload);
+    }).catch(reason => {
+      if (!controller.signal.aborted) setMechanicalPreviewError(reason instanceof Error ? reason.message : t("Le jumeau mécanique du projet est indisponible."));
+    }).finally(() => {
+      if (!controller.signal.aborted) setMechanicalPreviewLoading(false);
+    });
+    return () => controller.abort();
+  }, [data?.account.id, selectedProject?.id, t]);
 
   const selectProject = (id: string) => {
     setSelectedProjectId(id);
@@ -273,7 +335,7 @@ export default function AdminConsole() {
 
           {view === "overview" && <>
             <section className="admin-console-workspace-heading">
-              <div><p className="admin-console-eyebrow">{t("POSTE D’INGÉNIERIE")} · {data.role === "super_admin" ? "L5 SUPER-ADMIN" : "L4 ADMIN"}</p><h1>{t("Mon espace")}</h1><p>{t("Projets et métadonnées sous le périmètre de l’identité autorisée. L’aperçu 3D est une maquette de catalogue non persistante, sans lien implicite avec un projet.")}</p></div>
+              <div><p className="admin-console-eyebrow">{t("POSTE D’INGÉNIERIE")} · {data.role === "super_admin" ? "L5 SUPER-ADMIN" : "L4 ADMIN"}</p><h1>{t("Mon espace")}</h1><p>{t("La géométrie mécanique est chargée uniquement depuis le projet explicitement sélectionné et sa configuration persistée.")}</p></div>
               <div className="admin-console-heading-stats">
                 <div><span>{t("Projets")}</span><strong>{data.workspace.projects}</strong></div>
                 <div><span>{t("Cellules enregistrées")}</span><strong>{data.workspace.cells}</strong></div>
@@ -301,12 +363,9 @@ export default function AdminConsole() {
               </aside>
 
               <section className="admin-console-design-canvas" aria-labelledby="admin-canvas-title">
-                <header className="admin-console-canvas-header"><div><p className="admin-console-eyebrow">{t("APERÇU DE CONCEPTION")}</p><h2 id="admin-canvas-title">{t("Maquette paramétrique de référence")}</h2><span>{t("Catalogue AeroMind · illustrative · non certifiée")}</span></div><Link href="/virtual-factory" className="admin-console-button admin-console-button-primary"><Cpu size={14} />{t("Ouvrir Virtual Factory")}</Link></header>
-                <div className="admin-console-model-stage">
-                  {conceptDesign ? <PhysicalDroneModel design={conceptDesign} status="idle" interactive showGrid autoMotion={false} /> : <div className="admin-console-no-model" role="status"><FolderLock size={22} /><strong>{t("Aucun modèle de catalogue disponible")}</strong></div>}
-                  <div className="admin-console-model-label"><span>{t("VISUALISATION LOCALE")}</span><strong>{t("AUCUNE CELLULE CRÉÉE OU ASSOCIÉE")}</strong></div>
-                </div>
-                <footer className="admin-console-canvas-foot"><p><ShieldCheck size={14} />{t("Rendu paramétrique en lecture seule : aucun projet, cellule, enregistrement ou mouvement réel n’est créé à l’ouverture.")}</p><span>{conceptDesign?.id ?? t("Catalogue indisponible")}</span></footer>
+                <header className="admin-console-canvas-header"><div><p className="admin-console-eyebrow">{t("JUMEAU MÉCANIQUE")}</p><h2 id="admin-canvas-title">{t("Configuration du projet sélectionné")}</h2><span>{selectedProject?.name || t("Sélection humaine requise")}</span></div><Link href="/virtual-factory" className="admin-console-button admin-console-button-primary"><Cpu size={14} />{t("Ouvrir Virtual Factory")}</Link></header>
+                <div className="admin-console-model-stage"><AdminMechanicalPreview projectId={selectedProject?.id} projectName={selectedProject?.name} configuration={mechanicalPreview?.configuration} loading={mechanicalPreviewLoading} error={mechanicalPreviewError || undefined} /></div>
+                <footer className="admin-console-canvas-foot"><p><ShieldCheck size={14} />{t("Rendu mécanique en lecture seule à partir des paramètres persistés; aucune création, sauvegarde ou sortie physique.")}</p><span>{selectedProject?.id ?? t("Aucun projet sélectionné")}</span></footer>
               </section>
 
               <aside className="admin-console-inspector">
@@ -322,7 +381,7 @@ export default function AdminConsole() {
                   <div><dt>{t("Création")}</dt><dd>{time(selectedProject.createdAt)}</dd></div>
                   <div><dt>{t("Modification")}</dt><dd>{time(selectedProject.updatedAt)}</dd></div>
                   <div><dt>{t("Simulations enregistrées")}</dt><dd>{selectedProjectSimulations.length}</dd></div>
-                  <p className="admin-console-inspector-note">{t("Le registre API ne contient pas les payloads de conception. L’aperçu 3D adjacent reste une référence indépendante du projet.")}</p>
+                  <p className="admin-console-inspector-note">{t("Seuls les champs nécessaires au jumeau mécanique sont fournis par une route owner-scoped; les autres payloads restent exclus.")}</p>
                 </dl>}
                 {selectedProject && inspectorTab === "simulations" && <div className="admin-console-inspector-records">{selectedProjectSimulations.length ? selectedProjectSimulations.map(item => <article key={item.id}><Activity size={14} /><div><strong>{item.status}</strong><small>{time(item.createdAt)}</small><code>{item.id}</code></div></article>) : <EmptyState title={t("Aucune simulation enregistrée")} text={t("Aucune simulation du registre propriétaire n’est associée à ce projet.")} />}</div>}
                 {selectedProject && inspectorTab === "journal" && <div className="admin-console-inspector-records">{selectedProjectEvents.length ? selectedProjectEvents.map(item => <article key={item.id}><FileClock size={14} /><div><strong>{item.type}</strong><small>{item.message}</small><time>{time(item.occurredAt)}</time></div></article>) : <EmptyState title={t("Aucun événement associé")} text={t("Le registre du propriétaire ne contient pas d’événement lié à ce projet.")} />}</div>}
@@ -361,6 +420,22 @@ export default function AdminConsole() {
           {view === "journal" && <section className="admin-console-registry">
             <div className="admin-console-registry-heading"><div><p className="admin-console-eyebrow">{t("TRAÇABILITÉ DU WORKSPACE")}</p><h1>{t("Événements d’audit")}</h1><p>{t("Événements filtrés par propriétaire ou projet appartenant à ce compte. Le journal global reste hors de ce périmètre.")}</p></div></div>
             <div className="admin-console-simulation-list">{(records?.events ?? []).map(item => <article className="admin-console-event-row" key={item.id}><span className="admin-console-project-glyph"><FileClock size={15} /></span><div><strong>{item.type}</strong><small>{item.message}</small>{item.projectId && <small>{t("Projet")} · {item.projectId}</small>}</div><time>{time(item.occurredAt)}</time></article>)}{!records?.events.length && <EmptyState title={t("Journal vide")} text={t("Aucun événement disponible dans le périmètre de cette identité.")} />}</div>
+          </section>}
+
+          {view === "activity" && <section className="admin-console-registry admin-console-qualification-activity">
+            <div className="admin-console-registry-heading"><div><p className="admin-console-eyebrow">{t("SUPERVISION DE GOUVERNANCE")}</p><h1>{t("Activités L1–L3")}</h1><p>{t("Journal d’activité filtré côté serveur par qualification; seuls des identifiants de compte et métadonnées opérationnelles sont exposés, jamais les payloads personnels.")}</p></div></div>
+            <div className="admin-console-activity-toolbar">
+              <label>{t("Filtrer par qualification")}<select value={qualificationLevel} onChange={event => { setQualificationActivity(null); setQualificationLevel(event.target.value); }} aria-label={t("Filtrer par qualification")}><option value="all">{t("Tous les niveaux")}</option><option value="L1">L1</option><option value="L2">L2</option><option value="L3">L3</option></select></label>
+              <span>{t("Actualisation périodique toutes les 15 secondes")}{qualificationActivity?.updatedAt ? ` · ${time(qualificationActivity.updatedAt)}` : ""}</span>
+              <button type="button" onClick={() => void loadQualificationActivity(false)} disabled={qualificationActivityLoading}><RefreshCw size={14} className={qualificationActivityLoading ? "admin-console-spin" : ""} />{t("Actualiser")}</button>
+            </div>
+            {qualificationActivityError && <div className="admin-console-inline-error" role="alert"><AlertCircle size={15} />{qualificationActivityError}</div>}
+            {qualificationActivityLoading && !qualificationActivity && <p className="admin-console-activity-status" role="status">{t("Chargement des métadonnées d’activité…")}</p>}
+            <div className="admin-console-table-wrap"><table className="admin-console-table admin-console-activity-table"><thead><tr><th>{t("Date")}</th><th>{t("Qualification")}</th><th>{t("Compte")}</th><th>{t("Action")}</th><th>{t("Décision")}</th><th>{t("Projet")}</th><th>{t("Source")}</th></tr></thead><tbody>
+              {(qualificationActivity?.events ?? []).map(item => <tr key={`${item.source}:${item.id}`}><td>{time(item.occurredAt)}</td><td><span className="admin-console-badge is-set">{item.level}</span></td><td><strong>{item.actor}</strong><small className="admin-console-actor-ref">{item.actorRef}</small></td><td><code>{item.action}</code></td><td>{item.decision === "deny" || item.decision === "error" ? <span className="admin-console-badge is-empty">{item.decision}</span> : <span className="admin-console-badge is-set">{item.decision === "logged" ? t("Enregistrée") : item.decision}</span>}</td><td><code>{item.projectId || "—"}</code></td><td>{item.source === "canonical-audit" ? t("Audit canonique") : t("Audit projet")}</td></tr>)}
+              {!qualificationActivityLoading && !qualificationActivityError && !(qualificationActivity?.events ?? []).length && <tr><td colSpan={7}><EmptyState title={t("Aucune activité enregistrée pour ce filtre")} text={t("Les événements apparaissent uniquement lorsqu’ils sont effectivement consignés dans les journaux disponibles.")} /></td></tr>}
+            </tbody></table></div>
+            <p className="admin-console-data-note">{t("Le niveau est déterminé par le registre serveur. Rafraîchissement périodique; ce panneau n’est pas un flux continu et ne reconstitue pas les actions absentes des journaux.")}</p>
           </section>}
 
           {view === "security" && <section className="admin-console-security-grid">

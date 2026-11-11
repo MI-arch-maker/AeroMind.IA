@@ -61,6 +61,15 @@ def test_trpc_mutations_cannot_be_called_with_get():
     assert capability_for("/api/trpc/auth.logout", "GET").method_not_allowed is True
 
 
+def test_superadmin_monitor_and_mechanical_preview_are_l5_read_only_queries():
+    for procedure in ("qualificationActivity", "projectMechanicalPreview"):
+        policy = capability_for(f"/api/trpc/superAdmin.{procedure}", "GET")
+        assert policy is not None
+        assert policy.minimum == 5
+        assert policy.method_not_allowed is False
+        assert capability_for(f"/api/trpc/superAdmin.{procedure}", "POST").minimum == 5
+
+
 def test_unclassified_api_and_trpc_routes_fail_closed_but_health_is_explicitly_public():
     assert capability_for("/api/new-simulation-engine", "POST").minimum == 4
     assert capability_for("/api/trpc/newEngineering.mutate", "POST").minimum == 4

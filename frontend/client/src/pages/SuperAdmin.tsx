@@ -11,12 +11,13 @@ import { SystemHealthPanel } from "@/components/SystemHealthPanel";
 import { AuditEventExplorer } from "@/components/AuditEventExplorer";
 import { GovernanceCycleMap } from "@/components/GovernanceCycleMap";
 import { GovernanceCapabilityMatrix } from "@/components/GovernanceCapabilityMatrix";
+import { AdminMechanicalPreview } from "@/components/AdminMechanicalPreview";
 import { useLanguage } from "../contexts/LanguageContext";
 import "./super-admin.css";
 
 type Role = "user" | "demo" | "visitor" | "surveillant" | "admin";
 type AuthUser = { email: string; name?: string; role?: string; level?: string; account_status?: string };
-type Section = "overview" | "operations" | "accounts" | "approvals" | "projects" | "reports" | "levels" | "audit" | "settings";
+type Section = "overview" | "operations" | "accounts" | "approvals" | "projects" | "reports" | "levels" | "audit" | "qualification-activity" | "settings";
 type SortKey = "email" | "role" | "status" | "name";
 type SortDir = "asc" | "desc";
 
@@ -41,6 +42,8 @@ export default function SuperAdmin() {
   const [showReports, setShowReports] = useState(false);
   const [authorizationCodeNotice, setAuthorizationCodeNotice] = useState<{ email: string; code?: string; localEnrollmentCode?: string; dailyTotpCode?: string; dailyTotpCodeDate?: string; dailyTotpValidUntilUtc?: string } | null>(null);
   const [activeSection, setActiveSection] = useState<Section>("overview");
+  const [qualificationLevel, setQualificationLevel] = useState("all");
+  const [mechanicalProjectId, setMechanicalProjectId] = useState("");
   const [pendingRegs, setPendingRegs] = useState<any[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingError, setPendingError] = useState("");
@@ -114,8 +117,16 @@ export default function SuperAdmin() {
 
   const accounts = trpc.superAdmin.accounts.useQuery(undefined, { enabled: !!user, retry: false });
   const activity = trpc.superAdmin.activity.useQuery(undefined, { enabled: !!user, retry: false });
+  const qualificationActivity = trpc.superAdmin.qualificationActivity.useQuery(
+    { level: qualificationLevel, limit: 100 },
+    { enabled: user?.role === "super_admin" && activeSection === "qualification-activity", retry: false, refetchInterval: 15_000 },
+  );
+  const mechanicalProjectPreview = trpc.superAdmin.projectMechanicalPreview.useQuery(
+    { id: mechanicalProjectId },
+    { enabled: user?.role === "super_admin" && activeSection === "projects" && !!mechanicalProjectId, retry: false },
+  );
   const reports = trpc.reports.list.useQuery(undefined, { enabled: !!user, retry: false });
-  const invalidate = async () => Promise.all([utils.superAdmin.accounts.invalidate(), utils.superAdmin.activity.invalidate(), utils.reports.list.invalidate()]);
+  const invalidate = async () => Promise.all([utils.superAdmin.accounts.invalidate(), utils.superAdmin.activity.invalidate(), utils.superAdmin.qualificationActivity.invalidate(), utils.superAdmin.projectMechanicalPreview.invalidate(), utils.reports.list.invalidate()]);
   const refreshConsole = async () => {
     setRefreshingAll(true);
     try { await Promise.all([invalidate(), fetchPending()]); toast.success(t("Registres actualisés")); }
@@ -287,6 +298,10 @@ export default function SuperAdmin() {
       if (!response.ok) throw new Error(t("Le serveur n’a pas confirmé la révocation de la session."));
       clearSessionToken();
       setUser(null);
+      setMechanicalProjectId("");
+      setQualificationLevel("all");
+      setActiveSection("overview");
+      setPendingRegs([]);
       await utils.reset();
       // P-LOGOUT-2 fix: dispatch the auth-changed event so other mounted
       // tabs/components (e.g. an open Home tab) refresh their session state.
@@ -303,6 +318,10 @@ export default function SuperAdmin() {
       if (!response.ok) throw new Error("Le serveur n’a pas confirmé la révocation de la session.");
       clearSessionToken();
       setUser(null);
+      setMechanicalProjectId("");
+      setQualificationLevel("all");
+      setActiveSection("overview");
+      setPendingRegs([]);
       await utils.reset();
       window.dispatchEvent(new Event("aeromind-auth-changed"));
       setSleeping(true);
@@ -364,6 +383,7 @@ export default function SuperAdmin() {
     reports: t("Rapports à valider"),
     levels: t("Niveaux & quotas"),
     audit: t("Journal d'audit"),
+    "qualification-activity": t("Activités L1–L3"),
     settings: t("Paramètres"),
   };
 
@@ -376,6 +396,7 @@ export default function SuperAdmin() {
     { id: "reports", label: t("Rapports à valider"), icon: <ClipboardCheck size={17} /> },
     { id: "levels", label: t("Niveaux & quotas"), icon: <SlidersHorizontal size={17} /> },
     { id: "audit", label: t("Journal d'audit"), icon: <Activity size={17} /> },
+    { id: "qualification-activity", label: t("Activités L1–L3"), icon: <Users size={17} /> },
     { id: "settings", label: t("Paramètres"), icon: <Settings size={17} /> },
   ];
   const mobileNav: [Section, string][] = [
@@ -387,12 +408,24 @@ export default function SuperAdmin() {
     ["reports", t("Rapports")],
     ["levels", t("Niveaux")],
     ["audit", t("Audit")],
+    ["qualification-activity", t("Activités L1–L3")],
     ["settings", t("Paramètres")],
   ];
 
   const sectionPanelProps = {
     totals,
     activity: activity.data,
+    qualificationActivity: qualificationActivity.data,
+    qualificationActivityLoading: qualificationActivity.isLoading,
+    qualificationActivityError: qualificationActivity.error?.message || "",
+    qualificationLevel,
+    onQualificationLevelChange: (value: string) => setQualificationLevel(value),
+    onRefreshQualificationActivity: () => void qualificationActivity.refetch(),
+    mechanicalProjectId,
+    mechanicalPreview: mechanicalProjectPreview.data,
+    mechanicalPreviewLoading: mechanicalProjectPreview.isLoading,
+    mechanicalPreviewError: mechanicalProjectPreview.error?.message || "",
+    onSelectMechanicalProject: (id: string) => setMechanicalProjectId(id),
     reports: reports.data,
     reportsLoading: reports.isLoading,
     pendingRegs,
@@ -706,7 +739,8 @@ function WatermarkSettings({ t }: { t: (text: string) => string }) {
   </WorkspaceCard>;
 }
 
-function SectionPanel({ section, totals, activity, reports, reportsLoading, pendingRegs, pendingLoading, pendingError, onRefreshPending, onApproveRegistration, onRejectRegistration, onCreate, onReports, onApprove, onProjectAction, invalidate, t }: { section: Section; totals: any; activity: any; reports?: any[]; reportsLoading: boolean; pendingRegs: any[]; pendingLoading: boolean; pendingError: string; onRefreshPending: () => void; onApproveRegistration: (email: string, name: string) => void; onRejectRegistration: (email: string) => void; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
+function SectionPanel({ section, totals, activity, qualificationActivity, qualificationActivityLoading, qualificationActivityError, qualificationLevel, onQualificationLevelChange, onRefreshQualificationActivity, mechanicalProjectId, mechanicalPreview, mechanicalPreviewLoading, mechanicalPreviewError, onSelectMechanicalProject, reports, reportsLoading, pendingRegs, pendingLoading, pendingError, onRefreshPending, onApproveRegistration, onRejectRegistration, onCreate, onReports, onApprove, onProjectAction, invalidate, t }: { section: Section; totals: any; activity: any; qualificationActivity: any; qualificationActivityLoading: boolean; qualificationActivityError: string; qualificationLevel: string; onQualificationLevelChange: (value: string) => void; onRefreshQualificationActivity: () => void; mechanicalProjectId: string; mechanicalPreview: any; mechanicalPreviewLoading: boolean; mechanicalPreviewError: string; onSelectMechanicalProject: (id: string) => void; reports?: any[]; reportsLoading: boolean; pendingRegs: any[]; pendingLoading: boolean; pendingError: string; onRefreshPending: () => void; onApproveRegistration: (email: string, name: string) => void; onRejectRegistration: (email: string) => void; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
+  const selectedMechanicalProject = (activity?.projects || []).find((project: any) => String(project.id) === mechanicalProjectId);
   if (section === "accounts" || section === "operations") return null;
   if (section === "approvals") return <WorkspaceCard title={t("Demandes d'accès en attente")} subtitle={t("Examinez les inscriptions préprovisionnées. Chaque décision est appliquée côté serveur et rattachée à la session Super-Admin.")} t={t}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><strong className="block text-xs text-slate-800">{pendingRegs.length} {t("dossier(s) en attente")}</strong><small className="mt-1 block text-[11px] text-slate-500">{t("Les décisions de rejet demandent un motif; les invitations d’activation ne sont affichées qu’après approbation.")}</small></div><button type="button" onClick={onRefreshPending} disabled={pendingLoading} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={pendingLoading ? "animate-spin" : ""} />{pendingLoading ? t("Actualisation…") : t("Actualiser les demandes")}</button></div>
@@ -725,9 +759,22 @@ function SectionPanel({ section, totals, activity, reports, reportsLoading, pend
     <WatermarkSettings t={t} />
   </>;
   if (section === "overview") return <section className="mb-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-widest text-blue-600">{t("Vue d'ensemble active")}</p><h2 className="mt-2 text-2xl font-bold">{t("Bienvenue dans la gouvernance AeroMind")}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{t("Utilisez le menu de gauche pour ouvrir chaque espace. Les compteurs sont lus depuis le backend, tandis que les décisions sont journalisées.")}</p><div className="mt-5 flex flex-wrap gap-3"><button onClick={onCreate} className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-bold text-white">{t("Créer un compte")}</button><button onClick={onReports} className="rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700">{t("Ouvrir les rapports")}</button></div></section>;
-  if (section === "projects") return <WorkspaceCard title={t("Projets")} subtitle={t("Vue globale des projets AeroMind persistés. Chaque action est contrôlée et journalisée.")} t={t}><div className="space-y-3">{(activity?.projects || []).length ? (activity.projects as any[]).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{p.name || t("Projet sans nom")}</strong><small className="text-xs text-slate-400">{t("Propriétaire")} : {p.userId} · {t("créé")} {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "—"}</small></div><div className="flex flex-wrap items-center gap-2"><Pill tone={p.controlStatus === "observed" ? "amber" : p.controlStatus === "saved" ? "blue" : "green"}>{p.controlStatus === "observed" ? t("Observation") : p.controlStatus === "saved" ? t("Sauvegardé") : t("Actif")}</Pill><button onClick={() => onProjectAction(String(p.id), "save")} className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-700"><Save size={13} /> {t("Sauvegarder")}</button><button onClick={() => onProjectAction(String(p.id), "observe")} className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1.5 text-[11px] font-semibold text-amber-700"><Eye size={13} /> {t("Observer")}</button><button onClick={() => onProjectAction(String(p.id), "delete")} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600"><Trash2 size={13} /> {t("Supprimer")}</button></div></div>) : <Empty title={t("Aucun projet persistant")} text={t("Les projets créés par les utilisateurs apparaîtront ici.")} />}</div></WorkspaceCard>;
+  if (section === "projects") return <WorkspaceCard title={t("Projets")} subtitle={t("Vue globale des projets AeroMind persistés. Le jumeau mécanique charge uniquement le dossier explicitement sélectionné et reste en lecture seule.")} t={t}>
+    <div className="space-y-3">{(activity?.projects || []).length ? (activity.projects as any[]).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div className="min-w-0"><strong className="block text-sm">{p.name || t("Projet sans nom")}</strong><small className="break-all text-xs text-slate-400">{t("Propriétaire")} : {p.userId} · {t("créé")} {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "—"}</small></div><div className="flex flex-wrap items-center gap-2"><Pill tone={p.controlStatus === "observed" ? "amber" : p.controlStatus === "saved" ? "blue" : "green"}>{p.controlStatus === "observed" ? t("Observation") : p.controlStatus === "saved" ? t("Sauvegardé") : t("Actif")}</Pill><button type="button" onClick={() => onSelectMechanicalProject(String(p.id))} className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-teal-800"><Eye size={13} /> {t("Afficher le jumeau")}</button><button onClick={() => onProjectAction(String(p.id), "save")} className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-700"><Save size={13} /> {t("Sauvegarder")}</button><button onClick={() => onProjectAction(String(p.id), "observe")} className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1.5 text-[11px] font-semibold text-amber-700"><Eye size={13} /> {t("Observer")}</button><button onClick={() => onProjectAction(String(p.id), "delete")} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600"><Trash2 size={13} /> {t("Supprimer")}</button></div></div>) : <Empty title={t("Aucun projet persistant")} text={t("Les projets créés par les utilisateurs apparaîtront ici.")} />}</div>
+    {mechanicalProjectId && <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-widest text-teal-700">{t("JUMEAU MÉCANIQUE")}</p><h3 className="mt-1 text-sm font-bold">{selectedMechanicalProject?.name || mechanicalPreview?.projectName || t("Projet sélectionné")}</h3></div><button type="button" onClick={() => onSelectMechanicalProject("")} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600"><X size={13} />{t("Fermer")}</button></div><AdminMechanicalPreview projectId={mechanicalProjectId} projectName={selectedMechanicalProject?.name || mechanicalPreview?.projectName} configuration={mechanicalPreview?.configuration} loading={mechanicalPreviewLoading} error={mechanicalPreviewError || undefined} /></div>}
+  </WorkspaceCard>;
   if (section === "reports") return <WorkspaceCard title={t("Rapports à valider")} subtitle={t("Les rapports suivent le circuit surveillant puis approbation Super-Admin.")} t={t}><div className="space-y-3">{reportsLoading ? <p className="text-sm text-slate-400">{t("Chargement des rapports…")}</p> : (reports || []).filter((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)).map((r: any) => <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{t("Rapport")} {String(r.id).slice(0, 8)}</strong><span className="text-xs text-slate-500">{t("Statut")} : {r.status}</span></div>{r.status === "reviewed_by_supervisor" ? <button onClick={() => onApprove(String(r.id))} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">{t("Approuver définitivement")}</button> : <Pill tone="amber">{t("En attente du surveillant")}</Pill>}</div>)}{!reportsLoading && !(reports || []).some((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)) && <Empty title={t("Aucun rapport en attente")} text={t("Les rapports soumis apparaîtront ici après contrôle.")} />}</div></WorkspaceCard>;
   if (section === "levels") return <WorkspaceCard title={t("Matrice de capacités & périmètres")} subtitle={t("L1–L3 qualifient un compte personnel. L4/L5 résultent des rôles Admin/Super-Admin; la politique backend et les gardes de chaque route demeurent la source d’autorisation.")} t={t}><div className="grid gap-3 md:grid-cols-2">{([["L1", t("Découverte"), t("Workspace personnel · lecture, brouillons et calculs virtuels de base")], ["L2", t("Ingénieur"), t("Workspace personnel · édition d’ingénierie et simulations virtuelles nominales")], ["L3", t("Avancé"), t("Workspace personnel · analyses avancées, workflows, preuves et exports")], ["L4", t("Administration"), t("Rôle Admin · opérations d’administration limitées par chaque route")], ["L5", t("Super-Admin"), t("Rôle Super-Admin · gouvernance globale avec contrôles de route")]] as [string, string, string][]).map(([id, label, text]) => <div key={id} className="rounded-xl border border-slate-200 p-4"><Pill tone="blue">{id}</Pill><strong className="mt-3 block text-sm">{label}</strong><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div>)}</div><div className="mt-4 overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[700px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">{t("Rang")}</th><th className="px-4 py-3">{t("Portée métier appliquée")}</th><th className="px-4 py-3">{t("Limite d’isolation")}</th></tr></thead><tbody>{[["L1", t("Lecture, brouillons, calculs virtuels de base"), t("Données de l’identité propriétaire uniquement")], ["L2", t("Édition d’ingénierie, simulation virtuelle nominale"), t("Aucune lecture/écriture inter-utilisateur")], ["L3", t("Analyse avancée, workflow, evidence et export"), t("Aucune élévation implicite au rôle admin")], ["L4", t("Actions d’administration autorisées par rôle et route"), t("Reste soumis aux contrôles locaux et au tenant")], ["L5", t("Gouvernance Super-Admin explicitement autorisée"), t("Aucune exemption des validations ou contrôles de sécurité")]].map(([rank, scope, boundary]) => <tr key={rank} className="border-t border-slate-100"><td className="px-4 py-3 font-bold text-blue-700">{rank}</td><td className="px-4 py-3 text-slate-700">{scope}</td><td className="px-4 py-3 text-slate-500">{boundary}</td></tr>)}</tbody></table></div><p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">{t("Frontière ferme : les opérations matérielles/temps réel ne sont jamais accordées par un niveau seul. Elles restent soumises aux gardes de route, rôles, approbations humaines et interverrouillages; le mode de démonstration demeure virtuel.")}</p><p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-500">{t("Chaque compte reçoit un workspaceId stable basé sur son identifiant de registre. Aucune cellule ou aucun projet n’est créé automatiquement à la connexion.")}</p></WorkspaceCard>;
+  if (section === "qualification-activity") return <WorkspaceCard title={t("Supervision des activités L1–L3")} subtitle={t("Sélectionnez une qualification pour consulter les événements réellement consignés. L’API calcule les niveaux depuis le registre serveur et ne retourne aucun payload personnel.")} t={t}>
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><label className="grid gap-1 text-xs font-semibold text-slate-600">{t("Filtrer par qualification")}<select value={qualificationLevel} onChange={event => onQualificationLevelChange(event.target.value)} aria-label={t("Filtrer par qualification")} className="min-w-[190px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"><option value="all">{t("Tous les niveaux")}</option><option value="L1">L1</option><option value="L2">L2</option><option value="L3">L3</option></select></label><div className="flex flex-wrap items-center gap-3"><span className="text-[11px] text-slate-500">{t("Actualisation périodique toutes les 15 secondes")}{qualificationActivity?.updatedAt ? ` · ${new Date(qualificationActivity.updatedAt).toLocaleTimeString("fr-FR")}` : ""}</span><button type="button" onClick={onRefreshQualificationActivity} disabled={qualificationActivityLoading} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={qualificationActivityLoading ? "animate-spin" : ""} />{t("Actualiser")}</button></div></div>
+    {qualificationActivityError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{qualificationActivityError}</div>}
+    {qualificationActivityLoading && !qualificationActivity && <p role="status" className="rounded-lg bg-slate-50 p-6 text-center text-xs text-slate-500">{t("Chargement des métadonnées d’activité…")}</p>}
+    <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-3">{t("Date")}</th><th className="px-3 py-3">{t("Qualification")}</th><th className="px-3 py-3">{t("Compte")}</th><th className="px-3 py-3">{t("Action")}</th><th className="px-3 py-3">{t("Décision")}</th><th className="px-3 py-3">{t("Projet")}</th><th className="px-3 py-3">{t("Source")}</th></tr></thead><tbody>
+      {(qualificationActivity?.events || []).map((item: any) => <tr key={`${item.source}:${item.id}`} className="border-t border-slate-100"><td className="whitespace-nowrap px-3 py-3">{item.occurredAt ? new Date(item.occurredAt).toLocaleString("fr-FR") : "—"}</td><td className="px-3 py-3"><Pill tone="blue">{item.level}</Pill></td><td className="px-3 py-3"><strong className="block">{item.actor}</strong><small className="font-mono text-slate-400">{item.actorRef}</small></td><td className="px-3 py-3 font-mono">{item.action}</td><td className="px-3 py-3">{item.decision}</td><td className="px-3 py-3 font-mono">{item.projectId || "—"}</td><td className="px-3 py-3">{item.source === "canonical-audit" ? t("Audit canonique") : t("Audit projet")}</td></tr>)}
+      {!qualificationActivityLoading && !qualificationActivityError && !(qualificationActivity?.events || []).length && <tr><td colSpan={7}><Empty title={t("Aucune activité enregistrée pour ce filtre")} text={t("Les actions non journalisées par les systèmes actuels ne peuvent pas être reconstituées.")} /></td></tr>}
+    </tbody></table></div>
+    <p className="mt-4 rounded-lg bg-slate-50 p-3 text-[11px] leading-5 text-slate-500">{t("Le niveau est résolu côté serveur; filtres en lecture seule. Actualisation périodique, pas un flux continu. Les payloads des événements sont exclus.")}</p>
+  </WorkspaceCard>;
   if (section === "audit") return <WorkspaceCard title={t("Journal d'audit")} subtitle={t("Historique des créations, promotions, évaluations et suppressions.")} t={t}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
       <div className="flex items-start gap-3">

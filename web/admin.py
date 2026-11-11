@@ -668,6 +668,156 @@ def rotate_superadmin_authorization_code(actor: dict[str, Any], account_id: str)
         return result
 
 
+_MECHANICAL_PREVIEW_FIELDS = {
+    "airframe", "modelType", "designId", "designName", "platformProfile", "wingspan", "chord",
+    "fuselageLength", "propDiameter", "motorCount", "fuselageSectionType",
+    "mechanicalTwin", "mechanicalTwins", "customSketch", "installedMaterials",
+}
+
+
+def _bounded_json_value(value: Any, depth: int = 0) -> Any:
+    """Copy JSON data with conservative depth and collection limits for previews."""
+    import math
+
+    if depth > 8:
+        return None
+    if value is None or isinstance(value, (bool, int, str)):
+        return value[:500] if isinstance(value, str) else value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, list):
+        return [_bounded_json_value(item, depth + 1) for item in value[:500]]
+    if isinstance(value, dict):
+        return {str(key)[:100]: _bounded_json_value(item, depth + 1)
+                for key, item in list(value.items())[:250]}
+    return None
+
+
+def project_mechanical_preview(project_id: str, *, owner_id: str | None = None,
+                               actor: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """Return a bounded, read-only snapshot for one explicitly requested project."""
+    if actor is not None:
+        _assert_superadmin_actor(actor)
+    project_id = str(project_id or "").strip()
+    if not project_id or len(project_id) > 128:
+        raise ValueError("Identifiant de projet invalide")
+    with SessionLocal() as db:
+        project = db.get(Project, project_id)
+        if project is None or (owner_id is not None and project.user_id != owner_id):
+            return None
+        try:
+            body = json.loads(project.data_json or "{}")
+        except (TypeError, json.JSONDecodeError):
+            body = {}
+        candidate = body.get("config") if isinstance(body, dict) else None
+        config = candidate if isinstance(candidate, dict) else {}
+        has_geometry = any(key in config for key in _MECHANICAL_PREVIEW_FIELDS)
+        if not has_geometry and project.active_drone_id:
+            from sqlalchemy import or_
+            from .models import Drone
+
+            drone = db.scalar(select(Drone).where(
+                Drone.id == project.active_drone_id,
+                Drone.user_id == project.user_id,
+                or_(Drone.project_id == project.id, Drone.project_id.is_(None)),
+            ))
+            if drone is not None:
+                try:
+                    drone_config = json.loads(drone.config_json or "{}")
+                    if isinstance(drone_config, dict):
+                        config = drone_config
+                except (TypeError, json.JSONDecodeError):
+                    pass
+        preview_config = {
+            key: _bounded_json_value(value)
+            for key, value in config.items()
+            if key in _MECHANICAL_PREVIEW_FIELDS
+        }
+        encoded = json.dumps(preview_config, ensure_ascii=False, allow_nan=False)
+        if len(encoded.encode("utf-8")) > 250_000:
+            for key in ("mechanicalTwins", "customSketch", "installedMaterials", "mechanicalTwin"):
+                preview_config.pop(key, None)
+                encoded = json.dumps(preview_config, ensure_ascii=False, allow_nan=False)
+                if len(encoded.encode("utf-8")) <= 250_000:
+                    break
+        return {
+            "projectId": project.id,
+            "projectName": project.name,
+            "configuration": preview_config,
+            "readOnly": True,
+            "source": "persisted-project-configuration",
+        }
+
+
+def qualification_activity(actor: dict[str, Any] | None, level: str = "all",
+                           limit: int = 100) -> dict[str, Any]:
+    """Return minimal audit metadata for L1–L3 accounts, never event payloads."""
+    if not actor or str(actor.get("role", "")).casefold() not in {"admin", "super_admin"}:
+        raise ValueError("Rôle Admin ou Super-Admin requis")
+    level = str(level or "all").upper()
+    if level not in {"ALL", "L1", "L2", "L3"}:
+        raise ValueError("Le filtre doit être Tous, L1, L2 ou L3")
+    limit = max(1, min(int(limit), 250))
+    allowed_levels = {"L1", "L2", "L3"} if level == "ALL" else {level}
+    from sqlalchemy import inspect
+    from .database import engine
+    from .models import AuditEvent
+
+    with SessionLocal() as db:
+        accounts = [account for account in _all_accounts(db)
+                    if effective_level(account) in allowed_levels
+                    and account.get("accountStatus") in {"active", "evaluation"}]
+        account_by_id = {str(account.get("id")): account for account in accounts if account.get("id")}
+        account_ids = list(account_by_id)
+        events: list[dict[str, Any]] = []
+        if account_ids:
+            legacy_rows = db.scalars(
+                select(AuditEvent).where(AuditEvent.user_id.in_(account_ids))
+                .order_by(AuditEvent.occurred_at.desc()).limit(limit)
+            ).all()
+            for row in legacy_rows:
+                account = account_by_id.get(str(row.user_id))
+                if not account:
+                    continue
+                tier = effective_level(account)
+                events.append({
+                    "id": row.id, "level": tier,
+                    "actor": str(account.get("name") or f"Compte {tier}")[:100],
+                    "actorRef": str(row.user_id)[:8], "action": str(row.event_type)[:80],
+                    "decision": "logged", "projectId": row.project_id,
+                    "occurredAt": row.occurred_at.isoformat() if row.occurred_at else None,
+                    "source": "project-audit",
+                })
+            if inspect(engine).has_table("audit_events_ext"):
+                from .canonical_models import AuditEventExt
+
+                canonical_rows = db.scalars(
+                    select(AuditEventExt).where(AuditEventExt.actor_id.in_(account_ids))
+                    .order_by(AuditEventExt.occurred_at.desc()).limit(limit)
+                ).all()
+                for row in canonical_rows:
+                    account = account_by_id.get(str(row.actor_id))
+                    if not account:
+                        continue
+                    tier = effective_level(account)
+                    events.append({
+                        "id": row.id, "level": tier,
+                        "actor": str(account.get("name") or f"Compte {tier}")[:100],
+                        "actorRef": str(row.actor_id)[:8], "action": str(row.action)[:80],
+                        "decision": str(row.decision)[:20], "projectId": row.project_id,
+                        "occurredAt": row.occurred_at.isoformat() if row.occurred_at else None,
+                        "source": "canonical-audit",
+                    })
+        events.sort(key=lambda item: item.get("occurredAt") or "", reverse=True)
+        return {
+            "level": "all" if level == "ALL" else level,
+            "events": events[:limit],
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+            "payloadsIncluded": False,
+            "refreshMode": "periodic",
+        }
+
+
 def activity() -> dict[str, Any]:
     with SessionLocal() as db:
         accounts = _all_accounts(db)

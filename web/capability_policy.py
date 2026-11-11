@@ -67,6 +67,7 @@ def capability_for(path: str, method: str) -> Capability | None:
             "labBench.gateState", "labBench.fleetGateState",
             "labBench.perDroneGateState", "ai.status", "auth.me",
             "identity.providers", "superAdmin.accounts", "superAdmin.activity",
+            "superAdmin.qualificationActivity", "superAdmin.projectMechanicalPreview",
         }
         levels = {
             "projects.list": 1, "projects.create": 1,
@@ -83,6 +84,7 @@ def capability_for(path: str, method: str) -> Capability | None:
             "ai.chat": 1,
             "auth.me": 1, "identity.providers": 1,
             "superAdmin.accounts": 4, "superAdmin.activity": 4,
+            "superAdmin.qualificationActivity": 5, "superAdmin.projectMechanicalPreview": 5,
         }
         if proc in levels:
             level = levels[proc]

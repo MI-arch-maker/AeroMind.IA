@@ -5,7 +5,7 @@ from fastapi import APIRouter, Cookie, HTTPException, Response
 from sqlalchemy import func, or_, select
 from .database import SessionLocal
 from .models import AuditEvent, Project, Drone, Simulation
-from .admin import account_for_identity
+from .admin import account_for_identity, project_mechanical_preview, qualification_activity
 from .config import get_settings
 from .oidc import _check_local_generation, _verified
 from .primary_session_store import is_primary_session_active
@@ -116,6 +116,42 @@ def workspace_records(
             } for event in events],
             "limits": {"perSection": 100, "payloadsIncluded": False},
         }
+
+
+@router.get("/workspace/projects/{project_id}/mechanical-preview")
+def workspace_project_mechanical_preview(
+    project_id: str,
+    response: Response,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Read only the selected project configuration inside the Admin's workspace."""
+    actor = _require_admin(admin_session)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie"
+    try:
+        data = project_mechanical_preview(project_id, owner_id=str(actor["id"]))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if data is None:
+        raise HTTPException(404, "Projet absent du workspace autorisé.")
+    return data
+
+
+@router.get("/qualification-activity")
+def admin_qualification_activity(
+    response: Response,
+    level: str = "all",
+    limit: int = 100,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Return audit metadata only; the qualification is resolved server-side."""
+    actor = _require_admin(admin_session)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie"
+    try:
+        return qualification_activity(actor, level, limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.post("/logout")

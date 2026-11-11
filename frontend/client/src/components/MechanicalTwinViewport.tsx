@@ -37,6 +37,7 @@ type Props = {
   kinematicsPlaying?: boolean;
   previewPartId?: string;
   previewEnabled?: boolean;
+  readOnly?: boolean;
 };
 const directions: Record<MechanicalView, [number, number, number]> = {
   iso: [1.2, 0.85, 1.45],
@@ -92,6 +93,7 @@ function MechanicalMesh({
   kinematicsPlaying = false,
   previewPartId,
   previewEnabled = false,
+  readOnly = false,
 }: {
   part: MechanicalPart;
   selected: boolean;
@@ -104,6 +106,7 @@ function MechanicalMesh({
   kinematicsPlaying?: boolean;
   previewPartId?: string;
   previewEnabled?: boolean;
+  readOnly?: boolean;
 }) {
   const pivotRef = useRef<THREE.Group>(null);
   const isPreview = previewEnabled && previewPartId === part.id;
@@ -154,10 +157,10 @@ function MechanicalMesh({
         geometry={geometry}
         onClick={(event) => {
           event.stopPropagation();
-          onSelect(part.id);
+          if (!readOnly) onSelect(part.id);
         }}
         onPointerOver={() => {
-          document.body.style.cursor = "pointer";
+          document.body.style.cursor = readOnly ? "grab" : "pointer";
         }}
         onPointerOut={() => {
           document.body.style.cursor = "";
@@ -217,6 +220,7 @@ export function MechanicalVectorView({
   xrayIsolatedLayer,
   previewPartId,
   previewEnabled,
+  readOnly = false,
 }: Omit<Props, "resetKey">) {
   const [orbit, setOrbit] = useState<[number, number]>([0, 0]);
   const [zoom, setZoom] = useState(1);
@@ -324,7 +328,7 @@ export function MechanicalVectorView({
           x: e.clientX,
           y: e.clientY,
           moved: false,
-          partId: target?.getAttribute("data-part") ?? undefined,
+          partId: readOnly ? undefined : target?.getAttribute("data-part") ?? undefined,
         };
         e.currentTarget.setPointerCapture(e.pointerId);
       }}
@@ -343,7 +347,7 @@ export function MechanicalVectorView({
         }
       }}
       onPointerUp={(e) => {
-        if (drag.current?.partId && !drag.current.moved)
+        if (!readOnly && drag.current?.partId && !drag.current.moved)
           onSelect(drag.current.partId);
         e.currentTarget.releasePointerCapture(e.pointerId);
         window.setTimeout(() => {
@@ -377,7 +381,7 @@ export function MechanicalVectorView({
           }
           strokeWidth={mode === "wireframe" ? 0.55 : 0.4}
         >
-          <title>{face.name} · sélectionner pour modifier</title>
+          <title>{readOnly ? face.name : `${face.name} · sélectionner pour modifier`}</title>
         </polygon>
       ))}
     </svg>
@@ -399,6 +403,7 @@ export function MechanicalTwinViewport(props: Props) {
     kinematicsPlaying = false,
     previewPartId,
     previewEnabled = false,
+    readOnly = false,
   } = props;
   const root = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -485,6 +490,7 @@ export function MechanicalTwinViewport(props: Props) {
                 kinematicsPlaying={kinematicsPlaying}
                 previewPartId={previewPartId}
                 previewEnabled={previewEnabled}
+                readOnly={readOnly}
               />
             ))}
             <OrbitControls
@@ -517,8 +523,10 @@ export function MechanicalTwinViewport(props: Props) {
         <span>LONGUEUR / {model.length.toFixed(2)} m</span>
       </div>
       <div className="mt-viewport-note">
-        Glisser pour orbiter · molette pour zoomer · cliquer une pièce pour
-        modifier{!webgl ? " · secours vectoriel, même géométrie" : ""}
+        {readOnly
+          ? "Glisser pour orbiter · molette pour zoomer · consultation seule"
+          : "Glisser pour orbiter · molette pour zoomer · cliquer une pièce pour modifier"}
+        {!webgl ? " · secours vectoriel, même géométrie" : ""}
       </div>
     </div>
   );
