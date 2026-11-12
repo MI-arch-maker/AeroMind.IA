@@ -81,6 +81,7 @@ def test_unclassified_api_and_trpc_routes_fail_closed_but_health_is_explicitly_p
 def test_tier_matrix_maps_expected_domains_and_default_denials():
     assert capability_for("/api/projects", "POST").minimum == 1
     assert capability_for("/api/projects/p1/drones", "POST").minimum == 2
+    assert capability_for("/api/trpc/projects.delete", "POST").minimum == 1
     assert capability_for("/api/engineering/evidence/certificate", "POST").minimum == 3
     assert capability_for("/api/workflow/runs/r1/replay", "POST").minimum == 3
     assert capability_for("/api/lab/runs", "POST").minimum == 2

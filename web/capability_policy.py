@@ -71,7 +71,7 @@ def capability_for(path: str, method: str) -> Capability | None:
         }
         levels = {
             "projects.list": 1, "projects.create": 1,
-            "projects.saveSnapshot": 2, "projects.delete": 2,
+            "projects.saveSnapshot": 2, "projects.delete": 1,
             "simulationRuns.list": 1, "simulationRuns.create": 2,
             "reports.list": 1, "reports.create": 2, "reports.submit": 2,
             "reports.review": 3, "reports.approve": 4,
