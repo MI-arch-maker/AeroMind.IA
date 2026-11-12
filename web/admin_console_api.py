@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Cookie, HTTPException, Response
 from sqlalchemy import func, or_, select
 from .database import SessionLocal
 from .models import AdminAccountEvent, AuditEvent, Project, Drone, Simulation, User
-from .admin import account_for_identity, project_mechanical_preview, qualification_activity
+from .admin import account_for_identity, list_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity
 from .config import get_settings
 from .oidc import _check_local_generation, _verified
 from .primary_session_store import is_primary_session_active
@@ -56,14 +56,17 @@ def overview(
     admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
 ):
     actor = _require_admin(admin_session)
-    owner_id = actor["id"]
+    owner_ids = owner_ids_for_actor(actor)
+    project_filter = True if actor.get("role") == "super_admin" else Project.user_id.in_(owner_ids)
+    drone_filter = True if actor.get("role") == "super_admin" else Drone.user_id.in_(owner_ids)
+    simulation_filter = True if actor.get("role") == "super_admin" else Simulation.user_id.in_(owner_ids)
     with SessionLocal() as db:
-        projects = db.scalar(select(func.count(Project.id)).where(Project.user_id == owner_id)) or 0
-        drones = db.scalar(select(func.count(Drone.id)).where(Drone.user_id == owner_id)) or 0
-        simulations = db.scalar(select(func.count(Simulation.id)).where(Simulation.user_id == owner_id)) or 0
+        projects = db.scalar(select(func.count(Project.id)).where(project_filter)) or 0
+        drones = db.scalar(select(func.count(Drone.id)).where(drone_filter)) or 0
+        simulations = db.scalar(select(func.count(Simulation.id)).where(simulation_filter)) or 0
     return {
         "role": actor["role"],
-        "account": {"id": owner_id, "name": actor.get("name"), "email": actor.get("email")},
+        "account": {"id": actor["id"], "name": actor.get("name"), "email": actor.get("email")},
         "workspace": {"projects": projects, "cells": drones, "simulations": simulations},
         "billing": {"enabled": False, "mode": "private-governance"},
         "physicalOutput": {"enabled": False, "requiresHumanAuthorization": True},
@@ -76,19 +79,20 @@ def workspace_records(
 ):
     """Return only metadata for the signed-in administrator's own workspace."""
     actor = _require_admin(admin_session)
-    owner_id = actor["id"]
+    owner_ids = owner_ids_for_actor(actor)
+    is_global = actor.get("role") == "super_admin"
     with SessionLocal() as db:
-        projects = list(db.scalars(
-            select(Project).where(Project.user_id == owner_id)
-            .order_by(Project.updated_at.desc()).limit(100)
-        ))
-        simulations = list(db.scalars(
-            select(Simulation).where(Simulation.user_id == owner_id)
-            .order_by(Simulation.created_at.desc()).limit(100)
-        ))
+        projects_query = select(Project).order_by(Project.updated_at.desc()).limit(100)
+        simulations_query = select(Simulation).order_by(Simulation.created_at.desc()).limit(100)
+        if not is_global:
+            projects_query = projects_query.where(Project.user_id.in_(owner_ids))
+            simulations_query = simulations_query.where(Simulation.user_id.in_(owner_ids))
+        projects = list(db.scalars(projects_query))
+        simulations = list(db.scalars(simulations_query))
+        project_scope = select(Project.id) if is_global else select(Project.id).where(Project.user_id.in_(owner_ids))
         events = list(db.scalars(
-            select(AuditEvent).where(or_(AuditEvent.user_id == owner_id,
-                                         AuditEvent.project_id.in_(select(Project.id).where(Project.user_id == owner_id))))
+            select(AuditEvent).where(or_(AuditEvent.user_id.in_(owner_ids),
+                                         AuditEvent.project_id.in_(project_scope)))
             .order_by(AuditEvent.created_at.desc()).limit(100)
         ))
         project_names = {project.id: project.name for project in projects}
@@ -129,7 +133,7 @@ def workspace_project_mechanical_preview(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Vary"] = "Cookie"
     try:
-        data = project_mechanical_preview(project_id, owner_id=str(actor["id"]))
+        data = project_mechanical_preview(project_id, owner_id=None if actor.get("role") == "super_admin" else owner_ids_for_actor(actor))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     if data is None:
@@ -152,6 +156,21 @@ def admin_qualification_activity(
         return qualification_activity(actor, level, limit)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/project-archive")
+def project_archive_index(
+    response: Response,
+    limit: int = 250,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """List deleted-project snapshots; never expose them to ordinary users."""
+    actor = _require_admin(admin_session)
+    if actor.get("role") != "super_admin":
+        raise HTTPException(403, "L’archive des projets supprimés est réservée au Super-Admin.")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie"
+    return {"archives": list_project_archives(limit)}
 
 
 @router.post("/logout")

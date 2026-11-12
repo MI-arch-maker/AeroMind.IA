@@ -213,6 +213,119 @@ def account_for_identity(email: str, subject: str) -> dict[str, Any] | None:
     return {**account, "id": subject, "accountId": account.get("id"), "workspaceId": account.get("id"), "email": email.strip().casefold()}
 
 
+def owner_ids_for_actor(actor: dict[str, Any] | None) -> set[str]:
+    """Resolve only canonical and legacy owner keys for the authenticated actor."""
+    if not actor:
+        return set()
+    values = {actor.get("id"), actor.get("accountId"), actor.get("workspaceId"),
+              actor.get("workspace_id"), actor.get("subject")}
+    return {str(value).strip() for value in values if value and str(value).strip()}
+
+
+def owner_ids_for_account_id(account_id: str) -> set[str]:
+    """Return the stable account id plus any persisted identity subject aliases."""
+    account_id = str(account_id or "").strip()
+    if not account_id:
+        return set()
+    aliases = {account_id}
+    with SessionLocal() as db:
+        row = db.get(AdminAccountRecord, account_id)
+        if row is not None:
+            account = _record_account(row)
+            for key in ("entraSubject", "localSubject"):
+                value = str(account.get(key, "")).strip()
+                if value:
+                    aliases.add(value)
+    return aliases
+
+
+def archive_project_for_superadmin(db: Session, project: Project, actor: dict[str, Any], reason: str,
+                                   owner_email: str | None = None) -> dict[str, Any]:
+    """Persist a complete project/drone snapshot outside the user workspace.
+
+    The caller must invoke this before deleting the active Project row.  The
+    archive has no foreign key to users or projects, so it survives account
+    and project deletion and is only exposed through Super-Admin routes.
+    """
+    from .models import Drone, SuperAdminProjectArchive
+
+    existing = db.scalar(select(SuperAdminProjectArchive).where(
+        SuperAdminProjectArchive.original_project_id == project.id,
+        SuperAdminProjectArchive.archive_reason == reason,
+    ))
+    if existing is not None:
+        return {"id": existing.id, "projectId": existing.original_project_id, "sha256": existing.sha256}
+    drones = []
+    for drone in db.scalars(select(Drone).where(
+        Drone.user_id == project.user_id,
+        (Drone.project_id == project.id) | (Drone.id == project.active_drone_id),
+    ).order_by(Drone.id)).all():
+        try:
+            drone_data = json.loads(drone.config_json or "{}")
+        except (TypeError, json.JSONDecodeError):
+            drone_data = {}
+        drones.append({"id": drone.id, "userId": drone.user_id, "projectId": project.id,
+                       "name": drone.name, "data": drone_data})
+    try:
+        project_data = json.loads(project.data_json or "{}")
+    except (TypeError, json.JSONDecodeError):
+        project_data = {}
+    snapshot = {"format": "aeromind-superadmin-project-archive.v1",
+                "project": {"id": project.id, "userId": project.user_id, "name": project.name,
+                             "data": project_data, "activeDroneId": project.active_drone_id,
+                             "createdAt": project.created_at.isoformat() if project.created_at else None,
+                             "updatedAt": project.updated_at.isoformat() if project.updated_at else None},
+                "drones": drones, "reason": reason}
+    encoded = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    record = SuperAdminProjectArchive(
+        id=str(uuid.uuid4()), original_project_id=project.id, owner_id=project.user_id,
+        owner_email=owner_email, project_name=project.name[:200], archive_reason=reason,
+        archived_by=str(actor.get("id", "unknown")), sha256=digest, snapshot_json=encoded,
+    )
+    db.add(record)
+    db.add(_event(db, "superadmin.project.archived", actor, project.id,
+                  {"archiveId": record.id, "reason": reason, "sha256": digest,
+                   "ownerId": project.user_id, "ownerEmail": owner_email}))
+    return {"id": record.id, "projectId": project.id, "sha256": digest}
+
+
+def list_project_archives(limit: int = 250) -> list[dict[str, Any]]:
+    from .models import SuperAdminProjectArchive
+    limit = max(1, min(int(limit), 500))
+    with SessionLocal() as db:
+        rows = db.scalars(select(SuperAdminProjectArchive).order_by(
+            SuperAdminProjectArchive.archived_at.desc()).limit(limit)).all()
+        return [{"id": row.id, "projectId": row.original_project_id, "ownerId": row.owner_id,
+                 "ownerEmail": row.owner_email, "projectName": row.project_name,
+                 "reason": row.archive_reason, "archivedBy": row.archived_by,
+                 "archivedAt": row.archived_at.isoformat() if row.archived_at else None,
+                 "sha256": row.sha256} for row in rows]
+
+
+def delete_project_dependents(db: Session, project_id: str) -> None:
+    """Delete project-scoped rows after their immutable archive is written."""
+    from sqlalchemy import inspect
+    from .canonical_models import (AuditEventExt, DroneRevision, EventOutbox,
+                                   GateValidation, GeofenceRecord, HardwareToken,
+                                   Measurement, TestRun)
+    from .models import (AlertEvent, AuditEvent, BatteryCycle, Drone,
+                         EngineeringDocumentRecord, FleetTelemetrySample,
+                         LabSession, MaintenanceRecord, Mission, PreflightChecklist,
+                         PrototypeVersion, Report, Simulation, WorkflowRun)
+    models = (Measurement, TestRun, DroneRevision, GateValidation, HardwareToken,
+              GeofenceRecord, EventOutbox, AuditEventExt, EngineeringDocumentRecord,
+              WorkflowRun, PrototypeVersion, Report, Simulation, LabSession,
+              AuditEvent, AlertEvent, FleetTelemetrySample, PreflightChecklist,
+              MaintenanceRecord, BatteryCycle, Mission, Drone)
+    inspector = inspect(db.bind)
+    for model in models:
+        if not inspector.has_table(model.__table__.name):
+            continue
+        for row in db.scalars(select(model).where(model.project_id == project_id)).all():
+            db.delete(row)
+
+
 def bind_entra_identity(email: str, subject: str, tenant_id: str) -> dict[str, Any] | None:
     """Bind an already-approved Entra identity without granting any role.
 
@@ -436,13 +549,26 @@ def delete_account(actor: dict[str, Any], account_id: str, permanent: bool = Fal
         if account.get("accountStatus") != "cancelled":
             raise ValueError("La suppression définitive exige une première suppression et une mise en conformité")
         tombstone_id = str(uuid.uuid4())
+        owner_ids = {account_id}
+        for key in ("entraSubject", "localSubject"):
+            value = str(account.get(key, "")).strip()
+            if value:
+                owner_ids.add(value)
+        archived_projects = []
+        for project in db.scalars(select(Project).where(Project.user_id.in_(owner_ids))).all():
+            archived_projects.append(archive_project_for_superadmin(
+                db, project, actor, "account_permanently_deleted", account.get("email")))
+            delete_project_dependents(db, project.id)
+            db.delete(project)
         db.add(_event(db, "account.permanently_deleted", actor, account_id,
                       {"id": account_id, "auditRecordId": tombstone_id, "email": account.get("email"),
                        "role": account.get("role"), "deletedAt": _now(), "deletedBy": actor["id"],
-                       "deletionState": "permanently_deleted", "auditRecord": True}))
+                       "deletionState": "permanently_deleted", "auditRecord": True,
+                       "archivedProjectCount": len(archived_projects)}))
         db.delete(row)
         db.commit()
-        return {"id": account_id, "deleted": True, "permanentlyDeleted": True, "auditRecordId": tombstone_id}
+        return {"id": account_id, "deleted": True, "permanentlyDeleted": True, "auditRecordId": tombstone_id,
+                "archivedProjectCount": len(archived_projects)}
 
 
 def _assert_superadmin_actor(actor: dict[str, Any] | None) -> None:
@@ -584,10 +710,22 @@ def delete_superadmin_account(actor: dict[str, Any], account_id: str, permanent:
         if account.get("accountStatus") != "cancelled":
             raise ValueError("La suppression définitive exige une première suppression et une mise en conformité")
         tombstone_id = str(uuid.uuid4())
+        owner_ids = {account_id}
+        for key in ("entraSubject", "localSubject"):
+            value = str(account.get(key, "")).strip()
+            if value:
+                owner_ids.add(value)
+        archived_projects = []
+        for project in db.scalars(select(Project).where(Project.user_id.in_(owner_ids))).all():
+            archived_projects.append(archive_project_for_superadmin(
+                db, project, actor, "superadmin_permanently_deleted", target_email))
+            delete_project_dependents(db, project.id)
+            db.delete(project)
         db.add(_event(db, "superadmin.account.permanently_deleted", actor, account_id,
                       {"id": account_id, "auditRecordId": tombstone_id, "email": target_email,
                        "role": account.get("role"), "deletedAt": _now(), "deletedBy": actor["id"],
-                       "deletionState": "permanently_deleted", "auditRecord": True}))
+                       "deletionState": "permanently_deleted", "auditRecord": True,
+                       "archivedProjectCount": len(archived_projects)}))
         db.delete(row)
         # Remove the deleted email from the runtime Super-Admin allowlist so
         # subsequent role checks (and the dev-login bootstrap) no longer
@@ -596,7 +734,7 @@ def delete_superadmin_account(actor: dict[str, Any], account_id: str, permanent:
         set_runtime_superadmin_emails(remaining)
         db.commit()
         return {"id": account_id, "deleted": True, "permanentlyDeleted": True,
-                "auditRecordId": tombstone_id}
+                "auditRecordId": tombstone_id, "archivedProjectCount": len(archived_projects)}
 
 
 def reset_superadmin_local_auth(actor: dict[str, Any], account_id: str) -> dict[str, Any]:
@@ -693,7 +831,7 @@ def _bounded_json_value(value: Any, depth: int = 0) -> Any:
     return None
 
 
-def project_mechanical_preview(project_id: str, *, owner_id: str | None = None,
+def project_mechanical_preview(project_id: str, *, owner_id: str | set[str] | None = None,
                                actor: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Return a bounded, read-only snapshot for one explicitly requested project."""
     if actor is not None:
@@ -703,7 +841,8 @@ def project_mechanical_preview(project_id: str, *, owner_id: str | None = None,
         raise ValueError("Identifiant de projet invalide")
     with SessionLocal() as db:
         project = db.get(Project, project_id)
-        if project is None or (owner_id is not None and project.user_id != owner_id):
+        owner_ids = ({str(owner_id)} if isinstance(owner_id, str) else {str(value) for value in owner_id}) if owner_id is not None else None
+        if project is None or (owner_ids is not None and project.user_id not in owner_ids):
             return None
         try:
             body = json.loads(project.data_json or "{}")
@@ -819,6 +958,7 @@ def qualification_activity(actor: dict[str, Any] | None, level: str = "all",
 
 
 def activity() -> dict[str, Any]:
+    from .models import SuperAdminProjectArchive
     with SessionLocal() as db:
         accounts = _all_accounts(db)
         events = [_event_dict(event) for event in db.scalars(
@@ -842,7 +982,14 @@ def activity() -> dict[str, Any]:
         runs = [{"id": r.id, "projectId": r.project_id,
                  "createdAt": r.created_at.isoformat() if r.created_at else None}
                 for r in db.scalars(select(Simulation).order_by(Simulation.created_at.desc()).limit(100)).all()]
-    return {"projects": projects, "runs": runs, "events": [], "adminEvents": events[:100],
+        project_archives = [{"id": row.id, "projectId": row.original_project_id, "projectName": row.project_name,
+                             "ownerId": row.owner_id, "ownerEmail": row.owner_email, "reason": row.archive_reason,
+                             "archivedBy": row.archived_by,
+                             "archivedAt": row.archived_at.isoformat() if row.archived_at else None,
+                             "sha256": row.sha256}
+                            for row in db.scalars(select(SuperAdminProjectArchive).order_by(
+                                SuperAdminProjectArchive.archived_at.desc()).limit(250)).all()]
+    return {"projects": projects, "runs": runs, "projectArchives": project_archives, "events": [], "adminEvents": events[:100],
             "deletedAccounts": deleted_accounts[:100],
             "totals": {"comptes": len(accounts),
                        "en_attente": sum(a.get("accountStatus") == "evaluation" for a in accounts),
@@ -882,21 +1029,12 @@ def update_project_control(actor: dict[str, Any], project_id: str, action: str) 
         elif action == "delete":
             # Explicit cleanup keeps deletion reliable on deployments where
             # database-level ON DELETE CASCADE is not enabled.
-            database_inspector = inspect(db.bind)
-            for model in (Measurement, TestRun, DroneRevision, GateValidation,
-                          HardwareToken, GeofenceRecord, EventOutbox, AuditEventExt,
-                          EngineeringDocumentRecord, WorkflowRun, PrototypeVersion,
-                          Report, Simulation, LabSession, AuditEvent, AlertEvent,
-                          FleetTelemetrySample, PreflightChecklist, MaintenanceRecord,
-                          BatteryCycle, Mission, Drone):
-                if not database_inspector.has_table(model.__table__.name):
-                    continue
-                for row in db.scalars(select(model).where(model.project_id == project_id)).all():
-                    db.delete(row)
+            archive = archive_project_for_superadmin(db, project, actor, "superadmin_project_deleted")
+            delete_project_dependents(db, project_id)
             db.delete(project)
             db.add(_event(db, "project.deleted", actor, project_id, {"projectId": project_id}))
             db.commit()
-            return {"id": project_id, "deleted": True}
+            return {"id": project_id, "deleted": True, "archiveId": archive["id"]}
         else:
             raise ValueError("Action projet inconnue")
         project.data_json = json.dumps(body, ensure_ascii=False, separators=(",", ":"))

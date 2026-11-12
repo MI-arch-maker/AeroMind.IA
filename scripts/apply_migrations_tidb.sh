@@ -37,7 +37,8 @@ for SQL_FILE in \
   migrations/2026-10-21_admin_account_registry_tidb.sql \
   migrations/2026-10-21_validation_audit_events.sql \
   migrations/2026-10-25_canonical_labbench_schema_tidb.sql \
-  migrations/2026-11-01_engineering_files_connectors_tidb.sql
+  migrations/2026-11-01_engineering_files_connectors_tidb.sql \
+  migrations/2026-11-12_superadmin_project_archives_tidb.sql
 do
   if [ -f "$SQL_FILE" ]; then
     echo "  Applying: $SQL_FILE"

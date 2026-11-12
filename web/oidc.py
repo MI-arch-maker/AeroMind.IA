@@ -172,6 +172,8 @@ def me(
         raise HTTPException(401, 'No authenticated session')
     try:
         verified = _verified(token)
+        if not is_primary_session_active(token):
+            raise HTTPException(401, 'Session révoquée ou expirée')
         raw = base64.urlsafe_b64decode(verified + '=' * (-len(verified) % 4)).decode()
         subject, email = raw.split('|', 1)
     except (ValueError, IndexError, UnicodeDecodeError):
@@ -254,7 +256,19 @@ async def login(request: Request, return_to: str = '/', reauth: bool = False, co
 
 
 @router.get('/callback')
-async def callback(request: Request, code: str, state: str, aeromind_oidc_state: str | None = Cookie(default=None)):
+async def callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+    aeromind_oidc_state: str | None = Cookie(default=None),
+):
+    if error:
+        safe_error = error if error in {'access_denied', 'login_required', 'interaction_required'} else 'provider_error'
+        raise HTTPException(401, f'Connexion SSO annulée ou refusée ({safe_error})')
+    if not code or not state:
+        raise HTTPException(400, 'Réponse OIDC incomplète')
     cfg = _settings()
     if not aeromind_oidc_state:
         raise HTTPException(400, 'Missing OIDC state')

@@ -1,0 +1,17 @@
+{
+  "routes": [
+    {"path":"/","title":"AeroMind — Vue d’ensemble"},
+    {"path":"/?view=engineering-hub","title":"Centre d’ingénierie"},
+    {"path":"/?view=labbench","title":"Laboratoire EASA — LabBench"},
+    {"path":"/?view=simulation","title":"Simulation"},
+    {"path":"/gate-certification.html","title":"AeroMind — Certification GATE 01 à GATE 05"},
+    {"path":"/virtual-factory","title":"AeroMind — Virtual Parametric 3D Printing Factory"},
+    {"path":"/build-readiness","title":"AeroMind — Préparation contrôlée à la fabrication"},
+    {"path":"/labbench","title":"AeroMind LabBench"},
+    {"path":"/engineering-hub","title":"AeroMind — Centre d’ingénierie"},
+    {"path":"/admin","title":"AeroMind — Administration"},
+    {"path":"/admin-console","title":"AeroMind — Console Administrateur"},
+    {"path":"/super-admin","title":"AeroMind — Super-Admin"},
+    {"path":"/audit-journal","title":"AeroMind — Journal d’audit"}
+  ]
+}

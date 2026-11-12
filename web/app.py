@@ -22,7 +22,7 @@ from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
 from .engineering_connectors_api import router as engineering_connectors_router
-from .admin import activity as admin_activity, clear_audit_logs, create_account, delete_account, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
+from .admin import activity as admin_activity, archive_project_for_superadmin, clear_audit_logs, create_account, delete_account, delete_project_dependents, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
 from .admin_console_api import router as admin_console_router
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
@@ -981,6 +981,8 @@ async def trpc_compat(
         with SessionLocal() as db:
             project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')})))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+            archive_project_for_superadmin(db, project, current_user, 'user_project_deleted', current_user.get('email'))
+            delete_project_dependents(db, project.id)
             db.delete(project); db.commit(); data = {'deleted': True}
     elif name.endswith('projects.saveSnapshot'):
         if not current_user:

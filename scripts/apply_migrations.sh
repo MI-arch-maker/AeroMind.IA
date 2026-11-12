@@ -14,7 +14,8 @@ psql "$DB_URL" -v ON_ERROR_STOP=1 \
   -f migrations/2026-10-21_admin_account_registry.sql \
   -f migrations/2026-10-21_validation_audit_events.sql \
   -f migrations/2026-10-25_canonical_labbench_schema.sql \
-  -f migrations/2026-11-01_engineering_files_connectors.sql
+  -f migrations/2026-11-01_engineering_files_connectors.sql \
+  -f migrations/2026-11-12_superadmin_project_archives.sql
 echo "[migrations] All migrations applied successfully."
 # P2-08 fix: record applied migrations
 for m in legacy_bootstrap admin_account_registry validation_audit_events canonical_labbench_schema; do

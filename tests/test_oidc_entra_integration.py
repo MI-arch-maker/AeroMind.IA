@@ -20,3 +20,22 @@ def test_tenant_claim_must_match_configured_tenant():
 def test_token_client_must_match_when_azp_present():
     with pytest.raises(HTTPException):
         _validate_tenant_claim({'tid': 'tenant-a', 'ver': '2.0', 'azp': 'other-client'}, {'tenant_id': 'tenant-a', 'client_id': 'client-a'})
+
+
+def test_oidc_callback_requires_code_and_state():
+    from fastapi.testclient import TestClient
+    from web.app import app
+
+    response = TestClient(app).get('/api/auth/oidc/callback', headers={'host': 'localhost'})
+    assert response.status_code == 400
+    assert 'incomplète' in response.json()['error']['message']
+
+
+def test_oidc_callback_provider_error_is_sanitized():
+    from fastapi.testclient import TestClient
+    from web.app import app
+
+    response = TestClient(app).get('/api/auth/oidc/callback?error=totally-secret&error_description=secret', headers={'host': 'localhost'})
+    assert response.status_code == 401
+    assert 'provider_error' in response.json()['error']['message']
+    assert 'secret' not in response.json()['error']['message']

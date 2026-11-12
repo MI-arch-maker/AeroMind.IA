@@ -39,6 +39,21 @@ class AdminAccountEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
 
 
+class SuperAdminProjectArchive(Base):
+    """Immutable archive hidden from ordinary AeroMind workspaces."""
+    __tablename__ = "superadmin_project_archives"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    original_project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    owner_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    owner_email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
+    project_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    archive_reason: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    archived_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    archived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class Project(Base):
     __tablename__ = "projects"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

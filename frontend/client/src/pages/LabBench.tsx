@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useQueryClient } from "@tanstack/react-query";
 import { LabBenchPersistencePanel } from "@/components/LabBenchPersistencePanel";
 import { LabBenchHardwareConfig } from "@/components/LabBenchHardwareConfig";
 import { HardwareControlPanel } from "@/components/HardwareControlPanel";
@@ -35,6 +36,8 @@ import {
   Info,
   History,
   KeyRound,
+  LogIn,
+  LogOut,
   LockKeyhole,
   Map,
   Mic,
@@ -67,6 +70,7 @@ import {
 import { useLanguage } from "../contexts/LanguageContext";
 import { performStepUp, fetchActiveDrone } from "../lib/labStatus";
 import { startLogin } from "../const";
+import { bearerHeaders, clearSessionToken } from "../lib/sessionToken";
 import "./labbench.css";
 
 // ===========================================================================
@@ -284,6 +288,7 @@ export default function LabBench({
   userIntegratedThisSession = false,
 }: LabBenchIntegratedProps = {}) {
   const { tKey } = useLanguage();
+  const queryClient = useQueryClient();
   const [view, setView] = useState<ViewId>("overview");
   const [mode, setMode] = useState<ModeId>("simulation");
   const [scenario, setScenario] = useState(readLabBenchScenario);
@@ -301,6 +306,8 @@ export default function LabBench({
   const [activeDroneSync, setActiveDroneSync] = useState<{ drone_name?: string; revision?: string; last_sync_at?: string } | null>(null);
   const [labActivationError, setLabActivationError] = useState<string | null>(null);
   const [labActivating, setLabActivating] = useState(false);
+  const [enterpriseLogoutBusy, setEnterpriseLogoutBusy] = useState(false);
+  const [enterpriseLogoutError, setEnterpriseLogoutError] = useState<string | null>(null);
   const [signOffDialogOpen, setSignOffDialogOpen] = useState(false);
   const [virtualPosition, setVirtualPosition] = useState<number | null>(null);
   const [storageError, setStorageError] = useState(false);
@@ -367,6 +374,29 @@ export default function LabBench({
     staleTime: 60_000,
     retry: 1,
   });
+  const logoutEnterpriseSession = async () => {
+    setEnterpriseLogoutBusy(true);
+    setEnterpriseLogoutError(null);
+    try {
+      const response = await fetch("/api/auth/oidc/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: bearerHeaders(),
+      });
+      if (!response.ok) throw new Error(`Déconnexion refusée (${response.status})`);
+      clearSessionToken();
+      setLabSessionInfo(null);
+      setLabMfaCode("");
+      setActiveDroneSync(null);
+      queryClient.setQueryData(["auth.me"], null);
+      await queryClient.invalidateQueries({ queryKey: ["auth.me"] });
+      window.dispatchEvent(new Event("aeromind-auth-changed"));
+    } catch {
+      setEnterpriseLogoutError("La déconnexion n’a pas abouti. Vérifiez la liaison puis réessayez.");
+    } finally {
+      setEnterpriseLogoutBusy(false);
+    }
+  };
   const projectsQuery = trpc.projects.list.useQuery(undefined, {
     // Fire even without auth — the API may return local projects or 401
     // (which we handle gracefully). Don't block the entire LabBench on auth.
@@ -1873,7 +1903,7 @@ export default function LabBench({
         <div className="lb-safety-banner">
           <ShieldCheck size={19} />
           <div>
-            <strong>Interface laboratoire AeroMind</strong>
+            <strong>Poste d’ingénierie · environnement de validation</strong>
             <span>
               Ce runtime de démonstration exécute le scénario logiciel; aucune donnée de cet écran ne pilote un appareil réel.
               HARDWARE_CONTROL ne peut pas lever ce verrou. La checklist EASA est un aide-mémoire de laboratoire, pas une approbation ni une autorisation de vol.
@@ -1886,31 +1916,50 @@ export default function LabBench({
           </p>
         )}
         {statusQuery.isError && (
-          <p className="lb-note" role="status">
-            API LABBENCH indisponible : aucune donnée locale de remplacement n’est utilisée.
-            Reconnectez le projet AeroMind pour rétablir la synchronisation.
-          </p>
+          <div className="lb-note lb-connectivity-alert" role="status">
+            <span><strong>Liaison serveur interrompue</strong> · La synchronisation du projet est indisponible. Aucune valeur locale ne remplace les données AeroMind.</span>
+            <button type="button" className="lb-secondary" onClick={() => void statusQuery.refetch()}>Réessayer la liaison</button>
+          </div>
         )}
                 {/* === Mode indicator (mirrors AeroMind Home.tsx) === */}
-        <section className="lb-identity-panel" aria-label="Double identification AeroMind et LABBENCH 01">
-          <div className="lb-identity-cell">
-            <span className="lb-identity-kicker">IDENTITÉ 01 · AEROMIND</span>
-            <strong>{meQuery.data?.email ?? meQuery.data?.name ?? "Session AeroMind requise"}</strong>
-            <small>{remoteProjectId ? `Projet maître synchronisé · ${remoteProjectId}` : "Aucun projet serveur sélectionné"}</small>
+        <section className="lb-identity-panel" aria-label="Compte SSO entreprise et autorisation LABBENCH">
+          <div className="lb-identity-cell lb-enterprise-session-card">
+            <span className="lb-identity-kicker">CONNEXION</span>
+            {meQuery.isLoading ? (
+              <strong>Vérification de la session…</strong>
+            ) : meQuery.isError ? (
+              <>
+                <strong>État de session indisponible</strong>
+                <small>Le service d’authentification n’a pas confirmé la session.</small>
+                <button type="button" className="lb-secondary lb-session-action" onClick={() => void meQuery.refetch()}>
+                  Réessayer la vérification
+                </button>
+              </>
+            ) : meQuery.data ? (
+              <>
+                <strong>{meQuery.data.email ?? meQuery.data.name ?? "Session AeroMind active"}</strong>
+                <small>Compte authentifié · {remoteProjectId ? `Projet lié ${remoteProjectId}` : "aucun projet sélectionné"}</small>
+                <button type="button" className="lb-secondary lb-session-action" onClick={() => void logoutEnterpriseSession()} disabled={enterpriseLogoutBusy}>
+                  <LogOut size={14} /> {enterpriseLogoutBusy ? "Déconnexion…" : "Se déconnecter"}
+                </button>
+              </>
+            ) : (
+              <>
+                <strong>Session fermée</strong>
+                <small>Accès via l’authentification d’entreprise AeroMind.</small>
+                <button type="button" className="lb-primary lb-session-action" onClick={startLogin}>
+                  <LogIn size={14} /> Connexion Entra / SSO
+                </button>
+              </>
+            )}
           </div>
-          <div className="lb-identity-divider" />
           <div className="lb-identity-cell">
-            <span className="lb-identity-kicker">IDENTITÉ 02 · LABBENCH 01</span>
-            <strong>{labSessionInfo ? "Session LABBENCH active" : "Step-up LABBENCH requis"}</strong>
-            <small>{labSessionInfo ? `Rôles : ${labSessionInfo.roles.join(", ")} · expire ${new Date(labSessionInfo.expires_at).toLocaleTimeString("fr-FR")}` : "La seconde identification protège les vues et opérations sensibles."}</small>
+            <span className="lb-identity-kicker">AUTORISATION LABBENCH</span>
+            <strong>{labSessionInfo ? "Session LABBENCH active" : meQuery.data ? "Validation LABBENCH attendue" : "Connexion"}</strong>
+            <small>{labSessionInfo ? `Rôles : ${labSessionInfo.roles.join(", ")} · expire ${new Date(labSessionInfo.expires_at).toLocaleTimeString("fr-FR")}` : meQuery.data ? "Session de travail temporaire selon la gouvernance AeroMind." : "Connectez-vous via Entra / SSO pour poursuivre."}</small>
           </div>
           <div className="lb-identity-actions">
-            {!meQuery.data && (
-              <button type="button" className="lb-secondary lb-entra-login" onClick={startLogin}>
-                <KeyRound size={15} /> Se connecter via Microsoft Entra ID
-              </button>
-            )}
-            {!labSessionInfo && remoteProjectId && (
+            {meQuery.data && !labSessionInfo && remoteProjectId && (
               <div className="lb-stepup-form">
                 <label htmlFor="labbench-stepup-code">Code TOTP à 6 chiffres</label>
                 <div className="lb-stepup-controls">
@@ -1928,10 +1977,10 @@ export default function LabBench({
                 </div>
               </div>
             )}
-            {!labSessionInfo && <button type="button" className="lb-stepup-help-button" onClick={() => setStepUpHelpOpen((open) => !open)} aria-expanded={stepUpHelpOpen}><Info size={15} /> Comment obtenir ce code ?</button>}
+            {meQuery.data && !labSessionInfo && <button type="button" className="lb-stepup-help-button" onClick={() => setStepUpHelpOpen((open) => !open)} aria-expanded={stepUpHelpOpen}><Info size={15} /> Procédure d’accès au code</button>}
           </div>
         </section>
-        {stepUpHelpOpen && !labSessionInfo && (
+        {stepUpHelpOpen && meQuery.data && !labSessionInfo && (
           <section className="lb-stepup-help" aria-label="Aide de seconde identification LABBENCH">
             <Info size={18} />
             <div>
@@ -1941,6 +1990,7 @@ export default function LabBench({
             </div>
           </section>
         )}
+        {enterpriseLogoutError && <p className="lb-note lb-text-danger" role="alert">{enterpriseLogoutError}</p>}
         {labActivationError && <p className="lb-note lb-text-danger" role="alert">{labActivationError}</p>}
         {!serverDataReady ? (
           <section className="lb-server-lock lb-panel" role="status">
@@ -1948,12 +1998,12 @@ export default function LabBench({
             <div>
               <strong>
                 {integratedSurface
-                  ? "LABBENCH prêt — aucune donnée utilisateur intégrée"
+                  ? "En attente d’une cellule AeroMind"
                   : "LABBENCH verrouillé — données serveur requises"}
               </strong>
               <span>
                 {integratedSurface
-                  ? "Sélectionnez une cellule dans la Bibliothèque ou importez un dessin utilisateur dans AeroMind. Aucun chiffre, résultat, scénario ou émulateur n’est pris en compte avant cette action."
+                  ? "Associez une cellule ou importez un dessin dans AeroMind pour initialiser le banc. Les scénarios locaux ne remplacent pas les données projet."
                   : "Aucune vue, simulation, télémétrie ou commande locale de remplacement n’est affichée. Ouvrez AeroMind et sélectionnez un projet serveur réel pour continuer."}
               </span>
               <Link href="/" className="lb-secondary">Ouvrir AeroMind</Link>

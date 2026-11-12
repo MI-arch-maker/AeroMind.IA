@@ -161,10 +161,12 @@ def _verify_project_owner(sess: StepUpSession, project_id: str) -> None:
         project = db.get(Project, project_id)
         if project is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Projet {project_id} introuvable")
-        if project.user_id != sess.user_id and "admin" not in sess.scope:
+        from .admin import owner_ids_for_account_id
+        owner_ids = owner_ids_for_account_id(sess.user_id)
+        if project.user_id not in owner_ids and "admin" not in sess.scope:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                detail=f"Accès refusé — l'utilisateur {sess.user_id} n'est pas propriétaire du projet {project_id}",
+                detail=f"Accès refusé — l'identité authentifiée n'est pas propriétaire du projet {project_id}",
             )
 
 
@@ -191,7 +193,7 @@ def step_up(
     user = current_user_or_401(request)
     user_id = user["id"]
     # Verify project ownership
-    _verify_project_owner_str(user_id, payload.project_id)
+    _verify_project_owner_str(user, payload.project_id)
 
     # P0-12 fix (INSPECT-TESTS-AUDITS T-HIGH-27, SEC-08):
     # The endpoint previously accepted `roles=set(payload.roles)` from the
@@ -318,16 +320,17 @@ def step_up(
     return response
 
 
-def _verify_project_owner_str(user_id: str, project_id: str) -> None:
+def _verify_project_owner_str(user: dict, project_id: str) -> None:
     from .models import Project
+    owner_ids = {str(value) for value in (user.get("id"), user.get("subject"), user.get("accountId"), user.get("workspace_id")) if value}
     with SessionLocal() as db:
         project = db.get(Project, project_id)
         if project is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Projet {project_id} introuvable")
-        if project.user_id != user_id:
+        if project.user_id not in owner_ids:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                detail=f"Accès refusé — l'utilisateur {user_id} n'est pas propriétaire du projet {project_id}",
+                detail=f"Accès refusé — l'identité authentifiée n'est pas propriétaire du projet {project_id}",
             )
 
 

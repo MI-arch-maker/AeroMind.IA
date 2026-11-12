@@ -295,6 +295,7 @@ function SessionControls() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [loginMethod, setLoginMethod] = useState<"entra" | "mfa">("entra");
+  const [ssoDrawerOpen, setSsoDrawerOpen] = useState(false);
   // P-LOGOUT-1 fix: access the React Query cache so logout can invalidate
   // the trpc.auth.me query. Without this, the stale user record wins at
   // line ~12511 (authenticatedUser = authQuery.data ?? sessionUser) and the
@@ -349,7 +350,21 @@ function SessionControls() {
           <button type="button" role="tab" aria-selected={loginMethod === "entra"} className={loginMethod === "entra" ? "is-active" : ""} onClick={() => setLoginMethod("entra")}><LogIn size={13}/> Microsoft Entra</button>
           <button type="button" role="tab" aria-selected={loginMethod === "mfa"} className={loginMethod === "mfa" ? "is-active" : ""} onClick={() => setLoginMethod("mfa")}><ShieldCheck size={13}/> Connexion MFA</button>
         </div>
-        {loginMethod === "entra" ? <button className="primary-button session-button" onClick={login} type="button"><LogIn size={14} />Connexion sur Microsoft Entra</button> : <LocalMfaLogin onAuthenticated={() => { void refresh(); window.dispatchEvent(new Event("aeromind-auth-changed")); }} />}
+        {loginMethod === "entra" ? <>
+          <button className="primary-button session-button" onClick={() => setSsoDrawerOpen(true)} type="button"><LogIn size={14} />Ouvrir Identity Gateway</button>
+          {ssoDrawerOpen && <>
+            <button className="sso-drawer-backdrop" type="button" aria-label="Fermer Identity Gateway" onClick={() => setSsoDrawerOpen(false)} />
+            <aside className="sso-drawer" aria-label="Identity Gateway" role="dialog" aria-modal="true">
+              <div className="sso-drawer-head"><div><span className="sso-drawer-kicker">IDENTITY GATEWAY</span><strong>Connexion SSO</strong></div><button type="button" className="sso-drawer-close" aria-label="Fermer" onClick={() => setSsoDrawerOpen(false)}><X size={16} /></button></div>
+              <div className="sso-drawer-status"><span className="sso-drawer-status-dot" /> SSO DISPONIBLE</div>
+              <p className="sso-drawer-lead">Authentifiez-vous avec votre identité Microsoft Entra pour ouvrir votre espace AeroMind.</p>
+              <button className="primary-button sso-drawer-action" onClick={login} type="button"><LogIn size={15} />Se connecter avec Entra</button>
+              <button className="secondary-button sso-drawer-action" onClick={() => { setSsoDrawerOpen(false); setLoginMethod("mfa"); }} type="button"><ShieldCheck size={15} />Connexion MFA</button>
+              <button className="sso-drawer-local" onClick={() => { setSsoDrawerOpen(false); setLoginMethod("mfa"); }} type="button">Autre méthode locale</button>
+              <div className="sso-drawer-note"><ShieldCheck size={14} /><span>AeroMind ne conserve aucun secret fournisseur. Les permissions restent gérées par le registre interne.</span></div>
+            </aside>
+          </>}
+        </> : <LocalMfaLogin onAuthenticated={() => { void refresh(); window.dispatchEvent(new Event("aeromind-auth-changed")); }} />}
         {/* P-AUTOLOGIN fix: dev-login button removed from the Home cockpit.
             The super-admin has a separate console at /super-admin with its
             own authentication flow. AeroMind must NOT offer auto-login from

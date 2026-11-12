@@ -51,6 +51,15 @@ GET /api/auth/oidc/login?reauth=true&return_to=/super-admin
 
 Le flux transmet `prompt=login` et `max_age=0`. Le callback conserve la vérification de state, nonce, PKCE, tenant et compte Aeromind.
 
+Le SSO Entra est un parcours additionnel : les parcours locaux mot de passe + TOTP,
+l’inscription locale préautorisée et le login de développement explicitement activé
+restent inchangés. La résolution d’identité utilise la même allowlist AeroMind et
+aucun compte n’est créé automatiquement par le fournisseur.
+
+Après déconnexion, la session est révoquée côté serveur et `/api/auth/oidc/me` ainsi
+que les routes métier refusent immédiatement le jeton réutilisé. Un callback IdP
+incomplet ou refusé est rejeté sans recopier `error_description` dans la réponse.
+
 ## Limites institutionnelles
 
 Une authentification Entra réussie ne valide aucun GATE. Elle ne génère pas de code de transmission, ne remplace pas le Super-Administrateur et ne crée aucune autorisation de sortie physique. Les décisions GATE 01 à GATE 05 demeurent contrôlées par les permissions et le journal institutionnel AeroMind.

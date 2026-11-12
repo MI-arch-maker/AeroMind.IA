@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .app_auth_helpers import current_user
+from .admin import archive_project_for_superadmin, delete_project_dependents
 from .database import get_db
 from .models import Drone, LabSession, Project, Report, Simulation, User, UserSetting
 
@@ -170,6 +171,9 @@ def delete_project(
     db: Session = Depends(get_db),
 ):
     project = get_project(db, owner(aeromind_session, db), project_id)
+    user = current_user(aeromind_session)
+    archive_project_for_superadmin(db, project, user or {"id": project.user_id}, "user_project_deleted", user.get("email") if user else None)
+    delete_project_dependents(db, project.id)
     db.delete(project)
     db.commit()
     return Response(status_code=204)

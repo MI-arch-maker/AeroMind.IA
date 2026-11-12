@@ -1,7 +1,19 @@
 import base64
 from .config import get_settings
 from .oidc import _verified, _session_token
+from .primary_session_store import is_primary_session_active
 from .admin import account_for_identity
+
+
+def owner_ids_for_user(user: dict | None) -> set[str]:
+    """Return canonical and legacy owner keys for one authenticated identity."""
+    if not user:
+        return set()
+    values = {
+        user.get("id"), user.get("accountId"), user.get("workspace_id"),
+        user.get("workspaceId"), user.get("subject"),
+    }
+    return {str(value).strip() for value in values if value and str(value).strip()}
 
 
 def current_user(cookie: str | None, authorization: str | None = None):
@@ -9,6 +21,8 @@ def current_user(cookie: str | None, authorization: str | None = None):
     if not token: return None
     try:
         verified = _verified(token)
+        if not is_primary_session_active(token):
+            return None
         # P1-04 fix: verify localAuthGeneration for local sessions
         from .oidc import _check_local_generation
         _check_local_generation(verified)
@@ -23,7 +37,7 @@ def current_user(cookie: str | None, authorization: str | None = None):
         # between Entra OIDC and local MFA sessions, while the verified
         # subject is still retained in the signed session validation above.
         owner_id = account.get('accountId') or subject
-        return {'id': owner_id, 'workspace_id': account.get('workspaceId') or owner_id, 'subject': subject, 'email': email, 'name': account.get('name') or email, 'role': account.get('role', 'user'), 'level': account.get('level', 'L1'), 'accountStatus': account.get('accountStatus', 'active')}
+        return {'id': owner_id, 'accountId': account.get('accountId'), 'workspace_id': account.get('workspaceId') or owner_id, 'subject': subject, 'email': email, 'name': account.get('name') or email, 'role': account.get('role', 'user'), 'level': account.get('level', 'L1'), 'accountStatus': account.get('accountStatus', 'active')}
     except Exception:
         return None
 
