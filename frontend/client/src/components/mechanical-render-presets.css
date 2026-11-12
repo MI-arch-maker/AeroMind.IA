@@ -1,0 +1,24 @@
+/* Local presentation presets. The underlying selected drone mesh and source configuration are unchanged. */
+.mt-render-presets{position:absolute;z-index:8;top:10px;left:10px;display:flex;flex-direction:column;gap:5px;width:min(245px,calc(100% - 20px));padding:9px 10px;background:rgba(8,19,28,.91);border:1px solid rgba(115,205,209,.32);border-radius:8px;color:#e8f6f6;backdrop-filter:blur(10px);font:600 10px/1.35 Inter,system-ui,sans-serif}
+.mt-render-presets label{letter-spacing:.14em;color:#83d8d2}.mt-render-presets .mt-snap-control{display:flex;align-items:center;gap:7px;letter-spacing:.08em;color:#b9efdf;cursor:pointer}.mt-render-presets .mt-snap-control input{accent-color:#79eadb}.mt-render-presets select,.mt-render-presets button{width:100%;min-height:31px;padding:5px 8px;color:#e9f5f5;background:#142832;border:1px solid #34525b;border-radius:5px;font:600 11px/1.25 inherit}.mt-render-presets small{color:#b3c9ca;font-size:9px;font-weight:450}.mt-render-presets select:focus-visible,.mt-render-presets button:focus-visible{outline:2px solid #79eadb;outline-offset:2px}
+.mt-viewport[data-render-preset="clay"] canvas,.mt-viewport[data-render-preset="clay"] svg{filter:grayscale(1) contrast(.92) brightness(1.14)}
+.mt-viewport[data-render-preset="npr"] canvas,.mt-viewport[data-render-preset="npr"] svg{filter:saturate(1.45) contrast(1.16)}
+.mt-viewport[data-render-preset="lowpoly"] canvas,.mt-viewport[data-render-preset="lowpoly"] svg{filter:saturate(.72) contrast(1.16)}
+.mt-viewport[data-render-preset="archviz"] canvas,.mt-viewport[data-render-preset="archviz"] svg{filter:saturate(.82) contrast(1.03) brightness(1.08)}
+.mt-viewport[data-render-preset="interior"] canvas,.mt-viewport[data-render-preset="interior"] svg{filter:saturate(.9) brightness(1.1)}
+.mt-viewport[data-render-preset="axonometric"] canvas,.mt-viewport[data-render-preset="axonometric"] svg{filter:saturate(.85) contrast(1.08)}
+.mt-viewport[data-render-preset="orthographic"] canvas,.mt-viewport[data-render-preset="orthographic"] svg{filter:contrast(1.12) saturate(.75)}
+.mt-viewport[data-render-preset="perspective"] canvas,.mt-viewport[data-render-preset="perspective"] svg{filter:saturate(1.05)}
+.mt-viewport[data-render-preset="immersive"] canvas,.mt-viewport[data-render-preset="immersive"] svg{filter:saturate(1.15) contrast(1.05)}
+.mt-viewport[data-render-preset="mechanical"] canvas,.mt-viewport[data-render-preset="mechanical"] svg{filter:none}
+.mt-viewport:fullscreen{width:100vw;height:100vh;background:#0a151d}.mt-viewport:fullscreen canvas,.mt-viewport:fullscreen>svg{height:100%!important}
+@media(max-width:600px){.mt-render-presets{width:min(200px,calc(100% - 16px));top:8px;left:8px;padding:7px}.mt-render-presets select{min-height:34px}}
+
+.mt-viewport[data-render-preset="carbon"] canvas,.mt-viewport[data-render-preset="carbon"] svg{filter:brightness(.72) saturate(.55) contrast(1.14)}
+.mt-viewport[data-render-preset="cyberpunk"] canvas,.mt-viewport[data-render-preset="cyberpunk"] svg{filter:hue-rotate(44deg) saturate(1.8) contrast(1.12)}
+.mt-viewport[data-render-preset="crystal"] canvas,.mt-viewport[data-render-preset="crystal"] svg{filter:brightness(1.18) saturate(1.35) contrast(.88)}
+.mt-viewport[data-render-preset="bionic"] canvas,.mt-viewport[data-render-preset="bionic"] svg{filter:grayscale(.45) contrast(1.2) brightness(1.1)}
+.mt-viewport[data-render-preset="exploded"] canvas,.mt-viewport[data-render-preset="exploded"] svg{filter:grayscale(.32) contrast(1.12)}
+.mt-viewport[data-render-preset="energyflow"] canvas,.mt-viewport[data-render-preset="energyflow"] svg{filter:hue-rotate(110deg) saturate(1.45) brightness(1.1)}
+
+.mt-viewport[data-render-preset="mesh-wire"]{background-color:#08263c;background-image:linear-gradient(rgba(67,172,204,.10) 1px,transparent 1px),linear-gradient(90deg,rgba(67,172,204,.10) 1px,transparent 1px);background-size:22px 22px}.mt-viewport[data-render-preset="blueprint"]{background-color:#07304b;background-image:linear-gradient(rgba(99,197,222,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(99,197,222,.12) 1px,transparent 1px);background-size:18px 18px}.mt-viewport[data-render-preset="cfd"] canvas,.mt-viewport[data-render-preset="fea"] canvas{filter:saturate(1.12) contrast(1.05)}.mt-field-legend{position:absolute;z-index:8;right:12px;top:12px;width:170px;display:flex;flex-direction:column;gap:4px;padding:9px 10px;border:1px solid rgba(122,215,233,.42);border-radius:7px;background:rgba(7,19,29,.9);color:#e5f8ff;font:10px/1.35 system-ui,sans-serif}.mt-field-legend strong{letter-spacing:.08em;color:#8be5f3}.mt-field-legend label{display:flex;align-items:center;gap:6px}.mt-field-legend input{width:58px;padding:2px 4px;border:1px solid #55849a;border-radius:3px;background:#102c3c;color:#effcff}.mt-field-legend i{height:9px;border-radius:5px;background:linear-gradient(90deg,#ff2b20,#ffd928,#2bdb47,#22c8df,#5428ff)}.mt-field-legend small{color:#bdd1d8;font-size:9px}

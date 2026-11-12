@@ -174,7 +174,7 @@ def _drivers() -> list[dict[str, Any]]:
             "name": "AeroMind Device Gateway — virtual contract",
             "version": "0.1.0-sim",
             "protocol": "AMDG-virtual",
-            "permissions": "Simulation uniquement · aucune sortie physique",
+            "permissions": "Preview sans adaptateur · sortie régie par ICX/Aeromind G01–G05",
             "validationStatus": "simulated",
             "allowlistJson": json.dumps(["read.status", "read.temperature", "read.position", "simulate.servo.setpoint"], ensure_ascii=False),
             "physicalOutputEnabled": False,
@@ -222,7 +222,7 @@ def status() -> dict[str, Any]:
         "services": [
             {"id": "simulation-engine", "label": "Moteur de simulation", "detail": f"{ENGINE_VERSION} · calcul synthétique déterministe", "state": "simulated"},
             {"id": "registry", "label": "Registre de projet", "detail": "Disponible pour les propriétaires authentifiés", "state": "available"},
-            {"id": "hardware-gateway", "label": "Passerelle matérielle", "detail": "Aucun adaptateur chargé; aucune sortie physique", "state": "limited"},
+            {"id": "hardware-gateway", "label": "Passerelle matérielle", "detail": "Aucun adaptateur chargé dans cette Preview; protocole ICX/Aeromind requis", "state": "limited"},
         ],
         "requirements": _requirements(),
         "device": {
@@ -239,7 +239,7 @@ def status() -> dict[str, Any]:
             "name": "AeroMind Device Gateway — virtual contract",
             "version": "0.1.0-sim",
             "protocol": "AMDG-virtual",
-            "permissions": "Simulation uniquement · aucune sortie physique",
+            "permissions": "Preview sans adaptateur · sortie régie par ICX/Aeromind G01–G05",
             "validation": "simulated",
             "allowedCommands": ["read.status", "read.temperature", "read.position", "simulate.servo.setpoint"],
         },
@@ -961,7 +961,7 @@ def arm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str, paylo
         "safetyConfirmed": True,
         "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
-        "reason": "Armement N3 supervisé enregistré ; sorties physiques toujours interdites.",
+        "reason": "Armement N3 supervisé enregistré ; aucune sortie physique engagée dans cette Preview. Toute sortie appareil relève du protocole ICX / Aeromind.",
     }
     data.setdefault("armEvents", []).append(arm_event)
     data["conditions"]["arm_double_confirmed"] = True
@@ -977,7 +977,7 @@ def arm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str, paylo
             user_id=user["id"],
             actor_role=user.get("role", "user"),
             event_type="labbench.gate.arm_n3",
-            message="Armement N3 supervisé enregistré après double confirmation humaine ; aucune sortie physique.",
+            message="Armement N3 supervisé enregistré après double confirmation humaine ; aucune sortie physique engagée dans cette Preview. La décision appareil relève du protocole ICX / Aeromind.",
             payload_json=json.dumps({
                 "scope": "labbench-gate",
                 "physicalOutputEnabled": False,
@@ -1415,7 +1415,7 @@ def arm_n3_gate_drone(
         "safetyConfirmed": True,
         "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
-        "reason": f"Armement N3 supervisé enregistré pour {drone.name} ; sorties physiques toujours interdites.",
+        "reason": f"Armement N3 supervisé enregistré pour {drone.name} ; aucune sortie physique engagée dans cette Preview. Toute sortie appareil relève du protocole ICX / Aeromind.",
     }
     data.setdefault("armEvents", []).append(arm_event)
     data["conditions"]["arm_double_confirmed"] = True
@@ -1430,7 +1430,7 @@ def arm_n3_gate_drone(
             user_id=user["id"],
             actor_role=user.get("role", "user"),
             event_type="labbench.gate.arm_n3_drone",
-            message=f"Armement N3 drone {drone.name} enregistré ; aucune sortie physique.",
+            message=f"Armement N3 drone {drone.name} enregistré ; aucune sortie physique engagée dans cette Preview. La décision appareil relève du protocole ICX / Aeromind.",
             payload_json=json.dumps({
                 "scope": "labbench-gate-per-drone",
                 "droneId": drone.id,

@@ -50,7 +50,7 @@ describe("long range observation vectors", () => {
   });
 
   it("keeps the catalogue and its dedicated reference entry available", () => {
-    expect(droneCatalog).toHaveLength(69);
+    expect(droneCatalog).toHaveLength(102);
     expect(droneCatalog.some(design => design.id === "aeromind-reference-multirotor-001")).toBe(true);
     expect(
       longRangeObservationVectors.some(item =>

@@ -1,4 +1,4 @@
-"""API de contrôle AeroMind : VIRTUAL seulement, sans chemin physique."""
+"""API de contrôle AeroMind : surface VIRTUAL de Preview; le chemin physique relève du protocole ICX/Aeromind."""
 
 from typing import Literal
 
@@ -19,8 +19,10 @@ from .virtual_control import _sessions as _controllers
 
 
 def feature_enabled() -> bool:
-    # Garde-fou non négociable : AeroMind n'ouvre aucune sortie physique, même
-    # si HARDWARE_CONTROL ou tout autre flag d'environnement est positionné.
+    # Cette Preview ne charge aucun adaptateur physique. Une implémentation
+    # hardware doit être fournie par le protocole ICX/Aeromind, avec ses gates,
+    # son examen humain, sa géofence et son audit; elle n'est pas déduite d'un
+    # simple flag d'interface.
     return False
 
 
@@ -42,11 +44,11 @@ def _require_user(cookie: str | None):
 
 
 def _hardware_refused() -> None:
-    # Ne consulter aucun flag et n'importer aucun pilote : HARDWARE est fermé
-    # par conception, pas par configuration.
+    # Aucun adaptateur physique n'est chargé dans cette Preview; ne pas
+    # convertir cette absence de transport en veto conceptuel du protocole.
     raise HTTPException(
         403,
-        "HARDWARE is permanently unavailable: AeroMind only controls a virtual model.",
+        "No physical adapter is configured in this Preview. Hardware output is governed by the ICX/Aeromind protocol and its G01-G05 human review gates.",
     )
 
 

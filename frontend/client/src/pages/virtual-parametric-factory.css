@@ -17,3 +17,30 @@
 @media(max-width:620px){.vpf-topbar{display:grid;gap:12px}.vpf-actions{justify-content:flex-start;gap:8px}.mode-switch{max-width:100%;overflow:auto}.mode-switch button{flex:none;font-size:7px;padding:7px}.vpf-topbar h1{font-size:17px}.vpf-content{padding:12px 11px 20px}.vpf-banner{align-items:flex-start;flex-direction:column}.metric-grid{grid-template-columns:1fr 1fr;gap:8px}.vpf-metric{padding:13px}.vpf-metric strong{font-size:22px}.panel{padding:14px}.printer-frame{height:310px}.scene-header,.scene-footer{padding:8px;font-size:7px}.control-note{width:100%;margin-left:0}.vpf-model-stage,.vpf-model-stage .physical-drone-stage-3d{min-height:350px}.vpf-model-controls{grid-template-columns:1fr;padding:13px}.vpf-control-heading,.vpf-model-disclaimer{grid-column:auto}.part-grid{grid-template-columns:1fr 1fr}.part-grid button{min-height:120px;padding:10px}.vpf-selection-detail{align-items:flex-start;flex-direction:column}.table{overflow:auto}.table-head,.table-row{min-width:610px}.lab-grid,.quality-grid,.planner-grid,.form-grid{grid-template-columns:1fr}.material-form{grid-template-columns:1fr}.vpf-footer{align-items:flex-start}.vpf-footer b{width:100%;margin-left:0}}
 
 .vpf-calibration-note-control{margin-top:18px}.vpf-calibration-note-control>p{margin:8px 0 0;color:#667d87;font-size:10px;line-height:1.55}.vpf-calibration-note-control .vpf-local-note{padding:9px;border:1px solid #d3e8e3;border-radius:6px;background:#f0f9f6;color:#38645b}
+
+.vpf-no-design,.vpf-empty-record{min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:28px;text-align:center;color:var(--muted,#92a5aa);border:1px dashed rgba(124,164,171,.35);border-radius:14px;background:rgba(8,24,31,.34)}
+.vpf-no-design strong,.vpf-empty-record strong{color:var(--text,#d8e7e8);font-size:12px;letter-spacing:.1em}
+.vpf-no-design span,.vpf-empty-record span{max-width:460px;font-size:12px;line-height:1.65}
+.vpf-no-design svg,.vpf-empty-record svg{color:var(--cyan,#75e2dc)}
+
+.vpf-mechanical-stage .mt-viewport{position:absolute;inset:0;width:100%;height:100%;min-height:500px;border:0;border-radius:9px;background:linear-gradient(145deg,#102b3b,#071a29)}
+.vpf-mechanical-stage[data-grid="off"] .mt-viewport-grid{opacity:0}
+.vpf-mechanical-stage .mt-scene-tag{left:auto;right:14px;top:52px;text-align:right}
+.vpf-mechanical-stage .mt-viewport-note{font-size:9px;color:#a7bdc5}
+.vpf-scale-overlay{position:absolute;z-index:5;right:16px;bottom:82px;display:grid;gap:6px;min-width:205px;padding:9px 11px;border:1px solid rgba(115,193,188,.5);border-radius:7px;background:rgba(5,20,29,.88);color:#cbe4e3;pointer-events:none}
+.vpf-scale-overlay>span{font-size:8px;font-weight:850;letter-spacing:.09em;color:#8fd7ce}
+.vpf-scale-overlay small{font-size:8px;line-height:1.4;color:#a3b9bf}
+.vpf-scale-rule{display:flex;align-items:center;justify-content:space-between;gap:9px;font:9px ui-monospace,monospace;color:#e4f3f1}
+.vpf-scale-rule i{height:7px;border:1px solid #b5e2d9;border-top:0;display:block}
+.vpf-view-selector{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.vpf-view-selector button{min-height:32px;border:1px solid #d2e1e4;border-radius:5px;background:#fff;color:#45636e;font-size:9px;font-weight:750;cursor:pointer}
+.vpf-view-selector button.active{border-color:#078d8c;background:#e9f6f4;color:#087c80;box-shadow:inset 0 0 0 1px #078d8c}
+.vpf-dimension-summary{display:grid;gap:5px;padding:11px;border:1px solid #cfe1e2;border-radius:7px;background:#f1f8f7;color:#48646e;font-size:9px;line-height:1.5}
+.vpf-dimension-summary strong{color:#087e83;font-size:8px;letter-spacing:.1em}
+.vpf-dimension-summary small{color:#69818a}
+@media(max-width:620px){.vpf-scale-overlay{right:8px;bottom:72px;min-width:185px;padding:7px}.vpf-scale-overlay>span{font-size:7px}.vpf-mechanical-stage .mt-scene-tag{top:48px;right:8px}}
+
+/* The selectable physical-production mode is deliberately a local simulation. */
+.mode-switch button.simulated{border-color:rgba(237,189,115,.42);color:#8c6723;background:rgba(237,189,115,.12)}
+.mode-switch button.simulated.selected{border-color:#b7812b;color:#65420d;background:linear-gradient(120deg,#f4d690,#f0c471);box-shadow:0 4px 14px rgba(162,112,34,.16)}
+.mode-switch button:focus-visible{outline:2px solid #278c91;outline-offset:2px}

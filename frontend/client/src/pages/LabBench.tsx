@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { LabBenchPersistencePanel } from "@/components/LabBenchPersistencePanel";
 import { LabBenchHardwareConfig } from "@/components/LabBenchHardwareConfig";
 import { HardwareControlPanel } from "@/components/HardwareControlPanel";
+import { OperatorEquipmentRegistry } from "@/components/OperatorEquipmentRegistry";
 import { FleetRadar } from "@/components/FleetRadar";
 import { FleetMap } from "@/components/FleetMap";
 import { MaterialLibraryView } from "@/components/MaterialLibraryView";
@@ -1840,7 +1841,7 @@ export default function LabBench({
           <span>
             <strong>Frontière de contrôle</strong>
             <small>
-              Progression par gates · sorties physiques interdites
+              Protocole Aeromind G01–G05 · sorties conditionnelles à l’état des gates
             </small>
           </span>
         </div>
@@ -2695,6 +2696,7 @@ export default function LabBench({
                 </dl>
               </section>
             </div>
+            <OperatorEquipmentRegistry />
             <HardwareControlPanel />
             <LabBenchHardwareConfig />
             <section className="lb-panel lb-protocol">

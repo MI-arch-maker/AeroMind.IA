@@ -3,6 +3,7 @@ export type MissionTelemetryFrame = {
   longitude?: number;
   altitudeM?: number;
   speedKmh?: number;
+  verticalSpeedMs?: number;
   batteryPct?: number;
   headingDeg?: number;
   pitchDeg?: number;
@@ -66,6 +67,7 @@ export function parseMissionTelemetryPayload(
     longitude: finiteNumber(data, ["longitude", "lon", "lng"], -180, 180),
     altitudeM: finiteNumber(data, ["altitudeM", "altitude", "alt_m"]),
     speedKmh: finiteNumber(data, ["speedKmh", "speed", "groundSpeedKmh"], 0),
+    verticalSpeedMs: finiteNumber(data, ["verticalSpeedMs", "vertical_speed_ms", "climbRateMs", "climb_rate_m_s"], -1000, 1000),
     batteryPct: finiteNumber(
       data,
       ["batteryPct", "battery", "remainingPct"],

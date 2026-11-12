@@ -187,6 +187,7 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
   const [retryRenderer, setRetryRenderer] = useState(0);
   const [rendererFailed, setRendererFailed] = useState(false);
   const [surface, setSurface] = useState("");
+  const [renderPreset, setRenderPreset] = useState("mechanical");
 
   useEffect(() => {
     const node = host.current;
@@ -404,7 +405,8 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
     setSurface("");
     onSurface("");
   };
-  return <div className="aero-viewport-shell" data-renderer="webgl-required">
+  return <div className="aero-viewport-shell" data-renderer="webgl-required" data-render-preset={renderPreset}>
+    {asset?.object && <div className="aero-render-presets"><label htmlFor="aero-render-style">RENDU DU MODÈLE IMPORTÉ</label><select id="aero-render-style" value={renderPreset} onChange={event => setRenderPreset(event.target.value)} aria-label="Choisir un style de rendu aérodynamique"><option value="axonometric">Axonométrique</option><option value="orthographic">Orthographique</option><option value="perspective">Perspective</option><option value="npr">NPR / Cel-shading</option><option value="clay">Argile / Clay Render</option><option value="lowpoly">Low-Poly</option><option value="archviz">Photoréaliste / ArchViz · aperçu</option><option value="interior">Intérieur / Extérieur · présentation</option><option value="immersive">Immersif / 360° / VR</option><option value="mechanical">Mécanique / Industriel</option><option value="exploded">Écorché · explosion & coupe</option><option value="bionic">Squelette bionique · generative design visuel</option><option value="carbon">Monocoque carbone & composites</option><option value="cyberpunk">Cyberpunk · mécanique apparente</option><option value="crystal">Transparent cristallin · Clear Tech</option><option value="energyflow">Flux énergétique</option></select><small>Style d’affichage local du maillage décodé sélectionné; pas un solveur CFD, FEA ni un rendu photométrique.</small></div>}
     <div className="aero-viewport" ref={host} />
     {!asset?.object && <div className="aero-viewport-empty"><Box size={28} /><strong>{asset?.status === "received-not-decoded" ? "Fichier reçu — géométrie non décodée" : "Aucune géométrie inspectée"}</strong><span>{asset?.note ?? "Importez un fichier STL, OBJ ou 3MF pour ouvrir un viewport 3D interactif."}</span></div>}
     {renderStatus && <div className="aero-viewport-waiting" role="status">{renderStatus}</div>}

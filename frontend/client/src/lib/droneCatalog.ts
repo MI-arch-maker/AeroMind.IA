@@ -194,6 +194,95 @@ const pdfReferenceProfiles: DroneCatalogDesign[] = [
   profile({ key: "fixed-wing", modelType: "voilure-conventionnelle", id: "pdf-08-aile-droite", label: "CELLULE À AILES DROITES", family: "Voilure fixe · empennage double · maquette PDF", mission: "Adaptation non armée de la silhouette pour revue de cellule et essais de géométrie exclusivement simulés.", specs: "Maquette CAO · envergure 0,76 m · cellule non armée", disciplines: "Aile droite · empennage double · sans charge offensive", tone: "cyan", silhouette: "surveillance", referenceLabel: "Silhouette adaptée du PDF utilisateur ; charges externes offensives exclues conformément au profil non armé AeroMinD.", engineeringAssets: pdfEngineeringAssets("08-aile-droite-blanc"), referenceImage: `${pdfAssetRoot}/08-aile-droite-blanc-hud.svg`, configuration: { wingspan: 0.76, chord: 0.29, fuselageLength: 0.38, propDiameter: 0.12, batteryWh: 520, payloadKg: 0, cruiseSpeedKmh: 35, motorCount: 1, altitudeM: 60 } }),
 ];
 
+type PdfDefenseSeed = {
+  id: string;
+  label: string;
+  key: DroneCatalogDesign["key"];
+  modelType: DroneCatalogDesign["modelType"];
+  family: string;
+  mission: string;
+  specs: string;
+  wingspan: number;
+  fuselageLength: number;
+  motorCount: number;
+  cruiseSpeedKmh: number;
+  altitudeM: number;
+  batteryWh: number;
+};
+
+const pdfReferenceNotice =
+  "Fiche visuelle extraite du PDF utilisateur « Écosystème de drones de défense avancé ». Référence documentaire uniquement : aucune charge offensive, commande matérielle, fabrication ou performance certifiée n’est dérivée de cette fiche.";
+
+function pdfDefenseProfile(seed: PdfDefenseSeed): DroneCatalogDesign {
+  return profile({
+    ...seed,
+    disciplines: `${seed.family} · référence PDF · simulation uniquement`,
+    tone: seed.modelType === "aile-volante" ? "violet" : seed.modelType === "multirotor" ? "cyan" : "amber",
+    role: "défense-non-armée",
+    origin: "prototype-reference",
+    referenceLabel: pdfReferenceNotice,
+    configuration: {
+      wingspan: seed.wingspan,
+      chord: Math.max(0.2, Math.min(0.9, seed.wingspan * 0.12)),
+      fuselageLength: seed.fuselageLength,
+      propDiameter: seed.modelType === "multirotor" ? 0.34 : 0.42,
+      batteryWh: seed.batteryWh,
+      payloadKg: 0,
+      cruiseSpeedKmh: seed.cruiseSpeedKmh,
+      motorCount: seed.motorCount,
+      altitudeM: seed.altitudeM,
+    },
+  });
+}
+
+/**
+ * 33 fiches distinctes recensées dans les quatre planches du PDF joint.
+ * Les dénominations potentiellement offensives sont conservées pour la
+ * traçabilité visuelle, mais restent des références de simulation non armées.
+ */
+const pdfDefenseProfiles: DroneCatalogDesign[] = [
+  // Planche 1 — Advanced Defense Drone Ecosystem
+  pdfDefenseProfile({ id: "icx-skyguard-1", label: "ICX SKYGUARD-1", key: "fixed-wing", modelType: "voilure-conventionnelle", family: "Armed defense drone · aile longue portée", mission: "Référence visuelle de plateforme aérienne longue portée et d’observation stratégique.", specs: "24 h · 200 kg annoncé · 2 000 km annoncé", wingspan: 8.8, fuselageLength: 4.8, motorCount: 1, cruiseSpeedKmh: 210, altitudeM: 9000, batteryWh: 12000 }),
+  pdfDefenseProfile({ id: "icx-stealth-7", label: "ICX STEALTH-7", key: "fixed-wing", modelType: "aile-volante", family: "Stealth wing · profil furtif", mission: "Référence visuelle d’aile volante pour observation et étude de signature.", specs: "RCS annoncé < 0,01 m² · 30 h · 3 000 km annoncé", wingspan: 6.4, fuselageLength: 3.1, motorCount: 1, cruiseSpeedKmh: 240, altitudeM: 12000, batteryWh: 15000 }),
+  pdfDefenseProfile({ id: "icx-eagle-eye", label: "ICX EAGLE-EYE", key: "quadcopter", modelType: "multirotor", family: "Reconnaissance · multirotor", mission: "Référence visuelle de reconnaissance rapprochée et de vision temps réel.", specs: "18 h annoncé · 15 kg annoncé · 250 km annoncé", wingspan: 1.8, fuselageLength: 0.9, motorCount: 6, cruiseSpeedKmh: 70, altitudeM: 2500, batteryWh: 4200 }),
+  pdfDefenseProfile({ id: "icx-fiber-drone", label: "ICX FIBER-DRONE", key: "quadcopter", modelType: "multirotor", family: "Fibre optique · liaison sécurisée", mission: "Référence visuelle de relais de données par fibre optique et télémétrie sécurisée.", specs: "Portée annoncée 100 km · débit 1 Gbps · flux chiffré", wingspan: 2, fuselageLength: 1, motorCount: 4, cruiseSpeedKmh: 55, altitudeM: 1500, batteryWh: 3000 }),
+  pdfDefenseProfile({ id: "icx-kamikaze-300", label: "ICX KAMIKAZE-300", key: "fixed-wing", modelType: "voilure-conventionnelle", family: "Munition rôdeuse · référence visuelle", mission: "Référence visuelle conservée pour traçabilité du PDF ; aucun mécanisme de frappe ou de ciblage n’est modélisé.", specs: "300 km annoncé · charge annoncée 3 kg · endurance 5 h", wingspan: 2.7, fuselageLength: 1.7, motorCount: 1, cruiseSpeedKmh: 160, altitudeM: 5000, batteryWh: 3600 }),
+  pdfDefenseProfile({ id: "icx-deepguard-1", label: "ICX DEEPGUARD-1", key: "fixed-wing", modelType: "ducted-fan", family: "AUV · surveillance sous-marine", mission: "Référence visuelle de véhicule sous-marin autonome pour observation et cartographie.", specs: "Profondeur annoncée 6 000 m · endurance 100 h · rayon 1 000 km", wingspan: 1.1, fuselageLength: 3.8, motorCount: 1, cruiseSpeedKmh: 18, altitudeM: 0, batteryWh: 18000 }),
+  pdfDefenseProfile({ id: "icx-minesweep-1", label: "ICX MINESWEEP-1", key: "fixed-wing", modelType: "ducted-fan", family: "Contre-mesures navales · référence", mission: "Référence visuelle de plateforme de détection et de cartographie de fonds marins.", specs: "Profondeur annoncée 3 000 m · charge annoncée 50 kg · endurance 60 h", wingspan: 1.2, fuselageLength: 3.2, motorCount: 1, cruiseSpeedKmh: 14, altitudeM: 0, batteryWh: 14000 }),
+  pdfDefenseProfile({ id: "icx-torpedo-drone", label: "ICX TORPEDO-DRONE", key: "fixed-wing", modelType: "ducted-fan", family: "Drone sous-marin · frappe annoncée", mission: "Référence visuelle conservée pour traçabilité ; aucun guidage, armement ou comportement d’attaque n’est implémenté.", specs: "Portée annoncée 500 km · vitesse 80 kn annoncée · charge annoncée 300 kg", wingspan: 0.8, fuselageLength: 5.4, motorCount: 1, cruiseSpeedKmh: 150, altitudeM: 0, batteryWh: 24000 }),
+
+  // Planche 2 — Defense Drone Ecosystem
+  pdfDefenseProfile({ id: "icx-strike-drone-pro", label: "STRIKE DRONE PRO", key: "quadcopter", modelType: "multirotor", family: "UCAV · référence visuelle", mission: "Référence visuelle de cellule aérienne multi-rotors ; navigation autonome et engagement restent exclus.", specs: "Précision, navigation autonome et multi-cible annoncées", wingspan: 2.1, fuselageLength: 1.1, motorCount: 6, cruiseSpeedKmh: 85, altitudeM: 3000, batteryWh: 4800 }),
+  pdfDefenseProfile({ id: "icx-defense-armed-drone", label: "DEFENSE ARMED DRONE", key: "quadcopter", modelType: "multirotor", family: "Multirotor armé · référence visuelle", mission: "Référence visuelle de plateforme multi-rotors ; les charges, ciblage et armes annoncés ne sont pas représentés.", specs: "Capacité multi-charge annoncée · ciblage annoncé", wingspan: 2.4, fuselageLength: 1.2, motorCount: 8, cruiseSpeedKmh: 75, altitudeM: 2500, batteryWh: 5200 }),
+  pdfDefenseProfile({ id: "icx-deepsea-guardian", label: "UNDERWATER DRONE · DEEPSEA GUARDIAN", key: "fixed-wing", modelType: "ducted-fan", family: "Drone sous-marin · surveillance", mission: "Référence visuelle de surveillance sous-marine et de contre-mesures documentaires.", specs: "Surveillance · contre-mesures · opération sous-marine", wingspan: 0.9, fuselageLength: 3.4, motorCount: 1, cruiseSpeedKmh: 16, altitudeM: 0, batteryWh: 16000 }),
+  pdfDefenseProfile({ id: "icx-fiber-optic-drone", label: "FIBER OPTIC DRONE", key: "quadcopter", modelType: "multirotor", family: "Fibre optique · drone sécurisé", mission: "Référence visuelle de liaison longue portée et de flux vidéo chiffré.", specs: "Portée annoncée 50 km · anti-brouillage · flux HD temps réel", wingspan: 2, fuselageLength: 1, motorCount: 4, cruiseSpeedKmh: 60, altitudeM: 2000, batteryWh: 3200 }),
+  pdfDefenseProfile({ id: "icx-stealth-drone", label: "STEALTH DRONE", key: "fixed-wing", modelType: "aile-volante", family: "Aile furtive · référence visuelle", mission: "Référence visuelle d’observation à faible signature et de guerre électronique documentaire.", specs: "Faible observabilité annoncée · guerre électronique annoncée", wingspan: 5.2, fuselageLength: 2.5, motorCount: 1, cruiseSpeedKmh: 220, altitudeM: 10000, batteryWh: 11000 }),
+  pdfDefenseProfile({ id: "icx-defense-charge-drone", label: "DEFENSE CHARGE DRONE", key: "quadcopter", modelType: "multirotor", family: "Charge annoncée · référence visuelle", mission: "Référence visuelle conservée pour inventaire ; aucune charge explosive, neutralisation ou ciblage n’est implémenté.", specs: "Charge explosive annoncée · neutralisation annoncée", wingspan: 2, fuselageLength: 1.1, motorCount: 6, cruiseSpeedKmh: 70, altitudeM: 1800, batteryWh: 3600 }),
+  pdfDefenseProfile({ id: "icx-surveillance-drone", label: "SURVEILLANCE DRONE", key: "quadcopter", modelType: "multirotor", family: "Surveillance · renseignement temps réel", mission: "Référence visuelle de reconnaissance, contrôle de frontière et détection de menace.", specs: "Reconnaissance · contrôle de frontière · détection annoncée", wingspan: 1.7, fuselageLength: 0.9, motorCount: 4, cruiseSpeedKmh: 58, altitudeM: 2200, batteryWh: 3400 }),
+  pdfDefenseProfile({ id: "icx-minehunter-drone", label: "MINEHUNTER DRONE", key: "fixed-wing", modelType: "ducted-fan", family: "Détection sous-marine · référence", mission: "Référence visuelle de détection de mines et de sécurisation documentaire d’un passage.", specs: "Détection et neutralisation annoncées · passage sécurisé", wingspan: 1, fuselageLength: 3.2, motorCount: 1, cruiseSpeedKmh: 15, altitudeM: 0, batteryWh: 15000 }),
+  pdfDefenseProfile({ id: "icx-long-range-drone", label: "LONG-RANGE DRONE", key: "fixed-wing", modelType: "voilure-conventionnelle", family: "Longue portée · endurance", mission: "Référence visuelle de surveillance stratégique et d’endurance prolongée.", specs: "Endurance étendue · reconnaissance stratégique · haute charge annoncées", wingspan: 7.4, fuselageLength: 3.8, motorCount: 1, cruiseSpeedKmh: 190, altitudeM: 11000, batteryWh: 14000 }),
+
+  // Planche 3 — Strategic, tactical, naval and swarm references
+  pdfDefenseProfile({ id: "icx-stratostrike", label: "ICX STRATOSTRIKE", key: "fixed-wing", modelType: "aile-volante", family: "Frappe stratégique · référence visuelle", mission: "Référence visuelle de grande aile stratégique ; frappe et charge utile restent exclues.", specs: "1 500+ km annoncés · 500 kg annoncé · altitude très élevée annoncée", wingspan: 12, fuselageLength: 5.5, motorCount: 1, cruiseSpeedKmh: 260, altitudeM: 18000, batteryWh: 22000 }),
+  pdfDefenseProfile({ id: "icx-guardian-x", label: "ICX GUARDIAN-X", key: "quadcopter", modelType: "multirotor", family: "Tactique multi-rôle · référence", mission: "Référence visuelle de plateforme tactique de capteurs et de soutien.", specs: "24 h annoncées · 150 kg annoncé · 300 km annoncés", wingspan: 2.8, fuselageLength: 1.4, motorCount: 8, cruiseSpeedKmh: 80, altitudeM: 4500, batteryWh: 6500 }),
+  pdfDefenseProfile({ id: "icx-shadowfly", label: "ICX SHADOWFLY", key: "fixed-wing", modelType: "aile-volante", family: "Furtif · reconnaissance", mission: "Référence visuelle de reconnaissance furtive et de collecte silencieuse.", specs: "RCS très faible annoncé · portée 500 km annoncée · altitude 20 km annoncée", wingspan: 5.8, fuselageLength: 2.7, motorCount: 1, cruiseSpeedKmh: 230, altitudeM: 20000, batteryWh: 13000 }),
+  pdfDefenseProfile({ id: "icx-optlink", label: "ICX OPTILINK", key: "quadcopter", modelType: "multirotor", family: "Fibre optique · vidéo sécurisée", mission: "Référence visuelle de liaison fibre optique, vidéo haute définition et sécurité réseau.", specs: "Portée fibre 50 km annoncée · vidéo 4K · anti-brouillage", wingspan: 2, fuselageLength: 1, motorCount: 4, cruiseSpeedKmh: 62, altitudeM: 2200, batteryWh: 3400 }),
+  pdfDefenseProfile({ id: "icx-shield-drone", label: "ICX SHIELD DRONE", key: "fixed-wing", modelType: "voilure-conventionnelle", family: "Protection · référence visuelle", mission: "Référence visuelle de plateforme protégée et de défense de zone ; aucun armement n’est modélisé.", specs: "Charge annoncée 50 kg · missiles annoncés · rayon 600 km annoncé", wingspan: 6.2, fuselageLength: 3.4, motorCount: 1, cruiseSpeedKmh: 180, altitudeM: 9000, batteryWh: 12000 }),
+  pdfDefenseProfile({ id: "icx-deepguardian", label: "ICX DEEPGUARDIAN", key: "fixed-wing", modelType: "ducted-fan", family: "UUV · système autonome", mission: "Référence visuelle de véhicule sous-marin autonome multi-mission.", specs: "Profondeur 6 000 m annoncée · rayon 1 000 km annoncé · propulsion silencieuse", wingspan: 0.9, fuselageLength: 3.9, motorCount: 1, cruiseSpeedKmh: 17, altitudeM: 0, batteryWh: 19000 }),
+  pdfDefenseProfile({ id: "icx-seasentinel", label: "ICX SEASENTINEL", key: "fixed-wing", modelType: "voilure-conventionnelle", family: "Naval · surface et sous-surface", mission: "Référence visuelle de surveillance navale de surface et sous-surface.", specs: "Endurance 72 h annoncée · rayon 1 500 km annoncé · AIS & surveillance", wingspan: 4.4, fuselageLength: 3.4, motorCount: 1, cruiseSpeedKmh: 55, altitudeM: 1200, batteryWh: 16000 }),
+  pdfDefenseProfile({ id: "icx-hivefleet", label: "ICX HIVEFLEET", key: "quadcopter", modelType: "multirotor", family: "Essaim · référence visuelle", mission: "Référence visuelle d’un essaim coordonné ; aucune autonomie collective réelle n’est implémentée.", specs: "100+ unités annoncées · coordination IA · couverture massive", wingspan: 1.3, fuselageLength: 0.7, motorCount: 4, cruiseSpeedKmh: 55, altitudeM: 1800, batteryWh: 1800 }),
+
+  // Planche 4 — Strike, furtive, tactical, underwater and defense references
+  pdfDefenseProfile({ id: "icx-strike-drone", label: "ICX STRIKE DRONE", key: "fixed-wing", modelType: "voilure-conventionnelle", family: "UCAV longue portée · référence", mission: "Référence visuelle de cellule longue portée ; précision, furtivité et ciblage restent non opérationnels.", specs: "Frappe longue portée annoncée · furtivité · ciblage IA annoncé", wingspan: 8.2, fuselageLength: 4.2, motorCount: 1, cruiseSpeedKmh: 230, altitudeM: 12000, batteryWh: 15000 }),
+  pdfDefenseProfile({ id: "icx-furtive-drone", label: "ICX FURTIVE DRONE", key: "fixed-wing", modelType: "aile-volante", family: "Aile furtive · référence nouvelle génération", mission: "Référence visuelle d’aile furtive et d’évitement de détection.", specs: "Très faible observabilité · guerre électronique · vol adaptatif annoncés", wingspan: 5.7, fuselageLength: 2.6, motorCount: 1, cruiseSpeedKmh: 220, altitudeM: 12000, batteryWh: 13000 }),
+  pdfDefenseProfile({ id: "icx-tactical-drone", label: "ICX TACTICAL DRONE", key: "quadcopter", modelType: "multirotor", family: "Tactique multi-rôle · référence", mission: "Référence visuelle de reconnaissance, surveillance et désignation ; aucune désignation réelle n’est fournie.", specs: "Reconnaissance · surveillance · désignation annoncées", wingspan: 2.2, fuselageLength: 1.1, motorCount: 6, cruiseSpeedKmh: 78, altitudeM: 3500, batteryWh: 4400 }),
+  pdfDefenseProfile({ id: "icx-fiber-optic-uav", label: "ICX FIBER-OPTIC DRONE", key: "quadcopter", modelType: "multirotor", family: "UAV fibre optique · référence", mission: "Référence visuelle de flux vidéo sécurisé, anti-brouillage et longue portée.", specs: "Anti-brouillage · données HD temps réel · portée étendue annoncés", wingspan: 2, fuselageLength: 1, motorCount: 4, cruiseSpeedKmh: 60, altitudeM: 2000, batteryWh: 3200 }),
+  pdfDefenseProfile({ id: "icx-loitering-munition", label: "ICX LOITERING MUNITION", key: "fixed-wing", modelType: "voilure-conventionnelle", family: "Munition rôdeuse · référence visuelle", mission: "Référence visuelle conservée pour inventaire ; aucune logique de ciblage, d’impact ou de charge n’est implémentée.", specs: "Frappe de précision · faible coût · haute précision annoncés", wingspan: 2.4, fuselageLength: 1.5, motorCount: 1, cruiseSpeedKmh: 150, altitudeM: 5000, batteryWh: 3000 }),
+  pdfDefenseProfile({ id: "icx-underwater-drone", label: "ICX UNDERWATER DRONE", key: "fixed-wing", modelType: "ducted-fan", family: "Système sous-marin autonome", mission: "Référence visuelle de détection, navigation sous-marine et observation.", specs: "Système autonome · détection de mines · frappe sous-marine annoncée", wingspan: 0.9, fuselageLength: 3.6, motorCount: 1, cruiseSpeedKmh: 16, altitudeM: 0, batteryWh: 17000 }),
+  pdfDefenseProfile({ id: "icx-submarine-drone", label: "ICX SUBMARINE DRONE", key: "fixed-wing", modelType: "ducted-fan", family: "Véhicule sous-marin furtif", mission: "Référence visuelle de collecte de renseignement et d’opérations sous-marines.", specs: "Collecte de renseignement · guerre électronique · livraison annoncées", wingspan: 0.9, fuselageLength: 4.2, motorCount: 1, cruiseSpeedKmh: 15, altitudeM: 0, batteryWh: 19000 }),
+  pdfDefenseProfile({ id: "icx-defense-drone", label: "ICX DEFENSE DRONE", key: "quadcopter", modelType: "multirotor", family: "UAV protégé · référence visuelle", mission: "Référence visuelle de plateforme protégée ; armement et force protection restent descriptifs et non opérationnels.", specs: "Protection, capteurs et multi-charge annoncés", wingspan: 2.6, fuselageLength: 1.3, motorCount: 8, cruiseSpeedKmh: 75, altitudeM: 3000, batteryWh: 5200 }),
+];
+
 function fromTuple(tuple: ProfileTuple, key: DroneCatalogDesign["key"]): DroneCatalogDesign {
   const [id, label, family, mission, wingspan, fuselageLength, chord, payloadKg, cruiseSpeedKmh, motorCount, batteryWh, tone, origin, silhouette, role] = tuple;
   return profile({
@@ -274,6 +363,7 @@ export const droneCatalog: DroneCatalogDesign[] = [
   aeromindReferenceProfile,
   ...specializedProfiles.filter(item => !legacyExcludedIds.has(item.id)),
   ...pdfReferenceProfiles,
+  ...pdfDefenseProfiles,
 ].map(item => ({
   ...item,
   defenseUse: item.role === "défense-non-armée" ? nonArmedDefenseUse : item.defenseUse,

@@ -222,7 +222,7 @@ describe("HardwareControlPanel · UI VIRTUAL sans matériel", () => {
 
     const finalUi = rerenderPanel();
     expect(text(finalUi)).toContain("peut déjà avoir été traitée par le serveur");
-    expect(text(finalUi)).toContain("activation : non");
+    expect(text(finalUi)).toContain("Activation virtuelleINACTIVE");
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const requests = fetchMock.mock.calls.map(([path, init]) => ({ path, init: init as RequestInit }));
     expect(requests.map(request => request.path)).toEqual(["/api/control/mode", "/api/control/emergency-stop"]);

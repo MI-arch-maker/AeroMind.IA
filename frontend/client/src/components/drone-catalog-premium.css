@@ -161,6 +161,8 @@
 .legacy-drone-library .legacy-concept-actions button:not(.primary-button) { border-color: rgba(117, 226, 220, .17); background: rgba(4, 15, 21, .62); color: #9ab5b4; }
 .legacy-drone-library .legacy-concept-actions button.is-active { border-color: rgba(71, 211, 151, .4); color: #74dda9; }
 .legacy-drone-library .legacy-concept-actions .primary-button { justify-content: center; border-color: rgba(117, 226, 220, .32); background: linear-gradient(110deg, rgba(22, 131, 132, .42), rgba(15, 77, 87, .55)); color: #d8fffa; }
+.legacy-drone-library .catalog-superadmin-delete { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 100%; margin-top: 7px; padding: 7px 9px; border: 1px solid rgba(227, 115, 102, .35); border-radius: 4px; background: rgba(155, 58, 52, .1); color: #e5a198; font: 700 8px ui-monospace, monospace; letter-spacing: .04em; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+.legacy-drone-library .catalog-superadmin-delete:hover { border-color: rgba(255, 151, 136, .72); background: rgba(155, 58, 52, .22); color: #ffc0b3; }
 
 /* Traits communs de géométrie : construction, nervures, axes et composants. */
 .legacy-drone-library .legacy-svg-body { transform-box: fill-box; transform-origin: center; }

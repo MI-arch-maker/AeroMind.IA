@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
  * AeroMind · horizon artificiel animé.
  *
  * L'instrument interpole les valeurs reçues à chaque image (requestAnimationFrame)
- * afin de rester fluide même si le flux de simulation est échantillonné plus
- * lentement. Aucune donnée affichée n'est une mesure d'aéronef réel.
+ * afin de rester fluide. La source est explicitement marquée simulation locale
+ * ou télémétrie externe en lecture seule; ce composant n'est pas un instrument certifié.
  */
 
 type RawTarget = {
@@ -16,6 +16,12 @@ type RawTarget = {
   speedKmh: number;
   verticalSpeedMs: number;
   armed: boolean;
+};
+
+type ArtificialHorizonProps = Omit<RawTarget, "verticalSpeedMs"> & {
+  verticalSpeedMs?: number;
+  dataSource?: "simulation" | "read-only";
+  compact?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -85,10 +91,11 @@ export function ArtificialHorizon({
   speedKmh,
   verticalSpeedMs,
   armed,
+  dataSource = "simulation",
   compact = false,
-}: RawTarget & { compact?: boolean }) {
+}: ArtificialHorizonProps) {
   const smooth = useSmoothValues(
-    { pitchDeg, rollDeg, headingDeg, altitudeM, speedKmh, verticalSpeedMs, armed },
+    { pitchDeg, rollDeg, headingDeg, altitudeM, speedKmh, verticalSpeedMs: verticalSpeedMs ?? 0, armed },
     9
   );
   const ladder = [-30, -20, -10, -5, 5, 10, 20, 30];
@@ -99,14 +106,14 @@ export function ArtificialHorizon({
     <div className={`artificial-horizon ${compact ? "is-compact" : ""} ${armed ? "is-armed" : "is-idle"}`}>
       <div className="artificial-horizon-heading">
         <span className="horizon-mode">
-          {armed ? "VOL SIMULÉ · CADRAGE ACTIF" : "BANC AU SOL · INSTRUMENT PRÊT"}
+          {dataSource === "read-only" ? "TÉLÉMÉTRIE · LECTURE SEULE" : armed ? "VOL SIMULÉ · CADRAGE ACTIF" : "BANC AU SOL · INSTRUMENT PRÊT"}
         </span>
         <strong>{heading.toFixed(0).padStart(3, "0")}°</strong>
         <span className="horizon-cardinal">
           {["N", "NE", "E", "SE", "S", "SO", "O", "NO"][Math.round(heading / 45) % 8]}
         </span>
       </div>
-      <svg viewBox="0 0 220 220" role="img" aria-label={`Horizon artificiel simulé, assiette ${smooth.pitchDeg.toFixed(1)} degrés, inclinaison ${smooth.rollDeg.toFixed(1)} degrés`}>
+      <svg viewBox="0 0 220 220" role="img" aria-label={`Horizon artificiel ${dataSource === "read-only" ? "alimenté par télémétrie en lecture seule" : "simulé"}, assiette ${smooth.pitchDeg.toFixed(1)} degrés, inclinaison ${smooth.rollDeg.toFixed(1)} degrés`}>
         <defs>
           <clipPath id="horizon-clip">
             <circle cx="110" cy="110" r="88" />
@@ -184,7 +191,7 @@ export function ArtificialHorizon({
           <small>ALTITUDE</small>
           <strong>{smooth.altitudeM.toFixed(0)} m</strong>
           <span className={smooth.verticalSpeedMs >= 0 ? "is-climb" : "is-descent"}>
-            {smooth.verticalSpeedMs >= 0 ? "▲" : "▼"} {Math.abs(smooth.verticalSpeedMs).toFixed(1)} m/s
+            {verticalSpeedMs === undefined ? "— · vitesse verticale non transmise" : `${smooth.verticalSpeedMs >= 0 ? "▲" : "▼"} ${Math.abs(smooth.verticalSpeedMs).toFixed(1)} m/s`}
           </span>
         </div>
         <div className="horizon-tape tape-speed">
@@ -194,7 +201,7 @@ export function ArtificialHorizon({
         </div>
       </div>
       <div className="artificial-horizon-legend">
-        Instrument simulé · valeurs d’avant-projet, jamais une mesure embarquée.
+        {dataSource === "read-only" ? "Trame externe reçue · lecture seule; aucun champ absent n’est estimé ici." : "Instrument simulé · valeurs d’avant-projet, jamais une mesure embarquée."}
       </div>
     </div>
   );

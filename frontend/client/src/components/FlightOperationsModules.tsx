@@ -198,8 +198,13 @@ export function FlightOperationsModules({ demoState, activeWaypoint, waypoints, 
   const views = [
     ["telemetry", "Télémétrie", Activity], ["tactical", "Carte SIG locale", Map], ["thermal", "Thermique IR", Thermometer], ["logs", "Journal", ClipboardList], ["mission", "Milieux extrêmes", Waypoints], ["adapter", "Banc commandes SIM", Gamepad2],
   ] as const;
-  return <section className="fom-shell" aria-label="Modules de simulation tactique">
-    <div className="fom-heading"><div><span className="fom-eyebrow">FLIGHT SYSTEMS / SIMULATEUR LOCAL</span><h3>Console de mission &amp; télémétrie</h3></div><span className="fom-synth-badge"><i /> SYNTHÉTIQUE · LECTURE SEULE</span></div>
+  const telemetryBadge = wssFresh
+    ? { label: `${telemetrySource === "mavlink" ? "MAVLINK" : "WSS"} · FLUX REÇU · LECTURE SEULE`, tone: "is-live" }
+    : telemetrySource === "synthetic"
+      ? { label: "SYNTHÉTIQUE · DÉMONSTRATION", tone: "is-waiting" }
+      : { label: "HORS LIGNE · AUCUN FLUX", tone: "is-offline" };
+  return <section className="fom-shell" aria-label="Modules de supervision de vol">
+    <div className="fom-heading"><div><span className="fom-eyebrow">FLIGHT SYSTEMS / SUPERVISION</span><h3>Console de mission &amp; télémétrie</h3></div><span className={`fom-synth-badge ${telemetryBadge.tone}`}><i /> {telemetryBadge.label}</span></div>
     <div className="fom-tabs" role="tablist" aria-label="Vues de mission">{views.map(([id, label, Icon]) => <button key={id} id={`fom-tab-${id}`} role="tab" aria-controls={`fom-panel-${id}`} aria-selected={view === id} tabIndex={view === id ? 0 : -1} className={view === id ? "is-active" : ""} onClick={() => setView(id)}><Icon size={14} />{label}</button>)}</div>
 
     {view === "telemetry" && <div id="fom-panel-telemetry" role="tabpanel" aria-labelledby="fom-tab-telemetry" className="fom-content"><div className="fom-telemetry-meta"><span><Radio size={13} /> {wssFresh ? `Flux ${telemetrySource === "mavlink" ? "MAVLink" : "WSS"} reçu · lecture seule` : telemetrySource === "synthetic" ? "Feed synthétique de démonstration" : telemetryState === "connected" || telemetryState === "connecting" ? `${telemetrySource === "mavlink" ? "MAVLink" : "WSS"} · en attente d’une trame récente` : "Aucun flux · simulation locale"}</span><small>{wssFresh ? "Champs absents : valeur du modèle local; horodatage du frame affiché au journal." : "Courbes de démonstration synthétiques, non mesurées."}</small></div><div className="fom-chart-grid">

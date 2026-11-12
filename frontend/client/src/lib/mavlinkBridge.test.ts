@@ -9,7 +9,8 @@ const safeSnapshot = {
   last_frame_at: "2026-10-19T10:00:00.000Z",
   heartbeat: { custom_mode: 4 },
   position: { latitude_deg: 48.5, longitude_deg: 2.3, relative_altitude_m: 80 },
-  flight: { groundspeed: 10, heading: 90 },
+  flight: { groundspeed: 10, heading: 90, climb: -1.5 },
+  attitude: { pitch_deg: 12, roll_deg: -5 },
   battery: { battery_remaining: 76 },
 };
 
@@ -25,7 +26,10 @@ describe("read-only MAVLink observer bridge", () => {
         longitude: 2.3,
         altitudeM: 80,
         speedKmh: 36,
+        verticalSpeedMs: -1.5,
         headingDeg: 90,
+        pitchDeg: 12,
+        rollDeg: -5,
         batteryPct: 76,
       },
     });

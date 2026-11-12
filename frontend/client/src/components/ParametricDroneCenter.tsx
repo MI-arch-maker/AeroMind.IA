@@ -64,7 +64,7 @@ const BINDINGS = [
   ["metadata", "Métadonnée uniquement"],
   ["fuselageLength", "Longueur fuselage"], ["wingspan", "Envergure"], ["chord", "Corde"],
   ["motorCount", "Nombre de moteurs"], ["cruiseSpeedKmh", "Vitesse cible"], ["altitudeM", "Altitude"],
-  ["sweepDeg", "Flèche"], ["dihedralDeg", "Dièdre"], ["fuselageHeight", "Hauteur section"], ["fuselageWidth", "Largeur section"],
+  ["sweepDeg", "Flèche"], ["dihedralDeg", "Dièdre"], ["wingletAngleDeg", "Angle winglet"], ["fuselageHeight", "Hauteur section"], ["fuselageWidth", "Largeur section"],
 ] as const;
 const DEFAULT_SKETCH: Omit<ParametricSketchProfile, "id" | "modifiedAt"> = { name: "Profil", kind: "rectangle", width: 0.24, height: 0.08 };
 
@@ -161,7 +161,11 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
   const metrics = useMemo(() => calculateParametricMetrics(Object.fromEntries(variableRows.map(variable => [variable.id, variable.value]))), [variableRows]);
   const featureHistory = useMemo(() => activeDesignId ? featureHistoryFor(config, activeDesignId) : [], [config, activeDesignId]);
   const selectedPart = mechanicalModel?.parts.find(part => part.id === selectedMechanicalPart);
-  const selectedSketch = activeTwin?.sketchProfiles?.find(sketch => sketch.id === selectedSketchId) ?? activeTwin?.sketchProfiles?.at(-1);
+  // Keep the select controlled by the actual user choice. Falling back to the
+  // last sketch made the empty option impossible to select and could make an
+  // operation target an unintended profile.
+  const selectedSketch = activeTwin?.sketchProfiles?.find(sketch => sketch.id === selectedSketchId);
+  const sketchProfiles = activeTwin?.sketchProfiles ?? [];
   const customVariableIds = useMemo(() => new Set(activeTwin?.customVariables?.map(variable => variable.id) ?? []), [activeTwin]);
   const treeGroups = useMemo(() => {
     if (!mechanicalModel) return [];
@@ -188,6 +192,12 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
     setSelectedMechanicalPart("");
     setSelectedSketchId("");
   }, [activeDesignId]);
+
+  useEffect(() => {
+    if (selectedSketchId && !sketchProfiles.some(sketch => sketch.id === selectedSketchId)) {
+      setSelectedSketchId("");
+    }
+  }, [selectedSketchId, sketchProfiles]);
 
   useEffect(() => {
     if (!mechanicalModel) {
@@ -242,6 +252,16 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
     setHistoryTick(value => value + 1);
     setSaveState("idle");
     setCommandStatus("Modification rétablie.");
+  };
+
+  const translateMechanicalPart = (id: string, delta: [number, number, number]) => {
+    if (!activeDesignId || delta.some(value => !Number.isFinite(value))) return;
+    commitConfig(current => updateActiveMechanicalTwin(current, activeDesignId, twin => {
+      const previous = twin.edits?.[id]?.offset ?? [0, 0, 0];
+      return { ...twin, edits: { ...twin.edits, [id]: { ...twin.edits?.[id], offset: [previous[0] + delta[0], previous[1] + delta[1], previous[2] + delta[2]] } } };
+    }));
+    const part = mechanicalModel?.parts.find(item => item.id === id);
+    setCommandStatus(`Translation locale enregistrée · ${part?.name ?? id}`);
   };
 
   const handleSave = async () => {
@@ -372,6 +392,15 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
     })));
     setSelectedSketchId(profile.id);
     setCommandStatus(`Esquisse ${profile.kind} ${profile.width.toFixed(3)} × ${profile.height.toFixed(3)} m enregistrée.`);
+  };
+
+  const selectSketchProfile = (value: string) => {
+    if (value === "__create__") {
+      createSketch();
+      return;
+    }
+    setSelectedSketchId(value);
+    setCommandStatus(value ? "Profil d’esquisse actif synchronisé." : "Aucun profil d’esquisse actif.");
   };
 
   const applyFeatureOperation = (operation: FeatureOperation) => {
@@ -653,12 +682,12 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
             <button role="tab" aria-selected={activeTab === "variable"} className={`pdc-vp-tab ${activeTab === "variable" ? "active" : ""}`} onClick={() => setActiveTab("variable")}>{t("Variable Studio")}</button>
             <button role="tab" aria-selected={activeTab === "assembly"} className={`pdc-vp-tab ${activeTab === "assembly" ? "active" : ""}`} onClick={() => setActiveTab("assembly")}>Assemblage</button>
             <span className="pdc-spacer" />
-            <label className="pdc-inline-select">Profil<select aria-label={t("Esquisse active")} value={selectedSketch?.id ?? ""} onChange={event => setSelectedSketchId(event.target.value)} disabled={!activeTwin?.sketchProfiles?.length}><option value="">{t("Sélectionner un profil…")}</option>{activeTwin?.sketchProfiles?.map(sketch => <option key={sketch.id} value={sketch.id}>{sketch.name} · {sketch.kind}</option>)}</select></label>
+            <label className="pdc-inline-select">Profil<select aria-label={t("Esquisse active")} value={selectedSketchId} onChange={event => selectSketchProfile(event.target.value)} disabled={!activeDesignId}><option value="">{t("Sélectionner un profil…")}</option>{!sketchProfiles.length && <option value="__create__">Créer le premier profil…</option>}{sketchProfiles.map(sketch => <option key={sketch.id} value={sketch.id}>{sketch.name} · {sketch.kind}</option>)}</select></label>
           </div>
 
           {activeTab === "part" && <>
             <div className="pdc-viewport">
-              {mechanicalModel ? <MechanicalTwinViewport model={mechanicalModel} selected={selectedMechanicalPart} onSelect={id => { setSelectedMechanicalPart(id); setCommandStatus(`Sélection viewport synchronisée avec ${id}.`); }} view="iso" mode="solid" explosion={0} resetKey={rebuildRevision} xrayCut={1} xrayOpacity={{}} previewPartId={treePreviewEnabled ? selectedMechanicalPart : undefined} previewEnabled={treePreviewEnabled} /> : <div className="pdc-viewport-fallback"><div><strong>{t("AUCUNE GÉOMÉTRIE CHARGÉE")}</strong><span>{t("Le viewport attend un design AeroMind sélectionné. Les dimensions ci-dessous restent un aperçu de paramètres, pas un drone généré.")}</span></div></div>}
+              {mechanicalModel ? <MechanicalTwinViewport model={mechanicalModel} selected={selectedMechanicalPart} onSelect={id => { setSelectedMechanicalPart(id); setCommandStatus(`Sélection viewport synchronisée avec ${id}.`); }} view="iso" mode="solid" explosion={0} resetKey={rebuildRevision} xrayCut={1} xrayOpacity={{}} previewPartId={treePreviewEnabled ? selectedMechanicalPart : undefined} previewEnabled={treePreviewEnabled} transformEnabled={Boolean(activeDesignId)} onPartTransform={translateMechanicalPart} /> : <div className="pdc-viewport-fallback"><div><strong>{t("AUCUNE GÉOMÉTRIE CHARGÉE")}</strong><span>{t("Le viewport attend un design AeroMind sélectionné. Les dimensions ci-dessous restent un aperçu de paramètres, pas un drone généré.")}</span></div></div>}
               <div className="pdc-vp-bottom"><div className="pdc-readout">
                 <span>Position X <b>{selectedPart?.position[0].toFixed(3) ?? "—"}</b></span><span>Y <b>{selectedPart?.position[1].toFixed(3) ?? "—"}</b></span><span>Z <b>{selectedPart?.position[2].toFixed(3) ?? "—"}</b></span><span>{t("Surface estimée")} <b>{metrics.wingArea?.toFixed(1) ?? "—"} m²</b></span>
               </div></div>

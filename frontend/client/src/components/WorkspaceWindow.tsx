@@ -5,7 +5,7 @@ import {
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Maximize2, Minimize2, Move, RotateCcw, X } from "lucide-react";
+import { Maximize2, Minimize2, Move, RotateCcw, Scaling, X } from "lucide-react";
 
 type WindowLayout = {
   x: number;
@@ -25,8 +25,10 @@ type WorkspaceWindowProps = {
 };
 
 const STORAGE_KEY = "aeromind-window-layouts-v2";
+const DRONE_SIZE_STORAGE_KEY = "aeromind-drone-display-size-v1";
 const MIN_WIDTH = 420;
 const MIN_HEIGHT = 300;
+type DroneDisplaySize = "adaptable" | "moyen" | "grand" | "tres-elargi";
 const DEFAULT_LAYOUT: WindowLayout = {
   x: 24,
   y: 24,
@@ -43,16 +45,33 @@ const DEFAULT_LAYOUT: WindowLayout = {
 //     à FULL_WORKSPACE_VIEWS.
 const FULL_WORKSPACE_VIEWS = new Set([
   "design-studio",
+  "engineering-hub",
   "construction",
   "digital-twin",
   "tools",
   "inspector",
   "intelligence-center",
   "parametric-center",
+  "mechanical-center",
   "simulation",
   "mission-planner",
   "mission-center",
   "report",
+  "aero-center",
+  "design-studio",
+  "satellite-nav",
+]);
+// Ces vues occupent le tableau maître comme le HUB, tout en conservant leur
+// barre d’outils et leurs panneaux manipulables.
+const MASTER_CANVAS_VIEWS = new Set([
+  "parametric-center",
+  "mechanical-center",
+  "digital-twin",
+  "mission-center",
+  "simulation",
+  "aero-center",
+  "design-studio",
+  "satellite-nav",
 ]);
 const VIEW_LAYOUTS: Record<string, Partial<WindowLayout>> = {
   simulation: { x: 18, y: 76, width: 1280, height: 820 },
@@ -115,6 +134,16 @@ export function WorkspaceWindow({
     });
   });
   const [isInteracting, setIsInteracting] = useState(false);
+  const [droneSize, setDroneSize] = useState<DroneDisplaySize>(() => {
+    try {
+      const saved = window.localStorage.getItem(DRONE_SIZE_STORAGE_KEY);
+      return saved === "moyen" || saved === "grand" || saved === "tres-elargi" || saved === "adaptable"
+        ? saved
+        : "adaptable";
+    } catch {
+      return "adaptable";
+    }
+  });
   const interactionRef = useRef<{
     mode: "drag" | "resize";
     edge?: string;
@@ -220,7 +249,8 @@ export function WorkspaceWindow({
   return (
     <section
       data-workspace-view={viewId}
-      className={`workspace-window workspace-window-${viewId} ${layout.maximized ? "is-maximized" : ""} ${layout.minimized ? "is-minimized" : ""} ${isInteracting ? "is-interacting" : ""}`}
+      className={`workspace-window workspace-window-${viewId} ${layout.maximized ? "is-maximized" : ""} ${layout.minimized ? "is-minimized" : ""} ${isInteracting ? "is-interacting" : ""} ${MASTER_CANVAS_VIEWS.has(viewId) ? "is-master-canvas" : ""}`}
+      data-drone-size={MASTER_CANVAS_VIEWS.has(viewId) ? droneSize : undefined}
       style={
         layout.maximized
           ? undefined
@@ -248,11 +278,31 @@ export function WorkspaceWindow({
         >
           <Move size={14} />
           <span>
-            <small>SOUS-VUE INDÉPENDANTE</small>
+            <small>{viewId === "engineering-hub" ? "ESPACE MAÎTRE / POSTE D’INGÉNIERIE" : "SOUS-VUE INDÉPENDANTE"}</small>
             <strong>{title}</strong>
           </span>
         </button>
         <div className="workspace-window-actions">
+          {MASTER_CANVAS_VIEWS.has(viewId) && (
+            <div className="workspace-drone-size" role="group" aria-label="Taille d’affichage du drone">
+              <span><Scaling size={13} /> DRONE</span>
+              {(["moyen", "grand", "tres-elargi", "adaptable"] as DroneDisplaySize[]).map(size => (
+                <button
+                  key={size}
+                  type="button"
+                  className={droneSize === size ? "is-active" : ""}
+                  aria-pressed={droneSize === size}
+                  title={`Afficher le drone en taille ${size === "tres-elargi" ? "très élargie" : size}`}
+                  onClick={() => {
+                    setDroneSize(size);
+                    window.localStorage.setItem(DRONE_SIZE_STORAGE_KEY, size);
+                  }}
+                >
+                  {size === "tres-elargi" ? "Très élargi" : size[0].toUpperCase() + size.slice(1)}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             className="icon-button"

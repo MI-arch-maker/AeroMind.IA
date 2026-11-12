@@ -22,6 +22,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { ParametricDronePreview } from "./ParametricDronePreview";
 import { FlightOperationsModules } from "./FlightOperationsModules";
 import { HardwareControlPanel } from "./HardwareControlPanel";
+import { OperatorEquipmentRegistry } from "./OperatorEquipmentRegistry";
 import { LabPreparationChecklist } from "./LabPreparationChecklist";
 
 type DeckCommand =
@@ -82,6 +83,14 @@ export function FlightCommandDeck({
   const blocking = missionChecks.filter(check => check.severity === "block").length;
   const review = missionChecks.filter(check => check.severity === "review").length;
   const currentWaypoint = waypoints[activeWaypoint];
+  const telemetryFresh = telemetry?.receivedAt !== undefined && Date.now() - telemetry.receivedAt <= 5000;
+  const telemetryStatus = telemetrySource === "synthetic"
+    ? t("Flux de test synthétique local; aucune télémétrie appareil.")
+    : telemetryState === "connected"
+      ? telemetryFresh
+        ? t("Trame télémétrique récente en lecture seule.")
+        : t("Transport ouvert, mais aucune trame télémétrique fraîche exploitable.")
+      : t("Aucune liaison télémétrique active.");
   const stateLabel: Record<string, string> = {
     ready: "PRÊT", running: "EN MISSION", paused: "PAUSÉ", hold: "MAINTIEN",
     returning: "RETOUR DOMICILE", "emergency-land": "ATTERRISSAGE", stopped: "CLOS",
@@ -96,9 +105,9 @@ export function FlightCommandDeck({
     <section className="panel flight-command-deck" aria-label="Pont de commande AeroMind">
       <div className="flight-deck-header">
         <div>
-          <p className="eyebrow">06 / MISSION CONTROL FABRIC</p>
-          <h3>Pont de commande de simulation</h3>
-          <p className="flight-deck-subtitle">L’analyse AeroMind peut bloquer la simulation, jamais autoriser un vol réel. Accord humain préalable; télémétrie entrante en lecture seule; aucune sortie de commande.</p>
+          <p className="eyebrow">AEROMIND / CENTRE OPÉRATIONNEL · 06</p>
+          <h3>Poste de commandement de vol</h3>
+          <p className="flight-deck-subtitle">Supervision de mission, préparation ingénierie et journal de décision — environnement numérique cloisonné.</p>
         </div>
         <div className="flight-deck-mode"><span className="flight-deck-live-dot" /><strong>SIMULATION LOCALE</strong><small>Contrat {demoState === "running" ? "en exécution" : "en attente"}</small></div>
       </div>
@@ -118,6 +127,10 @@ export function FlightCommandDeck({
         </div>
         <div className="flight-deck-command-surface">
           <div className="flight-deck-section-title"><span><Gauge size={15} /> Console de manipulation</span><small>actions locales auditées</small></div>
+          <div className="flight-deck-command-boundary" role="note">
+            <ShieldCheck size={14} />
+            <div><strong>{telemetryStatus}</strong><span>{t("Les boutons ci-dessous ne transmettent aucun ordre à un drone; ils agissent uniquement sur le scénario de simulation local.")}</span></div>
+          </div>
           <div className="flight-deck-command-matrix">
             <button className="flight-command-primary" onClick={() => onCommand("start")} disabled={!waypoints.length || !operatorApproved || blocking > 0 || !["ready", "stopped"].includes(demoState)} title={!operatorApproved ? "Cochez d’abord l’approbation de démonstration locale" : blocking ? "Corrigez les contrôles prévol bloquants" : !waypoints.length ? "Chargez un parcours local" : "Démarrer uniquement le scénario de simulation"}><Play size={15} /> {operatorApproved ? "Lancer la simulation" : "Approbation requise"}</button>
             <button title={demoState === "running" ? "Mettre en pause le scénario local" : "Reprendre le scénario local"} onClick={() => onCommand(demoState === "running" ? "pause" : "resume")} disabled={!( ["running", "paused", "hold"].includes(demoState))}><Pause size={15} /> {demoState === "running" ? "Pause" : "Reprendre"}</button>
@@ -157,16 +170,20 @@ export function FlightCommandDeck({
       </div>
 
       <FlightOperationsModules demoState={demoState} activeWaypoint={activeWaypoint} waypoints={waypoints} missionPlan={missionPlan} environment={environment} enduranceH={enduranceH} batteryWh={batteryWh} telemetryState={telemetryState} telemetry={telemetry} telemetrySource={telemetrySource} onMissionPlanChange={onMissionPlanChange} onEnvironmentChange={onEnvironmentChange} />
-      <details className="flight-virtual-panel">
-        <summary>
-          <strong>{t("VIRTUAL control panel — SIMULATION only")}</strong>
-          <small>{t("Virtual-model controls only · no physical output or test")}</small>
-        </summary>
-        <p>{t("This panel is restricted to SIMULATION/VIRTUAL software models. It does not activate an aircraft, hardware control, or tests.")}</p>
+      <section className="flight-operational-control" aria-label="Surface de commandement opérationnelle Aeromind">
+        <div className="flight-operational-control-header">
+          <div>
+            <p className="eyebrow">COMMAND FABRIC / ACTIONS TRAÇABLES</p>
+            <h4>Surface de commandement opérationnelle</h4>
+            <div className="flight-control-summary" role="note"><span>POSTE OPÉRATIONNEL</span><strong>G01 → G05 · revue habilitée · journal de décision</strong></div>
+          </div>
+          <div className="flight-operational-boundary"><ShieldCheck size={15} /><span>CHAÎNE D’AUTORISATION<br /><small>G01–G05 · décision distincte</small></span></div>
+        </div>
+        <OperatorEquipmentRegistry />
         <HardwareControlPanel />
-      </details>
+      </section>
       <LabPreparationChecklist />
-      <div className="flight-deck-disclaimer"><AlertTriangle size={14} /> Toute action et toute donnée générée ci-dessus restent bornées à la simulation locale ou à l’observation lecture seule. L’armement, les actionneurs, le téléversement de mission et les commandes réelles sont structurellement rejetés.</div>
+      <div className="flight-deck-disclaimer"><AlertTriangle size={14} /> La console applique le protocole Aeromind : aucune activation implicite et aucune décision d’interface ne remplace l’état vérifiable des gates G01–G05. Cette Preview expose les états et reçus sans émettre de sortie physique.</div>
     </section>
   );
 }

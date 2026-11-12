@@ -58,3 +58,4 @@
 .pdc-viewport-fallback svg { width: min(70%, 420px); max-height: 55%; filter: drop-shadow(0 0 14px #25d0d955); }
 .pdc-viewport-fallback strong { display: block; color: #25d0d9; font: 700 10px ui-monospace, monospace; letter-spacing: .12em; }
 .pdc-viewport-fallback span { display: block; max-width: 440px; margin-top: 5px; font-size: 11px; line-height: 1.5; }
+.satnav-observation-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-3px 0 11px}.satnav-observation-actions button{min-height:34px;padding:7px 11px;border:1px solid rgba(108,196,190,.35);border-radius:6px;background:rgba(72,153,151,.11);color:#c9e8e3;font:600 10px "IBM Plex Mono",monospace;cursor:pointer}.satnav-observation-actions button:hover{background:rgba(72,153,151,.2)}.satnav-observation-actions small{flex:1;min-width:190px;color:#7f9da3;font-size:9px;line-height:1.45}

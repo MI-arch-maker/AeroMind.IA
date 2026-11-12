@@ -163,6 +163,7 @@ export function MechanicalTwinEditor({
   const [filter, setFilter] = useState("");
   const [view, setView] = useState<MechanicalView>("iso");
   const [mode, setMode] = useState<MechanicalRender>(studioRenderMode === "internals" ? "xray" : "solid");
+  const [advancedRenderPreset, setAdvancedRenderPreset] = useState("mechanical");
   const [forceVector, setForceVector] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [separation, setSeparation] = useState(0.7);
@@ -188,6 +189,11 @@ export function MechanicalTwinEditor({
   useEffect(() => {
     if (studioRenderMode) setMode(studioRenderMode === "internals" ? "xray" : "solid");
   }, [studioRenderMode]);
+  const chooseRender = (value: string) => {
+    const standard = value === "solid" || value === "wireframe" || value === "xray";
+    if (standard) { setAdvancedRenderPreset("mechanical"); changeRenderMode(value as MechanicalRender); }
+    else { setAdvancedRenderPreset(value); changeRenderMode("solid"); }
+  };
   const changeRenderMode = (next: MechanicalRender) => {
     if (studioRenderMode !== undefined) {
       onStudioRenderModeChange?.(next === "xray" ? "internals" : "assembly");
@@ -303,6 +309,22 @@ export function MechanicalTwinEditor({
       ...s,
       edits: { ...s.edits, [selected]: { ...s.edits?.[selected], ...patch } },
     }));
+  const movePartByMouse = (id: string, delta: Vec3) => {
+    updateSettings((settings) => {
+      const previous = settings.edits?.[id]?.offset ?? [0, 0, 0];
+      return {
+        ...settings,
+        edits: {
+          ...settings.edits,
+          [id]: {
+            ...settings.edits?.[id],
+            offset: [previous[0] + delta[0], previous[1] + delta[1], previous[2] + delta[2]],
+          },
+        },
+      };
+    });
+    setDraftMessage(`Translation souris enregistrée pour ${model.parts.find((part) => part.id === id)?.name ?? id} · décalage de conception local.`);
+  };
   const changeGlobal = (
     key:
       | "wingspan"
@@ -643,7 +665,7 @@ export function MechanicalTwinEditor({
           <button type="button" className={activeCadTool === "Correction" ? "active" : ""} onClick={() => { setActiveCadTool("Correction"); setInspector("part"); if (selectedPart) applyFillet(); else setDraftMessage("Sélectionnez un module pour accéder aux corrections géométriques."); }}><Settings2 size={14} /> Correction</button>
           <button type="button" className={activeCadTool === "Créer" ? "active" : ""} onClick={() => { setActiveCadTool("Créer"); addPart("box"); }}><Plus size={14} /> Créer</button>
           <select aria-label="Projection du modèle" value={view} onChange={(event) => setView(event.target.value as MechanicalView)}><option value="iso">Perspective</option><option value="top">Dessus</option><option value="front">Face</option><option value="side">Profil</option></select>
-          {studioRenderMode === undefined && <select aria-label="Style de rendu" value={mode} onChange={(event) => changeRenderMode(event.target.value as MechanicalRender)}><option value="solid">Solide</option><option value="wireframe">Filaire</option><option value="xray">X-ray</option></select>}
+          {studioRenderMode === undefined && <select aria-label="Style de rendu" value={advancedRenderPreset !== "mechanical" ? advancedRenderPreset : mode} onChange={(event) => chooseRender(event.target.value)}><option value="solid">Solide</option><option value="wireframe">Filaire</option><option value="xray">X-ray</option><option value="exploded">Écorché · Exploded &amp; Cutaway</option><option value="bionic">Squelette bionique · Generative Design visuel</option><option value="carbon">Monocoque carbone &amp; composites</option><option value="cyberpunk">Cyberpunk · Exosquelette</option><option value="crystal">Transparent cristallin · Clear Tech</option><option value="energyflow">Flux énergétique</option><option value="cfd">Analyse CFD · carte de champ</option><option value="fea">Analyse MEF · carte de champ</option><option value="mesh-wire">Wireframe mesh · fond blueprint</option><option value="blueprint">CAO transparent · Blueprint</option></select>}
           <button type="button" disabled={!undo.length} title="Annuler" aria-label="Annuler" onClick={() => history("undo")}><Undo2 size={14} /></button>
           <button type="button" disabled={!redo.length} title="Rétablir" aria-label="Rétablir" onClick={() => history("redo")}><Redo2 size={14} /></button>
           <select aria-label="Analyse et exports" value="" onChange={(event) => { if (event.target.value) runNavigationAction(event.target.value as TwinNavSection); }}><option value="">Plus d’outils…</option><option value="Simulation">Simulation</option><option value="Analyse">Analyse géométrique</option><option value="Fabrication">Exporter STL</option><option value="Données">Exporter les données</option><option value="Collaboration">Partager JSON</option></select>
@@ -677,12 +699,13 @@ export function MechanicalTwinEditor({
         </div>
         {studioRenderMode === undefined && <select
           aria-label="Style de rendu"
-          value={mode}
-          onChange={(e) => changeRenderMode(e.target.value as MechanicalRender)}
+          value={advancedRenderPreset !== "mechanical" ? advancedRenderPreset : mode}
+          onChange={(e) => chooseRender(e.target.value)}
         >
           <option value="solid">Solide / matériaux</option>
           <option value="wireframe">Filaire technique</option>
           <option value="xray">{language === "en" ? "X-ray transparency" : "Transparence X-ray"}</option>
+          <option value="exploded">Écorché · Exploded &amp; Cutaway</option><option value="bionic">Squelette bionique · Generative Design visuel</option><option value="carbon">Monocoque carbone &amp; composites</option><option value="cyberpunk">Cyberpunk · Exosquelette</option><option value="crystal">Transparent cristallin · Clear Tech</option><option value="energyflow">Flux énergétique</option><option value="cfd">Analyse CFD · carte de champ</option><option value="fea">Analyse MEF · carte de champ</option><option value="mesh-wire">Wireframe mesh · fond blueprint</option><option value="blueprint">CAO transparent · Blueprint</option>
         </select>}
         <button className="mt-tool" type="button" onClick={captureWorkbench} title={language === "en" ? "Save a capture of the mechanical view in the report" : "Enregistrer une capture de la vue mécanique dans le rapport"}><Camera size={13} /> {language === "en" ? "Capture view" : "Capturer la vue"}</button>
         <button
@@ -833,6 +856,8 @@ export function MechanicalTwinEditor({
             model={renderModel}
             selected={selected}
             onSelect={choosePart}
+            transformEnabled={activeCadTool === "Transformation"}
+            onPartTransform={movePartByMouse}
             view={view}
             mode={mode}
             explosion={exploded ? separation : 0}
@@ -842,6 +867,8 @@ export function MechanicalTwinEditor({
             xrayOpacity={xrayOpacity}
             xrayIsolatedLayer={xrayIsolatedLayer}
             kinematicsPlaying={kinematicsPlaying}
+            renderPreset={advancedRenderPreset}
+            onRenderPresetChange={setAdvancedRenderPreset}
           />
           {exploded && (
             <label className="mt-separation">

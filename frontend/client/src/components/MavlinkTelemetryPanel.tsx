@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Battery, Clock3, MapPin, Radio, ShieldCheck } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type Coordinate = { lat: number; lng: number };
 type Snapshot = {
@@ -33,12 +34,9 @@ function classifyResponse(response: Response): "ok" | "unauthorized" | "offline"
 
 // ─── Local read-only simulation source (last-resort fallback) ────────────
 //
-// The preferred path is REAL MAVLink telemetry: an already-authenticated
-// operator grants telemetry consent → the panel polls
-// /api/telemetry/mavlink/status, which calls pymavlink to connect to a real
-// autopilot (a SITL emitter in dev, a physical vehicle in prod). When the
-// backend is reachable and the SITL/vehicle is up, the panel shows genuine
-// OBSERVING telemetry parsed from real MAVLink frames.
+// No telemetry request or consent is sent while the panel is mounted. An
+// operator must explicitly start observation; only then does the panel request
+// read-only status from the authenticated backend.
 //
 // The simulation below is only used as a final fallback when the backend is
 // completely unreachable (pure static preview, no FastAPI). It is clearly
@@ -82,15 +80,23 @@ type MavlinkTelemetryPanelProps = {
 };
 
 export function MavlinkTelemetryPanel({ mapCenter = { lat: 0, lng: 0 } }: MavlinkTelemetryPanelProps = {}) {
+  const { t } = useLanguage();
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
-  const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState<"real" | "sim">("sim");
+  const [loading, setLoading] = useState(false);
+  const [observationEnabled, setObservationEnabled] = useState(false);
+  const [source, setSource] = useState<"idle" | "real" | "sim">("idle");
   const mapCenterRef = useRef<Coordinate>(mapCenter);
   mapCenterRef.current = mapCenter;
   // Track consent bootstrap only; authentication is never attempted here.
   const bootstrapRef = useRef<{ triedConsent: boolean }>({ triedConsent: false });
 
   useEffect(() => {
+    if (!observationEnabled) {
+      setLoading(false);
+      setSnapshot(emptySnapshot);
+      setSource("idle");
+      return;
+    }
     let active = true;
     let timer: number | null = null;
     let delay = 2000;
@@ -178,7 +184,7 @@ export function MavlinkTelemetryPanel({ mapCenter = { lat: 0, lng: 0 } }: Mavlin
       active = false;
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, []);
+  }, [observationEnabled]);
 
   const fenceBreached = snapshot.fence_status?.breach_status === 1;
   const isReal = source === "real";
@@ -186,9 +192,15 @@ export function MavlinkTelemetryPanel({ mapCenter = { lat: 0, lng: 0 } }: Mavlin
   return <section className="satnav-telemetry-card" aria-label="Télémétrie MAVLink en lecture seule">
     <div className="satnav-card-heading">
       <span><Radio size={12} /> MAVLINK / OBSERVATION</span>
-      <span className={statusClass}>{loading ? "CHARGEMENT" : snapshot.status}</span>
+      <span className={statusClass}>{!observationEnabled ? t("EN ATTENTE · AUCUNE REQUÊTE") : loading ? t("CHARGEMENT") : snapshot.status}</span>
     </div>
     <div className="satnav-readonly-banner"><ShieldCheck size={14} /> READ_ONLY · aucune écriture ni commande</div>
+    <div className="satnav-observation-actions">
+      {!observationEnabled
+        ? <button type="button" onClick={() => { setLoading(true); setObservationEnabled(true); }}>{t("Démarrer l’observation (MAVLink lecture seule)")}</button>
+        : <button type="button" onClick={() => setObservationEnabled(false)}>{t("Arrêter les interrogations")}</button>}
+      <small>{t("Le démarrage accorde le consentement de télémétrie puis interroge l’observateur authentifié. Aucune commande n’est émise.")}</small>
+    </div>
     <div className="satnav-telemetry-grid">
       <div><span><MapPin size={11} /> POSITION</span><strong>{snapshot.position ? `${number(snapshot.position.latitude_deg, 5)}, ${number(snapshot.position.longitude_deg, 5)}` : "—"}</strong></div>
       <div><span><Battery size={11} /> BATTERIE</span><strong>{snapshot.battery?.battery_remaining === undefined ? "—" : `${number(snapshot.battery.battery_remaining, 0)} %`}</strong></div>
@@ -197,7 +209,9 @@ export function MavlinkTelemetryPanel({ mapCenter = { lat: 0, lng: 0 } }: Mavlin
       <div><span>ALTITUDE RELATIVE</span><strong>{snapshot.position?.relative_altitude_m === undefined ? "—" : `${number(snapshot.position.relative_altitude_m)} m`}</strong></div>
       <div><span><Clock3 size={11} /> DERNIÈRE TRAME</span><strong>{time(snapshot.last_frame_at)}</strong></div>
     </div>
-    <small className="satnav-telemetry-meta">{isReal
+    <small className="satnav-telemetry-meta">{!observationEnabled
+      ? t("Observation inactive · aucune requête ni consentement n’a été envoyé depuis ce panneau.")
+      : isReal
       ? `Source : MAVLink réel (pymavlink · LABBENCH + consentement) · Heartbeat : ${time(snapshot.last_heartbeat_at)} · Reconnexions : ${snapshot.reconnect_attempts}${snapshot.last_disconnect_reason ? ` · Motif : ${snapshot.last_disconnect_reason}` : ""}${snapshot.error ? ` · ${snapshot.error}` : ""}`
       : SIMULATION_META}</small>
   </section>;

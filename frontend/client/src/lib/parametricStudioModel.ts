@@ -18,7 +18,7 @@ export const DEFAULT_PARAMETRIC_VARIABLES: readonly DefaultVariable[] = [
   { id: "max_thickness", name: "#max_thickness", value: 0.3, unit: "m", min: 0.01, max: 5, step: 0.01, type: "length", description: "Hauteur nominale de section", appliesTo: "fuselageHeight" },
   { id: "chord", name: "#chord", value: 3, unit: "m", min: 0.05, max: 30, step: 0.1, type: "length", description: "Corde de référence", appliesTo: "chord" },
   { id: "thickness_ratio", name: "#thickness_ratio", value: 0.1, unit: "ratio", min: 0.01, max: 0.5, step: 0.01, type: "ratio", description: "Rapport hauteur de section / corde", appliesTo: "fuselageHeight" },
-  { id: "winglet_angle", name: "#winglet_angle", value: 45, unit: "°", min: 0, max: 90, step: 1, type: "angle", description: "Métadonnée — ne pilote pas encore le générateur de winglet", appliesTo: "metadata" },
+  { id: "winglet_angle", name: "#winglet_angle", value: 45, unit: "°", min: 0, max: 90, step: 1, type: "angle", description: "Angle des winglets du modèle mécanique", appliesTo: "wingletAngleDeg" },
   { id: "motor_count", name: "#motor_count", value: 4, unit: "", min: 1, max: 32, step: 1, type: "count", description: "Nombre de moteurs du concept", appliesTo: "motorCount" },
   { id: "cruise_speed", name: "#cruise_speed", value: 20, unit: "km/h", min: 0, max: 650, step: 1, type: "speed", description: "Vitesse cible de conception", appliesTo: "cruiseSpeedKmh" },
   { id: "altitude", name: "#altitude", value: 100, unit: "m", min: 0, max: 12000, step: 5, type: "length", description: "Altitude de conception", appliesTo: "altitudeM" },
@@ -98,6 +98,7 @@ export function collectVariableRows(config: ConceptConfig, hasProject: boolean, 
       altitudeM: finiteOr(config.altitudeM, definition.value),
       sweepDeg: twin?.sweepDeg,
       dihedralDeg: twin?.dihedralDeg,
+      wingletAngleDeg: twin?.wingletAngleDeg,
       fuselageHeight: twin?.fuselageHeight,
       fuselageWidth: twin?.fuselageWidth,
     };
@@ -234,6 +235,7 @@ export function setVariableValue(config: ConceptConfig, designId: string | undef
   return updateActiveMechanicalTwin(config, designId, twin => {
     if (variable.appliesTo === "sweepDeg") return { ...twin, sweepDeg: value };
     if (variable.appliesTo === "dihedralDeg") return { ...twin, dihedralDeg: value };
+    if (variable.appliesTo === "wingletAngleDeg") return { ...twin, wingletAngleDeg: value };
     if (variable.appliesTo === "fuselageHeight") {
       const height = variable.id === "thickness_ratio" ? config.chord * value : value;
       return { ...twin, fuselageHeight: height };

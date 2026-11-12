@@ -109,6 +109,7 @@ export const mechanicalSettingsSchema = z.object({
   fuselageHeight: z.number().finite().positive().optional(),
   sweepDeg: z.number().finite().optional(),
   dihedralDeg: z.number().finite().optional(),
+  wingletAngleDeg: z.number().finite().min(0).max(90).optional(),
   gearHeight: z.number().finite().positive().optional(),
   shellColor: z.string().optional(),
   finish: z.enum(["titanium", "carbon", "ceramic"]).optional(),

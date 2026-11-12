@@ -9535,6 +9535,7 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
   color: var(--muted);
   font: 7px monospace;
 }
@@ -9542,6 +9543,19 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+.mission-horizon-feed-state {
+  display: grid;
+  place-items: center;
+  min-height: 230px;
+  padding: 18px;
+  border: 1px dashed rgba(241, 184, 119, 0.28);
+  border-radius: 10px;
+  background: rgba(126, 80, 34, 0.07);
+  color: #eac68f;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
 }
 .mission-radar-footer i {
   width: 5px;
@@ -11308,6 +11322,79 @@ button:disabled {
     rgba(237, 189, 115, 0.025)
   );
 }
+.mission-physical-command-post {
+  display: grid;
+  gap: 11px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid rgba(237, 189, 115, 0.26);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(44, 36, 23, 0.46), rgba(10, 18, 24, 0.9));
+}
+.mission-physical-command-post-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mission-physical-command-post-header small {
+  color: #e0bd7f;
+  font: 700 8px ui-monospace, monospace;
+  letter-spacing: .12em;
+}
+.mission-physical-command-post-header h4 {
+  margin: 4px 0 0;
+  color: #eaf4f2;
+  font-size: 13px;
+}
+.mission-physical-command-post-header > b {
+  padding: 6px 8px;
+  border: 1px solid rgba(237, 189, 115, 0.32);
+  border-radius: 5px;
+  background: rgba(129, 81, 25, 0.14);
+  color: #f0c987;
+  font: 700 8px ui-monospace, monospace;
+  letter-spacing: .06em;
+  text-align: center;
+}
+.mission-physical-command-post-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.mission-physical-command-post-grid > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgba(143, 177, 181, 0.14);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.14);
+}
+.mission-physical-command-post-grid small {
+  color: #8da7aa;
+  font: 600 8px ui-monospace, monospace;
+  letter-spacing: .06em;
+}
+.mission-physical-command-post-grid strong {
+  color: #e3d1ab;
+  font: 700 9px ui-monospace, monospace;
+  line-height: 1.45;
+}
+.mission-physical-command-post > p {
+  margin: 0;
+  color: #a6b5b6;
+  font-size: 9px;
+  line-height: 1.55;
+}
+@media (max-width: 800px) {
+  .mission-physical-command-post-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mission-physical-command-post-header { flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .mission-physical-command-post-grid { grid-template-columns: 1fr; }
+}
 .mission-log-list {
   max-height: 176px;
   padding: 10px;
@@ -11460,6 +11547,30 @@ button:disabled {
     rgba(8, 28, 34, 0.9),
     rgba(3, 13, 17, 0.85)
   );
+}
+.flight-deck-command-boundary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(241, 184, 119, 0.27);
+  border-radius: 7px;
+  background: rgba(126, 80, 34, 0.08);
+  color: #eac68f;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.flight-deck-command-boundary svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.flight-deck-command-boundary div {
+  display: grid;
+  gap: 3px;
+}
+.flight-deck-command-boundary span {
+  color: #aebdc0;
 }
 .flight-deck-section-title {
   min-height: 25px;
@@ -11639,16 +11750,23 @@ button:disabled {
 }
 .lab-checklist-group li {
   display: grid;
-  grid-template-columns: 13px minmax(0, 1fr);
+  grid-template-columns: 18px minmax(0, 1fr);
   gap: 8px;
   align-items: start;
 }
-.lab-checklist-marker {
-  width: 9px;
-  height: 9px;
-  margin-top: 4px;
-  border: 1px solid rgba(237, 189, 115, 0.75);
-  border-radius: 2px;
+.lab-checklist-checkbox {
+  width: 15px;
+  height: 15px;
+  margin: 1px 0 0;
+  accent-color: #63d5c9;
+  cursor: pointer;
+}
+.lab-checklist-checkbox:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+.lab-checklist-group li.is-reviewed > div > strong {
+  color: rgba(170, 219, 204, 0.88);
 }
 .lab-checklist-group li strong {
   display: block;
@@ -14613,6 +14731,16 @@ button:disabled {
   width: auto !important;
   height: auto !important;
 }
+.workspace-window-engineering-hub.is-maximized {
+  inset: 8px !important;
+  z-index: 1000 !important;
+  border-radius: 8px;
+}
+.workspace-window.is-master-canvas.is-maximized {
+  inset: 8px !important;
+  z-index: 1000 !important;
+  border-radius: 8px;
+}
 .workspace-window.is-interacting {
   transition: none;
 }
@@ -14685,6 +14813,49 @@ button:disabled {
   display: flex;
   gap: 5px;
   flex: 0 0 auto;
+  align-items: center;
+}
+.workspace-drone-size {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding-right: 5px;
+  border-right: 1px solid rgba(117, 226, 220, 0.2);
+}
+.workspace-drone-size > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 2px;
+  color: var(--muted);
+  font: 8px monospace;
+  letter-spacing: .08em;
+}
+.workspace-drone-size button {
+  min-height: 27px;
+  padding: 0 6px;
+  border: 1px solid rgba(117, 226, 220, 0.2);
+  border-radius: 4px;
+  background: rgba(117, 226, 220, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+  font: 8px monospace;
+  white-space: nowrap;
+}
+.workspace-drone-size button:hover,
+.workspace-drone-size button.is-active {
+  border-color: var(--cyan);
+  background: rgba(117, 226, 220, 0.14);
+  color: var(--text);
+}
+.workspace-window[data-drone-size="moyen"] { --workspace-drone-scale: .86; }
+.workspace-window[data-drone-size="grand"] { --workspace-drone-scale: 1.14; }
+.workspace-window[data-drone-size="tres-elargi"] { --workspace-drone-scale: 1.36; }
+.workspace-window[data-drone-size="adaptable"] { --workspace-drone-scale: 1; }
+.workspace-window[data-drone-size] .physical-drone-model { --drone-scale: var(--workspace-drone-scale, 1); }
+.workspace-window[data-drone-size] .dte-source-silhouette {
+  transform: scale(var(--workspace-drone-scale, 1));
+  transform-origin: center;
 }
 .workspace-window-actions .icon-button {
   width: 28px;
@@ -14784,6 +14955,14 @@ button:disabled {
     top: 70px !important;
   }
   .workspace-window-inner { padding: 14px; }
+  .workspace-drone-size {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    padding: 4px 0 0;
+    border-right: 0;
+  }
+  .workspace-window > .workspace-window-bar { flex-wrap: wrap; }
 }
 
 /* AeroMind physical airframe system — rendu matière réel, sans grille ni cadre SVG */
@@ -16478,3 +16657,61 @@ button:disabled {
 .scenario-long-timeline input { display: block; width: 100%; accent-color: #6ce9e2; }
 .scenario-long-timeline-phases { margin-top: 8px; }.scenario-long-timeline-phases .is-done { color: #83e4b0; }
 @media (max-width: 580px) { .scenario-long-timeline-head { align-items: flex-start; flex-direction: column; }.scenario-long-timeline-phases { flex-wrap: wrap; font-size: 7px; } }
+
+
+/* Approved AeroMind cockpit footer: compact brand row + distinct, honest status cards. */
+.app-footer.home-approved-footer {
+  display: grid;
+  gap: 12px;
+  margin: 30px 0 4px;
+  padding: 13px;
+  border: 1px solid rgba(77, 190, 196, 0.13);
+  border-radius: 11px;
+  background: linear-gradient(140deg, rgba(9, 27, 36, 0.96), rgba(6, 20, 28, 0.96));
+  color: #c4d7d9;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: normal;
+}
+.home-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 9px 10px;
+  border-bottom: 1px solid rgba(86, 189, 193, 0.13);
+}
+.home-footer-wordmark { display: flex; align-items: center; gap: 11px; color: #d9e8e8; letter-spacing: 0.22em; }
+.home-footer-wordmark img { width: 42px; height: 42px; object-fit: contain; }
+.home-footer-wordmark strong { font-size: 13px; font-weight: 800; }
+.home-footer-brand > small { color: #8da6aa; font-size: 10px; letter-spacing: 0.05em; }
+.home-footer-version { display: flex; align-items: center; gap: 6px; margin-left: auto; color: #739297; font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.07em; }
+.home-footer-version b { color: #9cb4b6; font-weight: 600; }
+.home-footer-cards { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.7fr); gap: 9px; }
+.home-footer-card { display: flex; align-items: center; gap: 13px; min-width: 0; min-height: 78px; padding: 12px 15px; border: 1px solid rgba(79, 188, 192, 0.15); border-radius: 9px; background: rgba(12, 37, 47, 0.7); }
+.home-footer-card > svg { flex: none; color: #68d1ce; }
+.home-footer-card > div { display: grid; gap: 4px; min-width: 0; }
+.home-footer-card small { color: #81a5a7; font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.15em; }
+.home-footer-card strong { overflow-wrap: anywhere; color: #d5e7e7; font-size: 12px; font-weight: 650; line-height: 1.35; }
+.home-footer-card span:not(.home-footer-indicator) { color: #8ca9aa; font-size: 9px; line-height: 1.4; }
+.home-footer-indicator { width: 13px; height: 13px; flex: none; margin: 0 9px; border-radius: 50%; background: #d3a85e; box-shadow: 0 0 0 7px rgba(211,168,94,0.08); }
+.home-footer-card.connected .home-footer-indicator { background: #58d9a4; box-shadow: 0 0 0 7px rgba(88,217,164,0.09); }
+.home-footer-card.caution { border-color: rgba(224, 176, 91, 0.26); background: rgba(43, 35, 21, 0.48); }
+.home-footer-card.caution > svg { color: #e2b45f; }
+.home-footer-card.caution small { color: #bd9a5a; }
+.home-footer-card.caution strong { color: #e7c982; }
+.home-footer-card.caution span:not(.home-footer-indicator) { color: #b6a77f; }
+@media (max-width: 900px) {
+  .app-footer.home-approved-footer { padding: 10px; }
+  .home-footer-cards { grid-template-columns: 1fr 1fr; }
+  .home-footer-card.caution { grid-column: 1 / -1; }
+}
+@media (max-width: 580px) {
+  .home-footer-brand { flex-wrap: wrap; gap: 8px 12px; padding: 2px 5px 10px; }
+  .home-footer-wordmark img { width: 34px; height: 34px; }
+  .home-footer-brand > small { flex: 1; }
+  .home-footer-version { flex-basis: 100%; margin-left: 46px; }
+  .home-footer-cards { grid-template-columns: 1fr; }
+  .home-footer-card.caution { grid-column: auto; }
+  .home-footer-card { min-height: 68px; padding: 10px 12px; }
+}

@@ -1537,6 +1537,55 @@
   overflow: hidden;
   background: linear-gradient(145deg, rgba(13, 34, 44, .98), rgba(7, 22, 31, .98));
 }
+.lb-vctrl-master-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, .9fr);
+  grid-template-areas: "title status" "protocol protocol";
+  align-items: stretch;
+  gap: 0 18px;
+  padding: 0 22px 16px;
+  border-bottom: 1px solid var(--lb-line);
+}
+.lb-vctrl-master-header .lb-panel-title {
+  grid-area: title;
+  min-width: 0;
+  padding: 17px 0 8px;
+  border-bottom: 0;
+}
+.lb-vctrl-master-header .lb-panel-title strong {
+  font-size: 15px;
+  letter-spacing: -.01em;
+}
+.lb-vctrl-master-header .lb-panel-title small {
+  overflow-wrap: anywhere;
+}
+.lb-vctrl-master-header > p[role="status"] {
+  grid-area: status;
+  align-self: center;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(37,208,217,.2);
+  border-radius: 7px;
+  background: rgba(37,208,217,.055);
+  color: var(--lb-cyan);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.lb-vctrl-protocol-note {
+  grid-area: protocol;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  align-items: baseline;
+  margin-top: 4px;
+  padding: 11px 13px;
+  border: 1px solid rgba(241,185,84,.25);
+  border-radius: 7px;
+  background: rgba(241,185,84,.055);
+}
+.lb-vctrl-protocol-note strong { color: var(--lb-amber); font: 600 10px "IBM Plex Mono",monospace; letter-spacing: .08em; }
+.lb-vctrl-protocol-note span { color: #d2bd8b; font: 600 10px "IBM Plex Mono",monospace; }
+.lb-vctrl-protocol-note small { grid-column: 1 / -1; color: #a99c7b; font-size: 10px; line-height: 1.45; }
 .lb-vctrl-panel > p {
   margin: 0;
   padding: 13px 22px;
@@ -1625,6 +1674,19 @@
   white-space: normal;
   text-align: center;
 }
+.lb-vctrl-command-grid {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 14px;
+  padding: 14px 22px 0;
+}
+.lb-vctrl-command-grid .lb-vctrl-section {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--lb-line);
+  border-radius: 9px;
+  background: rgba(255,255,255,.018);
+}
 .lb-vctrl-setpoints .lb-config-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1686,13 +1748,20 @@
   line-height: 1.5;
 }
 @media (max-width: 900px) {
+  .lb-vctrl-master-header { grid-template-columns: 1fr; grid-template-areas: "title" "status" "protocol"; gap: 0; }
+  .lb-vctrl-master-header > p[role="status"] { margin-top: 0; }
+  .lb-vctrl-command-grid { grid-template-columns: 1fr; }
   .lb-vctrl-setpoints .lb-config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
+  .lb-vctrl-master-header { padding-left: 16px; padding-right: 16px; }
+  .lb-vctrl-protocol-note { grid-template-columns: 1fr; gap: 5px; }
+  .lb-vctrl-protocol-note small { grid-column: auto; }
   .lb-vctrl-panel > p,
   .lb-vctrl-source-actions,
   .lb-vctrl-section { padding-left: 16px; padding-right: 16px; }
   .lb-vctrl-confirmations { grid-template-columns: 1fr; }
+  .lb-vctrl-command-grid { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
   .lb-vctrl-setpoints .lb-config-grid { grid-template-columns: 1fr; }
   .lb-vctrl-actions { display: grid; grid-template-columns: 1fr; }
   .lb-vctrl-actions button { width: 100%; }

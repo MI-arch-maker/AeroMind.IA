@@ -41,6 +41,15 @@ describe("parametricStudioModel", () => {
     expect(updated.mechanicalTwin).toBe(config.mechanicalTwin);
   });
 
+  it("rend l’angle de winglet éditable et persistant dans le design actif", () => {
+    const config = makeConfig();
+    const winglet = collectVariableRows(config, true, "design-a").find(row => row.id === "winglet_angle")!;
+    expect(winglet.appliesTo).toBe("wingletAngleDeg");
+    const updated = setVariableValue(config, "design-a", winglet, 62);
+    expect(updated.mechanicalTwins?.["design-a"].wingletAngleDeg).toBe(62);
+    expect(collectVariableRows(updated, true, "design-a").find(row => row.id === "winglet_angle")?.value).toBe(62);
+  });
+
   it("résout des expressions arithmétiques sans eval et refuse les appels de fonction", () => {
     expect(evaluateParametricExpression("(#wingspan + 2) * #chord / 2", { wingspan: 10, chord: 3 })).toBe(18);
     expect(() => evaluateParametricExpression("process.exit()", {})).toThrow();

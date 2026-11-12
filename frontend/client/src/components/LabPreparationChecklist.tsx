@@ -1,4 +1,5 @@
 import { AlertTriangle, ChevronDown, ExternalLink, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 import { useLanguage } from "../contexts/LanguageContext";
 
 type ChecklistItem = {
@@ -13,6 +14,7 @@ type ChecklistGroup = {
 
 export function LabPreparationChecklist() {
   const { t } = useLanguage();
+  const [reviewedItems, setReviewedItems] = useState<Record<string, boolean>>({});
   const sources = [
     {
       label: t("[1] EASA — Easy Access Rules for Unmanned Aircraft Systems"),
@@ -123,6 +125,8 @@ export function LabPreparationChecklist() {
       ],
     },
   ];
+  const totalItems = groups.reduce((total, group) => total + group.items.length, 0);
+  const reviewedCount = Object.values(reviewedItems).filter(Boolean).length;
 
   return (
     <section className="lab-preparation-checklist" aria-label={t("Laboratory preparation checklist")}>
@@ -139,12 +143,12 @@ export function LabPreparationChecklist() {
           <span className="lab-checklist-summary-icon"><ShieldCheck size={17} aria-hidden="true" /></span>
           <span className="lab-checklist-summary-copy">
             <strong>{t("Laboratory preparation checklist")}</strong>
-            <small>{t("Review prompts only · no status or approval is inferred")}</small>
+            <small>{t("Review prompts only · no status or approval is inferred")} · {reviewedCount}/{totalItems} {t("repérés dans cette session")}</small>
           </span>
           <ChevronDown className="lab-checklist-chevron" size={17} aria-hidden="true" />
         </summary>
 
-        <p className="lab-checklist-intro">{t("Use these prompts to organize a human review. Hollow markers are visual bullets only: they are not checkable evidence, a compliance result, or an operational decision.")}</p>
+        <p className="lab-checklist-intro">{t("Use these prompts to organize a human review. The checkboxes only mark that you reviewed an item; they do not establish evidence, compliance, or an operational decision.")} {t("Les cases servent uniquement à repérer votre lecture dans cette session; elles ne sont pas enregistrées et ne valent ni preuve, ni approbation, ni autorisation.")}</p>
 
         <div className="lab-checklist-groups">
           {groups.map((group) => (
@@ -152,8 +156,14 @@ export function LabPreparationChecklist() {
               <h4>{group.title}</h4>
               <ul>
                 {group.items.map((item) => (
-                  <li key={item.title}>
-                    <span className="lab-checklist-marker" aria-hidden="true" />
+                  <li key={item.title} className={reviewedItems[item.title] ? "is-reviewed" : undefined}>
+                    <input
+                      className="lab-checklist-checkbox"
+                      type="checkbox"
+                      checked={Boolean(reviewedItems[item.title])}
+                      aria-label={`${t("Repérer comme lu (session uniquement)")}: ${item.title}`}
+                      onChange={(event) => setReviewedItems(current => ({ ...current, [item.title]: event.target.checked }))}
+                    />
                     <div>
                       <strong>{item.title}</strong>
                       <p>{item.detail}</p>

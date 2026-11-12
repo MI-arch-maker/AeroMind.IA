@@ -7,6 +7,7 @@ connected to the same vehicle link.
 """
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -49,6 +50,7 @@ class TelemetrySnapshot:
     heartbeat: HeartbeatState = field(default_factory=HeartbeatState)
     position: dict[str, float | int] | None = None
     flight: dict[str, float | int] | None = None
+    attitude: dict[str, float | int] | None = None
     battery: dict[str, float | int] | None = None
     propulsion: dict[str, float | int | str] = field(default_factory=dict)
     gps: dict[str, float | int] | None = None
@@ -190,6 +192,13 @@ class MavlinkObserver:
             }
         elif message_type == "VFR_HUD":
             self._snapshot.flight = _pick_numbers(data, "airspeed", "groundspeed", "heading", "throttle", "alt", "climb")
+        elif message_type == "ATTITUDE":
+            attitude: dict[str, float] = {}
+            for field_name in ("pitch", "roll"):
+                value = data.get(field_name)
+                if isinstance(value, (int, float)) and math.isfinite(value):
+                    attitude[f"{field_name}_deg"] = math.degrees(float(value))
+            self._snapshot.attitude = attitude or None
         elif message_type == "SYS_STATUS":
             self._snapshot.battery = _pick_numbers(data, "voltage_battery", "current_battery", "battery_remaining")
             # SYS_STATUS standard n'inclut pas le carburant; ne pas réinterpréter

@@ -95,7 +95,7 @@ export const ZONE_GROUPS: Array<{ id: ZoneId; label: string; description: string
 export const MODE_ITEMS: Array<{ id: ModeId; label: string; eyebrow: string; detail: string }> = [
   { id: "simulation", label: "Simulation", eyebrow: "N2", detail: "Données synthétiques. Aucun appareil réel n’est commandé." },
   { id: "connected", label: "Diagnostic virtuel", eyebrow: "N2", detail: "Identité de l’émulateur et télémétrie synthétique ; aucun appareil réel." },
-  { id: "authorized", label: "Commande virtuelle supervisée", eyebrow: "N3", detail: "Consigne simulée après deux confirmations humaines ; sorties physiques interdites." },
+  { id: "authorized", label: "Commande virtuelle supervisée par protocole", eyebrow: "N3", detail: "Consigne virtuelle après deux confirmations humaines ; sortie appareil régie par G01–G05 et le protocole ICX / Aeromind." },
 ];
 
 export const initialLocalGateState: LocalGateState = {

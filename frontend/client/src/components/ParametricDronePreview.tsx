@@ -257,7 +257,7 @@ export function ParametricDronePreview({ design, construction, zoom = 1 }: Props
     onPointerMove={event => { const drag = rotationDrag.current; if (drag) setRotation(drag.angle + (event.clientX - drag.startX) * .8); }}
     onPointerUp={event => { rotationDrag.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
     onPointerCancel={event => { rotationDrag.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}>
-    <svg className="parametric-drone-preview" style={{ transform: `scale(${visualZoom})`, touchAction: "none" }} viewBox="0 0 320 174" role="img" tabIndex={0}
+    <svg className="parametric-drone-preview" style={{ transform: `scale(calc(${visualZoom} * var(--workspace-drone-scale, 1)))`, touchAction: "none" }} viewBox="0 0 320 174" role="img" tabIndex={0}
       aria-label={`${design.label}, maquette paramétrique ${type}, envergure ${span.toFixed(1)} mètres, ${motors} moteur(s). Glisser horizontalement pour faire tourner; flèches gauche/droite ou Home au clavier.`}
       onKeyDown={event => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); setRotation(value => value + (event.key === "ArrowRight" ? 15 : -15)); } else if (event.key === "Home") { event.preventDefault(); setRotation(0); } }}>
       <title>Rotation interactive : glisser horizontalement, utiliser les flèches gauche/droite, Home réinitialise.</title>

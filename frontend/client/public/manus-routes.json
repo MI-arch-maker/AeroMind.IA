@@ -30,6 +30,7 @@
     {"path":"/?view=mechanical-center","title":"Centre Mécanique"},
     {"path":"/gate-certification.html","title":"AeroMind — Certification GATE 01 à GATE 05"},
     {"path":"/virtual-factory","title":"AeroMind — Virtual Parametric 3D Printing Factory"},
+    {"path":"/build-readiness","title":"AeroMind — Préparation contrôlée à la fabrication"},
     {"path":"/labbench","title":"AeroMind LabBench"},
     {"path":"/engineering-hub","title":"AeroMind — Centre d’ingénierie"},
     {"path":"/admin","title":"AeroMind — Administration"},

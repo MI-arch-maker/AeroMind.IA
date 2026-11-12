@@ -6,7 +6,7 @@ type Props = { projectId?: string | null; activeDroneLabel: string };
 type GateState = "pending" | "validated";
 type AuditEntry = { id: string; at: string; actor: string; action: string; result: "allow" | "deny" };
 
-const gateLabels = ["GATE 01 · Exigences", "GATE 02 · Identité", "GATE 03 · Équipements", "GATE 04 · Simulation"];
+const gateLabels = ["G01 · Exigences", "G02 · Identité", "G03 · Équipements", "G04 · Simulation", "G05 · Exploitation"];
 
 export function PhysicalControlGovernancePanel({ projectId, activeDroneLabel }: Props) {
   const [gates, setGates] = useState<GateState[]>(["pending", "pending", "pending", "pending"]);
@@ -23,7 +23,7 @@ export function PhysicalControlGovernancePanel({ projectId, activeDroneLabel }: 
     const next = gates.map((state, itemIndex) => itemIndex === index ? (state === "validated" ? "pending" : "validated") : state) as GateState[];
     setGates(next);
     addAudit(`${gateLabels[index]} · validation locale de préparation`, next[index] === "validated" ? "allow" : "deny");
-    setNotice(next.every(state => state === "validated") ? "GATE 01–04 terminées · transmission à vérifier par le Super-Administrateur" : "Préparations partielles · scénario logiciel");
+    setNotice(next.every(state => state === "validated") ? "G01–G05 terminées · transmission à vérifier par le Super-Administrateur" : "Préparations partielles · scénario logiciel");
   };
   const submit = () => { if (!allGates || !projectId) return; setRequestState("submitted"); addAudit("Demande soumise · revue d’équipement indépendante requise", "allow"); setNotice("Demande transmise · décision personnelle GATE 05 et autorisation matérielle indépendante requises"); };
   const revoke = () => { setRequestState("revoked"); addAudit("Révocation de la demande matérielle", "deny"); setNotice("Demande révoquée · aucune session matérielle active"); };

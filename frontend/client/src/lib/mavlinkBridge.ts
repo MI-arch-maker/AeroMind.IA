@@ -29,12 +29,16 @@ export function parseMavlinkObserverSnapshot(value: unknown): MavlinkObserverSna
 
   const position = record(data.position);
   const flight = record(data.flight);
+  const attitude = record(data.attitude);
   const battery = record(data.battery);
   const latitude = number(position?.latitude_deg, -90, 90);
   const longitude = number(position?.longitude_deg, -180, 180);
   const altitudeM = number(position?.relative_altitude_m);
   const speedMps = number(flight?.groundspeed, 0);
+  const verticalSpeedMs = number(flight?.climb, -100, 100);
   const headingDeg = number(flight?.heading, 0, 360);
+  const pitchDeg = number(attitude?.pitch_deg, -180, 180);
+  const rollDeg = number(attitude?.roll_deg, -180, 180);
   const batteryPct = number(battery?.battery_remaining, 0, 100);
   const customMode = number(record(data.heartbeat)?.custom_mode, 0);
   const frame: MissionTelemetryFrame = {
@@ -42,7 +46,10 @@ export function parseMavlinkObserverSnapshot(value: unknown): MavlinkObserverSna
     longitude,
     altitudeM,
     speedKmh: speedMps === undefined ? undefined : speedMps * 3.6,
+    verticalSpeedMs,
     headingDeg,
+    pitchDeg,
+    rollDeg,
     batteryPct,
     flightMode: customMode === undefined ? undefined : `MAVLink · mode ${customMode}`,
   };

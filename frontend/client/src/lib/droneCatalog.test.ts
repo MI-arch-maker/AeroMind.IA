@@ -4,8 +4,8 @@ import { defaultConcept, defaultRequirements, getCalculationProfile, runSimulati
 
 describe("AeroMind drone catalog profiles", () => {
   it("contains the editable civil, non-armed defense and reference profiles", () => {
-    expect(droneCatalog).toHaveLength(69);
-    expect(new Set(droneCatalog.map(design => design.id)).size).toBe(69);
+    expect(droneCatalog).toHaveLength(102);
+    expect(new Set(droneCatalog.map(design => design.id)).size).toBe(102);
     for (const design of droneCatalog) {
       expect(design.configuration.wingspan ?? 0).toBeGreaterThan(0);
       expect(design.configuration.fuselageLength ?? 0).toBeGreaterThan(0);
@@ -17,8 +17,8 @@ describe("AeroMind drone catalog profiles", () => {
   });
 
   it("covers base and specialized architectures with distinct starting configurations", () => {
-    expect(droneCatalog.filter(design => design.key === "fixed-wing")).toHaveLength(33);
-    expect(droneCatalog.filter(design => design.key === "quadcopter")).toHaveLength(20);
+    expect(droneCatalog.filter(design => design.key === "fixed-wing")).toHaveLength(53);
+    expect(droneCatalog.filter(design => design.key === "quadcopter")).toHaveLength(33);
     expect(droneCatalog.filter(design => design.key === "vtol")).toHaveLength(16);
     expect(new Set(droneCatalog.map(design => design.modelType)).size).toBe(24);
     expect(new Set(droneCatalog.map(design => design.configuration.motorCount)).size).toBeGreaterThan(1);
@@ -41,10 +41,10 @@ describe("AeroMind drone catalog profiles", () => {
 
   it("qualifies democratic-defense profiles without weapon payloads", () => {
     const defense = droneCatalog.filter(design => design.role === "défense-non-armée");
-    expect(defense).toHaveLength(12);
+    expect(defense).toHaveLength(45);
     expect(defense.every(design => design.defenseUse?.length)).toBe(true);
     expect(defense.every(design => /sans|aucune|capteurs/i.test(design.defenseUse ?? ""))).toBe(true);
-    expect(droneCatalog.filter(design => design.origin === "prototype-reference")).toHaveLength(2);
+    expect(droneCatalog.filter(design => design.origin === "prototype-reference")).toHaveLength(35);
     expect(droneCatalog.find(design => design.id === "deluge-e")?.origin).toBe("prototype-reference");
     expect(droneCatalog.find(design => design.id === "aeromind-reference-multirotor-001")?.origin).toBe("prototype-reference");
   });
@@ -57,5 +57,14 @@ describe("AeroMind drone catalog profiles", () => {
     expect(pdfCells.every(design => design.engineeringAssets && Object.values(design.engineeringAssets).every(path => path.startsWith("/assets/aeromind-cell-library/")))).toBe(true);
     expect(new Set(pdfCells.map(design => design.modelType)).size).toBeGreaterThanOrEqual(6);
     expect(pdfCells.find(design => design.id === "pdf-08-aile-droite")?.referenceLabel).toMatch(/charges externes offensives exclues/i);
+  });
+
+  it("publishes every one of the 33 cards from the four-page defense PDF", () => {
+    const imported = droneCatalog.filter(design => design.id.startsWith("icx-"));
+    expect(imported).toHaveLength(33);
+    expect(new Set(imported.map(design => design.id)).size).toBe(33);
+    expect(imported.every(design => design.origin === "prototype-reference")).toBe(true);
+    expect(imported.every(design => design.configuration.payloadKg === 0)).toBe(true);
+    expect(imported.every(design => design.referenceLabel?.includes("Référence documentaire uniquement"))).toBe(true);
   });
 });

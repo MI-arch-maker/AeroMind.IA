@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { Activity, AlertTriangle, Bell, ClipboardCheck, Edit, ExternalLink, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Moon, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Users, X, Eye } from "lucide-react";
+import { Activity, AlertTriangle, Archive, Bell, ClipboardCheck, Download, Edit, ExternalLink, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Moon, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Upload, Users, X, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { bearerHeaders, clearSessionToken } from "@/lib/sessionToken";
@@ -373,6 +373,46 @@ export default function SuperAdmin() {
   if (!user) return <AuthShell><ShieldCheck className="mb-4 text-blue-600" size={38} /><h1 className="text-2xl font-bold">{t("Connexion console AeroMind")}</h1><p className="mt-3 text-sm leading-6 text-slate-500">{t("Choisissez Microsoft Entra ou l'accès local sécurisé préalablement activé par le Super-Admin. Les comptes locaux exigent un mot de passe et un code d'application TOTP.")}</p><button onClick={() => startLogin()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"><LogIn size={17} />{t("Continuer avec Microsoft Entra")}</button><div className="my-5 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" />{t("OU ACCÈS LOCAL MFA")}<span className="h-px flex-1 bg-slate-200" /></div><LocalAuthPanel onAuthenticated={refreshSession} /><Link href="/" className="mt-5 block text-center text-xs font-semibold text-slate-500 hover:text-blue-600">{t("Retour au cockpit")}</Link></AuthShell>;
   if (denied) return <AuthShell><ShieldCheck className="mb-4 text-red-500" size={38} /><h1 className="text-2xl font-bold">{t("Accès refusé")}</h1><p className="mt-3 text-sm leading-6 text-slate-500">{t("Cette session n'est pas le Super-Admin autorisé.")}</p><button onClick={() => void logout()} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700"><LogOut size={16} /> {t("Se déconnecter")}</button></AuthShell>;
 
+  const downloadRestorationArchive = async (projectId: string) => {
+    try {
+      const response = await fetch(`/api/admin-console/restoration-archive/projects/${encodeURIComponent(projectId)}`, { credentials: "include", headers: bearerHeaders() });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.detail || t("Création de l’archive refusée."));
+      const blob = new Blob([JSON.stringify(body, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `aeromind-restauration-${projectId}-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success(t("Archive de restauration téléchargée"), { description: t("Elle contient le projet et les configurations des drones, pas les missions, rapports ou journaux.") });
+      return true;
+    } catch (error: any) {
+      toast.error(t("Export de l’archive impossible"), { description: error.message });
+      return false;
+    }
+  };
+  const restoreRestorationArchive = async (file: File) => {
+    try {
+      if (file.size > 5 * 1024 * 1024) throw new Error(t("L’archive dépasse la limite de 5 Mio."));
+      const archive = JSON.parse(await file.text());
+      const projectName = String(archive?.project?.name || t("Projet sans nom"));
+      const droneCount = Array.isArray(archive?.drones) ? archive.drones.length : 0;
+      if (!window.confirm(t(`Restaurer le projet « ${projectName} » et ${droneCount} drone(s) depuis cette archive ? Le projet doit être absent. Les missions, runs, rapports et journaux ne sont pas inclus.`))) return;
+      const response = await fetch("/api/admin-console/restoration-archive/restore", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", ...bearerHeaders() },
+        body: JSON.stringify(archive),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || t("Restauration refusée."));
+      toast.success(t("Projet et flotte restaurés"), { description: t(`${result.droneCount} drone(s) restauré(s); les données non incluses dans l’archive ne sont pas rétablies.`) });
+      await invalidate();
+    } catch (error: any) {
+      toast.error(t("Restauration impossible"), { description: error instanceof SyntaxError ? t("Le fichier sélectionné n’est pas un JSON valide.") : error.message });
+    }
+  };
+
   const totals = activity.data?.totals || {};
   const sectionTitle: Record<Section, string> = {
     overview: t("Vue d'ensemble"),
@@ -422,6 +462,8 @@ export default function SuperAdmin() {
     onQualificationLevelChange: (value: string) => setQualificationLevel(value),
     onRefreshQualificationActivity: () => void qualificationActivity.refetch(),
     mechanicalProjectId,
+    onExportProjectArchive: (id: string) => void downloadRestorationArchive(id),
+    onRestoreArchive: (file: File) => void restoreRestorationArchive(file),
     mechanicalPreview: mechanicalProjectPreview.data,
     mechanicalPreviewLoading: mechanicalProjectPreview.isLoading,
     mechanicalPreviewError: mechanicalProjectPreview.error?.message || "",
@@ -440,7 +482,10 @@ export default function SuperAdmin() {
     onProjectAction: (id: string, action: "save" | "observe" | "delete") => {
       if (action === "save") saveProject.mutate({ id });
       else if (action === "observe") observeProject.mutate({ id });
-      else if (window.confirm(t("Supprimer définitivement ce projet et ses données associées ?"))) deleteProject.mutate({ id });
+      else void (async () => {
+        const archived = await downloadRestorationArchive(id);
+        if (archived && window.confirm(t("L’archive vient d’être téléchargée. Confirmez-vous la suppression définitive du projet et de ses données associées ? Conservez le fichier pour pouvoir restaurer le projet et ses drones."))) deleteProject.mutate({ id });
+      })();
     },
     invalidate: async () => { await invalidate(); },
     t,
@@ -739,7 +784,7 @@ function WatermarkSettings({ t }: { t: (text: string) => string }) {
   </WorkspaceCard>;
 }
 
-function SectionPanel({ section, totals, activity, qualificationActivity, qualificationActivityLoading, qualificationActivityError, qualificationLevel, onQualificationLevelChange, onRefreshQualificationActivity, mechanicalProjectId, mechanicalPreview, mechanicalPreviewLoading, mechanicalPreviewError, onSelectMechanicalProject, reports, reportsLoading, pendingRegs, pendingLoading, pendingError, onRefreshPending, onApproveRegistration, onRejectRegistration, onCreate, onReports, onApprove, onProjectAction, invalidate, t }: { section: Section; totals: any; activity: any; qualificationActivity: any; qualificationActivityLoading: boolean; qualificationActivityError: string; qualificationLevel: string; onQualificationLevelChange: (value: string) => void; onRefreshQualificationActivity: () => void; mechanicalProjectId: string; mechanicalPreview: any; mechanicalPreviewLoading: boolean; mechanicalPreviewError: string; onSelectMechanicalProject: (id: string) => void; reports?: any[]; reportsLoading: boolean; pendingRegs: any[]; pendingLoading: boolean; pendingError: string; onRefreshPending: () => void; onApproveRegistration: (email: string, name: string) => void; onRejectRegistration: (email: string) => void; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
+function SectionPanel({ section, totals, activity, qualificationActivity, qualificationActivityLoading, qualificationActivityError, qualificationLevel, onQualificationLevelChange, onRefreshQualificationActivity, mechanicalProjectId, mechanicalPreview, mechanicalPreviewLoading, mechanicalPreviewError, onSelectMechanicalProject, reports, reportsLoading, pendingRegs, pendingLoading, pendingError, onRefreshPending, onApproveRegistration, onRejectRegistration, onCreate, onReports, onApprove, onProjectAction, onExportProjectArchive, onRestoreArchive, invalidate, t }: { section: Section; totals: any; activity: any; qualificationActivity: any; qualificationActivityLoading: boolean; qualificationActivityError: string; qualificationLevel: string; onQualificationLevelChange: (value: string) => void; onRefreshQualificationActivity: () => void; mechanicalProjectId: string; mechanicalPreview: any; mechanicalPreviewLoading: boolean; mechanicalPreviewError: string; onSelectMechanicalProject: (id: string) => void; reports?: any[]; reportsLoading: boolean; pendingRegs: any[]; pendingLoading: boolean; pendingError: string; onRefreshPending: () => void; onApproveRegistration: (email: string, name: string) => void; onRejectRegistration: (email: string) => void; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; onExportProjectArchive: (id: string) => void; onRestoreArchive: (file: File) => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
   const selectedMechanicalProject = (activity?.projects || []).find((project: any) => String(project.id) === mechanicalProjectId);
   if (section === "accounts" || section === "operations") return null;
   if (section === "approvals") return <WorkspaceCard title={t("Demandes d'accès en attente")} subtitle={t("Examinez les inscriptions préprovisionnées. Chaque décision est appliquée côté serveur et rattachée à la session Super-Admin.")} t={t}>
@@ -760,7 +805,8 @@ function SectionPanel({ section, totals, activity, qualificationActivity, qualif
   </>;
   if (section === "overview") return <section className="mb-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-widest text-blue-600">{t("Vue d'ensemble active")}</p><h2 className="mt-2 text-2xl font-bold">{t("Bienvenue dans la gouvernance AeroMind")}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{t("Utilisez le menu de gauche pour ouvrir chaque espace. Les compteurs sont lus depuis le backend, tandis que les décisions sont journalisées.")}</p><div className="mt-5 flex flex-wrap gap-3"><button onClick={onCreate} className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-bold text-white">{t("Créer un compte")}</button><button onClick={onReports} className="rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700">{t("Ouvrir les rapports")}</button></div></section>;
   if (section === "projects") return <WorkspaceCard title={t("Projets")} subtitle={t("Vue globale des projets AeroMind persistés. Le jumeau mécanique charge uniquement le dossier explicitement sélectionné et reste en lecture seule.")} t={t}>
-    <div className="space-y-3">{(activity?.projects || []).length ? (activity.projects as any[]).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div className="min-w-0"><strong className="block text-sm">{p.name || t("Projet sans nom")}</strong><small className="break-all text-xs text-slate-400">{t("Propriétaire")} : {p.userId} · {t("créé")} {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "—"}</small></div><div className="flex flex-wrap items-center gap-2"><Pill tone={p.controlStatus === "observed" ? "amber" : p.controlStatus === "saved" ? "blue" : "green"}>{p.controlStatus === "observed" ? t("Observation") : p.controlStatus === "saved" ? t("Sauvegardé") : t("Actif")}</Pill><button type="button" onClick={() => onSelectMechanicalProject(String(p.id))} className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-teal-800"><Eye size={13} /> {t("Afficher le jumeau")}</button><button onClick={() => onProjectAction(String(p.id), "save")} className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-700"><Save size={13} /> {t("Sauvegarder")}</button><button onClick={() => onProjectAction(String(p.id), "observe")} className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1.5 text-[11px] font-semibold text-amber-700"><Eye size={13} /> {t("Observer")}</button><button onClick={() => onProjectAction(String(p.id), "delete")} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600"><Trash2 size={13} /> {t("Supprimer")}</button></div></div>) : <Empty title={t("Aucun projet persistant")} text={t("Les projets créés par les utilisateurs apparaîtront ici.")} />}</div>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4"><div className="max-w-2xl"><strong className="block text-xs font-bold text-amber-900">{t("Archives de restauration des drones")}</strong><p className="mt-1 text-[11px] leading-5 text-amber-800">{t("Téléchargez une archive avant suppression. Elle contient le projet et les configurations de ses drones, avec une empreinte SHA-256 de contrôle d’intégrité. La restauration ne rétablit pas missions, runs, rapports, sessions ni journaux.")}</p></div><label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-900"><Upload size={14} />{t("Restaurer depuis une archive")}<input type="file" accept="application/json,.json" className="hidden" onChange={event => { const file = event.currentTarget.files?.[0]; if (file) void onRestoreArchive(file); event.currentTarget.value = ""; }} /></label></div>
+    <div className="space-y-3">{(activity?.projects || []).length ? (activity.projects as any[]).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div className="min-w-0"><strong className="block text-sm">{p.name || t("Projet sans nom")}</strong><small className="break-all text-xs text-slate-400">{t("Propriétaire")} : {p.userId} · {t("créé")} {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "—"}</small></div><div className="flex flex-wrap items-center gap-2"><Pill tone={p.controlStatus === "observed" ? "amber" : p.controlStatus === "saved" ? "blue" : "green"}>{p.controlStatus === "observed" ? t("Observation") : p.controlStatus === "saved" ? t("Sauvegardé") : t("Actif")}</Pill><button type="button" onClick={() => onSelectMechanicalProject(String(p.id))} className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-teal-800"><Eye size={13} /> {t("Afficher le jumeau")}</button><button onClick={() => onProjectAction(String(p.id), "save")} className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-700"><Save size={13} /> {t("Sauvegarder")}</button><button onClick={() => onProjectAction(String(p.id), "observe")} className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1.5 text-[11px] font-semibold text-amber-700"><Eye size={13} /> {t("Observer")}</button><button type="button" onClick={() => onExportProjectArchive(String(p.id))} className="inline-flex items-center gap-1 rounded-md border border-violet-200 px-2 py-1.5 text-[11px] font-semibold text-violet-700"><Archive size={13} /> {t("Archive drones")}</button><button onClick={() => onProjectAction(String(p.id), "delete")} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600"><Trash2 size={13} /> {t("Supprimer")}</button></div></div>) : <Empty title={t("Aucun projet persistant")} text={t("Les projets créés par les utilisateurs apparaîtront ici.")} />}</div>
     {mechanicalProjectId && <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-widest text-teal-700">{t("JUMEAU MÉCANIQUE")}</p><h3 className="mt-1 text-sm font-bold">{selectedMechanicalProject?.name || mechanicalPreview?.projectName || t("Projet sélectionné")}</h3></div><button type="button" onClick={() => onSelectMechanicalProject("")} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600"><X size={13} />{t("Fermer")}</button></div><AdminMechanicalPreview projectId={mechanicalProjectId} projectName={selectedMechanicalProject?.name || mechanicalPreview?.projectName} configuration={mechanicalPreview?.configuration} loading={mechanicalPreviewLoading} error={mechanicalPreviewError || undefined} /></div>}
   </WorkspaceCard>;
   if (section === "reports") return <WorkspaceCard title={t("Rapports à valider")} subtitle={t("Les rapports suivent le circuit surveillant puis approbation Super-Admin.")} t={t}><div className="space-y-3">{reportsLoading ? <p className="text-sm text-slate-400">{t("Chargement des rapports…")}</p> : (reports || []).filter((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)).map((r: any) => <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{t("Rapport")} {String(r.id).slice(0, 8)}</strong><span className="text-xs text-slate-500">{t("Statut")} : {r.status}</span></div>{r.status === "reviewed_by_supervisor" ? <button onClick={() => onApprove(String(r.id))} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">{t("Approuver définitivement")}</button> : <Pill tone="amber">{t("En attente du surveillant")}</Pill>}</div>)}{!reportsLoading && !(reports || []).some((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)) && <Empty title={t("Aucun rapport en attente")} text={t("Les rapports soumis apparaîtront ici après contrôle.")} />}</div></WorkspaceCard>;

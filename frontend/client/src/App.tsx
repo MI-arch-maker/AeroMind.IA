@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
@@ -18,6 +18,7 @@ import VirtualParametricFactory from "@/pages/VirtualParametricFactory";
 const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
 const AdminConsole = lazy(() => import("@/pages/AdminConsole"));
 const AuditJournal = lazy(() => import("@/pages/AuditJournal"));
+const BuildReadiness = lazy(() => import("@/pages/BuildReadiness"));
 
 function PageLoader() {
   return (
@@ -38,6 +39,11 @@ function Router() {
       <Route path="/labbench" component={Home} />
       <Route path="/engineering-hub" component={Home} />
       <Route path="/virtual-factory" component={VirtualParametricFactory} />
+      <Route path="/build-readiness">
+        <Suspense fallback={<PageLoader />}>
+          <BuildReadiness />
+        </Suspense>
+      </Route>
       <Route path="/admin-console">
         <Suspense fallback={<PageLoader />}>
           <AdminConsole />
@@ -71,6 +77,8 @@ function Router() {
 // - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
+  const [location] = useLocation();
+  const homeWorkspaceRoute = ["/", "/labbench", "/engineering-hub"].includes(location);
   const [watermark, setWatermark] = useState({ enabled: true, opacity: 0.045, size: 520 });
   useEffect(() => {
     const readSettings = () => {
@@ -110,11 +118,11 @@ function App() {
                 style={{ display: watermark.enabled ? "block" : "none", opacity: watermark.opacity, "--aeromind-watermark-size": `${watermark.size}px` } as CSSProperties}
               />
               <Router />
-              <footer className="aeromind-brand-footer" aria-label="Identité AeroMind">
+              {!homeWorkspaceRoute && <footer className="aeromind-brand-footer" aria-label="Identité AeroMind">
                 <img src="/aeromind-logo.svg" alt="" />
                 <span>AEROMIND</span>
                 <small>Intelligence · Ingénierie · Aéronautique</small>
-              </footer>
+              </footer>}
             </div>
           </TooltipProvider>
         </LanguageProvider>

@@ -124,6 +124,15 @@ describe("mechanicalTwinGeometry", () => {
     expect(tuned.parts.find(part => part.id === "fuselage-shell")!.size[1]).not.toBeCloseTo(base.parts.find(part => part.id === "fuselage-shell")!.size[1]);
   });
 
+  it("reconstruit les winglets selon l’angle paramétrique demandé", () => {
+    const design = droneCatalog.find(item => item.modelType === "voilure-conventionnelle")!;
+    const base = modelFor(design, { mechanicalTwin: { designId: design.id, wingletAngleDeg: 0 } });
+    const tuned = modelFor(design, { mechanicalTwin: { designId: design.id, wingletAngleDeg: 62 } });
+    expect(base.parts.some(part => part.id.startsWith("winglet-"))).toBe(false);
+    expect(tuned.parts.filter(part => part.id.startsWith("winglet-")).length).toBe(2);
+    expect(tuned.parts.find(part => part.id === "winglet-port")?.rotation[1]).toBeCloseTo(-62 * Math.PI / 180);
+  });
+
   it("paramètre les motoréducteurs ornithoptère et les cages cycliques selon motorCount", () => {
     const ornithopter = droneCatalog.find(item => item.modelType === "ornithoptère")!;
     const cyclocopter = droneCatalog.find(item => item.modelType === "cyclocoptère")!;
@@ -189,8 +198,30 @@ describe("mechanicalTwinGeometry", () => {
     expect(fuselage.rotation[1]).toBeCloseTo(Math.PI / 2);
     expect(transformedPartVertices(fuselage)).not.toEqual(fuselage.vertices);
     expect(transformedPartVertices(fuselage, 1).every(Number.isFinite)).toBe(true);
+    expect(transformedPartVertices(fuselage, 1)).toEqual(transformedPartVertices(fuselage));
     const extra = edited.parts.find(part => part.id === "user-module-1");
     expect(extra?.size).toEqual([0.2, 0.1, 0.3]);
+  });
+
+  it("écarte radialement les sous-ensembles en vue éclatée sans déplacer le châssis", () => {
+    const design = droneCatalog.find(item => item.modelType === "voilure-conventionnelle")!;
+    const model = modelFor(design);
+    const propulsion = model.parts.find(part => part.category === "propulsion" && Math.hypot(...part.position) > 0.1)!;
+    const center = (vertices: number[]) => {
+      const result = [0, 0, 0];
+      const count = vertices.length / 3;
+      for (let index = 0; index < vertices.length; index += 3) {
+        result[0] += vertices[index] / count;
+        result[1] += vertices[index + 1] / count;
+        result[2] += vertices[index + 2] / count;
+      }
+      return result;
+    };
+    const originalCenter = center(transformedPartVertices(propulsion));
+    const explodedCenter = center(transformedPartVertices(propulsion, 1));
+    expect(Math.hypot(...explodedCenter)).toBeGreaterThan(Math.hypot(...originalCenter));
+    const airframe = model.parts.find(part => part.category === "airframe")!;
+    expect(transformedPartVertices(airframe, 1)).toEqual(transformedPartVertices(airframe));
   });
 
   it("isole les réglages par design et charge les modules installed avec leur ID stable", () => {

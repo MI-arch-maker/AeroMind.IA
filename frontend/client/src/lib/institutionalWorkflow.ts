@@ -71,7 +71,7 @@ export function createInstitutionalWorkflow(requestId = "SIM-REQ-001"): Institut
       type: "institutional.request.submitted",
       actorRole: "operator",
       decision: "allow",
-      message: "Demande virtuelle créée pour le parcours institutionnel local; aucune sortie physique.",
+      message: "Demande créée pour le parcours institutionnel local; toute sortie appareil relève du protocole ICX / Aeromind et de l’examen humain.",
       physicalOutput: false,
     }],
   };
@@ -107,7 +107,7 @@ export function validateInstitutionalGate(
       "institutional.transmission.issued",
       actorRole,
       "allow",
-      "Code local généré pour le Super-Administrateur; il n’autorise ni matériel, ni certification, ni vol.",
+      "Code local généré pour le Super-Administrateur; il documente la transmission et ne remplace pas le protocole ICX / Aeromind ni l’examen humain.",
     ),
   };
 }
@@ -131,7 +131,7 @@ export function decideInstitutionalGate05(
   if (actorRole !== "super_admin") return { workflow, error: "GATE 05 est une décision personnelle du Super-Administrateur." };
   if (workflow.status !== "awaiting_gate_05" || !workflow.transmissionVerified) return { workflow, error: "Vérifiez le code de transmission avant toute décision GATE 05." };
   const next: InstitutionalWorkflow = { ...workflow, gate05Decision: decision, status: decision === "approve" ? "approved_gate_05" : "refused" };
-  return { workflow: event(next, "GATE_05", "institutional.gate_05.decided", actorRole, decision === "approve" ? "allow" : "deny", decision === "approve" ? "GATE 05 approuvée pour le scénario logiciel uniquement." : "GATE 05 refusée localement par le Super-Administrateur.") };
+  return { workflow: event(next, "GATE_05", "institutional.gate_05.decided", actorRole, decision === "approve" ? "allow" : "deny", decision === "approve" ? "GATE 05 approuvée dans le parcours local; l’exécution appareil reste régie par le protocole ICX / Aeromind." : "GATE 05 refusée localement par le Super-Administrateur.") };
 }
 
 export function executeVirtualSimulation(

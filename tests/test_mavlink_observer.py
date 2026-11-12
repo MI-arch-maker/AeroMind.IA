@@ -1,3 +1,4 @@
+import math
 import unittest
 from types import SimpleNamespace
 
@@ -35,6 +36,8 @@ class MavlinkObserverTest(unittest.TestCase):
         connection = FakeConnection([
             FakeMessage("HEARTBEAT", type=2, autopilot=3, base_mode=81, custom_mode=4, system_status=4),
             FakeMessage("GLOBAL_POSITION_INT", lat=485000000, lon=23000000, alt=120000, relative_alt=80000),
+            FakeMessage("VFR_HUD", groundspeed=10.0, heading=90, climb=-1.5),
+            FakeMessage("ATTITUDE", pitch=math.radians(12), roll=math.radians(-5)),
             FakeMessage("SYS_STATUS", voltage_battery=16000, battery_remaining=78),
             FakeMessage("FUEL_STATUS", maximum=12.0, consumed=3.0, remaining=9.0, percent_remaining=75),
             FakeMessage("ESC_STATUS", rpm=4200, temperature=68),
@@ -51,6 +54,9 @@ class MavlinkObserverTest(unittest.TestCase):
         self.assertEqual(snapshot.heartbeat.system_id, 1)
         self.assertEqual(snapshot.heartbeat.autopilot, 3)
         self.assertAlmostEqual(snapshot.position["latitude_deg"], 48.5)
+        self.assertAlmostEqual(snapshot.attitude["pitch_deg"], 12)
+        self.assertAlmostEqual(snapshot.attitude["roll_deg"], -5)
+        self.assertEqual(snapshot.flight["climb"], -1.5)
         self.assertEqual(snapshot.battery["battery_remaining"], 78)
         self.assertEqual(snapshot.propulsion["remaining"], 9.0)
         self.assertEqual(snapshot.propulsion["rpm"], 4200)

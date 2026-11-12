@@ -422,18 +422,21 @@ export function HardwareControlPanel() {
 
   return (
     <section className="lb-panel lb-vctrl-panel" aria-label="Contrôle VIRTUAL encadré">
-      <div className="lb-panel-title">
-        <strong>Contrôle VIRTUAL — supervision humaine</strong>
-        <small>{source === "server" ? (serverAvailable ? `SERVICE AUTHENTIFIÉ · ${mode}` : "SERVICE NON DISPONIBLE") : `LOCAL NON ENREGISTRÉ · ${mode}`}</small>
-      </div>
-      <p role="status">{message}</p>
-      <p><strong>Frontière de sûreté :</strong> HARDWARE est définitivement refusé. Ce panneau ne pilote qu’un jumeau logiciel, sans liaison, port ni position géographique réels.</p>
+      <header className="lb-vctrl-master-header">
+        <div className="lb-panel-title">
+          <strong>Contrôle VIRTUAL — supervision humaine</strong>
+          <small>{source === "server" ? (serverAvailable ? `SERVICE AUTHENTIFIÉ · ${mode}` : "SERVICE NON DISPONIBLE") : `LOCAL NON ENREGISTRÉ · ${mode}`}</small>
+        </div>
+        <p role="status">{message}</p>
+        <div className="lb-vctrl-protocol-note"><strong>PROTOCOLE ICX / AEROMIND</strong><span>G01–G05 · examen humain · identité opérateur · géofence · reçus d’audit</span><small>Dans cette Preview, aucune liaison autopilote n’est configurée : la sortie physique n’est donc pas engagée ici, sans être déclarée interdite par l’interface.</small></div>
+      </header>
 
       <div className="lb-config-actions lb-vctrl-source-actions">
         <button className="lb-secondary" onClick={useLocalSimulation}>Utiliser la simulation locale (non enregistrée)</button>
         {source === "local" && <button className="lb-secondary" onClick={() => { setSource("server"); setMessage("Retour au service VIRTUAL : une authentification est requise pour journaliser les actions."); }}>Utiliser le service authentifié</button>}
       </div>
 
+      <div className="lb-vctrl-command-grid">
       <div className="lb-config-section lb-vctrl-section lb-vctrl-activation">
         <h3>Activation puis armement séparés</h3>
         <div className="lb-vctrl-confirmations">
@@ -463,15 +466,21 @@ export function HardwareControlPanel() {
           <button className="lb-secondary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("heading")}>Appliquer cap VIRTUAL</button>
         </div>
       </div>
+      </div>
 
       <div className="lb-config-section lb-vctrl-section lb-vctrl-receipts">
-        <h3>État et reçus {source === "local" ? "locaux non enregistrés" : "de votre session authentifiée"}</h3>
-        <p>Mode : <strong>{mode}</strong> · activation : <strong>{isVirtualActive ? "oui" : "non"}</strong> · armement : <strong>{activeState.armed ? "oui" : "non"}</strong> · sorties physiques : <strong>non</strong>.</p>
+        <h3>État opérationnel · {source === "local" ? "session locale" : "session authentifiée"}</h3>
+        <div className="lb-vctrl-status-grid" aria-label="État du poste de commande">
+          <div><span>Mode</span><strong>{mode}</strong></div>
+          <div><span>Activation virtuelle</span><strong>{isVirtualActive ? "ACTIVE" : "INACTIVE"}</strong></div>
+          <div><span>Armement</span><strong>{activeState.armed ? "ARMÉ" : "DÉSARMÉ"}</strong></div>
+          <div><span>Sortie appareil</span><strong>VERROUILLÉE</strong></div>
+          <div><span>Autorisation</span><strong>G01–G05 + revue humaine</strong></div>
+        </div>
         {visibleReceipts.length === 0
-          ? <small>Aucun reçu VIRTUAL pour cette session.</small>
+          ? <div className="lb-vctrl-empty-ledger" role="status"><span aria-hidden="true">○</span><strong>Registre prêt</strong><small>Les reçus de commande apparaîtront ici après une action tracée.</small></div>
           : <ul>{visibleReceipts.slice(0, 8).map(receipt => <li key={receipt.id}><strong>{receipt.id}</strong> — {receipt.event} : {receipt.status} · virtuel uniquement</li>)}</ul>}
       </div>
-      <small>Les confirmations sont consommées après activation, armement ou commande; une modification de setpoint et l’arrêt d’urgence les invalident. Après arrêt, seule une nouvelle activation explicite peut reprendre le scénario.</small>
     </section>
   );
 }

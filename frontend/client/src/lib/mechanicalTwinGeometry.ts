@@ -83,6 +83,7 @@ export type MechanicalTwinConfig = {
   fuselageHeight?: number;
   sweepDeg?: number;
   dihedralDeg?: number;
+  wingletAngleDeg?: number;
   gearHeight?: number;
   shellColor?: string;
   finish?: "titanium" | "carbon" | "ceramic";
@@ -411,6 +412,7 @@ export function mechanicalSettings(design: DroneCatalogDesign, config: ConceptCo
     fuselageHeight: clamp(defaultWidth * 0.7, 0.1, 0.75),
     sweepDeg: ["aile-volante", "stealth-wing", "blended-pusher"].includes(design.modelType ?? "") ? 24 : 9,
     dihedralDeg: design.modelType === "planeur" ? 5 : 3,
+    wingletAngleDeg: 45,
     gearHeight: clamp(chord * 0.32, 0.08, 0.42),
     shellColor: carbon,
     finish: "carbon",
@@ -426,6 +428,7 @@ export function mechanicalSettings(design: DroneCatalogDesign, config: ConceptCo
     fuselageHeight: positive(candidate.fuselageHeight, defaults.fuselageHeight!),
     sweepDeg: finite(candidate.sweepDeg, defaults.sweepDeg!),
     dihedralDeg: finite(candidate.dihedralDeg, defaults.dihedralDeg!),
+    wingletAngleDeg: clamp(finite(candidate.wingletAngleDeg, defaults.wingletAngleDeg!), 0, 90),
     gearHeight: positive(candidate.gearHeight, defaults.gearHeight!),
     shellColor: validColor(candidate.shellColor, defaults.shellColor!),
     finish,
@@ -575,6 +578,26 @@ function addVerticalFin(a: Assembly, id: string, name: string, x: number, y: num
     prismYZ([[0, -chord * 0.42], [height * 0.1, -chord * 0.34], [height, chord * 0.18], [height * 0.72, chord * 0.5], [0, chord * 0.42]], Math.max(0.014, chord * 0.05)),
     { position: [x, y, z], rotation: [0, cant, 0], color: graphite }
   );
+}
+
+function addParametricWinglets(a: Assembly, d: Dimensions, settings: MechanicalTwinConfig) {
+  const angle = clamp(finite(settings.wingletAngleDeg, 45), 0, 90);
+  if (angle <= 0) return;
+  const height = Math.max(d.chord * 0.72, 0.04);
+  const wingletChord = Math.max(d.chord * 0.42, 0.04);
+  for (const side of [-1, 1] as const) {
+    addVerticalFin(
+      a,
+      `winglet-${side < 0 ? "port" : "starboard"}`,
+      `Winglet ${side < 0 ? "gauche" : "droit"}`,
+      side * d.span * 0.49,
+      0,
+      -d.chord * 0.06,
+      height,
+      wingletChord,
+      side * rad(angle),
+    );
+  }
 }
 
 function addConventionalTail(a: Assembly, d: Dimensions, body: { width: number; height: number; length: number }, prefix = "tail") {
@@ -1250,6 +1273,11 @@ export function buildMechanicalModel(design: DroneCatalogDesign, config: Concept
       else addConventional(a, d, settings);
   }
 
+  const wingletEligible = [
+    "aile-volante", "stealth-wing", "blended-pusher", "planeur", "hale-voilure",
+    "male-voilure", "voilure-conventionnelle", "double-poutre", "biplan", "tandem-wing", "canard", "effet-de-sol",
+  ].includes(d.type);
+  if (wingletEligible) addParametricWinglets(a, d, settings);
   addInstalledModules(a, d, config);
   addExtraParts(a, settings);
   const extent = mechanicalExtent(a.parts, Math.max(d.span, d.length, d.width, d.height, d.prop));
@@ -1320,6 +1348,9 @@ function rotateXYZ(point: Vec3, rotation: Vec3): Vec3 {
 function explosionOffset(part: MechanicalPart, explosion: number): Vec3 {
   if (!explosion) return [0, 0, 0];
   const amount = Math.max(0, finite(explosion, 0));
+  // Le fuselage reste le repère central; les sous-ensembles rayonnent vers
+  // l’extérieur pour dégager l’accès visuel, au lieu de seulement changer de couche.
+  if (part.category === "airframe") return [0, 0, 0];
   const radialLength = Math.hypot(part.position[0], part.position[1], part.position[2]) || 1;
   const radial: Vec3 = [part.position[0] / radialLength, part.position[1] / radialLength, part.position[2] / radialLength];
   const category: Record<string, Vec3> = {
@@ -1334,7 +1365,12 @@ function explosionOffset(part: MechanicalPart, explosion: number): Vec3 {
     custom: [0, 0.08, 0.08],
   };
   const shift = category[part.category] ?? [0, 0, 0];
-  return [shift[0] * amount, shift[1] * amount, shift[2] * amount];
+  const peripheral = 0.22;
+  return [
+    (shift[0] + radial[0] * peripheral) * amount,
+    (shift[1] + radial[1] * peripheral) * amount,
+    (shift[2] + radial[2] * peripheral) * amount,
+  ];
 }
 
 /**

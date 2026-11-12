@@ -2859,6 +2859,25 @@ function buildProfileMaterials(
 }
 
 const CELL_LIBRARY_NAMES_KEY = "aeromind-cell-library-custom-names-v1";
+const DELETED_CATALOG_IDS_KEY = "aeromind-cell-library-deleted-catalog-v1";
+
+function readDeletedCatalogIds(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(DELETED_CATALOG_IDS_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string" && id.trim().length > 0) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDeletedCatalogIds(ids: Set<string>) {
+  try {
+    window.localStorage.setItem(DELETED_CATALOG_IDS_KEY, JSON.stringify([...ids].slice(-500)));
+  } catch {
+    // La préférence locale reste facultative; l’action est refusée si elle ne peut pas être persistée.
+  }
+}
 
 function readCellLibraryNames(): Record<string, string> {
   try {
@@ -2889,18 +2908,21 @@ function DroneCatalogView({
   onOpenTools,
   onApplyIndustrial,
   activeDroneId,
+  canManageLibrary,
 }: {
   onLoad: (design: DroneCatalogDesign) => void;
   onSelect: (design: DroneCatalogDesign) => void;
   onOpenTools: () => void;
   onApplyIndustrial: (reference: IndustrialDroneReference) => void;
   activeDroneId?: string;
+  canManageLibrary: boolean;
 }) {
   // Bibliothèque complète des cellules paramétriques, registre industriel,
   // comparaison et fiche détaillée. Le catalogue reste strictement sans sélection initiale.
   const [importedProfiles, setImportedProfiles] = useState<ImportedDroneProfile[]>(() => loadImportedDroneProfiles());
-  const [pendingProfileAction, setPendingProfileAction] = useState<{ kind: "retain" | "delete"; profile: ImportedDroneProfile } | null>(null);
-  const catalog = [...droneCatalog, ...importedProfiles];
+  const [pendingProfileAction, setPendingProfileAction] = useState<{ kind: "retain" | "delete"; profile: DroneCatalogDesign } | null>(null);
+  const [deletedCatalogIds, setDeletedCatalogIds] = useState<Set<string>>(() => readDeletedCatalogIds());
+  const catalog = [...droneCatalog.filter(item => !deletedCatalogIds.has(item.id)), ...importedProfiles.filter(item => !deletedCatalogIds.has(item.id))];
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
   const [customNames, setCustomNames] = useState<Record<string, string>>(() => readCellLibraryNames());
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
@@ -2995,17 +3017,29 @@ function DroneCatalogView({
     const action = pendingProfileAction;
     if (!action) return;
     setPendingProfileAction(null);
+    if (action.kind === "delete" && !canManageLibrary) {
+      setImportMessage("Suppression refusée : cette action est réservée au Super-Administrateur.");
+      return;
+    }
     if (action.kind === "retain") {
-      await persistImportedReviewStatus(action.profile, "accepted");
+      const imported = importedProfiles.find(profile => profile.id === action.profile.id);
+      if (imported) await persistImportedReviewStatus(imported, "accepted");
       return;
     }
     try {
-      await deleteImportedDroneProfile(action.profile.id);
+      if (action.profile.id.startsWith("import-")) {
+        await deleteImportedDroneProfile(action.profile.id);
+      } else {
+        const nextDeleted = new Set(deletedCatalogIds);
+        nextDeleted.add(action.profile.id);
+        writeDeletedCatalogIds(nextDeleted);
+        setDeletedCatalogIds(nextDeleted);
+      }
       setImportedProfiles(current => current.filter(item => item.id !== action.profile.id));
       setPreviewProfile(current => current?.id === action.profile.id ? null : current);
       setComparisonIds(current => current.filter(id => id !== action.profile.id));
       setSelectedId(current => current === action.profile.id ? "" : current);
-      setImportMessage(`« ${action.profile.label} » a été supprimé de la bibliothèque locale. Une configuration déjà créée à partir de ce profil n’a pas été effacée.`);
+      setImportMessage(`« ${action.profile.label} » a été supprimé de la bibliothèque locale par le Super-Administrateur. Une configuration déjà créée à partir de ce profil n’a pas été effacée.`);
     } catch (error) {
       setImportMessage(error instanceof Error ? error.message : "Le profil est conservé : la suppression locale n’a pas abouti.");
     }
@@ -3047,7 +3081,7 @@ function DroneCatalogView({
   ] as const;
   return (
     <div className="view-stack legacy-drone-library">
-      <SectionHeading eyebrow="03 / BIBLIOTHÈQUE DE CONCEPTION" title="Bibliothèque des cellules" description={`${catalog.length} cellules paramétriques AeroMinD, dont huit références morphologiques adaptées du PDF utilisateur. Chaque sélection explicite synchronise l’identité, l’architecture et les paramètres de la cellule avec le workspace actif; les cotes des maquettes PDF restent indicatives et non certifiées.`} action={<span className="calculated-badge"><Box size={13} /> {catalog.length} concepts non construits</span>} />
+      <SectionHeading eyebrow="03 / BIBLIOTHÈQUE DE CONCEPTION" title="Bibliothèque des cellules" description={`${catalog.length} cellules paramétriques AeroMind, dont 8 références morphologiques existantes et 33 fiches supplémentaires intégrées exhaustivement depuis les quatre planches du PDF utilisateur. Chaque sélection explicite synchronise l’identité, l’architecture et les paramètres de la cellule avec le workspace actif; les cotes des maquettes PDF restent indicatives et non certifiées.`} action={<span className="calculated-badge"><Box size={13} /> {catalog.length} concepts non construits</span>} />
       <section className="legacy-selection-console"><div><p className="eyebrow">CONSOLE DE SÉLECTION / BIBLIOTHÈQUE</p><h3>Choisir une architecture par mission</h3><p>Comparez les variantes de structure et d’énergie. Sélectionnez une fiche pour synchroniser ses données avec le workspace actif; aucune cellule n’est appliquée par défaut.</p></div><label className="legacy-catalog-search"><Search size={15} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder={`Filtrer les ${catalog.length} concepts…`} aria-label="Filtrer les concepts paramétriques" /></label><div className="legacy-console-actions"><button type="button" onClick={() => document.getElementById("catalog-comparison-title")?.scrollIntoView({ behavior: "smooth" })}>Comparer l’endurance et la charge utile</button><button type="button" onClick={() => document.getElementById("catalog-comparison-title")?.scrollIntoView({ behavior: "smooth" })}>Comparer la redondance propulsion</button><button type="button" onClick={onOpenTools}>Charger une référence puis la modifier</button></div></section>
       <section className="panel external-drone-import" aria-label="Importer une maquette externe">
         <div className="external-drone-import-copy"><p className="eyebrow">CELLULE PERSONNALISÉE / IMPORT LOCAL</p><h3>Analyser une maquette OBJ ou STL</h3><p>L’analyse calcule l’enveloppe du maillage et crée un profil paramétrique affiché avec le même rendu que les drones du catalogue. Le fichier source n’est pas converti en CAO complète.</p><small>Les profils sont enregistrés sur cet appareil dans IndexedDB (avec repli localStorage), sans téléversement. Tout nouveau profil commence en évaluation et doit être conservé explicitement avant d’être chargé comme configuration active. Exportez vos données séparément pour les sauvegarder ou les partager.</small></div>
@@ -3080,14 +3114,15 @@ function DroneCatalogView({
         const itemLabel = displayLabel(item);
         const isRenaming = editingNameId === item.id;
         return <article key={item.id} className={`legacy-concept-card catalog-${item.tone} ${selected?.id === item.id ? "is-selected" : ""}`}><div className="legacy-concept-visual"><ParametricDronePreview design={item} /><span>{item.modelType?.toUpperCase() ?? "PARAMETRIC"}</span></div><div className="legacy-concept-copy"><p className="eyebrow">{item.family.toUpperCase()}</p>{importedProfile && <div className={`imported-profile-status ${isImportedAccepted ? "is-accepted" : "is-evaluation"}`}><strong>{isImportedAccepted ? "CONSERVÉ · ACCEPTÉ PAR L’UTILISATEUR" : "EN ÉVALUATION · NON ACCEPTÉ"}</strong><small>{importedProfile.libraryWorkflow.updatedAt ? `Statut local mis à jour · ${new Date(importedProfile.libraryWorkflow.updatedAt).toLocaleString("fr-FR")}` : "Statut local"}</small></div>}<div className="legacy-concept-name-row">{isRenaming ? <input autoFocus maxLength={80} value={nameDraft} aria-label={`Nouveau nom pour ${item.label}`} onChange={event => setNameDraft(event.target.value)} onKeyDown={event => { if (event.key === "Enter") commitRename(item); if (event.key === "Escape") cancelRename(); }} /> : <h4>{itemLabel}</h4>}{isRenaming ? <><button type="button" onClick={() => commitRename(item)}>Enregistrer</button><button type="button" onClick={cancelRename}>Annuler</button></> : <button type="button" className="rename-drone-button" onClick={() => startRename(item)} aria-label={`Renommer ${itemLabel}`} title="Renommer ce drone"><Pencil size={13} /> Renommer</button>}</div><p>{item.mission}</p><div className="legacy-concept-metrics"><span><small>ENVERGURE</small><b>{item.configuration.wingspan?.toFixed(1)} m</b></span><span><small>CHARGE</small><b>{item.configuration.payloadKg?.toFixed(1)} kg</b></span><span><small>ÉNERGIE</small><b>{item.configuration.batteryWh} Wh</b></span><span><small>MOTEURS</small><b>{item.configuration.motorCount ?? "—"}</b></span></div><div className="legacy-concept-actions"><button type="button" className={selected?.id === item.id && !isImportedPending ? "is-active" : ""} disabled={isImportedPending} title={isImportedPending ? "Confirmez d’abord la conservation de ce profil." : undefined} onClick={() => { setSelectedId(item.id); if (activeDroneId !== item.id) onSelect(namedDesign(item)); }}>{isImportedPending ? <ClipboardCheck size={13} /> : selected?.id === item.id ? <Check size={13} /> : <Plus size={13} />} {isImportedPending ? "Bloqué · en évaluation" : selected?.id === item.id ? "Drone actif · fiche affichée" : "Sélectionner et synchroniser"}</button><button type="button" onClick={() => toggleComparison(item.id)}>{comparisonIds.includes(item.id) ? "Dans la comparaison" : "Comparer"}</button><button type="button" className="primary-button" disabled={isImportedPending} title={isImportedPending ? "La création d’une variante est disponible après acceptation explicite." : undefined} onClick={() => onLoad(namedDesign(item))}><Box size={14} /> {isImportedPending ? "Attendre l’acceptation" : "Créer une variante"}</button></div>
-        {importedProfile && <div className="imported-profile-management"><div className="imported-profile-management-title"><strong>GESTION DU PROFIL IMPORTÉ</strong><small>Statut enregistré localement dans ce navigateur</small></div><div className="imported-profile-management-actions"><button type="button" className="is-evaluation" disabled={!isImportedAccepted} onClick={() => void persistImportedReviewStatus(importedProfile, "evaluation")}><ClipboardCheck size={13}/>{isImportedPending ? "En évaluation" : "Mettre en évaluation"}</button><button type="button" className="is-retain" disabled={!isImportedPending} onClick={() => setPendingProfileAction({ kind: "retain", profile: importedProfile })}><CheckCircle2 size={13}/>{isImportedAccepted ? "Drone conservé" : "Conserver dans la bibliothèque"}</button><button type="button" className="is-delete" onClick={() => setPendingProfileAction({ kind: "delete", profile: importedProfile })}><Trash2 size={13}/>Supprimer</button></div><small className="imported-profile-management-note">L’évaluation du statut est une étape de revue humaine, pas un contrôle technique ni une certification aéronautique.</small></div>}
+        {importedProfile && <div className="imported-profile-management"><div className="imported-profile-management-title"><strong>GESTION DU PROFIL IMPORTÉ</strong><small>Statut enregistré localement dans ce navigateur</small></div><div className="imported-profile-management-actions"><button type="button" className="is-evaluation" disabled={!isImportedAccepted} onClick={() => void persistImportedReviewStatus(importedProfile, "evaluation")}><ClipboardCheck size={13}/>{isImportedPending ? "En évaluation" : "Mettre en évaluation"}</button><button type="button" className="is-retain" disabled={!isImportedPending} onClick={() => setPendingProfileAction({ kind: "retain", profile: importedProfile })}><CheckCircle2 size={13}/>{isImportedAccepted ? "Drone conservé" : "Conserver dans la bibliothèque"}</button>{canManageLibrary && <button type="button" className="is-delete" onClick={() => setPendingProfileAction({ kind: "delete", profile: importedProfile })}><Trash2 size={13}/>Supprimer</button>}</div><small className="imported-profile-management-note">La suppression est une action de gouvernance réservée au Super-Administrateur; l’évaluation et la conservation restent disponibles à l’utilisateur.</small></div>}
+        {canManageLibrary && <button type="button" className="catalog-superadmin-delete" onClick={() => setPendingProfileAction({ kind: "delete", profile: item })}><Trash2 size={13}/> Supprimer (Super-Admin)</button>}
         </div></article>;
       })}</div></section>
       {selected ? <section className="panel legacy-selected-sheet" aria-label={`Fiche ${displayLabel(selected)}`} ><div className="panel-header"><div><p className="eyebrow">RÉFÉRENCE PROTOTYPE · FICHE SÉLECTIONNÉE</p><h3>{displayLabel(selected)}</h3></div><span className="calculated-badge"><ShieldCheck size={13} /> NON ARMÉ · TRACE À VALIDER</span></div><div className="legacy-selected-layout"><div className="legacy-selected-visual"><ParametricDronePreview design={selected} /><span>AEROMIND / PHYSICAL PARAMETRIC MOCKUP · {selected.modelType?.toUpperCase()} · SPAN {selected.configuration.wingspan?.toFixed(2)} M</span></div><div className="legacy-selected-data"><p>{selected.mission}</p><p>{selected.defenseUse}</p><dl><div><dt>ARCHITECTURE</dt><dd>{selected.family} · {selected.modelType}</dd></div><div><dt>CONSTRUCTION</dt><dd>Composite / géométrie paramétrique</dd></div><div><dt>FUSELAGE</dt><dd>{selected.configuration.fuselageLength?.toFixed(2)} m · profil déclaré</dd></div><div><dt>DONNÉES</dt><dd>Hypothèses préliminaires · aucune certification automatique</dd></div></dl><div className="legacy-selected-actions"><button className="secondary-button" type="button" onClick={onOpenTools}><SlidersHorizontal size={14} /> Modifier dans le Poste de construction</button><button className="primary-button" type="button" disabled={Boolean(selectedImportedPending)} title={selectedImportedPending ? "Confirmez d’abord la conservation du profil dans sa fiche." : undefined} onClick={() => onLoad(namedDesign(selected))}><Box size={14} /> {selectedImportedPending ? "En attente d’acceptation" : "Charger cette référence"}</button></div></div></div></section> : <section className="panel legacy-empty-sheet"><ShieldCheck size={18} /><div><p className="eyebrow">RÉFÉRENCE SÉLECTIONNÉE</p><h3>Aucune architecture choisie</h3><span>Sélectionnez une fiche pour afficher son visuel paramétrique, ses données et ses actions. Aucun modèle n’est injecté par défaut.</span></div></section>}
       <section className="panel inspector-note"><Info size={15} /><span>Les concepts sont des hypothèses de travail destinées à l’observation, à la cartographie, au secours et à la protection civile non armée. Ils deviennent un projet seulement après l’action explicite de l’utilisateur.</span></section>
       <AlertDialog open={Boolean(pendingProfileAction)} onOpenChange={open => { if (!open) setPendingProfileAction(null); }}>
         <AlertDialogContent className="imported-profile-confirm-dialog">
-          <AlertDialogHeader><AlertDialogTitle>{pendingProfileAction?.kind === "delete" ? "Confirmer la suppression du profil" : "Confirmer la conservation du profil"}</AlertDialogTitle><AlertDialogDescription>{pendingProfileAction?.kind === "delete" ? <>Le profil « {pendingProfileAction.profile.label} » sera supprimé de cette bibliothèque locale. Cette action n’efface pas une configuration déjà copiée dans un projet; le maillage source n’est pas stocké ici.</> : <>« {pendingProfileAction?.profile.label} » sera marqué comme conservé et chargé dans la configuration de travail. Cette décision locale ne constitue ni une validation technique, ni une certification, ni une autorisation de vol.</>}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>{pendingProfileAction?.kind === "delete" ? "Confirmer la suppression du profil" : "Confirmer la conservation du profil"}</AlertDialogTitle><AlertDialogDescription>{pendingProfileAction?.kind === "delete" ? <>Le profil « {pendingProfileAction.profile.label} » sera supprimé de cette bibliothèque locale. Cette action est réservée au Super-Administrateur et n’efface pas une configuration déjà copiée dans un projet.</> : <>« {pendingProfileAction?.profile.label} » sera marqué comme conservé et chargé dans la configuration de travail. Cette décision locale ne constitue ni une validation technique, ni une certification, ni une autorisation de vol.</>}</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>Annuler</AlertDialogCancel><AlertDialogAction className={pendingProfileAction?.kind === "delete" ? "imported-profile-confirm-delete" : "imported-profile-confirm-retain"} onClick={() => void confirmImportedProfileAction()}>{pendingProfileAction?.kind === "delete" ? "Confirmer la suppression" : "Confirmer la conservation"}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -9050,6 +9085,7 @@ function MissionOperationsView({
   simulationArmed: boolean;
   onSimulationArmedChange: (value: boolean) => void;
 }) {
+  const { t } = useLanguage();
   const flightDesignProfile = activeProfile ?? (config.platformProfile
     ? findDroneProfile(config.platformProfile)
     : undefined);
@@ -9911,6 +9947,15 @@ function MissionOperationsView({
   const telemetryFrameFresh = Boolean(telemetryAgeSeconds !== null && telemetryAgeSeconds <= 5);
   const freshTelemetry =
     (telemetrySource === "wss" || telemetrySource === "mavlink") && telemetryFrameFresh ? telemetry : null;
+  const externalTelemetryActive = telemetrySource === "wss" || telemetrySource === "mavlink";
+  const externalHorizonReady = Boolean(
+    freshTelemetry &&
+      freshTelemetry.pitchDeg !== undefined &&
+      freshTelemetry.rollDeg !== undefined &&
+      freshTelemetry.headingDeg !== undefined &&
+      freshTelemetry.altitudeM !== undefined &&
+      freshTelemetry.speedKmh !== undefined
+  );
   const observationSimulationActive = ["running", "paused", "hold"].includes(demoState);
   const observationMetricSource = (value: number | undefined) =>
     value === undefined
@@ -9983,8 +10028,8 @@ function MissionOperationsView({
     speedKmh: hudTelemetry?.speedKmh ?? (hudUsesSimulation ? liveFlight.speedKmh : undefined),
     headingDeg: hudTelemetry?.headingDeg ?? (hudUsesSimulation ? liveFlight.headingDeg : undefined),
     batteryPct: hudTelemetry?.batteryPct ?? (hudUsesSimulation ? liveFlight.batteryPct : undefined),
-    pitchDeg: hudUsesSimulation ? liveFlight.pitchDeg : undefined,
-    rollDeg: hudUsesSimulation ? liveFlight.rollDeg : undefined,
+    pitchDeg: hudTelemetry?.pitchDeg ?? (hudUsesSimulation ? liveFlight.pitchDeg : undefined),
+    rollDeg: hudTelemetry?.rollDeg ?? (hudUsesSimulation ? liveFlight.rollDeg : undefined),
   };
   return (
     <div className="view-stack mission-operations-view">
@@ -10659,25 +10704,61 @@ function MissionOperationsView({
                   <span>
                     <i className="is-amber" /> HOME / {waypoints.length} WP
                   </span>
+                  <span>
+                    <i className={freshTelemetry?.latitude !== undefined && freshTelemetry?.longitude !== undefined ? "is-cyan" : "is-amber"} />
+                    {freshTelemetry?.latitude !== undefined && freshTelemetry.longitude !== undefined
+                      ? `GPS RX ${freshTelemetry.latitude.toFixed(5)}, ${freshTelemetry.longitude.toFixed(5)} · non projeté`
+                      : externalTelemetryActive
+                        ? telemetryFrameFresh ? "GPS absent de la trame fraîche" : "GPS · aucune trame fraîche"
+                        : "POSITION · SCÉNARIO LOCAL"}
+                  </span>
                 </div>
               </div>
               <div className="mission-analytics-horizon">
                 <div className="mission-analytics-horizon-heading">
                   <span>
-                    <Crosshair size={13} /> HORIZON ARTIFICIEL · MODÈLE LOCAL
+                    <Crosshair size={13} /> {externalTelemetryActive
+                      ? externalHorizonReady ? "HORIZON · TÉLÉMÉTRIE LECTURE SEULE" : "HORIZON · TRAME INCOMPLÈTE"
+                      : "HORIZON ARTIFICIEL · MODÈLE LOCAL"}
                   </span>
-                  <small>{describeLivePhase(liveFlight)}</small>
+                  <small>{externalTelemetryActive
+                    ? externalHorizonReady
+                      ? `Trame ${telemetrySource.toUpperCase()} fraîche · aucune commande`
+                      : telemetryFrameFresh
+                        ? "Trame fraîche, mais champs d’assiette/vol incomplets"
+                        : telemetryState === "connected"
+                          ? "Liaison ouverte · en attente d’une trame fraîche"
+                          : "Aucune trame externe fraîche"
+                    : describeLivePhase(liveFlight)}</small>
                 </div>
-                <ArtificialHorizon
-                  pitchDeg={liveFlight.pitchDeg}
-                  rollDeg={liveFlight.rollDeg}
-                  headingDeg={liveFlight.headingDeg}
-                  altitudeM={liveFlight.altitudeM}
-                  speedKmh={liveFlight.speedKmh}
-                  verticalSpeedMs={liveFlight.verticalSpeedMs}
-                  armed={simulationArmed}
-                  compact
-                />
+                {externalTelemetryActive
+                  ? externalHorizonReady && freshTelemetry
+                    ? <ArtificialHorizon
+                        pitchDeg={freshTelemetry.pitchDeg!}
+                        rollDeg={freshTelemetry.rollDeg!}
+                        headingDeg={freshTelemetry.headingDeg!}
+                        altitudeM={freshTelemetry.altitudeM!}
+                        speedKmh={freshTelemetry.speedKmh!}
+                        verticalSpeedMs={freshTelemetry.verticalSpeedMs}
+                        armed={false}
+                        dataSource="read-only"
+                        compact
+                      />
+                    : <div className="mission-horizon-feed-state" role="status">
+                        {telemetryFrameFresh
+                          ? "Trame externe reçue, mais horizon non actualisé : pitch, roll, cap, altitude et vitesse sont requis. Les champs absents ne sont pas remplacés par la simulation."
+                          : "Aucune trame externe fraîche dans les 5 dernières secondes. L’horizon local n’est pas substitué aux mesures."}
+                      </div>
+                  : <ArtificialHorizon
+                      pitchDeg={liveFlight.pitchDeg}
+                      rollDeg={liveFlight.rollDeg}
+                      headingDeg={liveFlight.headingDeg}
+                      altitudeM={liveFlight.altitudeM}
+                      speedKmh={liveFlight.speedKmh}
+                      verticalSpeedMs={liveFlight.verticalSpeedMs}
+                      armed={simulationArmed}
+                      compact
+                    />}
               </div>
               <div className="mission-analytics-instruments">
                 <div className="mission-instrument-card is-primary">
@@ -10957,14 +11038,13 @@ function MissionOperationsView({
           </div>
           {virtualOnly && (
             <p className="mission-inline-error" role="status">
-              Mode VIRTUAL ONLY : les connexions MAVLink et WSS externes sont désactivées. Seules les données synthétiques locales sont disponibles.
+              {t("Mode VIRTUAL ONLY : MAVLink et WSS externes restent verrouillés. Vous pouvez remplir l’URL et cocher les éléments du protocole; les boutons de connexion afficheront ce verrou sans ouvrir de liaison ni envoyer de requête.")}
             </p>
           )}
           <label className="mission-input-label">
             WebSocket sécurisé de télémétrie
             <input
               value={telemetryUrl}
-              disabled={virtualOnly}
               onChange={event => {
                 setTelemetryUrl(event.target.value);
                 setTelemetryConsent(false);
@@ -10975,7 +11055,7 @@ function MissionOperationsView({
               aria-label="URL de télémétrie WSS"
             />
           </label>
-          <fieldset className="mission-activation-protocol telemetry-activation-protocol" disabled={virtualOnly}>
+          <fieldset className="mission-activation-protocol telemetry-activation-protocol">
             <legend>Protocole humain d’activation · télémétrie entrante</legend>
             {TELEMETRY_ACTIVATION_PROTOCOL.map((item, index) => (
               <label className="mission-protocol-check" key={item.id}>
@@ -11001,28 +11081,28 @@ function MissionOperationsView({
             <input
               type="checkbox"
               checked={telemetryConsent}
-              disabled={virtualOnly || !telemetryProtocolReady}
+              disabled={!telemetryProtocolReady}
               onChange={event => setTelemetryConsent(telemetryProtocolReady && event.target.checked)}
             />
             <span>
-              <strong>J’autorise cette réception entrante en lecture seule</strong>
-              <small>Confirmation séparée; toute modification de l’URL ou de la checklist révoque l’accord et ferme la liaison. MAVLink : {mavlinkObserverStatus}.</small>
+              <strong>{virtualOnly ? t("Je confirme la lecture des conditions (session locale)") : t("J’autorise cette réception entrante en lecture seule")}</strong>
+              <small>{virtualOnly ? t("Cette confirmation est locale; elle n’ouvre aucune liaison.") : t("Confirmation séparée; toute modification de l’URL ou de la checklist révoque l’accord et ferme la liaison.")} MAVLink : {mavlinkObserverStatus}.</small>
             </span>
           </label>
           <div className="mission-source-actions">
             <button
               className="secondary-button"
               onClick={connectMavlinkObserver}
-              disabled={virtualOnly || !telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={virtualOnly ? "Désactivé en mode VIRTUAL ONLY" : "Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule"}
+              disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
+              title={virtualOnly ? t("Cliquer affiche le verrou VIRTUAL ONLY; aucune requête n’est envoyée") : t("Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule")}
             >
               <Radio size={14} /> {virtualOnly ? "MAVLink désactivé" : "Observer MAVLink"}
             </button>
             <button
               className="secondary-button"
               onClick={connectTelemetry}
-              disabled={virtualOnly || !telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={virtualOnly ? "Désactivé en mode VIRTUAL ONLY" : !telemetryProtocolReady || !telemetryConsent ? "Checklist et autorisation humaine requises avant la réception WSS" : "Connecter en lecture seule"}
+              disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
+              title={virtualOnly ? t("Cliquer affiche le verrou VIRTUAL ONLY; aucune requête n’est envoyée") : !telemetryProtocolReady || !telemetryConsent ? t("Checklist et autorisation humaine requises avant la réception WSS") : t("Connecter en lecture seule")}
             >
               <Radio size={14} />{" "}
               {virtualOnly ? "WSS désactivé" : telemetryState === "connecting"
@@ -11348,15 +11428,23 @@ function MissionOperationsView({
               <X size={14} /> Clore la démo
             </button>
           </div>
-          <div className="mission-command-warning">
-            <AlertTriangle size={15} />
-            <span>
-              Ces commandes modifient uniquement le scénario local. Aucun
-              armement, téléversement de mission ni ordre à un drone n’est
-              implémenté. N’utilisez pas ces boutons comme commandes de vol
-              réelles.
-            </span>
-          </div>
+          <section className="mission-physical-command-post" aria-labelledby="mission-physical-command-post-title">
+            <header className="mission-physical-command-post-header">
+              <div>
+                <small>{t("POSTE DE COMMANDE PHYSIQUE · SUPERVISION")}</small>
+                <h4 id="mission-physical-command-post-title">{t("État de disponibilité des sorties")}</h4>
+              </div>
+              <b>{t("NON OPÉRATIONNEL DANS CETTE PREVIEW")}</b>
+            </header>
+            <div className="mission-physical-command-post-grid">
+              <div><small>{t("Mode des boutons")}</small><strong>{t("DÉMO / SCÉNARIO LOCAL")}</strong></div>
+              <div><small>{t("Connexion appareil")}</small><strong>{t("NON VÉRIFIÉE")}</strong></div>
+              <div><small>{t("Sortie physique")}</small><strong>{t("INDISPONIBLE DANS CETTE LIVRAISON")}</strong></div>
+              <div><small>{t("G01–G05")}</small><strong>{t("Parcours d’examen, distinct d’une autorisation de vol")}</strong></div>
+            </div>
+            <p>{t("Les actions juste au-dessus ne modifient que le scénario local; aucune commande n’est émise depuis cette zone.")}</p>
+            <p>{t("Le dépôt contient un chemin backend MAVLink conditionnel, distinct de cette démo. Cette Preview n’est pas configurée ni vérifiée avec un aéronef; la documentation G01–G05 précise que les sorties physiques restent indisponibles dans cette livraison. Les étapes de revue ne remplacent ni la qualification du matériel, ni une validation indépendante de sûreté, ni les autorisations réglementaires applicables.")}</p>
+          </section>
           <div className="mission-log-list" aria-live="polite">
             {operationLog.map((line, index) => (
               <div key={`${line}-${index}`}>
@@ -14273,7 +14361,11 @@ export default function Home() {
       message: `${design.label} appliqué au workspace après action humaine; état de persistance visible dans l’en-tête. ${estimatedTakeoffMass ? "La MTOW de banc a été estimée à partir de la masse calculée (+10 %, hypothèse locale non certifiée) car aucune valeur source n’est fournie. " : ""}${requirementsForDroneProfile(design).length} exigences proposées, non approuvées et personnalisables dans Exigences.`,
     });
   };
-  const activeLibraryProfile = cellIntegratedThisSession && config.engineeringSelection?.source !== "custom" && !hasDroneGeometry(config.customSketch?.strokes) && config.platformProfile
+  // Resolve the active catalogue design from persisted workspace state as well
+  // as from the current session. The session-only guard made the Parametric
+  // Center lose its design after a reload/project restore, leaving profile
+  // selection and bound variables in a non-functional local preview.
+  const activeLibraryProfile = config.engineeringSelection?.source !== "custom" && !hasDroneGeometry(config.customSketch?.strokes) && config.platformProfile
     ? findDroneProfile(config.platformProfile)
     : undefined;
   const activeLibraryDesign: DroneCatalogDesign | undefined = activeLibraryProfile
@@ -14292,7 +14384,7 @@ export default function Home() {
         ? config.designName ?? config.platformProfile ?? config.airframe ?? "Drone actif"
         : "Aucun drone sélectionné");
   const viewTitle = activeView === "engineering-hub"
-    ? "AEROMIND AEROSPACE ENGINEERING HUB"
+    ? "AEROMIND ENGINEERING & MANUFACTURING CENTER"
     : activeView === "overview"
       ? tKey("home.screen.title")
     : activeView === "tools" || activeView === "inspector"
@@ -14646,9 +14738,14 @@ export default function Home() {
                         projectId={activeProjectId || undefined}
                         projectName={project.name}
                         cellName={cellIntegratedThisSession ? activeDroneLabel : "Aucun drone sélectionné"}
+                        design={cellIntegratedThisSession ? activeLibraryDesign : undefined}
+                        config={config}
+                        setConfig={setConfig}
                         runId={runId === "SIM-000" ? "Aucun run" : runId}
                         serverPersisted={Boolean(authenticatedUser && serverProjectsQuery.isSuccess && !serverProjectsQuery.isFetching && projects.some(record => record.id === activeProjectId))}
+                        saveState={saveState}
                         t={t}
+                        onLoadDrone={design => loadDroneExample(design, false, false)}
                         onOpen={navigateToView}
                       />
                     )}
@@ -14674,6 +14771,7 @@ export default function Home() {
                     {activeView === "catalog" && (
                       <DroneCatalogView
                         onLoad={loadDroneExample}
+                        canManageLibrary={authenticatedUser?.role === "super_admin"}
                         // La sélection charge le profil partagé puis ouvre immédiatement
                         // la chambre d’essai afin que l’opérateur voie la cellule synchronisée.
                         onSelect={design => {
@@ -15008,13 +15106,26 @@ export default function Home() {
               </form>
             </div>
           )}
-          <footer className="app-footer">
-            <span>
-              <Orbit size={13} /> AEROMIND AI / ENGINEERING COPILOT v
-              {APP_VERSION}
-            </span>
-            <span>Engineering OS · Civil, secours & défense non offensive</span>
-            <span>Calculs préliminaires — revue humaine obligatoire</span>
+          <footer className="app-footer home-approved-footer" aria-label="Statut AeroMind">
+            <div className="home-footer-brand">
+              <div className="home-footer-wordmark"><img src="/aeromind-logo.svg" alt="" /><strong>AEROMIND</strong></div>
+              <small>Intelligence · Ingénierie · Aéronautique</small>
+              <span className="home-footer-version"><Orbit size={13} /> AEROMIND AI / ENGINEERING COPILOT <b>v{APP_VERSION}</b></span>
+            </div>
+            <div className="home-footer-cards">
+              <section className={`home-footer-card connection ${authenticatedUser ? "connected" : ""}`}>
+                <span className="home-footer-indicator" aria-hidden="true" />
+                <div><small>CONNEXION</small><strong>{authenticatedUser?.name || authenticatedUser?.email || (window.__MANUS_CONFIG__?.externalOidcEnabled ? `Microsoft ${window.__MANUS_CONFIG__.externalOidcProvider}` : "SSO à configurer")}</strong><span>{authenticatedUser ? (serverProjectsQuery.isSuccess ? "Session sécurisée · données serveur" : "Session active · stockage local") : window.__MANUS_CONFIG__?.externalOidcEnabled ? "Fournisseur SSO prêt · session non ouverte" : "Fournisseur d’identité non configuré"}</span></div>
+              </section>
+              <section className="home-footer-card environment">
+                <Settings2 size={22} aria-hidden="true" />
+                <div><small>ENVIRONNEMENT</small><strong>AeroMind / Engineering OS</strong><span>Interface virtuelle · commandes matérielles désactivées</span></div>
+              </section>
+              <section className="home-footer-card caution">
+                <AlertTriangle size={22} aria-hidden="true" />
+                <div><small>REVUE TECHNIQUE</small><strong>Calculs préliminaires — revue humaine obligatoire</strong><span>Ne constitue ni certification ni autorisation de fabrication.</span></div>
+              </section>
+            </div>
           </footer>
         </div>
       </main>
