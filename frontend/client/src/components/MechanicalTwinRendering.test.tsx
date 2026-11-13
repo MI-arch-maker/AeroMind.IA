@@ -109,6 +109,18 @@ describe("résolution des rendus du jumeau actif", () => {
     expect(markup).toContain('data-vector-engine="clay"');
   });
 
+  it("expose la commande de rotation sur elle-même dans les deux moteurs de rendu", () => {
+    const stopped = renderToStaticMarkup(<MechanicalTwinViewport model={model} selected="" onSelect={() => {}}
+      view="iso" mode="solid" explosion={0} resetKey={0} forceVector xrayCut={1} xrayOpacity={{}} />);
+    const started = renderToStaticMarkup(<MechanicalTwinViewport model={model} selected="" onSelect={() => {}}
+      view="iso" mode="solid" explosion={0} resetKey={0} forceVector autoRotate xrayCut={1} xrayOpacity={{}} />);
+    expect(stopped).toContain('aria-label="Faire tourner le drone sur lui-même"');
+    expect(stopped).toContain('data-auto-motion="false"');
+    expect(started).toContain('data-auto-motion="true"');
+    expect(started).toContain("Arrêter la rotation");
+    expect(started).toContain("animation vectorielle");
+  });
+
   it("représente réellement le filaire, le blueprint, le monochrome et les états de sélection", () => {
     const wire = svg({ renderPreset: "wireframe" });
     expect(wire).toContain('data-vector-engine="mesh-wire"');

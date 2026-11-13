@@ -53,9 +53,10 @@ describe("LabBench explicit drone-data gate", () => {
     expect(hasSessionIntegratedDrone(restoredSelection, true)).toBe(true);
   });
 
-  it("does not enable project-scoped LabBench data queries before integration", () => {
-    expect(labBenchDataProjectId("project-1", true, false)).toBeNull();
+  it("keeps the authenticated project available to N1-N4 before cell integration", () => {
+    expect(labBenchDataProjectId("project-1", true, false)).toBe("project-1");
     expect(labBenchDataProjectId("project-1", true, true)).toBe("project-1");
     expect(labBenchDataProjectId("project-1", false, false)).toBe("project-1");
+    expect(labBenchDataProjectId(null, true, false)).toBeNull();
   });
 });

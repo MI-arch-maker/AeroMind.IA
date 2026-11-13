@@ -310,14 +310,23 @@ def delete_project_dependents(db: Session, project_id: str) -> None:
                                    GateValidation, GeofenceRecord, HardwareToken,
                                    Measurement, TestRun)
     from .models import (AlertEvent, AuditEvent, BatteryCycle, Drone,
-                         EngineeringDocumentRecord, FleetTelemetrySample,
-                         LabSession, MaintenanceRecord, Mission, PreflightChecklist,
-                         PrototypeVersion, Report, Simulation, WorkflowRun)
+                         EngineeringArtifact, EngineeringDocumentRecord,
+                         EngineeringJob, EngineeringSimulationRun,
+                         FleetTelemetrySample, InstitutionalCommandRequest,
+                         InstitutionalGateEvent, LabSession, MaintenanceRecord,
+                         Mission, PreflightChecklist, PrototypeVersion, Report,
+                         Simulation, WorkflowRun)
+    # Delete children before their project parent.  This explicit order is
+    # important on SQLite deployments without reliable FK cascade settings,
+    # and keeps the operation deterministic on MySQL/TiDB/PostgreSQL too.
     models = (Measurement, TestRun, DroneRevision, GateValidation, HardwareToken,
-              GeofenceRecord, EventOutbox, AuditEventExt, EngineeringDocumentRecord,
-              WorkflowRun, PrototypeVersion, Report, Simulation, LabSession,
-              AuditEvent, AlertEvent, FleetTelemetrySample, PreflightChecklist,
-              MaintenanceRecord, BatteryCycle, Mission, Drone)
+              GeofenceRecord, EventOutbox, AuditEventExt, InstitutionalGateEvent,
+              EngineeringJob, EngineeringDocumentRecord, WorkflowRun,
+              PrototypeVersion, EngineeringSimulationRun,
+              InstitutionalCommandRequest, EngineeringArtifact, Report,
+              Simulation, LabSession, AuditEvent, AlertEvent,
+              FleetTelemetrySample, PreflightChecklist, MaintenanceRecord,
+              BatteryCycle, Mission, Drone)
     inspector = inspect(db.bind)
     for model in models:
         if not inspector.has_table(model.__table__.name):

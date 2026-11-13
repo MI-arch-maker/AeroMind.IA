@@ -96,6 +96,9 @@ const flowModes = ["3D Flow", "Pressure Map", "Velocity Map", "Streamlines", "Cr
 type FlowMode = typeof flowModes[number];
 const STORAGE_FALLBACK = "Stockage local indisponible dans ce navigateur.";
 const maxFileSize = 50 * 1024 * 1024;
+function unitToMeters(unit: string) {
+  return unit === "mm" ? 0.001 : unit === "cm" ? 0.01 : unit === "in" ? 0.0254 : 1;
+}
 
 function safeRead<T>(key: string, fallback: T): T {
   try {
@@ -653,7 +656,7 @@ export function AerodynamicSimulationCenter({ config, projectName, onNavigate }:
   const [flowTouched, setFlowTouched] = useState(false);
   const [meshBusy, setMeshBusy] = useState(false);
   const performance = useMemo(() => estimateAerodynamicPerformance(airframe, parameters), [airframe, parameters]);
-  const unitsToMeters = lengthUnit === "mm" ? 0.001 : lengthUnit === "cm" ? 0.01 : lengthUnit === "in" ? 0.0254 : 1;
+  const unitsToMeters = unitToMeters(lengthUnit);
   const density = calculateAirDensity(parameters.pressurePa, parameters.temperatureC);
   const currentScenarioName = activeScenario ? scenarios.find(item => item.id === activeScenario)?.name : undefined;
 
@@ -881,6 +884,28 @@ export function AerodynamicSimulationCenter({ config, projectName, onNavigate }:
     }
   };
   const clearAsset = () => { setAsset(null); setSelectedSurface(""); setMeshEstimate(null); setNotice("Référence géométrique locale retirée du viewport."); };
+  const changeLengthUnit = (nextUnit: string) => {
+    setLengthUnit(currentUnit => {
+      if (currentUnit === nextUnit) return currentUnit;
+      const ratio = unitToMeters(nextUnit) / unitToMeters(currentUnit);
+      setAsset(currentAsset => {
+        if (!currentAsset?.boundsM || currentAsset.status !== "decoded" || currentAsset.extension === "3MF") return currentAsset;
+        return {
+          ...currentAsset,
+          sourceUnits: `${nextUnit} (choix utilisateur)`,
+          boundsM: {
+            x: currentAsset.boundsM.x * ratio,
+            y: currentAsset.boundsM.y * ratio,
+            z: currentAsset.boundsM.z * ratio,
+          },
+        };
+      });
+      setMeshEstimate(null);
+      setLatestRun(null);
+      setNotice(`Unité source changée en ${nextUnit}. Dimensions et estimation de domaine recalculées à partir du maillage local.`);
+      return nextUnit;
+    });
+  };
   const setComparisonScenario = (scenario: LocalScenario) => loadScenario(scenario);
   const runCount = history.length;
   const currentFieldValues = [parameters.speedMps, parameters.temperatureC, parameters.pressurePa, parameters.massKg];
@@ -914,7 +939,7 @@ export function AerodynamicSimulationCenter({ config, projectName, onNavigate }:
         {section === "importer" && <>
           <div className="aero-section-heading"><div><p className="aero-eyebrow">3D MODEL IMPORTER / GEOMETRY</p><h2>Importer et inspecter une géométrie</h2><p>STL, OBJ et 3MF sont décodés localement; les fichiers STEP/CAD non supportés sont reçus sans prétendre analyser leur géométrie.</p></div><Badge kind="warn">50 Mo max · local navigateur</Badge></div>
           <div className="aero-import-grid"><article className="aero-panel aero-import-tools"><div className="aero-file-drop"><input aria-label="Choisir un fichier 3D" type="file" accept=".stl,.obj,.3mf,.step,.stp,.iges,.igs,.dxf" onChange={event => void importModel(event.target.files?.[0])} /><Box size={22} /><strong>Choisir un modèle 3D</strong><span>STL · OBJ · 3MF · STEP / CAD reçus sans parseur vérifié</span></div>
-              <div className="aero-field-stack"><label>Unité source déclarée<select value={lengthUnit} onChange={event => setLengthUnit(event.target.value)}><option value="mm">Millimètres (mm)</option><option value="cm">Centimètres (cm)</option><option value="m">Mètres (m)</option><option value="in">Pouces (in)</option></select><small>STL/OBJ n’encodent pas nécessairement les unités; vérification humaine requise.</small></label><label>Nom de modèle<input value={modelName} onChange={event => setModelName(event.target.value)} /></label><label>Version / révision<input value={modelVersion} onChange={event => setModelVersion(event.target.value)} /></label></div>
+              <div className="aero-field-stack"><label>Unité source déclarée<select value={lengthUnit} onChange={event => changeLengthUnit(event.target.value)}><option value="mm">Millimètres (mm)</option><option value="cm">Centimètres (cm)</option><option value="m">Mètres (m)</option><option value="in">Pouces (in)</option></select><small>STL/OBJ n’encodent pas nécessairement les unités; vérification humaine requise. Changer l’unité met aussi à jour les dimensions inspectées.</small></label><label>Nom de modèle<input value={modelName} onChange={event => setModelName(event.target.value)} /></label><label>Version / révision<input value={modelVersion} onChange={event => setModelVersion(event.target.value)} /></label></div>
               {asset && <div className="aero-asset-card"><div><strong>{asset.name}</strong><Badge kind={asset.status === "decoded" ? "ok" : "warn"}>{asset.status === "decoded" ? "DÉCODÉ" : "REÇU · NON DÉCODÉ"}</Badge></div><dl><dt>Format / taille</dt><dd>{asset.extension} · {(asset.bytes / 1024).toFixed(1)} Ko</dd><dt>Source SHA-256</dt><dd>{asset.sha256 ? `${asset.sha256.slice(0, 18)}…` : "non calculé"}</dd><dt>Unités</dt><dd>{asset.sourceUnits}</dd><dt>Sommets / triangles</dt><dd>{asset.vertices.toLocaleString("fr-FR")} / {asset.triangles.toLocaleString("fr-FR")}</dd><dt>Triangles dégénérés détectés</dt><dd className={asset.degenerateTriangles ? "is-warning" : ""}>{asset.degenerateTriangles}</dd><dt>Dimensions estimées</dt><dd>{asset.boundsM ? `${format(asset.boundsM.x, 3)} × ${format(asset.boundsM.y, 3)} × ${format(asset.boundsM.z, 3)} m` : "indisponibles"}</dd></dl><p>{asset.note}</p><button type="button" className="aero-danger-button" onClick={clearAsset}><Trash2 size={13} /> Retirer du viewport</button></div>}
             </article><article className="aero-panel aero-import-viewport"><div className="aero-panel-heading"><div><p className="aero-eyebrow">INSPECTION 3D</p><h3>Viewport interactif</h3></div><span className="aero-units-chip">{lengthUnit.toUpperCase()}</span></div><ModelViewport asset={asset} unitsToMeters={unitsToMeters} onSurface={setSelectedSurface} /><div className="aero-inspection-status"><span><i className={asset?.status === "decoded" ? "is-pass" : ""} />{asset?.status === "decoded" ? "Dimensions et triangles inspectés" : "Aucune géométrie inspectée"}</span><span>Surface : {selectedSurface || "aucune sélection"}</span><span>Fermeture, topologie et B-Rep : non vérifiés</span></div></article></div>
         </>}

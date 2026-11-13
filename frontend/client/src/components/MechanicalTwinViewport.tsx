@@ -431,6 +431,7 @@ export function MechanicalVectorView({
   previewPartId,
   previewEnabled,
   renderPreset,
+  autoRotate = false,
   readOnly = false,
   transformEnabled = false,
   onPartTransform,
@@ -448,6 +449,11 @@ export function MechanicalVectorView({
     partId?: string;
   } | null>(null);
   const [partDrag, setPartDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  useEffect(() => {
+    if (!autoRotate) return;
+    const timer = window.setInterval(() => setOrbit(current => [current[0] + 0.012, current[1]]), 32);
+    return () => window.clearInterval(timer);
+  }, [autoRotate]);
   useEffect(() => {
     setOrbit([0, 0]);
     setZoom(1);
@@ -669,6 +675,8 @@ export function MechanicalTwinViewport(props: Props) {
   const [snapEnabled, setSnapEnabled] = useState(props.snapEnabled ?? true);
   const [snapMode, setSnapMode] = useState<SnapMode>(props.snapMode ?? "component");
   const [snapIncrement, setSnapIncrement] = useState(props.snapIncrement ?? 0.01);
+  const [rotationActive, setRotationActive] = useState(autoRotate);
+  useEffect(() => { setRotationActive(autoRotate); }, [autoRotate]);
   useEffect(() => { if (props.snapEnabled !== undefined) setSnapEnabled(props.snapEnabled); }, [props.snapEnabled]);
   useEffect(() => { if (props.snapMode) setSnapMode(props.snapMode); }, [props.snapMode]);
   useEffect(() => { if (props.snapIncrement) setSnapIncrement(props.snapIncrement); }, [props.snapIncrement]);
@@ -740,7 +748,7 @@ export function MechanicalTwinViewport(props: Props) {
     props.onPartTransform?.(id, snapPartDelta(model, part, delta, { enabled: snapEnabled, mode: snapMode, increment: snapIncrement }));
   };
   const vector = (
-    <MechanicalVectorView key={`${resetKey}-${view}`} {...props} renderPreset={renderPreset} onSelect={handleSelect} transformEnabled={canTransform} onPartTransform={applyPartTransform} snapEnabled={snapEnabled} snapMode={snapMode} snapIncrement={snapIncrement} />
+    <MechanicalVectorView key={`${resetKey}-${view}`} {...props} autoRotate={rotationActive} renderPreset={renderPreset} onSelect={handleSelect} transformEnabled={canTransform} onPartTransform={applyPartTransform} snapEnabled={snapEnabled} snapMode={snapMode} snapIncrement={snapIncrement} />
   );
   const webgl = rendererWebgl;
   return (
@@ -755,7 +763,7 @@ export function MechanicalTwinViewport(props: Props) {
       onPointerUpCapture={releasePointerLock}
       onPointerCancelCapture={releasePointerLock}
       data-renderer={webgl ? "webgl" : "vector"}
-      data-auto-motion={autoRotate ? "true" : "false"}
+      data-auto-motion={rotationActive ? "true" : "false"}
       data-render-preset={renderPreset}
       data-render-engine={selectedEngine.id}
       data-render-mode={renderPlan.mode}
@@ -776,7 +784,7 @@ export function MechanicalTwinViewport(props: Props) {
           <Canvas
             key={renderPlan.projection}
             orthographic={renderPlan.projection === "orthographic"}
-            frameloop={kinematicsPlaying || autoRotate ? "always" : "demand"}
+            frameloop={kinematicsPlaying || rotationActive ? "always" : "demand"}
             dpr={[1, 1.5]}
             camera={{
               position: [
@@ -825,7 +833,8 @@ export function MechanicalTwinViewport(props: Props) {
             <OrbitControls
               makeDefault
               enabled={!transformDragging}
-              autoRotate={autoRotate}
+              autoRotate={rotationActive}
+              autoRotateSpeed={0.8}
               enableDamping
               enablePan
               minDistance={model.extent * 0.2}
@@ -851,6 +860,9 @@ export function MechanicalTwinViewport(props: Props) {
         <select value={snapIncrement} onChange={event => setSnapIncrement(Number(event.target.value))} aria-label="Pas de magnétisme">
           <option value="0.001">1 mm</option><option value="0.005">5 mm</option><option value="0.01">1 cm</option><option value="0.05">5 cm</option>
         </select>
+        <button type="button" className={rotationActive ? "is-active" : ""} aria-pressed={rotationActive} onClick={() => setRotationActive(value => !value)} aria-label="Faire tourner le drone sur lui-même">
+          {rotationActive ? "Arrêter la rotation" : "Rotation sur elle-même"}
+        </button>
         {renderPreset === "immersive" && <button type="button" onClick={async () => { try { if (!document.fullscreenElement) await root.current?.requestFullscreen(); else await document.exitFullscreen(); setImmersive(Boolean(document.fullscreenElement)); } catch { setImmersive(false); } }} aria-label="Basculer le viewport immersif plein écran">{immersive ? "Quitter le plein écran" : "Ouvrir en plein écran"}</button>}
       </div>
       {previewEnabled && previewPartId && <div className="mt-preview-tag"><span>FEATURE TREE PREVIEW</span><b>{previewPartId}</b></div>}
@@ -866,7 +878,7 @@ export function MechanicalTwinViewport(props: Props) {
         <span className={technicalContext.syncStatus === "ready" ? "is-ready" : technicalContext.syncStatus === "unsynced" || technicalContext.syncStatus === "partial" ? "is-warning" : "is-error"}>{technicalContext.statusLabel}</span>
       </div>
       {technicalContext.syncStatus !== "ready" && <div className="mt-technical-state" role="status"><strong>{technicalContext.statusLabel}</strong><span>{technicalContext.statusMessage}</span></div>}
-      {!webgl && <div className="mt-technical-state is-fallback" role="status"><strong>Projection vectorielle de secours</strong><span>Maillage actif conservé ; styles, éclairage, transparence et profondeur sont approximatifs. Pas de shaders, d’overlays d’analyse, d’animation cinématique ni de rotation automatique.</span></div>}
+      {!webgl && <div className="mt-technical-state is-fallback" role="status"><strong>Projection vectorielle de secours</strong><span>Maillage actif conservé ; styles, éclairage, transparence et profondeur sont approximatifs. La rotation sur elle-même reste disponible en animation vectorielle.</span></div>}
       <div className="mt-axis">
         <i>X</i>
         <i>Y</i>

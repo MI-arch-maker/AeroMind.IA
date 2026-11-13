@@ -73,7 +73,7 @@ export function EngineeringSyncStatus({
           </div>
         </div>
         <span className="sync-security">
-          <ShieldCheck size={13} /> N2 · sortie matérielle verrouillée
+          <ShieldCheck size={13} /> N2 · simulation · parcours LABBENCH N1→N4
         </span>
       </div>
       <div className="engineering-tree-wrap">

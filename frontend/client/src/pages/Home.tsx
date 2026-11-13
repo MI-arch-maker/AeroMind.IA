@@ -13788,12 +13788,17 @@ export default function Home() {
             }));
           }
         }
-        await serverProjectsQuery.refetch();
-      } catch {
+        // La mutation renvoie l'accusé de suppression canonique. Le
+        // rafraîchissement de la liste est utile pour les autres onglets,
+        // mais son éventuel échec ne doit pas transformer une suppression
+        // réussie en faux message « projet conservé ».
+        void serverProjectsQuery.refetch().catch(() => undefined);
+      } catch (error) {
         setAction("project", {
           status: "error",
-          message:
-            "Suppression non confirmée par le serveur. Le projet a été conservé.",
+          message: error instanceof Error && error.message
+            ? `Suppression non confirmée par le serveur : ${error.message}`
+            : "Suppression non confirmée par le serveur. Le projet a été conservé.",
         });
         return;
       }
@@ -13944,8 +13949,12 @@ export default function Home() {
         : "Simulation modulaire en cours…",
     });
     window.setTimeout(async () => {
+      const localRunId = nextLocalSimulationRunId(runId);
+      const simulationResult = {
+        ...runSimulation(simulationConfig, requirements, localRunId),
+        runId: localRunId,
+      };
       try {
-        const localRunId = nextLocalSimulationRunId(runId);
         setProject(previous => ({
           ...previous,
           lastUpdated: new Date().toLocaleString("fr-FR"),
@@ -13961,10 +13970,7 @@ export default function Home() {
             project,
             config: simulationConfig,
             requirements,
-            result: {
-              ...runSimulation(simulationConfig, requirements, localRunId),
-              runId: localRunId,
-            },
+            result: simulationResult,
             engineVersion: APP_VERSION,
           });
           setRunId(persisted.runId);
@@ -13984,11 +13990,46 @@ export default function Home() {
           });
         }
       } catch {
+        const retryPersistence = async () => {
+          setIsRunning(true);
+          setAction("simulation", {
+            status: "loading",
+            message: `Nouvelle tentative d’archivage du run ${localRunId}…`,
+          });
+          try {
+            const persisted = await createSimulationMutation.mutateAsync({
+              id: activeProjectId,
+              project,
+              config: simulationConfig,
+              requirements,
+              result: simulationResult,
+              engineVersion: APP_VERSION,
+            });
+            setRunId(persisted.runId);
+            void serverProjectsQuery.refetch();
+            void serverRunsQuery.refetch();
+            void serverVersionsQuery.refetch();
+            skipServerSave.current = true;
+            setAction("simulation", {
+              status: "success",
+              message: `Simulation ${persisted.runId} enregistrée · version ${persisted.version} · résultats du run conservés.`,
+            });
+          } catch {
+            setAction("simulation", {
+              status: "error",
+              message: `Archivage du run ${localRunId} toujours indisponible. Le calcul local est conservé; réessayez après vérification de la connexion.`,
+              retry: retryPersistence,
+            });
+          } finally {
+            setIsRunning(false);
+          }
+        };
+        setRunId(localRunId);
         setAction("simulation", {
           status: "error",
           message:
-            "Le run n’a pas pu être persisté. Les résultats locaux précédents sont conservés; vérifiez la connexion et réessayez.",
-          retry: runSimulationNow,
+            `Le run ${localRunId} est calculé localement mais n’a pas été persisté. Le résultat est conservé; vérifiez la connexion puis réessayez l’archivage.`,
+          retry: retryPersistence,
         });
       } finally {
         setIsRunning(false);
@@ -14774,7 +14815,7 @@ export default function Home() {
                 projectName={project.name}
                 activeDroneLabel={config.engineeringSelection?.droneLabel ?? activeDroneLabel}
                 workspaceConfig={config}
-                userIntegratedThisSession={true}
+                userIntegratedThisSession={cellIntegratedThisSession}
               />
             ) : (
               <WorkspaceWindow

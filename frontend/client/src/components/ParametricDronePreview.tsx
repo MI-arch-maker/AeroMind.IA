@@ -3,7 +3,8 @@ import type { ConceptConfig } from "../lib/aeroEngine";
 import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
 import { buildMechanicalModel, transformedPartVertices, type MechanicalModel, type Vec3 } from "../lib/mechanicalTwinGeometry";
 
-type Props = { design: DroneCatalogDesign; construction?: { parts: number; massKg: number }; zoom?: number };
+export type ParametricProjection = "vector" | "orthographic" | "perspective" | "wireframe" | "blueprint";
+type Props = { design: DroneCatalogDesign; construction?: { parts: number; massKg: number }; zoom?: number; projection?: ParametricProjection; showProjectionControls?: boolean };
 type Orbit = { yaw: number; pitch: number };
 type Face = { a: number; b: number; c: number; color: string; opacity: number };
 type PreparedPart = { vertices: number[]; faces: Face[] };
@@ -70,7 +71,7 @@ export function prepareMechanicalPreview(model: MechanicalModel): PreparedModel 
 }
 
 /** Projection orthographique autour de Y (lacet) et élévation, suivie d'un cadrage sans déformation. */
-export function projectMechanicalPreview(model: PreparedModel, orbit: Orbit): ProjectedPath[] {
+export function projectMechanicalPreview(model: PreparedModel, orbit: Orbit, projection: ParametricProjection = "vector"): ProjectedPath[] {
   const yaw = radians(orbit.yaw), pitch = radians(orbit.pitch);
   const sy = Math.sin(yaw), cy = Math.cos(yaw), sp = Math.sin(pitch), cp = Math.cos(pitch);
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -96,8 +97,9 @@ export function projectMechanicalPreview(model: PreparedModel, orbit: Orbit): Pr
   const scale = Math.min(264 / Math.max(maxX - minX, 0.001), 104 / Math.max(maxY - minY, 0.001));
   const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
   const buckets = Array.from({ length: DEPTH_BUCKETS }, () => new Map<string, ProjectedPath>());
-  const screenX = (x: number) => (160 + (x - midX) * scale).toFixed(1);
-  const screenY = (y: number) => (84 - (y - midY) * scale).toFixed(1);
+  const perspectiveFactor = (depth: number) => projection === "perspective" ? 1 + depth / Math.max(model.radius * 5, 0.001) : 1;
+  const screenX = (x: number, depth = 0) => (160 + (x - midX) * scale * perspectiveFactor(depth)).toFixed(1);
+  const screenY = (y: number, depth = 0) => (84 - (y - midY) * scale * perspectiveFactor(depth)).toFixed(1);
   model.parts.forEach((part, partIndex) => {
     const points = projected[partIndex];
     for (const face of part.faces) {
@@ -116,7 +118,8 @@ export function projectMechanicalPreview(model: PreparedModel, orbit: Orbit): Pr
         path = { d: "", color: face.color, opacity: face.opacity };
         buckets[bucket].set(key, path);
       }
-      path.d += `M${screenX(points[a])} ${screenY(points[a + 1])}L${screenX(points[second])} ${screenY(points[second + 1])}L${screenX(points[third])} ${screenY(points[third + 1])}Z`;
+      const wire = projection === "wireframe" || projection === "blueprint";
+      path.d += `M${screenX(points[a], depth)} ${screenY(points[a + 1], depth)}L${screenX(points[second], depth)} ${screenY(points[second + 1], depth)}L${screenX(points[third], depth)} ${screenY(points[third + 1], depth)}${wire ? "" : "Z"}`;
     }
   });
   // Tri par tranches de profondeur : moins de nœuds DOM pour les nombreuses fiches.
@@ -168,12 +171,13 @@ function canonicalEngineeringAssets(design: DroneCatalogDesign) {
 }
 
 /** Vue conceptuelle des faces effectivement retournées par buildMechanicalModel, sans contexte WebGL. */
-export function ParametricDronePreview({ design, construction, zoom = 1 }: Props) {
+export function ParametricDronePreview({ design, construction, zoom = 1, projection: controlledProjection, showProjectionControls = true }: Props) {
   const preview = React.useMemo(() => previewForDesign(design), [design, design.configuration]);
   const [orbit, setOrbit] = React.useState<Orbit>(INITIAL_ORBIT);
+  const [localProjection, setLocalProjection] = React.useState<ParametricProjection>("vector");
+  const projection = controlledProjection ?? localProjection;
   const drag = React.useRef<{ pointerId: number; x: number; y: number; orbit: Orbit } | null>(null);
-  const paths = React.useMemo(() => orbit.yaw === INITIAL_ORBIT.yaw && orbit.pitch === INITIAL_ORBIT.pitch
-    ? preview.initial : projectMechanicalPreview(preview.prepared, orbit), [preview, orbit]);
+  const paths = React.useMemo(() => projectMechanicalPreview(preview.prepared, orbit, projection), [preview, orbit, projection]);
   const visualZoom = clamp(Number.isFinite(zoom) ? zoom : 1, 0.7, 1.8);
   const type = preview.model.modelType;
   const span = preview.model.span;
@@ -188,7 +192,7 @@ export function ParametricDronePreview({ design, construction, zoom = 1 }: Props
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
-  return <div className="physical-drone-preview legacy-url-drone-image" style={{ touchAction: "none", cursor: "grab", position: "relative" }}
+  return <div className={`physical-drone-preview legacy-url-drone-image parametric-preview-shell is-${projection}`} style={{ touchAction: "none", cursor: "grab", position: "relative" }}
     onPointerDown={event => {
       if (event.button !== 0 || drag.current) return;
       event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -200,8 +204,11 @@ export function ParametricDronePreview({ design, construction, zoom = 1 }: Props
     }}
     onPointerUp={stopDrag} onPointerCancel={stopDrag}
     onLostPointerCapture={() => { drag.current = null; }}>
+    {showProjectionControls && !controlledProjection && <nav className="parametric-projection-toolbar" aria-label="Projections de l’aperçu paramétrique">
+      {(["vector", "orthographic", "perspective", "wireframe", "blueprint"] as ParametricProjection[]).map(option => <button key={option} type="button" className={projection === option ? "is-active" : ""} aria-pressed={projection === option} onClick={() => setLocalProjection(option)}>{option === "vector" ? "Vectoriel" : option === "orthographic" ? "Ortho" : option === "perspective" ? "Perspective" : option === "wireframe" ? "Filaire" : "Blueprint"}</button>)}
+    </nav>}
     <svg className="parametric-drone-preview" style={{ transform: `scale(calc(${visualZoom} * var(--workspace-drone-scale, 1)))`, touchAction: "none" }} viewBox="0 0 320 174" role="img" tabIndex={0}
-      aria-label={`${design.label}, ${provenance.toLowerCase()}, ${type}, envergure ${span.toFixed(1)} mètres, ${motors} moteur(s). Glisser pour orbiter ; flèches gauche/droite et haut/bas, Home réinitialise.`}
+      aria-label={`${design.label}, ${provenance.toLowerCase()}, ${type}, projection ${projection}, envergure ${span.toFixed(1)} mètres, ${motors} moteur(s). Glisser pour orbiter ; flèches gauche/droite et haut/bas, Home réinitialise.`}
       onKeyDown={event => {
         const next = previewOrbitFromKey(orbit, event.key);
         if (next) { event.preventDefault(); setOrbit(next); }
@@ -211,7 +218,7 @@ export function ParametricDronePreview({ design, construction, zoom = 1 }: Props
       <rect width="320" height="174" fill={`url(#${grid})`} opacity=".45" />
       <path d="M160 27V142M30 84H290" className="legacy-svg-axis" />
       <g className="legacy-svg-body" data-preview-faces={preview.prepared.faceCount}>
-        {paths.map((path, index) => <path key={index} d={path.d} fill={path.color} fillOpacity={path.opacity} />)}
+        {paths.map((path, index) => <path key={index} d={path.d} fill={projection === "wireframe" || projection === "blueprint" ? "none" : path.color} fillOpacity={path.opacity} stroke={projection === "blueprint" ? "#8fe8ff" : projection === "wireframe" ? "#78d8d4" : "none"} strokeWidth={projection === "blueprint" ? 0.65 : 0.5} />)}
       </g>
       {paths.length === 0 && <text x="160" y="84" textAnchor="middle" className="legacy-svg-spec">MAQUETTE INDISPONIBLE</text>}
       <path d="M54 145H266M54 141V149M266 141V149" className="legacy-svg-dimension" />

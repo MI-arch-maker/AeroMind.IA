@@ -314,6 +314,7 @@ export default function LabBench({
   const pendingCommand = useRef<string | null>(null);
   const projectEpoch = useRef(0);
   const simulationEpoch = useRef<number | null>(null);
+  const registrySeedAttemptedFor = useRef<string | null>(null);
   const materialsRef = useRef<{ refresh: () => void } | null>(null);
   const [connectionChecked, setConnectionChecked] = useState(false);
   const [audit, setAudit] = useState(initialAudit);
@@ -446,9 +447,10 @@ export default function LabBench({
   const integratedLocalDataReady = integratedSurface && hasUserIntegratedData;
   // Integrated LabBench reads the exact Home workspace, and remains empty until
   // a catalogue selection or genuine user-authored drawing is present.
-  const serverDataReady = integratedSurface
-    ? integratedLocalDataReady
-    : Boolean(meQuery.data && remoteProjectId && projectsQuery.isSuccess && !projectsQuery.isError);
+  const serverDataReady = Boolean(
+    (integratedLocalDataReady && !remoteProjectId) ||
+    (meQuery.data && remoteProjectId && projectsQuery.isSuccess && !projectsQuery.isError),
+  );
   const registryQuery = trpc.labBench.registry.useQuery(
     remoteProjectId ?? "0",
     { enabled: Boolean(remoteProjectId), retry: false },
@@ -520,6 +522,7 @@ export default function LabBench({
     setServerGateState(initialLocalGateState);
     setLabSessionInfo(null);
     setActiveDroneSync(null);
+    registrySeedAttemptedFor.current = null;
     projectEpoch.current += 1;
     simulationEpoch.current = null;
   }, [selectedProjectId]);
@@ -540,19 +543,27 @@ export default function LabBench({
           return;
         }
         setLabSessionInfo(restored);
-        const active = await fetchActiveDrone(remoteProjectId);
-        if (cancelled) return;
-        const mismatch = Boolean(workspaceDroneId && active.active_drone?.drone_id !== workspaceDroneId);
-        setActiveDroneSync(active.active_drone ? {
-          drone_id: active.active_drone.drone_id,
-          drone_name: active.active_drone.drone_name,
-          revision: active.active_revision?.checksum ?? undefined,
-          last_sync_at: active.last_sync_at,
-          mismatch,
-        } : { last_sync_at: active.last_sync_at, mismatch });
-        setLabActivationError(mismatch ? "Le drone sélectionné dans l’espace de travail ne correspond pas à la référence serveur LabBench. Une synchronisation avec un rôle Concepteur est nécessaire." : null);
+        try {
+          const active = await fetchActiveDrone(remoteProjectId);
+          if (cancelled) return;
+          const mismatch = Boolean(workspaceDroneId && active.active_drone?.drone_id !== workspaceDroneId);
+          setActiveDroneSync(active.active_drone ? {
+            drone_id: active.active_drone.drone_id,
+            drone_name: active.active_drone.drone_name,
+            revision: active.active_revision?.checksum ?? undefined,
+            last_sync_at: active.last_sync_at,
+            mismatch,
+          } : { last_sync_at: active.last_sync_at, mismatch });
+          setLabActivationError(mismatch ? "Le drone sélectionné dans l’espace de travail ne correspond pas à la référence serveur LabBench. Une synchronisation avec un rôle Concepteur est nécessaire." : null);
+        } catch {
+          // La synchronisation de cellule est indépendante de la session LABBENCH du projet.
+          if (!cancelled) setActiveDroneSync(null);
+        }
       } catch {
-        if (!cancelled) setLabSessionInfo(null);
+        if (!cancelled) {
+          setLabSessionInfo(null);
+          setActiveDroneSync(null);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -714,10 +725,39 @@ export default function LabBench({
   });
   const persistSimulationMutation = trpc.labBench.persistSimulation.useMutation({
     onSuccess: () => {
+      void registryQuery.refetch();
       void gateStateQuery.refetch();
       void remoteAuditQuery.refetch();
     },
   });
+  const seedRegistryMutation = trpc.labBench.seedRegistry.useMutation({
+    onSuccess: () => {
+      void registryQuery.refetch();
+      void gateStateQuery.refetch();
+      void remoteAuditQuery.refetch();
+      toast.success("Gate N1 initialisée", {
+        description: "Le registre persistant du projet est prêt; les autres gates gardent leurs prérequis habituels.",
+      });
+    },
+    onError: (error: any) => {
+      toast.error("Initialisation de N1 impossible", {
+        description: error?.message ?? "Le serveur AeroMind a refusé l’initialisation du registre.",
+      });
+    },
+  });
+  useEffect(() => {
+    if (
+      !remoteProjectId ||
+      !labSessionInfo ||
+      labSessionInfo.project_id !== remoteProjectId ||
+      !registryQuery.isSuccess ||
+      seedRegistryMutation.isPending
+    ) return;
+    const currentRegistry = registryQuery.data as { registryId?: string | null } | null | undefined;
+    if (currentRegistry?.registryId || registrySeedAttemptedFor.current === remoteProjectId) return;
+    registrySeedAttemptedFor.current = remoteProjectId;
+    seedRegistryMutation.mutate({ projectId: remoteProjectId });
+  }, [remoteProjectId, labSessionInfo, registryQuery.data, registryQuery.isSuccess, seedRegistryMutation.isPending]);
   const hardwareChecklistMutation = trpc.labBench.completeHardwareChecklist.useMutation({
     onSuccess: (data: any) => {
       toast.success("Checklist hardware simulée enregistrée", {

@@ -35,6 +35,21 @@ function coordinates(path: string): number[] {
 }
 
 describe("ParametricDronePreview · maillage et projection", () => {
+  it("conserve le vectoriel et expose des projections additives sur le même maillage", () => {
+    const profile = design();
+    const prepared = prepareMechanicalPreview(buildMechanicalModel(profile, profile.configuration as ConceptConfig));
+    const vector = projectMechanicalPreview(prepared, { yaw: 35, pitch: 32 }, "vector");
+    const orthographic = projectMechanicalPreview(prepared, { yaw: 35, pitch: 32 }, "orthographic");
+    const perspective = projectMechanicalPreview(prepared, { yaw: 35, pitch: 32 }, "perspective");
+    const wireframe = projectMechanicalPreview(prepared, { yaw: 35, pitch: 32 }, "wireframe");
+    const blueprint = projectMechanicalPreview(prepared, { yaw: 35, pitch: 32 }, "blueprint");
+    expect(vector).toHaveLength(orthographic.length);
+    expect(perspective).toHaveLength(vector.length);
+    expect(wireframe.every(path => !path.d.endsWith("Z"))).toBe(true);
+    expect(blueprint.every(path => !path.d.endsWith("Z"))).toBe(true);
+    expect(perspective.map(path => path.d)).not.toEqual(vector.map(path => path.d));
+  });
+
   it("utilise les faces réelles du constructeur pour le modèle et les dimensions sélectionnés", () => {
     const fixed = design();
     const quad = design({ id: "quad", key: "quadcopter", modelType: "multirotor", configuration: { wingspan: 1.4, chord: 0.3, fuselageLength: 0.7, motorCount: 4 } });

@@ -1,9 +1,33 @@
 {
   "routes": [
     {"path":"/","title":"AeroMind — Vue d’ensemble"},
+    {"path":"/?view=control-center","title":"AeroMind — Global Mission Control"},
+    {"path":"/?view=fleet-maintenance","title":"AeroMind — Fleet & Maintenance Center"},
+    {"path":"/?view=overview","title":"AeroMind — Vue d’ensemble"},
     {"path":"/?view=engineering-hub","title":"Centre d’ingénierie"},
-    {"path":"/?view=labbench","title":"Laboratoire EASA — LabBench"},
+    {"path":"/?view=intelligence-center","title":"Centre Intelligence IA"},
+    {"path":"/?view=requirements","title":"Exigences système"},
+    {"path":"/?view=concept","title":"Étude conceptuelle"},
+    {"path":"/?view=tools","title":"Jumeau numérique — alias historique outils"},
+    {"path":"/?view=inspector","title":"Jumeau numérique — alias historique inspection"},
+    {"path":"/?view=digital-twin","title":"Explorateur de jumeau numérique"},
+    {"path":"/?view=catalog","title":"Catalogue"},
+    {"path":"/?view=satellite-nav","title":"Navigation satellitaire"},
     {"path":"/?view=simulation","title":"Simulation"},
+    {"path":"/?view=mission-planner","title":"Planificateur de mission"},
+    {"path":"/?view=labbench","title":"Laboratoire EASA — LabBench"},
+    {"path":"/?view=live","title":"Télémétrie en direct"},
+    {"path":"/?view=mission-center","title":"Poste de commande de vol"},
+    {"path":"/?view=command-center","title":"Poste de commande — alias historique"},
+    {"path":"/?view=report","title":"Rapports"},
+    {"path":"/?view=copilot","title":"Copilote"},
+    {"path":"/?view=operations","title":"Opérations"},
+    {"path":"/?view=materials","title":"Matériaux et composants"},
+    {"path":"/?view=aero-center","title":"Centre aéronautique"},
+    {"path":"/?view=aero-cfd","title":"AeroMind — Centre aérodynamique CFD"},
+    {"path":"/?view=design-studio","title":"Studio de conception"},
+    {"path":"/?view=parametric-center","title":"Centre Parametric"},
+    {"path":"/?view=mechanical-center","title":"Centre Mécanique"},
     {"path":"/gate-certification.html","title":"AeroMind — Certification GATE 01 à GATE 05"},
     {"path":"/virtual-factory","title":"AeroMind — Virtual Parametric 3D Printing Factory"},
     {"path":"/build-readiness","title":"AeroMind — Préparation contrôlée à la fabrication"},
@@ -12,6 +36,7 @@
     {"path":"/admin","title":"AeroMind — Administration"},
     {"path":"/admin-console","title":"AeroMind — Console Administrateur"},
     {"path":"/super-admin","title":"AeroMind — Super-Admin"},
-    {"path":"/audit-journal","title":"AeroMind — Journal d’audit"}
+    {"path":"/audit-journal","title":"AeroMind — Journal d’audit"},
+    {"path":"/security-center","title":"AeroMind — Centre de protection"}
   ]
 }

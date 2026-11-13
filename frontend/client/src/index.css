@@ -8992,6 +8992,44 @@ button:disabled {
 .parametric-drone-preview text {
   user-select: none;
 }
+.parametric-preview-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 174px;
+}
+.parametric-projection-toolbar {
+  position: absolute;
+  z-index: 4;
+  top: 7px;
+  left: 7px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: calc(100% - 14px);
+}
+.parametric-projection-toolbar button {
+  border: 1px solid rgba(117, 226, 220, 0.32);
+  border-radius: 3px;
+  padding: 3px 6px;
+  color: #a7d8d5;
+  background: rgba(5, 20, 27, 0.86);
+  font: 700 8px/1.1 ui-monospace, monospace;
+  cursor: pointer;
+}
+.parametric-projection-toolbar button:hover,
+.parametric-projection-toolbar button.is-active {
+  color: #071a21;
+  background: #75e2dc;
+  border-color: #75e2dc;
+}
+.parametric-preview-shell.is-blueprint {
+  background: linear-gradient(rgba(99, 197, 222, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(99, 197, 222, 0.08) 1px, transparent 1px), #07304b;
+  background-size: 18px 18px;
+}
+.parametric-preview-shell.is-wireframe .legacy-svg-body path {
+  vector-effect: non-scaling-stroke;
+}
 .catalog-visual:has(.parametric-drone-preview) {
   background:
     radial-gradient(

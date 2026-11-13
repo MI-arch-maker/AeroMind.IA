@@ -44,11 +44,16 @@ export function hasSessionIntegratedDrone(config: unknown, integratedThisSession
   return integratedThisSession && hasUserIntegratedDrone(config);
 }
 
-/** No project-scoped LabBench queries run before an integrated session is ready. */
+/**
+ * Project identity and cell integration are separate concerns: an authenticated
+ * AeroMind project can progress through the software/emulator gates before a
+ * catalogue cell is integrated. Cell integration remains relevant to drone
+ * operations, but must not hide the N1-to-N4 project workflow or its TOTP form.
+ */
 export function labBenchDataProjectId(
   selectedProjectId: string | null,
-  integratedSurface: boolean,
-  integratedThisSession: boolean,
+  _integratedSurface: boolean,
+  _integratedThisSession: boolean,
 ): string | null {
-  return integratedSurface && !integratedThisSession ? null : selectedProjectId;
+  return selectedProjectId;
 }

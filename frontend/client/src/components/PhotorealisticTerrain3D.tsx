@@ -9,8 +9,9 @@
  */
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Instances, Instance } from "@react-three/drei";
-import { Component, useMemo, useRef, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
+import { canCreateWebGL2Context, reserveWebGLCanvas } from "./PhysicalDroneModel";
 
 export type Environment3D =
   | "forest" | "urban" | "flatland" | "mountain"
@@ -510,7 +511,7 @@ function Scene({ environment, dronePosition }: { environment: Environment3D; dro
   );
 }
 
-class WebGLTerrainBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+class WebGLTerrainBoundary extends Component<{ fallback: ReactNode; onFailure: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -519,6 +520,7 @@ class WebGLTerrainBoundary extends Component<{ fallback: ReactNode; children: Re
 
   componentDidCatch(error: Error) {
     console.warn("AeroMind terrain 3D indisponible, rendu de secours activé.", error.message);
+    this.props.onFailure();
   }
 
   render() {
@@ -542,19 +544,55 @@ function TerrainFallback({ environment }: { environment: Environment3D }) {
 
 export function PhotorealisticTerrain3D({ environment, dronePosition, className }: Props) {
   const fallback = <TerrainFallback environment={environment} />;
+  const root = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [hasSlot, setHasSlot] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const slotRelease = useRef<(() => void) | null>(null);
+  const supported = canCreateWebGL2Context();
+  useEffect(() => {
+    const node = root.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: "160px", threshold: 0.01 });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!supported || !visible || failed) return;
+    const cancel = reserveWebGLCanvas(release => {
+      slotRelease.current = release;
+      setHasSlot(true);
+    });
+    return () => {
+      cancel();
+      slotRelease.current = null;
+      setHasSlot(false);
+    };
+  }, [supported, visible, failed]);
+  const releaseSlot = () => {
+    slotRelease.current?.();
+    slotRelease.current = null;
+    setHasSlot(false);
+  };
   return (
-    <div className={className} style={{ width: "100%", height: "100%", minHeight: "400px", background: "#000" }}>
-      <WebGLTerrainBoundary fallback={fallback}>
-        <Canvas
-          shadows
-          dpr={[1, 2]}
-          camera={{ position: [50, 40, 80], fov: 45, near: 0.1, far: 1000 }}
-          gl={{ antialias: true, alpha: false }}
-          style={{ width: "100%", height: "100%", display: "block" }}
-        >
-          <Scene environment={environment} dronePosition={dronePosition} />
-        </Canvas>
-      </WebGLTerrainBoundary>
+    <div ref={root} className={className} style={{ width: "100%", height: "100%", minHeight: "400px", background: "#000" }}>
+      {!supported || failed ? fallback : hasSlot ? (
+        <WebGLTerrainBoundary fallback={fallback} onFailure={releaseSlot}>
+          <Canvas
+            shadows
+            dpr={[1, 2]}
+            camera={{ position: [50, 40, 80], fov: 45, near: 0.1, far: 1000 }}
+            gl={{ antialias: true, alpha: false }}
+            style={{ width: "100%", height: "100%", display: "block" }}
+          >
+            <Scene environment={environment} dronePosition={dronePosition} />
+          </Canvas>
+        </WebGLTerrainBoundary>
+      ) : <div role="status" aria-label="Viewport 3D en attente du créneau graphique">En attente du créneau WebGL2…</div>}
     </div>
   );
 }

@@ -24,35 +24,18 @@ type PhysicalDroneModelProps = {
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 // Keep a conservative budget: embedded previews and browsers commonly expose
 // only a small number of reliable simultaneous WebGL contexts.
-const MAX_ACTIVE_WEBGL_CANVASES = 2;
+const MAX_ACTIVE_WEBGL_CANVASES = 1;
 let activeWebGLCanvases = 0;
 let webGLWaitQueue: Array<() => void> = [];
-let webGL2Support: boolean | null = null;
 
 /**
- * Probe WebGL 2 once, then explicitly release the temporary context.
- * Three.js r163+ removed its WebGL 1 renderer, so unsupported WebGL 2 must use
- * the DOM/CSS fallback below rather than attempting an ineffective WebGL 1 retry.
+ * Check browser capability without creating a throwaway GPU context. Actual
+ * renderers acquire WebGL2 only after receiving the shared canvas slot; a
+ * probe followed immediately by context loss could exhaust the browser's
+ * small context budget before the real viewport mounted.
  */
 export function canCreateWebGL2Context(): boolean {
-  if (typeof window === "undefined" || typeof document === "undefined" || !window.WebGL2RenderingContext) return false;
-  if (webGL2Support !== null) return webGL2Support;
-  let context: WebGL2RenderingContext | null = null;
-  try {
-    const canvas = document.createElement("canvas");
-    context = canvas.getContext("webgl2", {
-      alpha: true,
-      antialias: false,
-      powerPreference: "low-power",
-      failIfMajorPerformanceCaveat: false,
-    });
-    webGL2Support = context !== null;
-  } catch {
-    webGL2Support = false;
-  } finally {
-    context?.getExtension("WEBGL_lose_context")?.loseContext();
-  }
-  return webGL2Support;
+  return typeof window !== "undefined" && typeof window.WebGL2RenderingContext !== "undefined";
 }
 
 export type SlotRelease = () => void;
