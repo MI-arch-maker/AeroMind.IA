@@ -36,6 +36,7 @@ from web.session_store import (
 )
 from web.labbench_auth import (
     StepUpSession, issue_step_up_session, revoke_step_up_session,
+    STEP_UP_DEFAULT_TTL, STEP_UP_MAX_TTL,
     verify_csrf_double_submit, CSRF_COOKIE_NAME, CSRF_HEADER_NAME,
     SESSION_COOKIE_NAME,
 )
@@ -142,6 +143,11 @@ def test_labbench_client_role_request_can_only_downgrade_server_roles():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+def test_labbench_daily_session_window_is_24_hours():
+    """A successful LabBench step-up remains valid for one daily session window."""
+    assert STEP_UP_DEFAULT_TTL == timedelta(hours=24)
+    assert STEP_UP_MAX_TTL == timedelta(hours=24)
+
 # R-04 — Session persisted/revoked/expired multi-worker
 # ─────────────────────────────────────────────────────────────────────────────
 

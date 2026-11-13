@@ -46,6 +46,7 @@ import {
   type Vec3,
 } from "../lib/mechanicalTwinGeometry";
 import type { AppLanguage } from "../lib/language";
+import { buildIddsAssetModel, iddsCatalogAsset, parseIddsCatalogObj } from "../lib/iddsModelSource";
 import {
   MechanicalTwinViewport,
   type MechanicalRender,
@@ -389,6 +390,31 @@ export function IDDSTwinAssemblyEditor({
   const [referenceOpacity, setReferenceOpacity] = useState(0.28);
   const [referenceScale, setReferenceScale] = useState(72);
   const [referenceRotation, setReferenceRotation] = useState(0);
+  const asset = iddsCatalogAsset(design);
+  const assetKey = asset ? `${design.id}:${asset.url}` : "";
+  const [assetState, setAssetState] = useState<{ key: string; parts?: ReturnType<typeof parseIddsCatalogObj>; error?: string }>({ key: "" });
+
+  useEffect(() => {
+    if (!assetKey || !asset) return;
+    const controller = new AbortController();
+    setAssetState({ key: assetKey });
+    fetch(asset.url, { signal: controller.signal })
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+      })
+      .then(text => parseIddsCatalogObj(text))
+      .then(parts => { if (!controller.signal.aborted) setAssetState({ key: assetKey, parts }); })
+      .catch(error => { if (!controller.signal.aborted) setAssetState({ key: assetKey, error: error instanceof Error ? error.message : String(error) }); });
+    return () => controller.abort();
+  }, [assetKey]);
+
+  useEffect(() => {
+    setSelected("");
+    setUndoStack([]);
+    setRedoStack([]);
+    setStatus("");
+  }, [design.id]);
 
   useEffect(() => {
     currentConfig.current = config;
@@ -408,13 +434,17 @@ export function IDDSTwinAssemblyEditor({
       ? config.mechanicalTwin
       : config.mechanicalTwins?.[design.id];
   const effectiveConfig = useMemo(
-    () => ({ ...config, mechanicalTwin: activeSettings }),
-    [config, activeSettings],
+    () => ({ ...config, mechanicalTwin: activeSettings, mechanicalTwins: activeSettings ? { ...config.mechanicalTwins, [design.id]: activeSettings } : config.mechanicalTwins }),
+    [config, activeSettings, design.id],
   );
-  const model = useMemo(
-    () => buildMechanicalModel(design, effectiveConfig),
-    [design, effectiveConfig],
-  );
+  const model = useMemo(() => {
+    const base = buildMechanicalModel(design, effectiveConfig);
+    return asset
+      ? buildIddsAssetModel(base, assetState.key === assetKey ? assetState.parts ?? [] : [], asset.design, effectiveConfig)
+      : base;
+  }, [design, effectiveConfig, assetKey, assetState]);
+  const assetReady = !asset || (assetState.key === assetKey && Boolean(assetState.parts));
+  const assetError = asset && assetState.key === assetKey ? assetState.error : undefined;
   const visibleModel = useMemo(
     () => ({
       ...model,
@@ -836,7 +866,7 @@ export function IDDSTwinAssemblyEditor({
           <p>{t.subtitle}</p>
         </div>
         <div className="idds-ma-header-actions">
-          <span className="idds-ma-concept-badge">{t.conceptual}</span>
+          <span className="idds-ma-concept-badge">{asset ? (language === "en" ? "OBJ RECONSTRUCTION FROM 2D · NOT CERTIFIED" : "OBJ RECONSTRUIT DEPUIS LA 2D · NON CERTIFIÉ") : (language === "en" ? "GENERIC PARAMETRIC PROXY · NOT FAITHFUL" : "MAQUETTE PARAMÉTRIQUE GÉNÉRIQUE · NON FIDÈLE")}</span>
           <button type="button" onClick={onOpenCatalog}>
             {t.change}
           </button>
@@ -978,11 +1008,11 @@ export function IDDSTwinAssemblyEditor({
         <div className="idds-ma-ribbon-group">
           <small>{t.export}</small>
           <div>
-            <button type="button" onClick={() => exportModel("obj")}>
+            <button type="button" disabled={!assetReady} onClick={() => exportModel("obj")}>
               <Download size={15} />
               <span>{t.obj}</span>
             </button>
-            <button type="button" onClick={() => exportModel("stl")}>
+            <button type="button" disabled={!assetReady} onClick={() => exportModel("stl")}>
               <Download size={15} />
               <span>{t.stl}</span>
             </button>
@@ -1259,8 +1289,26 @@ export function IDDSTwinAssemblyEditor({
               xrayCut={xrayCut}
               xrayOpacity={xrayOpacity}
               xrayIsolatedLayer={isolatedLayer || undefined}
-              kinematicsPlaying={kinematicsPlaying}
+              kinematicsPlaying={!asset && renderMode === "kinematics" && kinematicsPlaying}
+              technicalContext={{ droneId: design.id, modelId: design.id, source: "catalog", centreContext: "IDDS", modelVersion: asset ? "obj-reconstruction-2d" : "parametrique-conceptuel" }}
+              transformEnabled={toolMode === "move" && !isLocked}
+              snapEnabled={snapEnabled}
+              snapIncrement={snapStep}
+              onPartTransform={(id, delta) => {
+                const layer = config.studioLayerAssignments?.[id];
+                if (layer && config.studioLayerSettings?.[layer]?.locked) {
+                  setStatus(t.statusLocked);
+                  return;
+                }
+                updateSettings(settings => {
+                  const previous = settings.edits?.[id] ?? {};
+                  const offset = previous.offset ?? [0, 0, 0];
+                  return { ...settings, edits: { ...settings.edits, [id]: { ...previous, offset: offset.map((value, axis) => value + delta[axis]) as Vec3 } } };
+                });
+                setStatus(t.statusTransform);
+              }}
             />
+            {!assetReady && <div role="status" className="idds-ma-measure-panel">{assetError ? (language === "en" ? `Source OBJ unavailable: ${assetError}. No substitute is displayed.` : `OBJ source indisponible : ${assetError}. Aucun modèle de remplacement affiché.`) : (language === "en" ? "Loading the selected OBJ reconstruction…" : "Chargement de la reconstruction OBJ sélectionnée…")}</div>}
             {referenceUrl && referenceVisible && (
               <div
                 className="idds-ma-image-overlay"
@@ -1423,6 +1471,7 @@ export function IDDSTwinAssemblyEditor({
                   </output>
                   <input
                     type="range"
+                    disabled={Boolean(asset) && key !== "wingspan" && key !== "fuselageLength"}
                     min={key === "motorCount" ? 1 : 0.05}
                     max={
                       key === "wingspan"
@@ -1651,6 +1700,7 @@ export function IDDSTwinAssemblyEditor({
                     min={key === "motorCount" ? 1 : 0.05}
                     max={key === "motorCount" ? 12 : 30}
                     step={key === "motorCount" ? 1 : 0.01}
+                    disabled={Boolean(asset) && key !== "wingspan" && key !== "fuselageLength"}
                     value={dimensions[key]}
                     onChange={(event) =>
                       updateGlobal(key, Number(event.target.value))
@@ -1658,8 +1708,10 @@ export function IDDSTwinAssemblyEditor({
                   />
                 </label>
               ))}
+              {asset && <p className="idds-ma-empty">{language === "en" ? "OBJ: span and length scale the entire reconstruction. Chord, propellers, motor count and structural parameters cannot rebuild this mesh; edit individual parts instead." : "OBJ : l’envergure et la longueur mettent à l’échelle toute la reconstruction. Corde, hélices, nombre de moteurs et paramètres structurels ne reconstruisent pas ce maillage ; modifiez plutôt les pièces individuellement."}</p>}
               <details className="idds-ma-advanced" open>
                 <summary>{t.advanced}</summary>
+                <fieldset disabled={Boolean(asset)}>
                 {(
                   [
                     "fuselageWidth",
@@ -1717,6 +1769,7 @@ export function IDDSTwinAssemblyEditor({
                     }
                   />
                 </label>
+                </fieldset>
               </details>
               <div className="idds-ma-measure-readout">
                 <strong>{t.measureSummary}</strong>

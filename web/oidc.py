@@ -324,9 +324,9 @@ async def callback(
     response = RedirectResponse(return_to if admin_console else f"{return_to}#aeromind_session={quote(session, safe='')}")
     response.delete_cookie('aeromind_oidc_state', path='/')
     if admin_console:
-        response.set_cookie('aeromind_admin_session', session, max_age=28800, httponly=True,
+        response.set_cookie('aeromind_admin_session', session, max_age=86400, httponly=True,
                             secure=_cookie_security(request)['secure'],
                             samesite=_cookie_security(request)['samesite'], path='/api/admin-console')
     else:
-        response.set_cookie('aeromind_session', session, max_age=28800, **_cookie_security(request))
+        response.set_cookie('aeromind_session', session, max_age=86400, **_cookie_security(request))
     return response

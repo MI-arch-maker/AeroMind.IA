@@ -1,0 +1,25 @@
+.strata-app .strata-view { min-width: 0; }
+.strata-app .strata-twin .mt-viewport { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: radial-gradient(ellipse at 50% 42%, #1a3942 0%, #0c202b 55%, #06131d 100%); }
+.strata-app .strata-twin .mt-viewport > div:not([class]),
+.strata-app .strata-twin .mt-viewport > div[style] { position: absolute !important; inset: 0; }
+.strata-app .strata-twin .mt-viewport-grid { position: absolute; inset: 0; pointer-events: none; opacity: .28; background-image: linear-gradient(#68818c44 1px, transparent 1px), linear-gradient(90deg, #68818c44 1px, transparent 1px); background-size: 36px 36px; mask-image: radial-gradient(ellipse at center, #000, transparent 75%); }
+.strata-app .strata-twin .mt-vector-view { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.strata-app .strata-twin .mt-vector-view polygon { cursor: pointer; }
+.strata-app .strata-twin .mt-scene-tag { position: absolute; top: 28px; left: 12px; display: grid; gap: 3px; color: #b8dadd; font: 9px ui-monospace, monospace; pointer-events: none; }
+.strata-app .strata-twin .mt-scene-tag span { color: #8ba8ac; }
+.strata-app .strata-twin .mt-axis { position: absolute; top: 12px; right: 12px; display: flex; gap: 5px; color: #b9dadd; font: 9px ui-monospace, monospace; pointer-events: none; }
+.strata-app .strata-twin .mt-axis i { padding: 3px 5px; border: 1px solid #536972; border-radius: 3px; font-style: normal; }
+.strata-app .strata-twin .mt-dimension { position: absolute; left: 12px; right: 12px; bottom: 18px; display: flex; justify-content: space-between; color: #9dbdbf; font: 8px ui-monospace, monospace; pointer-events: none; }
+/* Les presets alternatifs du viewport remplacent la couleur ou le matériau du studio. */
+.strata-app .strata-twin .mt-render-presets,
+.strata-app .strata-twin .mt-viewport-note { display: none; }
+.strata-app .strata-twin .mt-technical-meta { bottom: 42px; }
+.strata-app .strata-twin .mt-technical-state { bottom: 12px; }
+.strata-app .strata-empty { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 12px; padding: 28px; text-align: center; color: #a8cbce; background: radial-gradient(ellipse at center, #102f39, #06131d 70%); }
+.strata-app .strata-empty strong { color: #dffafb; font: 700 12px ui-monospace, monospace; letter-spacing: .1em; }
+.strata-app .strata-empty span { max-width: 420px; line-height: 1.55; }
+.strata-app .strata-view-help, .strata-app .strata-selected-part { color: #91b7bb; font-size: 10px; line-height: 1.5; margin: 8px 0 0; }
+.strata-app .strata-selected-part button { margin-left: 6px; border: 0; background: none; color: #75e2dc; cursor: pointer; text-decoration: underline; }
+.strata-app .strata-actions button:disabled, .strata-app .strata-library-card:disabled, .strata-app .strata-colors button:disabled { opacity: .5; cursor: not-allowed; }
+.strata-app .strata-toggle small { color: #7f9a9c; }
+@media (max-width: 720px) { .strata-app .strata-twin .mt-technical-meta { font-size: 8px; } }

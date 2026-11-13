@@ -11,6 +11,7 @@ import { SystemHealthPanel } from "@/components/SystemHealthPanel";
 import { AuditEventExplorer } from "@/components/AuditEventExplorer";
 import { GovernanceCycleMap } from "@/components/GovernanceCycleMap";
 import { GovernanceCapabilityMatrix } from "@/components/GovernanceCapabilityMatrix";
+import { SuperAdminGateMatrix } from "@/components/SuperAdminGateMatrix";
 import { AdminMechanicalPreview } from "@/components/AdminMechanicalPreview";
 import { useLanguage } from "../contexts/LanguageContext";
 import "./super-admin.css";
@@ -571,7 +572,10 @@ export default function SuperAdmin() {
             <Metric label={t("Rapports retournés")} value={reports.isLoading || reports.error ? "—" : reports.data?.length ?? "—"} icon={<FileText size={16} />} tone="violet" t={t} />
           </div>
           <div className="sa-control-plane-top-grid">
-            <GovernanceCapabilityMatrix />
+            <div className="sa-control-plane-stack">
+              <SuperAdminGateMatrix />
+              <GovernanceCapabilityMatrix />
+            </div>
             <section className="sa-isolation-panel">
               <header><p>{t("ISOLATION DES IDENTITÉS")}</p><h2>{t("Périmètres de gouvernance")}</h2><span>{t("La qualification ne remplace jamais le propriétaire ni le rôle serveur.")}</span></header>
               <div className="sa-isolation-lanes">

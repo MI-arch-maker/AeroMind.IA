@@ -12,8 +12,11 @@ import {
 } from "../lib/institutionalWorkflow";
 
 const roleLabels: Record<InstitutionalRole, string> = {
+  reader: "L1 · Lecture / GATE 01",
+  designer: "L2 · Conception / GATE 01–02",
+  analyst: "L3 · Analyse / GATE 01–03",
   operator: "Utilisateur habilité · Operator",
-  analyst: "Utilisateur habilité · Analyst",
+  admin: "L4 · ADMIN / GATE 01–04",
   gate_01_reviewer: "Responsable GATE 01",
   gate_02_reviewer: "Responsable GATE 02",
   gate_03_reviewer: "Responsable GATE 03",
@@ -67,9 +70,9 @@ export function InstitutionalGateWorkflowPanel() {
           const role = GATE_RESPONSIBILITY[gate];
           return <article className={`fom-institutional-gate ${isApproved ? "is-approved" : isCurrent ? "is-current" : ""}`} key={gate}>
             <div><b>0{index + 1}</b><span>{gate.replace("_", " ")}</span></div>
-            <strong>{roleLabels[role]}</strong>
-            <small>{isApproved ? "Validation locale tracée" : isCurrent ? `Responsable requis : ${role}` : "Étape séquentielle en attente"}</small>
-            <button type="button" disabled={!isCurrent || activeRole !== role} onClick={() => apply(validateInstitutionalGate(workflow, gate, activeRole), `${gate} validée localement.`)}>
+            <strong>{role.map(item => roleLabels[item]).join(" · ")}</strong>
+            <small>{isApproved ? "Validation locale tracée" : isCurrent ? `Rôles autorisés : ${role.map(item => roleLabels[item]).join(" · ")}` : "Étape séquentielle en attente"}</small>
+            <button type="button" disabled={!isCurrent || !role.includes(activeRole)} onClick={() => apply(validateInstitutionalGate(workflow, gate, activeRole), `${gate} validée localement.`)}>
               {isApproved ? "Validée" : `Valider ${gate}`}
             </button>
           </article>;

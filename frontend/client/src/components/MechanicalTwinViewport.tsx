@@ -20,10 +20,18 @@ import {
   type MechanicalPart,
   type Vec3,
 } from "../lib/mechanicalTwinGeometry";
-import { computeSurfaceField, fieldColors, getRenderEngine } from "../lib/renderEngines";
+import { fieldColors, getRenderEngine, resolveRenderPlan } from "../lib/renderEngines";
 import { runEngineeringSolver, type SolverResult, type TechnicalRenderMode } from "../lib/engineeringSolvers";
 import { createArchvizMaterial, createCarbonMaterial, createCrystalMaterial } from "../lib/engineeringMaterials";
 import { snapPartDelta, type SnapMode } from "../lib/mechanicalSnapping";
+import {
+  clipPolygonAtZ,
+  createTechnicalRenderContext,
+  emitTechnicalRenderAudit,
+  technicalRenderPresetOptions,
+  xrayCutPosition,
+  type TechnicalRenderContextOverrides,
+} from "../lib/technicalRenderingPipeline";
 
 export type MechanicalView = "iso" | "top" | "front" | "side";
 export type MechanicalRender = "solid" | "wireframe" | "xray";
@@ -59,11 +67,14 @@ type Props = {
   xrayOpacity: XrayLayerState;
   xrayIsolatedLayer?: string;
   kinematicsPlaying?: boolean;
+  autoRotate?: boolean;
   previewPartId?: string;
   previewEnabled?: boolean;
   readOnly?: boolean;
   renderPreset?: string;
   onRenderPresetChange?: (preset: string) => void;
+  /** Identité et provenance résolues par le centre qui fournit le modèle. */
+  technicalContext?: TechnicalRenderContextOverrides;
   /** Enables a mouse-drag translation gizmo for the selected part. */
   transformEnabled?: boolean;
   /** Receives a world-space delta to persist on the selected part edit. */
@@ -85,7 +96,26 @@ function CameraRig({
   view,
   resetKey,
 }: Pick<Props, "model" | "view" | "resetKey">) {
-  const { camera, invalidate, controls } = useThree();
+  const { camera, invalidate, controls, size } = useThree();
+  const orthoState = useRef<{ camera: THREE.OrthographicCamera; size: number; extent: number; designId: string; resetKey: number } | null>(null);
+  useEffect(() => {
+    if (!(camera instanceof THREE.OrthographicCamera)) return;
+    const extent = Math.max(0.5, model.extent);
+    const minSize = Math.max(1, Math.min(size.width, size.height));
+    const previous = orthoState.current;
+    camera.left = -size.width / 2;
+    camera.right = size.width / 2;
+    camera.top = size.height / 2;
+    camera.bottom = -size.height / 2;
+    camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
+      ? camera.zoom * minSize / previous.size
+      : minSize / (extent * 1.5);
+    orthoState.current = { camera, size: minSize, extent, designId: model.designId, resetKey };
+    camera.near = extent / 1000;
+    camera.far = extent * 100;
+    camera.updateProjectionMatrix();
+    invalidate();
+  }, [camera, size.width, size.height, model.designId, model.extent, resetKey, invalidate]);
   useEffect(() => {
     const d = directions[view];
     const extent = Math.max(0.5, model.extent);
@@ -121,7 +151,7 @@ function MechanicalMesh({
   onSelect,
   mode,
   explosion,
-  xrayCut,
+  cutZ,
   xrayOpacity,
   xrayIsolatedLayer,
   kinematicsPlaying = false,
@@ -139,7 +169,7 @@ function MechanicalMesh({
   onSelect: (id: string) => void;
   mode: MechanicalRender;
   explosion: number;
-  xrayCut: number;
+  cutZ?: number;
   xrayOpacity: XrayLayerState;
   xrayIsolatedLayer?: string;
   kinematicsPlaying?: boolean;
@@ -165,16 +195,13 @@ function MechanicalMesh({
       ),
     );
     g.setIndex(part.indices);
-    const technicalModes = new Set<TechnicalRenderMode>(["cfd", "fea", "energyflow", "exploded", "bionic", "carbon", "crystal", "archviz", "mesh-wire", "blueprint"]);
+    const technicalModes = new Set<TechnicalRenderMode>(["cfd", "fea", "energyflow", "bionic"]);
     if (technicalModes.has(renderPreset as TechnicalRenderMode)) {
       const solver = runEngineeringSolver(renderPreset as TechnicalRenderMode, g.getAttribute("position").array as Float32Array, part.indices, { airspeedMps });
       if (solver.values) {
         g.setAttribute("color", new THREE.BufferAttribute(fieldColors({ ...solver, values: solver.values, min: solver.min ?? 0, max: solver.max ?? 0, unit: solver.unit, method: solver.method, warning: solver.warnings.join(" "), solverId: solver.solverId }), 3));
       }
       g.userData.engineeringSolver = solver;
-      if (renderPreset === "cfd" || renderPreset === "fea") {
-        g.userData.fieldResult = computeSurfaceField(g.getAttribute("position").array as Float32Array, part.indices, renderPreset, { airspeedMps });
-      }
     }
     g.computeVertexNormals();
     g.computeBoundingBox();
@@ -187,6 +214,9 @@ function MechanicalMesh({
   const solver = geometry.userData.engineeringSolver as SolverResult | undefined;
   const engine = getRenderEngine(renderPreset);
   const presetMaterial: Record<string, { color?: string; metalness?: number; roughness?: number; opacity?: number; wireframe?: boolean; emissive?: string; emissiveIntensity?: number; vertexColors?: boolean }> = {
+    clay: { color: "#c7c7c4", metalness: 0, roughness: 0.88 },
+    npr: { metalness: 0, roughness: 0.9 },
+    lowpoly: { metalness: 0.08, roughness: 0.8 },
     bionic: { color: "#93a9a4", metalness: 0.68, roughness: 0.34, wireframe: true, emissive: "#123b35", emissiveIntensity: 0.34 },
     carbon: { color: "#252d33", metalness: 0.52, roughness: 0.24, emissive: "#101b21", emissiveIntensity: 0.16 },
     cyberpunk: { color: "#303344", metalness: 0.76, roughness: 0.23, emissive: "#7418ab", emissiveIntensity: 0.9 },
@@ -199,8 +229,8 @@ function MechanicalMesh({
     blueprint: { color: "#c4f2ff", metalness: 0.05, roughness: 0.8, opacity: 0.42, wireframe: true, emissive: "#72d9ff", emissiveIntensity: 0.42 },
   };
   const style = presetMaterial[renderPreset];
-  const isExploded = renderPreset === "exploded";
-  const clippingPlanes = useMemo(() => isExploded ? [new THREE.Plane(new THREE.Vector3(1, 0, 0), 0)] : undefined, [isExploded]);
+  const clippingPlanes = useMemo(() => mode === "xray" && cutZ !== undefined
+    ? [new THREE.Plane(new THREE.Vector3(0, 0, -1), cutZ)] : undefined, [mode, cutZ]);
   const specializedMaterial = useMemo(() => {
     if (renderPreset === "carbon") return createCarbonMaterial();
     if (renderPreset === "crystal") return createCrystalMaterial();
@@ -226,11 +256,12 @@ function MechanicalMesh({
   );
   if (part.hidden) return null;
   const layerOpacity = Math.max(0, Math.min(1, (xrayOpacity[part.category] ?? 100) / 100));
-  const layerVisible = !xrayIsolatedLayer || xrayIsolatedLayer === part.category;
-  // À 100 %, le plan de coupe est ouvert : aucune pièce ne doit disparaître.
-  // Sous 100 %, on conserve une coupe progressive et déterministe par couche.
-  const cutVisible = mode !== "xray" || xrayCut >= 0.999 || part.position[2] <= (xrayCut * 2 - 1) * Math.max(0.5, part.size[2]);
-  if (!layerVisible || !cutVisible) return null;
+  if (mode === "xray" && xrayIsolatedLayer && xrayIsolatedLayer !== part.category) return null;
+  const opacity = isPreview ? 0.48 : (mode === "xray" ? 0.25 * layerOpacity : style?.opacity ?? 1) * (part.opacity ?? 1);
+  const wireframe = mode === "wireframe" || engine.pipeline === "indexed-wireframe" || Boolean(style?.wireframe);
+  const materialColor = isPreview ? "#ffcf70" : selected ? "#79eadb" : (style?.color ?? part.color);
+  const materialEmissive = isPreview ? "#9a5a16" : selected ? "#145b59" : (style?.emissive ?? "#000000");
+  const materialEmissiveIntensity = isPreview ? 0.55 : selected ? 0.2 : (style?.emissiveIntensity ?? 0);
   const meshContent = (
     <group ref={pivotRef} position={pivotCenter ?? [0, 0, 0]}>
       <mesh
@@ -250,27 +281,39 @@ function MechanicalMesh({
           document.body.style.cursor = "";
         }}
       >
-        {specializedMaterial ? <primitive object={specializedMaterial} attach="material" /> : <meshStandardMaterial
-          color={isPreview ? "#ffcf70" : selected ? "#79eadb" : (style?.color ?? part.color)}
+        {specializedMaterial && !selected && !isPreview && mode === "solid" && (part.opacity ?? 1) >= 1 ? <primitive object={specializedMaterial} attach="material" /> : renderPreset === "npr" ? <meshToonMaterial
+          color={materialColor}
+          emissive={materialEmissive}
+          emissiveIntensity={materialEmissiveIntensity}
+          wireframe={wireframe}
+          transparent={opacity < 1}
+          opacity={opacity}
+          depthWrite={opacity >= 0.99}
+          clippingPlanes={clippingPlanes}
+          side={THREE.DoubleSide}
+        /> : <meshStandardMaterial
+          color={materialColor}
           vertexColors={Boolean(style?.vertexColors)}
           metalness={style?.metalness ?? part.metalness}
           roughness={style?.roughness ?? part.roughness}
-          emissive={isPreview ? "#9a5a16" : selected ? "#145b59" : (style?.emissive ?? "#000000")}
-          emissiveIntensity={isPreview ? 0.55 : selected ? 0.2 : (style?.emissiveIntensity ?? 0)}
-          wireframe={mode === "wireframe" || engine.pipeline === "indexed-wireframe" || Boolean(style?.wireframe)}
-          transparent={isPreview || mode === "xray" || (style?.opacity ?? 1) < 1}
-          opacity={isPreview ? 0.48 : (mode === "xray" ? 0.25 * layerOpacity : style?.opacity ?? 1) * (part.opacity ?? 1)}
-          depthWrite={!isPreview && mode !== "xray" && (style?.opacity ?? 1) >= 0.99}
+          emissive={materialEmissive}
+          emissiveIntensity={materialEmissiveIntensity}
+          wireframe={wireframe}
+          flatShading={renderPreset === "lowpoly"}
+          transparent={opacity < 1}
+          opacity={opacity}
+          depthWrite={opacity >= 0.99}
           clippingPlanes={clippingPlanes}
           side={THREE.DoubleSide}
         />}
       </mesh>
-      {mode !== "wireframe" && engine.pipeline !== "indexed-wireframe" && (
+      {!wireframe && (
         <lineSegments geometry={edges}>
           <lineBasicMaterial
             color={isPreview ? "#ffe6a8" : selected ? "#c8fff2" : "#647c88"}
             transparent
-            opacity={isPreview ? 1 : selected ? 0.8 : 0.22}
+            opacity={(isPreview ? 1 : selected ? 0.8 : 0.22) * (mode === "xray" ? layerOpacity : 1) * (part.opacity ?? 1)}
+            clippingPlanes={clippingPlanes}
           />
         </lineSegments>
       )}
@@ -387,10 +430,13 @@ export function MechanicalVectorView({
   xrayIsolatedLayer,
   previewPartId,
   previewEnabled,
+  renderPreset,
   readOnly = false,
   transformEnabled = false,
   onPartTransform,
 }: Omit<Props, "resetKey">) {
+  const plan = resolveRenderPlan(renderPreset, mode, explosion);
+  const wireframe = plan.mode === "wireframe" || plan.engine.pipeline === "indexed-wireframe" || plan.engine.id === "blueprint";
   const [orbit, setOrbit] = useState<[number, number]>([0, 0]);
   const [zoom, setZoom] = useState(1);
   const drag = useRef<{
@@ -419,53 +465,55 @@ export function MechanicalVectorView({
       new THREE.Vector3(0, 1, 0),
     );
     const inverse = camera.invert();
+    const cutoff = plan.mode === "xray" ? xrayCutPosition(model, plan.explosion, xrayCut) : undefined;
+    const cameraDistance = Math.max(0.5, model.extent) * 3;
     const projected = model.parts
       .filter((p) => !p.hidden)
-      .filter((p) => !xrayIsolatedLayer || xrayIsolatedLayer === p.category)
-      .filter((p) => mode !== "xray" || xrayCut >= 0.999 || p.position[2] <= (xrayCut * 2 - 1) * Math.max(0.5, p.size[2]))
+      .filter((p) => plan.mode !== "xray" || !xrayIsolatedLayer || xrayIsolatedLayer === p.category)
       .flatMap((part) => {
-        const vertices = transformedPartVertices(part, explosion);
-        const points: THREE.Vector3[] = [];
-        for (let i = 0; i < vertices.length; i += 3)
-          points.push(
-            new THREE.Vector3(
-              vertices[i],
-              vertices[i + 1],
-              vertices[i + 2],
-            ).applyMatrix4(inverse),
-          );
+        const vertices = transformedPartVertices(part, plan.explosion);
         const isPreview = previewEnabled && part.id === previewPartId;
-        const base = new THREE.Color(isPreview ? "#ffcf70" : part.id === selected ? "#79eadb" : part.color);
+        const base = new THREE.Color(isPreview ? "#ffcf70" : part.id === selected ? "#79eadb" : plan.engine.id === "clay" ? "#c7c7c4" : plan.engine.id === "blueprint" ? "#c4f2ff" : part.color);
         const light = new THREE.Vector3(-0.3, 0.85, 0.5).normalize();
         const result: Array<{
           key: string;
           id: string;
           name: string;
           category: string;
+          opacity: number;
           points: THREE.Vector3[];
           depth: number;
           color: string;
         }> = [];
-        for (let i = 0; i < part.indices.length; i += 3) {
-          const a = points[part.indices[i]],
-            b = points[part.indices[i + 1]],
-            c = points[part.indices[i + 2]];
-          if (!a || !b || !c) continue;
+        for (let i = 0; i + 2 < part.indices.length; i += 3) {
+          const triangle = part.indices.slice(i, i + 3).map((index): Vec3 => [vertices[index * 3], vertices[index * 3 + 1], vertices[index * 3 + 2]]);
+          if (triangle.some((point) => point.some((value) => !Number.isFinite(value)))) continue;
+          const polygon = clipPolygonAtZ(triangle, cutoff).map((point) => new THREE.Vector3(...point).applyMatrix4(inverse));
+          if (polygon.length < 3) continue;
+          const [a, b, c] = polygon;
           const normal = new THREE.Vector3()
             .subVectors(b, a)
             .cross(new THREE.Vector3().subVectors(c, a))
             .normalize();
-          if (normal.z < -0.001 && mode !== "wireframe" && mode !== "xray")
+          if (normal.z < -0.001 && !wireframe && plan.mode !== "xray")
             continue;
-          const shade = 0.55 + 0.5 * Math.max(0, normal.dot(light));
+          const lightAmount = Math.max(0, normal.dot(light));
+          const shade = plan.engine.id === "npr" ? (lightAmount > 0.65 ? 1 : lightAmount > 0.25 ? 0.72 : 0.48) : 0.55 + 0.5 * lightAmount;
           const color = base.clone().multiplyScalar(shade).getStyle();
+          const depth = polygon.reduce((sum, point) => sum + point.z, 0) / polygon.length;
+          const displayPoints = polygon.map((point) => {
+            if (plan.projection === "orthographic") return point;
+            const scale = cameraDistance / Math.max(cameraDistance * 0.1, cameraDistance - point.z);
+            return new THREE.Vector3(point.x * scale, point.y * scale, point.z);
+          });
           result.push({
             key: `${part.id}-${i}`,
             id: part.id,
             name: part.name,
             category: part.category,
-            points: [a, b, c],
-            depth: (a.z + b.z + c.z) / 3,
+            opacity: part.opacity ?? 1,
+            points: displayPoints,
+            depth,
             color,
           });
         }
@@ -491,12 +539,14 @@ export function MechanicalVectorView({
           .join(" "),
       })),
     };
-  }, [model, selected, view, mode, explosion, orbit, zoom, xrayCut, xrayOpacity, xrayIsolatedLayer, previewPartId, previewEnabled]);
+  }, [model, selected, view, plan.mode, plan.engine.id, plan.projection, plan.explosion, wireframe, orbit, zoom, xrayCut, xrayIsolatedLayer, previewPartId, previewEnabled]);
   return (
     <svg
       className="mt-vector-view"
       viewBox="0 0 800 460"
       role="img"
+      data-vector-projection={plan.projection}
+      data-vector-engine={plan.engine.id}
       aria-label={`Assemblage mécanique ${model.name}, projection ${view}, ${model.parts.filter((p) => !p.hidden).length} pièces paramétriques`}
       onPointerDown={(e) => {
         const target = (e.target as Element).closest("polygon[data-part]");
@@ -570,18 +620,19 @@ export function MechanicalVectorView({
           points={face.coords}
           transform={partDrag?.id === face.id ? `translate(${partDrag.dx} ${partDrag.dy})` : undefined}
           style={{ cursor: transformEnabled && !readOnly ? "grab" : undefined, pointerEvents: transformEnabled && !readOnly ? "all" : undefined }}
-          fill={mode === "wireframe" ? "none" : face.color}
-          fillOpacity={previewEnabled && face.id === previewPartId ? 0.48 : (mode === "xray" ? 0.25 * Math.max(0, Math.min(1, (xrayOpacity[face.category] ?? 100) / 100)) : 1) * (model.parts.find((part) => part.id === face.id)?.opacity ?? 1)}
+          fill={wireframe ? "none" : face.color}
+          fillOpacity={previewEnabled && face.id === previewPartId ? 0.48 : (plan.mode === "xray" ? 0.25 * Math.max(0, Math.min(1, (xrayOpacity[face.category] ?? 100) / 100)) : 1) * face.opacity}
           stroke={
             face.id === selected
               ? "#cafff2"
               : previewEnabled && face.id === previewPartId
                 ? "#ffe6a8"
-                : mode === "wireframe"
-                ? "#78adba"
+                : wireframe
+                ? plan.engine.id === "blueprint" ? "#c4f2ff" : "#78adba"
                 : face.color
           }
-          strokeWidth={mode === "wireframe" ? 0.55 : 0.4}
+          strokeOpacity={(plan.mode === "xray" ? Math.max(0, Math.min(1, (xrayOpacity[face.category] ?? 100) / 100)) : 1) * face.opacity}
+          strokeWidth={wireframe ? 0.55 : 0.4}
         >
           <title>{readOnly ? face.name : `${face.name} · sélectionner pour modifier`}</title>
         </polygon>
@@ -603,6 +654,7 @@ export function MechanicalTwinViewport(props: Props) {
     xrayOpacity,
     xrayIsolatedLayer,
     kinematicsPlaying = false,
+    autoRotate = false,
     previewPartId,
     previewEnabled = false,
     readOnly = false,
@@ -621,11 +673,34 @@ export function MechanicalTwinViewport(props: Props) {
   useEffect(() => { if (props.snapMode) setSnapMode(props.snapMode); }, [props.snapMode]);
   useEffect(() => { if (props.snapIncrement) setSnapIncrement(props.snapIncrement); }, [props.snapIncrement]);
   const pointerReleaseTimer = useRef<number | null>(null);
-  const [renderPreset, setRenderPreset] = useState(props.renderPreset ?? "mechanical");
+  const [localRenderPreset, setRenderPreset] = useState("mechanical");
+  const renderPreset = props.renderPreset ?? localRenderPreset;
+  const previousRenderInputs = useRef({ mode, renderPreset });
+  useEffect(() => {
+    const previous = previousRenderInputs.current;
+    previousRenderInputs.current = { mode, renderPreset };
+    // Une commande de mode externe utilisée après un preset reprend la main.
+    // Si le parent change mode et preset ensemble, son preset reste prioritaire.
+    if (previous.mode !== mode && previous.renderPreset === renderPreset && renderPreset !== "mechanical") {
+      if (props.renderPreset === undefined) setRenderPreset("mechanical");
+      else props.onRenderPresetChange?.("mechanical");
+    }
+  }, [mode, renderPreset, props.renderPreset, props.onRenderPresetChange]);
   const [analysisAirspeed, setAnalysisAirspeed] = useState(20);
-  useEffect(() => { if (props.renderPreset) setRenderPreset(props.renderPreset); }, [props.renderPreset]);
   const [immersive, setImmersive] = useState(false);
-  const selectedEngine = getRenderEngine(renderPreset);
+  const renderPlan = resolveRenderPlan(renderPreset, mode, explosion);
+  const selectedEngine = renderPlan.engine;
+  const cutZ = useMemo(() => renderPlan.mode === "xray"
+    ? xrayCutPosition(model, renderPlan.explosion, xrayCut) : undefined,
+  [model, renderPlan.mode, renderPlan.explosion, xrayCut]);
+  const technicalContext = useMemo(
+    () => createTechnicalRenderContext(model, props.technicalContext),
+    [model, props.technicalContext],
+  );
+  const handleSelect = (id: string) => {
+    emitTechnicalRenderAudit("component_selected", technicalContext, { componentId: id });
+    onSelect(id);
+  };
   const release = useRef<(() => void) | null>(null);
   const supported = !forceVector && canCreateWebGL2Context();
   useEffect(() => {
@@ -658,14 +733,14 @@ export function MechanicalTwinViewport(props: Props) {
       setPointerActive(false);
     }, 80);
   };
-  const canTransform = Boolean(props.transformEnabled && explosion === 0 && renderPreset !== "exploded");
+  const canTransform = Boolean(props.transformEnabled && renderPlan.explosion === 0);
   const applyPartTransform = (id: string, delta: Vec3) => {
     const part = model.parts.find(candidate => candidate.id === id);
     if (!part) return;
     props.onPartTransform?.(id, snapPartDelta(model, part, delta, { enabled: snapEnabled, mode: snapMode, increment: snapIncrement }));
   };
   const vector = (
-    <MechanicalVectorView key={`${resetKey}-${view}-${renderPreset}`} {...props} transformEnabled={canTransform} onPartTransform={applyPartTransform} snapEnabled={snapEnabled} snapMode={snapMode} snapIncrement={snapIncrement} />
+    <MechanicalVectorView key={`${resetKey}-${view}`} {...props} renderPreset={renderPreset} onSelect={handleSelect} transformEnabled={canTransform} onPartTransform={applyPartTransform} snapEnabled={snapEnabled} snapMode={snapMode} snapIncrement={snapIncrement} />
   );
   const webgl = rendererWebgl;
   return (
@@ -680,8 +755,11 @@ export function MechanicalTwinViewport(props: Props) {
       onPointerUpCapture={releasePointerLock}
       onPointerCancelCapture={releasePointerLock}
       data-renderer={webgl ? "webgl" : "vector"}
-      data-auto-motion="false"
+      data-auto-motion={autoRotate ? "true" : "false"}
       data-render-preset={renderPreset}
+      data-render-engine={selectedEngine.id}
+      data-render-mode={renderPlan.mode}
+      data-render-projection={renderPlan.projection}
       data-render-pipeline={selectedEngine.pipeline}
       data-render-solver={selectedEngine.solverId ?? "presentation"}
     >
@@ -696,7 +774,9 @@ export function MechanicalTwinViewport(props: Props) {
           }}
         >
           <Canvas
-            frameloop={kinematicsPlaying ? "always" : "demand"}
+            key={renderPlan.projection}
+            orthographic={renderPlan.projection === "orthographic"}
+            frameloop={kinematicsPlaying || autoRotate ? "always" : "demand"}
             dpr={[1, 1.5]}
             camera={{
               position: [
@@ -722,20 +802,20 @@ export function MechanicalTwinViewport(props: Props) {
             />
             {model.parts.map((part) => (
               <MechanicalMesh
-                key={`${part.id}-${renderPreset}`}
+                key={`${part.id}-${selectedEngine.id}`}
                 part={part}
                 selected={selected === part.id}
-                onSelect={onSelect}
-                mode={renderPreset === "exploded" ? "xray" : mode}
-                explosion={explosion + (renderPreset === "exploded" ? 0.55 : 0)}
-                xrayCut={renderPreset === "exploded" ? 0.65 : xrayCut}
+                onSelect={handleSelect}
+                mode={renderPlan.mode}
+                explosion={renderPlan.explosion}
+                cutZ={cutZ}
                 xrayOpacity={xrayOpacity}
                 xrayIsolatedLayer={xrayIsolatedLayer}
                 kinematicsPlaying={kinematicsPlaying}
                 previewPartId={previewPartId}
                 previewEnabled={previewEnabled}
                 readOnly={readOnly}
-                renderPreset={renderPreset}
+                renderPreset={selectedEngine.id}
                 airspeedMps={analysisAirspeed}
                 transformEnabled={canTransform}
                 onPartTransform={applyPartTransform}
@@ -745,7 +825,7 @@ export function MechanicalTwinViewport(props: Props) {
             <OrbitControls
               makeDefault
               enabled={!transformDragging}
-              autoRotate={false}
+              autoRotate={autoRotate}
               enableDamping
               enablePan
               minDistance={model.extent * 0.2}
@@ -759,8 +839,9 @@ export function MechanicalTwinViewport(props: Props) {
       )}
       <div className="mt-render-presets" role="group" aria-label="Styles de rendu du modèle sélectionné">
         <label htmlFor={`render-${model.designId}`}>RENDU</label>
-        <select id={`render-${model.designId}`} value={props.renderPreset ?? renderPreset} onChange={event => { setRenderPreset(event.target.value); props.onRenderPresetChange?.(event.target.value); }} aria-label="Choisir un style de rendu du drone sélectionné">
-          <option value="axonometric">Axonométrique</option><option value="orthographic">Orthographique</option><option value="perspective">Perspective</option><option value="npr">NPR / Cel-shading</option><option value="clay">Argile / Clay</option><option value="lowpoly">Low-poly</option><option value="archviz">ArchViz PBR progressif</option><option value="interior">Intérieur / Extérieur</option><option value="immersive">Immersif / 360° / VR (plein écran)</option><option value="mechanical">Mécanique / Industriel</option><option value="exploded">Écorché · explosion + clipping</option><option value="bionic">Squelette bionique · treillis stress-guided</option><option value="carbon">Monocoque carbone · shader anisotrope</option><option value="cyberpunk">Exosquelette cyberpunk</option><option value="crystal">Cristal · IOR + profondeur</option><option value="energyflow">Flux · particules et traces</option><option value="cfd">CFD · pression, vecteurs et streamlines</option><option value="fea">MEF · Von Mises et zones de charge</option><option value="mesh-wire">Wireframe mesh · blueprint</option><option value="blueprint">CAO · hidden-line / X-Ray</option>
+        <select id={`render-${model.designId}`} value={renderPreset === "mechanical" && mode !== "solid" ? mode : renderPreset} onChange={event => { const next = event.target.value; setRenderPreset(next); emitTechnicalRenderAudit(next === "exploded" ? "exploded_view_opened" : "preset_changed", technicalContext, { preset: next, engineId: resolveRenderPlan(next, mode, explosion).engine.id }); props.onRenderPresetChange?.(next); }} aria-label="Choisir un style de rendu du drone sélectionné">
+          <optgroup label="Presets techniques requis">{technicalRenderPresetOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</optgroup>
+          <optgroup label="Projections et analyses avancées"><option value="axonometric">Axonométrique</option><option value="orthographic">Orthographique</option><option value="perspective">Perspective</option><option value="npr">NPR / Cel-shading</option><option value="clay">Argile</option><option value="lowpoly">Low-poly</option><option value="mesh-wire">Maillage filaire sur grille</option><option value="archviz">ArchViz · matériau temps réel</option><option value="interior">Intérieur / Extérieur</option><option value="immersive">Immersif · plein écran</option><option value="mechanical">Mécanique / Industriel</option><option value="bionic">Squelette bionique · treillis indicatif</option><option value="carbon">Carbone · shader procédural</option><option value="cyberpunk">Exosquelette cyberpunk</option><option value="crystal">Cristal · translucide stylisé</option><option value="energyflow">Flux · particules indicatives</option><option value="cfd">CFD · estimation de surface</option><option value="fea">MEF · approximation de poutre</option></optgroup>
         </select>
         <small>{selectedEngine.description} · solveur {selectedEngine.solverId ?? "présentation"}</small>
         <label className="mt-snap-control"><input type="checkbox" checked={snapEnabled} onChange={event => setSnapEnabled(event.target.checked)} /> Magnétisme</label>
@@ -773,11 +854,19 @@ export function MechanicalTwinViewport(props: Props) {
         {renderPreset === "immersive" && <button type="button" onClick={async () => { try { if (!document.fullscreenElement) await root.current?.requestFullscreen(); else await document.exitFullscreen(); setImmersive(Boolean(document.fullscreenElement)); } catch { setImmersive(false); } }} aria-label="Basculer le viewport immersif plein écran">{immersive ? "Quitter le plein écran" : "Ouvrir en plein écran"}</button>}
       </div>
       {previewEnabled && previewPartId && <div className="mt-preview-tag"><span>FEATURE TREE PREVIEW</span><b>{previewPartId}</b></div>}
-      {(renderPreset === "cfd" || renderPreset === "fea" || renderPreset === "energyflow") && <div className="mt-field-legend" role="note"><strong>{renderPreset === "fea" ? "MEF · VON MISES / DÉFORMATION" : renderPreset === "energyflow" ? "FLUX · PARTICULES" : "CFD · PRESSION / VECTEURS"}</strong>{renderPreset !== "fea" && <label>V∞ <input aria-label="Vitesse de flux CFD en mètres par seconde" type="number" min="0" max="80" step="1" value={analysisAirspeed} onChange={event => setAnalysisAirspeed(Math.max(0, Math.min(80, Number(event.target.value) || 0)))} /> m/s</label>}<span>MAX</span><i /><span>MIN</span><small>{webgl ? "Champ calculé sur le mesh actif; lignes, vecteurs, particules et zones sont rendus par le pipeline associé." : "L’analyse de champ nécessite WebGL2; le fallback vectoriel affiche la géométrie sans les overlays calculés."}</small></div>}
+      {(renderPreset === "cfd" || renderPreset === "fea" || renderPreset === "energyflow") && <div className="mt-field-legend" role="note"><strong>{renderPreset === "fea" ? "POUTRE 1D · CONTRAINTE ESTIMÉE" : renderPreset === "energyflow" ? "FLUX · VISUALISATION INDICATIVE" : "CFD · ESTIMATION DE SURFACE"}</strong>{renderPreset === "cfd" && <label>V∞ <input aria-label="Vitesse de flux CFD en mètres par seconde" type="number" min="0" max="80" step="1" value={analysisAirspeed} onChange={event => setAnalysisAirspeed(Math.max(0, Math.min(80, Number(event.target.value) || 0)))} /> m/s</label>}<span>MAX</span><i /><span>MIN</span><small>{webgl ? "Proxies locaux non validés, normalisés par pièce : ni CFD volumique ni MEF 3D, impropres au dimensionnement." : "Secours vectoriel : aucun champ, vecteur ou particule calculé n’est affiché."}</small></div>}
       <div className="mt-scene-tag">
         <span>MECHANICAL TWIN / {model.modelType.toUpperCase()}</span>
         <b>{webgl ? "3D INTERACTIVE" : "PROJECTION MÉCANIQUE INTERACTIVE"}</b>
       </div>
+      <div className="mt-technical-meta" aria-label="Provenance du modèle technique">
+        <span>DRONE · {technicalContext.droneId}</span>
+        <span>MODÈLE · {technicalContext.modelId} · {technicalContext.modelVersion}</span>
+        <span>SOURCE · {technicalContext.source.toUpperCase()} · {technicalContext.centreContext}</span>
+        <span className={technicalContext.syncStatus === "ready" ? "is-ready" : technicalContext.syncStatus === "unsynced" || technicalContext.syncStatus === "partial" ? "is-warning" : "is-error"}>{technicalContext.statusLabel}</span>
+      </div>
+      {technicalContext.syncStatus !== "ready" && <div className="mt-technical-state" role="status"><strong>{technicalContext.statusLabel}</strong><span>{technicalContext.statusMessage}</span></div>}
+      {!webgl && <div className="mt-technical-state is-fallback" role="status"><strong>Projection vectorielle de secours</strong><span>Maillage actif conservé ; styles, éclairage, transparence et profondeur sont approximatifs. Pas de shaders, d’overlays d’analyse, d’animation cinématique ni de rotation automatique.</span></div>}
       <div className="mt-axis">
         <i>X</i>
         <i>Y</i>
@@ -796,7 +885,7 @@ export function MechanicalTwinViewport(props: Props) {
               ? "Glissez les axes du manipulateur sur la pièce sélectionnée · molette pour zoomer"
               : "Glissez directement la pièce sélectionnée dans la projection · molette pour zoomer"
             : props.transformEnabled
-              ? "Réassemblez le drone pour déplacer une pièce"
+              ? renderPreset === "exploded" ? "Quittez le mode éclaté pour déplacer une pièce" : "Réassemblez le drone pour déplacer une pièce"
             : "Glisser pour orbiter · molette pour zoomer · cliquer une pièce pour modifier"}
         {!webgl ? " · secours vectoriel, même géométrie" : ""}
       </div>

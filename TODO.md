@@ -1,35 +1,49 @@
-### Cahier des charges solveurs v2 — 11 novembre 2026
-- [x] **CFD :** le menu Carte CFD est relié à `surface-panel-cfd-v2`; le calcul produit une distribution de pression de surface, un champ de vecteurs de vitesse et des streamlines intégrées dynamiquement sur la géométrie active.
-- [x] **MEF :** le menu Carte MEF est relié à `euler-bernoulli-fea-v2`; le calcul produit un champ Von Mises, un gradient de déformation et des points de zones de charge rendus sur le mesh.
-- [x] **Flux énergétique :** le menu Flux est relié à `surface-transport-particles-v2`; le calcul produit un champ scalaire, des particules et des traces advectées rendues dans le viewport.
-- [x] **Squelette bionique :** le menu génère un treillis procédural stress-guided et ses diagonales selon le champ de contrainte, au lieu de seulement activer le wireframe du mesh source.
-- [x] **Écorché :** le menu calcule le pipeline `assembly-explode-clipping-v2`, expose le plan de coupe et active le clipping local Three.js en plus de la translation d’explosion existante.
-- [x] **Wireframe et Blueprint :** les modes utilisent l’extraction directe du mesh indexé, les arêtes Three.js et les overlays de transparence/X-Ray du modèle actif.
-- [x] **Carbone :** `anisotropic-carbon-shader-v2` utilise un shader procédural avec axe de fibres, motif de tissage et réponse dépendante de l’incidence.
-- [x] **Cristal :** `ior-refraction-depth-peeling-v2` utilise un shader IOR/Snell et une transparence multi-couches avec fallback WebGL explicite.
-- [x] **ArchViz :** `progressive-physical-ray-v2` utilise un matériau physique MeshPhysical avec clearcoat, sheen, iridescence et éclairage temps réel progressif; le fallback matériel est documenté pour les navigateurs sans path tracing WebGPU.
-- [x] **Interconnexion et vérification :** chaque option technique possède une clé de registre et un identifiant de solveur; les sorties enrichies sont attachées à la géométrie, les overlays sont rendus par Three.js, et les tests couvrent les champs, vecteurs, streamlines, Von Mises, particules et treillis.
-- [ ] **Qualification industrielle :** une validation CFD volumique, EF 3D, B-Rep CSG certifié ou path tracing matériel n’est pas revendiquée par le runtime navigateur; ces étapes nécessitent des solveurs spécialisés et des données d’ingénierie validées.
+# TODO — Modernisation AeroMind IA
 
-### Cahier des charges manipulation 3D — 11 novembre 2026
-- [x] **Déplacement souris :** sélectionner une pièce du drone dans le viewport; en WebGL, déplacer les axes du manipulateur 3D; en fallback vectoriel, glisser la pièce dans le plan caméra. Les translations sont enregistrées dans `MechanicalPartEdit.offset` du design actif.
-- [x] **Éclatement et dispersion :** décomposer visuellement l’assemblage, écarter radialement les sous-ensembles avec réglage continu, puis réassembler sans modifier la géométrie source; le fuselage reste le repère.
-- [x] **Vues 3D avancées :** exposer les vues isométrique, dessus, face et côté ainsi que les rendus techniques existants; afficher la pièce sélectionnée et ses coordonnées XYZ dans l’inspecteur.
-- [x] **Sécurité et fallback :** lecture seule préservée; les pièces manuelles documentaires, sans mesh 3D, ne sont pas déplaçables. Le fallback vectoriel déplace la géométrie source projetée et sauvegarde l’offset; il n’affiche pas de faux gizmo WebGL.
+## Pipeline de rendu technique partagé
 
+- [x] Intégrer un pipeline commun utilisé par les centres production, conception, CAD, jumeau mécanique, simulation, maintenance, qualité et Super-Admin lorsque le modèle technique est disponible. Le pipeline reçoit au minimum l’identifiant du drone, le modèle mécanique, les paramètres actifs, le preset, la caméra, les couches visibles, le niveau d’explosion, la pièce sélectionnée et le contexte du centre.
+- [x] Garantir que le rendu utilise le drone réellement sélectionné et le même modèle mécanique que les calculs/nomenclatures/vues de composants ; aucun modèle générique ne doit apparaître silencieusement. Si le modèle détaillé manque, afficher « Modèle technique détaillé indisponible ».
+- [x] Exposer les presets Solide paramétrique, Blueprint, Wireframe, X-Ray/structure interne, Vue éclatée et Vue technique monochrome, avec conservation du preset lorsque le contexte le permet.
+- [x] Exposer les vues isométrique, dessus, face, profil, caméra orbitale, zoom, recentrage et réinitialisation ; la vue isométrique est la vue par défaut du preset Blueprint.
 
-### Centre intégré d’ingénierie, de construction et d’usine — 12 novembre 2026
-- [x] **Un seul bureau de travail lié au drone :** « Aeromind ne possede pas un centre de construction d'usine virtuel et physique - ce qui aurait permit une vue d'usine de tout drone selectionné ou dessiner. » Le Hub est devenu un poste de travail lié au profil sélectionné ou au dessin et réutilise le mesh source du modèle. Un aperçu est explicitement marqué non appliqué; aucun dessin n’est automatiquement chargé.
-- [x] **Exploration pièce par pièce :** « L'interet que j'eprouve pour de telle configuration et de rendu permet de voir le drone en lui meme piece par piece, metal par metal suivit de toutes ses composantes ». L’assemblage `MechanicalModel`, sélection, géométrie de mesh et dimensions paramétriques alimentent l’inspecteur; la matière est affectable via le catalogue AeroMind et exportable en nomenclature CSV. Le statut non vérifié empêche de présenter l’affectation comme métal physiquement présent.
-- [x] **Espace de travail personnalisable :** « un espace de travail personnalisable ». Vues d’atelier, filtres, sélection de pièces, réglages et positions des postes de planification sont éditables et conservés au projet.
-- [x] **Dossiers et sous-dossiers ingénieur :** « un dossier et des sous-dossiers pouvant etre crées selon le genie createur de l'ingenieur. » Création imbriquée, renommage, développement, sélection et suppression récursive des dossiers/sous-dossiers, et création/édition de documents de travail; état de sauvegarde lisible, export JSON, validation et garde-fous de données.
-- [~] **Rendus de conception et usine :** « Les rendus actuels d'Aeromind se limite à des presentation et rendus parametric et mecanique des drones sans y associé des rendus physiques et d'usine. » Une vue d’usine **numérique conceptuelle** est liée au mesh du drone, à ses pièces, références matériau, postes virtuels et étapes; elle n’est pas une implantation physique, un modèle de fabrication qualifié ou un processus d’atelier exécuté.
-- [x] **Le Hub devient le poste lui-même :** « le HUB correspondont à ce stade à une simple interface de visualisation des autres interfaces »; le `engineering-hub` est un atelier interactif ayant ses propres opérations CAO, dossiers, documents, affectations et gamme. Les autres modules sont relégués à une section secondaire.
-- [x] **Étiquette d’état d’intégration physique :** statut sauvegardé/local, brouillon sans projet, et plan d’usine numérique non connecté sont séparés. Aucune commande ou sortie matérielle n’est activée. Le raccordement d’un site/machine reste un projet d’intégration distinct.
+## Inspection, cohérence et performance
 
-**Livraison et validation du nouveau centre :** voir `ENGINEERING_WORKSPACE_DELIVERY.md`. Contrôles exécutés : TypeScript/catalogues, 22 tests ciblés, 7 tests de régression ciblés, build de production et aperçu navigateur sur la route `/?view=engineering-hub`. Intégration à une usine physique, SSO configuré et session utilisateur ne sont pas revendiqués.
+- [x] Permettre l’affichage, le masquage et l’isolation des familles châssis, bras, moteurs, hélices/rotors, alimentation, contrôleur, électronique, capteurs/caméras, charge utile, antennes et fixations.
+- [x] Au clic sur une pièce, afficher nom, catégorie, dimensions principales, identifiant de modèle, état de validation et provenance ; la sélection seule ne modifie aucune donnée.
+- [x] Refléter l’envergure, longueur, hauteur, diamètre d’hélice, nombre de moteurs, positions, châssis, capteurs, charge utile et configuration de propulsion ; une modification paramétrique met à jour la géométrie active sans revenir à un modèle générique.
+- [x] Activer axes X/Y/Z, grille, échelle, dimensions principales, centre de gravité et points d’ancrage lorsqu’ils existent ; distinguer conception, simulation et référence, sans présenter les cotes comme certification réglementaire.
+- [x] Éviter les recalculs complets inutiles, réutiliser mesh/matériaux, charger progressivement les détails, signaler le chargement et afficher un état « rendu limité » en cas de contrainte de performance.
 
-### Passe d’ergonomie et état neutre — 12 novembre 2026
-- [x] **Structure visuelle maître :** « creer une structure visuelle maitre car l'affichage telle observée au travers cette image montre que l'architecture n'est pas bien organisée ». Organiser la route en vrai poste plein écran, avec espace projet, zones fonctionnelles clairement séparées, canvas central et panneau inspecteur, et non comme petite sous-vue flottante contrainte. Garder des panneaux latéraux rabattables et des états adaptatifs afin que l’espace central reste ample.
-- [x] **Écran moins restreint, sans canvas dominant par défaut :** « L'ecran est trop restreint puis les rendus couvrent une bonne partie de l'ecran ». Utiliser la hauteur et largeur disponibles pour le poste principal, contrôler le débordement dans les panneaux, conserver une zone de création neutre sans géométrie décorative au démarrage; la zone de visualisation ne reçoit un modèle qu’après une action explicite.
-- [x] **Aucun drone présélectionné ou affiché :** « Normalement, aucun drone ne doit y figurer par defaut, sans selection ou dessin prealable par le profil connecté, aucun drone ne doit y figurer par defaut. » N’initialiser aucun ID de profil catalogue ni `catalogPreview` implicite; le select de profil commence vide; un choix de liste à lui seul ne génère pas la géométrie; seul le chargement explicite, la sélection active fournie par le profil connecté, ou un dessin préexistant de ce profil produit un modèle. Avant cela, l’aperçu 3D, l’inspecteur de pièce, la nomenclature, le nombre de composants et les affectations de pièces restent vides.
+## Compatibilité et erreurs
+
+- [x] Fonctionner dans la Preview Webdev, sur écrans bureau/intermédiaires et avec une dégradation contrôlée sans WebGL/WebGL2 ; le fallback doit être identifié et ne pas prétendre être le rendu 3D complet.
+- [x] Traiter explicitement drone non sélectionné, modèle indisponible, géométrie partielle, composants internes absents, WebGL indisponible, erreur de chargement, données paramétriques incomplètes, désynchronisation de version et rendu limité.
+
+## Intégration et sécurité
+
+- [x] Préserver la navigation des centres et le cockpit existant, sans régression de simulation, LabBench, gouvernance, navigation ou jumeau mécanique.
+- [x] Conserver `HARDWARE_CONTROL=false`, `AEROMIND_VIRTUAL_ONLY=true` et `physicalOutputEnabled=false` dans Preview et simulation ; aucun preset, clic, export ou modification visuelle ne doit activer un moteur, envoyer une commande, piloter un équipement ou modifier une configuration matérielle réelle.
+- [x] Respecter les droits adaptés à chaque centre et conserver step-up, CSRF, audit, interverrouillages et validations séquentielles G01–G05. La portée cumulative est L1:G01, L2:G01–G02, L3:G01–G03, ADMIN/L4:G01–G04, SUPER-ADMIN/L5:G01–G05.
+- [x] Journaliser selon les règles existantes l’ouverture d’un modèle, le changement de preset, la sélection et la visibilité des composants, la vue éclatée, les paramètres, comparaisons et exports ; marquer clairement les interactions locales non persistantes.
+
+## Validation et livraison
+
+- [x] Intégrer un Centre de protection AeroMind séparé de l’arborescence métier, avec sondes anti-bug, intégrité applicative, anti-piratage applicatif, détection de disponibilité/brouillage, alertes et export JSON ; conserver la séparation humaine et G01–G05.
+- [~] Vérifier le build frontend, les tests ciblés, les checks Python, `/api/ready`, `/manus-routes.json` et la Preview sur le port 3000. Frontend : typecheck + 424/424 tests + build OK ; backend : 347 tests OK, 14 ignorés, 1 test admin dépendant d’un compte primaire non seedé dans l’état de test courant.
+- [x] Enregistrer un checkpoint propre du projet Webdev avec les fichiers réellement livrés.
+- [x] Générer et fournir `Aeromind.IA-modernise.zip` sans `node_modules`, caches, vrais `.env` ou artefacts inutiles.
+- [x] Fournir une documentation courte des presets, des états dégradés, de la provenance du modèle et de la séparation simulation-only.
+
+## Preuves de livraison
+
+- Checkpoint Webdev : `150b54954e8725f9dcdb3cdc9b18b5ff12033182` sur `main`.
+- Preview vérifiée sur le runtime 3000 : `/api/ready` retourne `{"ready":true,"database":"connected","mode":"simulation"}` et `/manus-routes.json` retourne 39 routes déclarées.
+- Archive source : `/home/ubuntu/Aeromind.IA-modernise-final.zip`, 869 entrées, SHA-256 `f92446d0fc50f28df7bbb92709589225b198b53dfd312359f8eaa3fc91c95900`.
+
+## Modernisation demandée — rendus des centres de conception
+
+- [x] Préserver l’architecture organisationnelle indépendante d’Aeromind ainsi que ses contrôles et interactions existants, sans substituer une organisation Manus ni ajouter de nouveaux contrôles métier.
+- [~] Faire afficher le drone réellement sélectionné et sa géométrie disponible, avec indication explicite lorsque le modèle détaillé ne peut pas être récupéré. Les huit OBJ sont chargés dans IDDS ; les autres centres utilisent encore un modèle paramétrique.
+- [~] Corriger les modes de rendu pour que leur mécanisme visuel agisse effectivement sur le modèle actif, y compris les modes de projection, filaire, transparence, vue éclatée et styles applicables. Les modes de base sont raccordés ; les limitations des modes avancés et du repli SVG sont précisées dans le rapport.
+- [~] Vérifier la cohérence des sélections, paramètres, interactions et rendus, puis fournir une prévisualisation fonctionnelle et une archive source propre et complète. Les tests automatisés ne remplacent pas une recette visuelle complète de tous les centres et modèles.

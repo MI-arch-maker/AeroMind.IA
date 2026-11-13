@@ -354,3 +354,26 @@
   .sa-shell .sa-global-brand .sa-mark{width:27px;height:27px}
   .sa-shell .sa-global-identity>span{font-size:6px}
 }
+
+
+/* Portée institutionnelle explicite du Super-Admin : G01 à G05. */
+.sa-control-plane-stack { display:grid; gap:10px; min-width:0; }
+.sa-gate-matrix { min-width:0; overflow:hidden; border:1px solid #d6e1e8; border-radius:4px; background:#fff; box-shadow:0 3px 10px rgba(18,48,67,.035); }
+.sa-gate-matrix-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:12px 13px 10px; border-bottom:1px solid #dce6eb; background:linear-gradient(135deg,#f8fbfc,#edf7f7); }
+.sa-gate-matrix-head h2 { margin:4px 0 0; color:#1b3d52; font-size:12px; font-weight:780; }
+.sa-gate-matrix-head p:last-child { max-width:62ch; margin:4px 0 0; color:#788994; font-size:8px; line-height:1.45; }
+.sa-gate-matrix-badge { display:inline-flex; flex:none; align-items:center; gap:5px; padding:5px 7px; border:1px solid #a9d9d5; border-radius:3px; color:#147d88; background:#f0faf8; font:800 7px ui-monospace,SFMono-Regular,Menlo,monospace; white-space:nowrap; }
+.sa-gate-matrix-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; padding:10px; }
+.sa-gate-card { min-width:0; padding:9px; border:1px solid #e0e9ed; border-radius:4px; background:#fbfdfd; }
+.sa-gate-card-top { display:flex; align-items:center; justify-content:space-between; gap:5px; }
+.sa-gate-id { color:#277d88; font:900 10px ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.06em; }
+.sa-gate-state { display:inline-flex; align-items:center; gap:3px; color:#19836f; font-size:7px; font-weight:800; }
+.sa-gate-card h3 { margin:8px 0 4px; color:#294d61; font-size:9px; line-height:1.25; }
+.sa-gate-card p { min-height:37px; margin:0; color:#71838e; font-size:7px; line-height:1.45; }
+.sa-gate-card small { display:flex; align-items:flex-start; gap:4px; margin-top:8px; padding-top:7px; border-top:1px solid #e7eef1; color:#8b6a3d; font-size:7px; line-height:1.35; }
+.sa-gate-card small svg { flex:none; margin-top:1px; }
+.sa-gate-matrix-foot { display:flex; align-items:flex-start; gap:7px; padding:8px 12px 10px; border-top:1px solid #e3ebef; color:#6e818c; background:#fbfcfd; font-size:7px; line-height:1.5; }
+.sa-gate-matrix-foot svg { flex:none; color:#16818a; margin-top:1px; }
+@media(max-width:1100px) { .sa-gate-matrix-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:700px) { .sa-gate-matrix-head { flex-direction:column; } .sa-gate-matrix-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:420px) { .sa-gate-matrix-grid { grid-template-columns:1fr; } .sa-gate-card p { min-height:0; } }

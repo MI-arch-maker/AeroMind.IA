@@ -211,11 +211,11 @@ def _session_response(account: dict, request: Request, *, admin_console: bool = 
     response = JSONResponse({"authenticated": True, "email": email, "auth_method": "local-password-totp"})
     if admin_console:
         cookie = _cookie_security(request)
-        response.set_cookie("aeromind_admin_session", token, max_age=28_800,
+        response.set_cookie("aeromind_admin_session", token, max_age=86_400,
                             httponly=True, secure=cookie["secure"],
                             samesite=cookie["samesite"], path="/api/admin-console")
     else:
-        response.set_cookie("aeromind_session", token, max_age=28_800, **_cookie_security(request))
+        response.set_cookie("aeromind_session", token, max_age=86_400, **_cookie_security(request))
     response.headers["Cache-Control"] = "no-store"
     return response
 

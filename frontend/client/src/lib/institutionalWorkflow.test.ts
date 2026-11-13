@@ -19,7 +19,8 @@ describe("institutional simulation workflow", () => {
   it("requires each explicit GATE role in order and a verified code for GATE 05", () => {
     let workflow = createInstitutionalWorkflow("SIM-REQ-42");
     expect(validateInstitutionalGate(workflow, "GATE_02", "gate_02_reviewer").error).toMatch(/attendue/i);
-    expect(validateInstitutionalGate(workflow, "GATE_01", "analyst").error).toMatch(/requis/i);
+    // La gouvernance cumulative autorise L3/Analyst à contrôler G01.
+    expect(validateInstitutionalGate(workflow, "GATE_01", "operator").error).toMatch(/requis/i);
     workflow = validateInstitutionalGate(workflow, "GATE_01", "gate_01_reviewer").workflow;
     workflow = validateInstitutionalGate(workflow, "GATE_02", "gate_02_reviewer").workflow;
     workflow = validateInstitutionalGate(workflow, "GATE_03", "gate_03_reviewer").workflow;

@@ -77,28 +77,37 @@ ROLE_HIERARCHY = {
 }
 # Per-role action permissions (RBAC matrix — EXIGENCE IAM-04)
 PERMISSIONS = {
-    "reader":   {"project.read", "drone.read", "run.read", "measurement.read", "telemetry.read"},
+    "reader":   {"project.read", "drone.read", "run.read", "measurement.read", "telemetry.read", "institutional.gate.01.validate"},
     "designer": {"project.read", "drone.read", "drone.write", "sketch.save", "configuration.version",
-                 "run.read", "measurement.read"},
+                 "run.read", "measurement.read", "institutional.gate.01.validate", "institutional.gate.02.validate"},
     "analyst":  {"project.read", "drone.read", "run.create", "run.read", "run.cancel",
-                 "measurement.read", "telemetry.read", "institutional.request.create", "institutional.simulation.execute"},
+                 "measurement.read", "telemetry.read", "institutional.request.create", "institutional.simulation.execute",
+                 "institutional.gate.01.validate", "institutional.gate.02.validate", "institutional.gate.03.validate"},
     "operator": {"project.read", "drone.read", "run.read", "telemetry.read",
                   "hardware.command.request", "mission.upload.request", "geofence.read",
                   "institutional.request.create", "institutional.simulation.execute"},
     "approver": {"project.read", "drone.read", "run.read", "telemetry.read",
                  "hardware.command.approve", "mission.upload.approve", "geofence.read"},
     "admin":    {"project.*", "drone.*", "run.*", "measurement.*", "telemetry.*",
-                 "member.manage", "geofence.write", "gate.manage"},
+                 "member.manage", "geofence.write", "gate.manage",
+                 "institutional.gate.01.validate", "institutional.gate.02.validate",
+                 "institutional.gate.03.validate", "institutional.gate.04.validate",
+                 "institutional.transmission.issue"},
     "gate_01_reviewer": {"project.read", "run.read", "institutional.gate.01.validate"},
     "gate_02_reviewer": {"project.read", "run.read", "institutional.gate.02.validate"},
     "gate_03_reviewer": {"project.read", "run.read", "institutional.gate.03.validate"},
     "gate_04_reviewer": {"project.read", "run.read", "institutional.gate.04.validate", "institutional.transmission.issue"},
-    "super_admin": {"project.read", "run.read", "institutional.transmission.verify", "institutional.gate.05.decide", "institutional.audit.read"},
+    "super_admin": {"project.*", "drone.*", "run.*", "measurement.*", "telemetry.*", "member.manage", "geofence.write", "gate.manage",
+                    "institutional.request.create", "institutional.simulation.execute",
+                    "institutional.gate.01.validate", "institutional.gate.02.validate",
+                    "institutional.gate.03.validate", "institutional.gate.04.validate",
+                    "institutional.transmission.issue", "institutional.transmission.verify",
+                    "institutional.gate.05.decide", "institutional.audit.read"},
 }
 
 # Step-up session lifetime — short by design (EXIGENCE IAM-01)
-STEP_UP_DEFAULT_TTL = timedelta(minutes=15)
-STEP_UP_MAX_TTL = timedelta(hours=1)
+STEP_UP_DEFAULT_TTL = timedelta(hours=24)
+STEP_UP_MAX_TTL = timedelta(hours=24)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

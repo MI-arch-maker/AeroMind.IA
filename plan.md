@@ -1,27 +1,48 @@
-## Refonte solveurs et pipelines — cahier du 11 novembre 2026
+# Plan d’implémentation — AeroMind IA modernisé
 
-Le menu de rendu reste monté dans `MechanicalTwinViewport`, mais chaque option technique appelle désormais un solveur ou un matériau dédié sur la géométrie active. CFD produit pression de surface, champ vectoriel et streamlines; MEF produit Von Mises, gradient de déformation et zones de charge; Flux produit particules et traces; Bionic génère un treillis stress-guided; Exploded utilise translation d’assemblage et clipping plane GPU; Wireframe/Blueprint extraient la topologie; Carbon, Crystal et ArchViz utilisent des matériaux/pipelines GPU spécialisés.
+## Objectif
 
-Les composants `engineeringSolvers.ts`, `engineeringMaterials.ts`, `renderEngines.ts` et `MechanicalTwinViewport.tsx` restent séparés : calculs, registre, matériaux et projection 3D. Les résultats enrichis sont attachés à la géométrie active puis rendus par des overlays sans remplacer le mesh source. Les modes de présentation historiques conservent leur comportement et les droits L1–L5 ne changent pas.
+Appliquer au projet importé le cahier des charges « Intégration du rendu technique Blueprint / X-Ray » sans casser le cockpit existant, les centres métier ni les garde-fous G01–G05. La Preview et la simulation restent strictement virtuelles : `HARDWARE_CONTROL=false`, `AEROMIND_VIRTUAL_ONLY=true`, `physicalOutputEnabled=false`.
 
-Les limitations sont conservées explicitement : les solveurs navigateur sont déterministes et exploratoires; CFD/MEF ne sont pas des solveurs volumique/EF 3D qualifiés, CSG reste un clipping GPU lorsque la source n’est pas B-Rep, et les capacités WebGL/WebGPU déterminent les fallbacks de transparence et path tracing.
+## Approche d’implémentation
 
-## Manipulation 3D directe des composants — demande du 11 novembre 2026
+- Réutiliser React/Vite, FastAPI, Three.js, les modèles OBJ/STL/SCAD et les composants mécaniques déjà présents.
+- Faire du modèle mécanique sélectionné la source unique du viewport : `droneId`, `modelId`, version, paramètres, composants et provenance sont conservés dans le contrat de rendu.
+- Centraliser les presets, caméras, couches, sélection, éclatement, annotations et fallback dans le pipeline partagé utilisé par les centres de conception, CAD, simulation, maintenance, qualité, production et Super-Admin.
+- Afficher explicitement les états « drone non sélectionné », « modèle indisponible », « géométrie partielle », « composants internes absents », « WebGL indisponible », « erreur de chargement », « données incomplètes », « désynchronisé » et « rendu limité ».
+- Garder les interactions visuelles séparées de toute mutation persistante ou commande matérielle. Les actions de modification restent contrôlées par les droits et la chaîne G01–G05.
+- Préserver le niveau de détail et la fluidité par réutilisation du mesh, matériaux, cache local de scène, chargement progressif et fallback vectoriel clairement étiqueté.
 
-Étendre les centres de conception existants en conservant la géométrie et les matériaux d’origine. La sélection d’une pièce permet d’activer un manipulateur de translation à la souris dans le viewport; les deltas sont sauvegardés comme `MechanicalPartEdit.offset` dans le réglage du design actif, et restent modifiables/réinitialisables par les commandes existantes. L’éclatement reste une présentation temporaire indépendante de ces edits, avec réglage continu et réinitialisation, et disperse la mécanique de façon lisible autour de l’assemblage. Le viewport exposera des vues isométrique, dessus, face et côté; les rendus techniques existants (incluant CFD, MEF, wireframe, écorché, ArchViz, carbone et cristal) demeurent disponibles. Le fallback vectoriel et les lecteurs seule ne doivent jamais prétendre déplacer la source quand ils ne peuvent pas appliquer une transformation 3D.
+## Contrat de données de rendu
 
+Le pipeline reçoit : `droneId`, `modelId`, `modelVersion`, `mechanicalModel`, `activeParameters`, `preset`, `camera`, `layerVisibility`, `explosionLevel`, `selectedComponent`, `centreContext`, `source`, `syncStatus` et `renderCapabilities`. Chaque composant rendu expose un identifiant stable, une catégorie, un nom, une géométrie éventuelle, des dimensions, un état de validation et une provenance catalogue/CAD/jumeau mécanique.
 
-## Centre intégré d’ingénierie et d’industrialisation AeroMind — 12 novembre 2026
+## Structure du projet
 
-Transformer la route existante `engineering-hub` en workspace principal, et non en portail de liens : en-tête projet/cellule/statut, arbre dossiers/sous-dossiers, centre CAO 3D, inspecteur de pièce/matériau et espace d’usine numérique. Réutiliser `EngineeringHub` comme shell, `MechanicalTwinEditor` / `MechanicalTwinViewport` comme éditeurs de géométrie actifs, `buildMechanicalModel` et les données du drone catalogue/croquis comme source de vérité, la bibliothèque fabricant de matériaux et `VirtualParametricFactory` pour les parcours de production déjà présents. Le nouveau plan d’atelier conserve les données non géométriques (arborescence, documents, affectations matériaux/postes, étapes de gamme et préférences) dans `ConceptConfig` sous un schéma versionné, afin que le mécanisme existant `Home` sauvegarde la configuration avec le projet sur stockage local/serveur selon son statut effectif; ne pas créer une seconde base ou simuler une persistance serveur.
+- `frontend/client/src/components/MechanicalTwinViewport.tsx` : scène 3D, presets, caméra, sélection et couches.
+- `frontend/client/src/lib/aircraftRenderSchema.ts` : contrat normalisé du modèle et des états de rendu.
+- `frontend/client/src/lib/renderEngines.ts` : registre des moteurs/presets et capacités/fallbacks.
+- `frontend/client/src/lib/mechanicalTwinGeometry.ts` : géométrie issue du modèle sélectionné.
+- `frontend/client/src/components/MechanicalTwinIntegrationDock.tsx` et `MechanicalWorkbench.tsx` : intégration dans les centres.
+- `frontend/client/src/pages/Home.tsx` et les centres métier : transmission du drone réellement sélectionné et du contexte.
+- `web/` : FastAPI, modes virtuels, audits et API existantes ; aucune route visuelle ne doit contourner les garde-fous.
+- `frontend/client/public/manus-routes.json` : routes déclarées pour la Preview.
+- `Dockerfile`, `frontend/package.json`, `requirements.txt` : build et runtime port 3000.
 
-Projet structure: `frontend/client/src/modules/engineering-hub/EngineeringHub.tsx` est le shell de poste/workbench, `engineering-hub.css` porte le système visuel, `frontend/client/src/lib/aeroEngine.ts` décrit le sous-document persisté `EngineeringWorkspaceConfig`, et un module/lib de domaine dédié gère validations et opérations arborescentes/fabrication, séparé de la géométrie CAO de `mechanicalTwinGeometry.ts`. Home passe le config/setter/design sélectionné au Hub et le chemin de sauvegarde actuel reste autoritaire. Route historique et vues modules restent accessibles depuis une section secondaire; aucun bouton d’aperçu ne doit masquer une action absente.
+## Direction design
 
-Expérience: conserver l’identité atelier AeroMind sombre/graphite déjà utilisée dans Mechanical Twin, la mettre au format de poste CAO dense et professionnel (rail projet, canvas central, inspecteur, barre production), palettes acier/graphite, accent cyan de statut, statuts et origines explicites. Vue d’usine illustrative/virtuelle exclusivement, pièces et matériaux visibles liés au modèle/tables existants, étapes de production comme planning éditable; séparer les états virtuel, équipement configuré, échange testé et matériel réel confirmé. Toute donnée de pièce ou matière inconnue reste à vérifier, ne doit pas être inventée comme physique.
+- **Mouvement** : salle de contrôle aéronautique contemporaine, inspirée des interfaces de télémétrie et des consoles CAO industrielles.
+- **Principes** : densité utile, hiérarchie lisible, provenance visible, statut toujours explicite.
+- **Palette** : graphite et bleu pétrole pour réduire la fatigue visuelle ; teal AeroMind `#44C8D2` comme signal de sélection, de synchronisation et de réussite ; ambre/rouge réservés aux alertes.
+- **Mise en page** : poste de travail à rail latéral, canvas technique central et inspecteur contextuel ; panneaux escamotables pour préserver la zone 3D.
+- **Signatures** : grille blueprint discrète, lignes cyan de construction, badges de version/provenance et barre d’état simulation-only.
+- **Interaction** : chaque action visuelle est réversible, locale par défaut et accompagnée d’un état explicite ; aucune interaction de scène ne déclenche une commande matérielle.
+- **Animation** : transitions courtes et fonctionnelles, chargement progressif non bloquant, pas d’animation décorative qui gêne l’inspection.
+- **Typographie** : Inter pour l’interface, IBM Plex Mono pour les identifiants, dimensions, versions et journaux.
+- **Essence de marque** : un poste d’ingénierie drone traçable qui relie la cellule sélectionnée à sa géométrie inspectable. Précise, sobre, auditable.
+- **Voix** : « Cellule synchronisée — inspection prête. » ; « Rendu virtuel uniquement — aucune commande matérielle. »
+- **Logotype** : conserver le logo AeroMind fourni et l’utiliser avec le libellé de centre plutôt qu’un wordmark généré.
 
+## Build et livraison
 
-## Passe ergonomique — structure maître plein écran et état vide sûr, 12 novembre 2026
-
-Le Hub devient l’espace maître plein écran en maximisant sa fenêtre dès son ouverture et en réinitialisant ses layouts mémorisés à ce mode. Il conserve une structure de poste CAO lisible (navigation des espaces, arborescence projet, canvas central, inspecteur et statut de sauvegarde) dans une surface adaptative; ses panneaux latéraux peuvent être masqués pour élargir la zone de travail. La hauteur est contrainte à l’espace disponible, le canvas est flexible et les vues détaillées scrollent à l’intérieur de leur panneau, sans imposer une fenêtre CAO miniature de 790 px ou un page-scroll permanent.
-
-La seule source initiale de géométrie est une cellule explicitement fournie par Home après sélection/import/dessin pour la session, ou un croquis utilisateur existant. Le catalogue est présenté sans présélection, le modèle constructeur `catalogPreview` est supprimé, et choisir un profil au menu ne dessine rien avant le clic explicite de chargement. L’état initial sans cellule expose une zone vide avec actions de sélection/dessin; aucun mesh, inspecteur pièce, BOM ou nombre de composants ne doit s’afficher avant qu’un choix/dessin explicite existe.
+Installer les dépendances avec le lockfile existant, exécuter les checks ciblés backend/frontend, construire `frontend/dist/index.html`, démarrer FastAPI sur le port Webdev 3000, vérifier `/api/ready` et `/manus-routes.json`, enregistrer un checkpoint propre, puis produire `Aeromind.IA-modernise.zip` sans `node_modules`, caches, `.env` réel ou artefacts temporaires.

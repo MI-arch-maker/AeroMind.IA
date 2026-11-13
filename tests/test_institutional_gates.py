@@ -121,3 +121,14 @@ def test_gate_05_is_not_delegable_to_generic_approver(db_session, project):
     with pytest.raises(InstitutionalGateError) as denied:
         decide_gate_05(db_session, request_id=request.id, decision="approve", transmission_code=transmission or "", actor_id="gate-04", actor_roles={"approver"})
     assert denied.value.code == "INSTITUTIONAL_ROLE_REQUIRED"
+
+
+def test_cumulative_levels_control_gates_and_super_admin_keeps_gate_05(db_session, project):
+    request = _request(db_session, project)
+    decide_gate(db_session, request_id=request.id, gate="GATE_01", decision="approve", actor_id="l1", actor_roles={"reader"})
+    decide_gate(db_session, request_id=request.id, gate="GATE_02", decision="approve", actor_id="l2", actor_roles={"designer"})
+    decide_gate(db_session, request_id=request.id, gate="GATE_03", decision="approve", actor_id="l3", actor_roles={"analyst"})
+    _, transmission = decide_gate(db_session, request_id=request.id, gate="GATE_04", decision="approve", actor_id="admin", actor_roles={"admin"})
+    assert transmission and transmission.startswith("AM-TR-")
+    decide_gate_05(db_session, request_id=request.id, decision="approve", transmission_code=transmission, actor_id="super-admin", actor_roles={"super_admin"})
+    assert request.status == "approved_gate_05"

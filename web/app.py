@@ -75,6 +75,7 @@ from sitl_modules.api import router as sitl_router
 from .mavlink_telemetry_api import router as mavlink_telemetry_router
 from .i18n import locale_from_accept_language, localized_message
 from .capability_policy import CapabilityMiddleware
+from .security_monitor import run_security_probe
 
 
 def _engine_status():
@@ -556,10 +557,10 @@ async def dev_login(request: Request):
         'user': {'id': dev_user_id, 'email': dev_email, 'name': primary.get('name', 'Administrateur principal'), 'role': 'super_admin', 'level': 'L5', 'accountStatus': 'active'},
         'token': token,
     })
-    # P-LOGOUT-5 fix: reduce dev-login cookie lifetime from 24h to 8h to
-    # match OIDC/local-MFA sessions (28800s = 8h). This limits the window
+    # Primary session cookies use the same daily expiry as the server-side allowlist (24h).
+    # Explicit logout/revocation still invalidates the session immediately.
     # during which a stolen cookie can be replayed.
-    response.set_cookie('aeromind_session', token, max_age=28800, **_cookie_security(request))
+    response.set_cookie('aeromind_session', token, max_age=86400, **_cookie_security(request))
     return response
 
 
@@ -1542,6 +1543,32 @@ def ready():
         return {'ready': True, 'database': 'connected', 'mode': _active_control_mode()}
     except Exception as exc:
         raise HTTPException(503, detail={'ready': False, 'database': 'disconnected', 'error': type(exc).__name__})
+
+
+@app.get('/api/security/status')
+def security_status(request: Request):
+    """Run probes publicly, while keeping detailed host inventory authenticated."""
+    result = run_security_probe(Path(__file__).resolve().parent.parent)
+    actor = resolve_current_user(
+        request.cookies.get('aeromind_session'),
+        request.headers.get('authorization'),
+    )
+    if actor:
+        return result
+    return {
+        'timestamp': result['timestamp'],
+        'simulationOnly': True,
+        'hardwareControl': False,
+        'integrity': {
+            'status': result['integrity']['status'],
+            'baseline': result['integrity']['baseline'],
+            'filesScanned': result['integrity']['filesScanned'],
+        },
+        'antivirus': result['antivirus'],
+        'processes': {'status': result['processes']['status']},
+        'network': {'status': result['network']['status']},
+        'alerts': result['alerts'],
+    }
 
 
 @app.get('/api/capabilities')

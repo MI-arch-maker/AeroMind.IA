@@ -68,7 +68,7 @@ import {
   type LabBenchResult,
 } from "@/lib/labBench";
 import { useLanguage } from "../contexts/LanguageContext";
-import { performStepUp, fetchActiveDrone } from "../lib/labStatus";
+import { performStepUp, fetchActiveDrone, restoreLabSession, revokeLabSession, syncSelectedDrone } from "../lib/labStatus";
 import { startLogin } from "../const";
 import { bearerHeaders, clearSessionToken } from "../lib/sessionToken";
 import "./labbench.css";
@@ -303,7 +303,7 @@ export default function LabBench({
   const [labMfaCode, setLabMfaCode] = useState("");
   const [labSessionInfo, setLabSessionInfo] = useState<{ project_id: string; roles: string[]; expires_at: string } | null>(null);
   const [stepUpHelpOpen, setStepUpHelpOpen] = useState(false);
-  const [activeDroneSync, setActiveDroneSync] = useState<{ drone_name?: string; revision?: string; last_sync_at?: string } | null>(null);
+  const [activeDroneSync, setActiveDroneSync] = useState<{ drone_id?: string; drone_name?: string; revision?: string; last_sync_at?: string; mismatch?: boolean } | null>(null);
   const [labActivationError, setLabActivationError] = useState<string | null>(null);
   const [labActivating, setLabActivating] = useState(false);
   const [enterpriseLogoutBusy, setEnterpriseLogoutBusy] = useState(false);
@@ -439,6 +439,10 @@ export default function LabBench({
   const activeDroneConfig = hasUserIntegratedData
     ? explicitWorkspaceConfig as Record<string, unknown>
     : null;
+  const workspaceSelection = activeDroneConfig?.engineeringSelection && typeof activeDroneConfig.engineeringSelection === "object"
+    ? activeDroneConfig.engineeringSelection as Record<string, unknown> : {};
+  const workspaceDroneId = typeof workspaceSelection.droneId === "string" && workspaceSelection.droneId !== "unselected"
+    ? workspaceSelection.droneId : typeof activeDroneConfig?.platformProfile === "string" ? activeDroneConfig.platformProfile : undefined;
   const integratedLocalDataReady = integratedSurface && hasUserIntegratedData;
   // Integrated LabBench reads the exact Home workspace, and remains empty until
   // a catalogue selection or genuine user-authored drawing is present.
@@ -519,6 +523,40 @@ export default function LabBench({
     projectEpoch.current += 1;
     simulationEpoch.current = null;
   }, [selectedProjectId]);
+  useEffect(() => {
+    if (!remoteProjectId) {
+      setLabSessionInfo(null);
+      setActiveDroneSync(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const restored = await restoreLabSession();
+        if (cancelled) return;
+        if (!restored || restored.project_id !== remoteProjectId) {
+          setLabSessionInfo(null);
+          setActiveDroneSync(null);
+          return;
+        }
+        setLabSessionInfo(restored);
+        const active = await fetchActiveDrone(remoteProjectId);
+        if (cancelled) return;
+        const mismatch = Boolean(workspaceDroneId && active.active_drone?.drone_id !== workspaceDroneId);
+        setActiveDroneSync(active.active_drone ? {
+          drone_id: active.active_drone.drone_id,
+          drone_name: active.active_drone.drone_name,
+          revision: active.active_revision?.checksum ?? undefined,
+          last_sync_at: active.last_sync_at,
+          mismatch,
+        } : { last_sync_at: active.last_sync_at, mismatch });
+        setLabActivationError(mismatch ? "Le drone sélectionné dans l’espace de travail ne correspond pas à la référence serveur LabBench. Une synchronisation avec un rôle Concepteur est nécessaire." : null);
+      } catch {
+        if (!cancelled) setLabSessionInfo(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [remoteProjectId]);
   // === Integrated local mode ===
   // A local calculation is allowed only from the active Home workspace after
   // the user selected/imported a cell or drawing. It is never a substitute for
@@ -1956,9 +1994,13 @@ export default function LabBench({
           <div className="lb-identity-cell">
             <span className="lb-identity-kicker">AUTORISATION LABBENCH</span>
             <strong>{labSessionInfo ? "Session LABBENCH active" : meQuery.data ? "Validation LABBENCH attendue" : "Connexion"}</strong>
-            <small>{labSessionInfo ? `Rôles : ${labSessionInfo.roles.join(", ")} · expire ${new Date(labSessionInfo.expires_at).toLocaleTimeString("fr-FR")}` : meQuery.data ? "Session de travail temporaire selon la gouvernance AeroMind." : "Connectez-vous via Entra / SSO pour poursuivre."}</small>
+            <small>{labSessionInfo ? `Rôles : ${labSessionInfo.roles.join(", ")} · expire ${new Date(labSessionInfo.expires_at).toLocaleTimeString("fr-FR")}` : meQuery.data ? "Session conservée jusqu’à 24 heures ; vous pouvez fermer LABBENCH manuellement." : "Connectez-vous via Entra / SSO pour poursuivre."}</small>
           </div>
           <div className="lb-identity-actions">
+            {labSessionInfo && <button type="button" className="lb-secondary lb-session-action" onClick={async () => {
+              try { await revokeLabSession(); } catch (error) { setLabActivationError(error instanceof Error ? error.message : "Déconnexion LABBENCH impossible"); return; }
+              setLabSessionInfo(null); setActiveDroneSync(null); setLabMfaCode("");
+            }}>Se déconnecter de LABBENCH</button>}
             {meQuery.data && !labSessionInfo && remoteProjectId && (
               <div className="lb-stepup-form">
                 <label htmlFor="labbench-stepup-code">Code TOTP à 6 chiffres</label>
@@ -1968,10 +2010,15 @@ export default function LabBench({
                     setLabActivating(true); setLabActivationError(null);
                     try {
                       const session = await performStepUp(remoteProjectId, labMfaCode.trim(), ["reader", "analyst", "designer"], "step-up");
-                      const info = { project_id: remoteProjectId, roles: ["reader", "analyst", "designer"], expires_at: session.expires_at };
+                      const info = { project_id: remoteProjectId, roles: session.roles, expires_at: session.expires_at };
                       setLabSessionInfo(info);
+                      if (info.roles.includes("designer") && activeDroneConfig) {
+                        await syncSelectedDrone(remoteProjectId, activeDroneConfig, session.token);
+                      }
                       const active = await fetchActiveDrone(remoteProjectId, session.token);
-                      setActiveDroneSync(active.active_drone ? { drone_name: active.active_drone.drone_name, revision: active.active_revision?.checksum ?? undefined, last_sync_at: active.last_sync_at } : { last_sync_at: active.last_sync_at });
+                      const mismatch = Boolean(workspaceDroneId && active.active_drone?.drone_id !== workspaceDroneId);
+                      setActiveDroneSync(active.active_drone ? { drone_id: active.active_drone.drone_id, drone_name: active.active_drone.drone_name, revision: active.active_revision?.checksum ?? undefined, last_sync_at: active.last_sync_at, mismatch } : { last_sync_at: active.last_sync_at, mismatch });
+                      if (mismatch) setLabActivationError("Le drone du workspace n’a pas pu être synchronisé côté serveur. Vérifiez le rôle Concepteur et recommencez.");
                     } catch (error) { setLabActivationError(error instanceof Error ? error.message : "Activation LABBENCH impossible"); } finally { setLabActivating(false); }
                   }}>{labActivating ? "Activation…" : "Activer LABBENCH"}</button>
                 </div>
@@ -1986,7 +2033,7 @@ export default function LabBench({
             <div>
               <strong>Le Step-up est la seconde identification de LABBENCH 01.</strong>
               <p>Connectez-vous d’abord à AeroMind, puis saisissez ici le code TOTP à 6 chiffres attribué pour la journée par le Super-Admin depuis la Console Admin. Ce n’est ni le mot de passe AeroMind, ni le code de rapport.</p>
-              <p>Si aucun code n’a encore été attribué pour {meQuery.data?.email ?? "votre compte"}, demandez au Super-Admin d’ouvrir la Console Admin, de sélectionner votre compte et de cliquer sur <b>TOTP du jour</b>. La session LABBENCH est temporaire et expire après 15 minutes.</p>
+              <p>Si aucun code n’a encore été attribué pour {meQuery.data?.email ?? "votre compte"}, demandez au Super-Admin d’ouvrir la Console Admin, de sélectionner votre compte et de cliquer sur <b>TOTP du jour</b>. La session LABBENCH reste active jusqu’à 24 heures ou jusqu’à votre déconnexion explicite.</p>
             </div>
           </section>
         )}
@@ -2012,7 +2059,7 @@ export default function LabBench({
         ) : (
           <>
         <div className="lb-local-mode-banner lb-remote-banner"><ShieldCheck size={16} /><span><strong>Source AeroMind synchronisée</strong></span></div>
-        {remoteProjectId && activeDroneSync && <div className="lb-sync-strip"><Database size={15} /><span>Dernière synchronisation : {activeDroneSync.last_sync_at ? new Date(activeDroneSync.last_sync_at).toLocaleString("fr-FR") : "—"}</span><span>Drone actif : {activeDroneSync.drone_name ?? "aucun"}</span><span>Révision : {activeDroneSync.revision ? activeDroneSync.revision.slice(0, 12) : "—"}</span></div>}
+        {remoteProjectId && activeDroneSync && <div className="lb-sync-strip"><Database size={15} /><span>{activeDroneSync.mismatch ? "Divergence : non synchronisé" : "Synchronisé"}</span><span>Dernière synchronisation : {activeDroneSync.last_sync_at ? new Date(activeDroneSync.last_sync_at).toLocaleString("fr-FR") : "—"}</span><span>Drone serveur : {activeDroneSync.drone_name ?? "aucun"}</span><span>Révision : {activeDroneSync.revision ? activeDroneSync.revision.slice(0, 12) : "—"}</span></div>}
         <section
           className="lb-panel"
           aria-label="Configuration drone active du projet"

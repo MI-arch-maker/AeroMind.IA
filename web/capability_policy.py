@@ -52,7 +52,7 @@ def capability_for(path: str, method: str) -> Capability | None:
         "/api/auth", "/api/identity", "/api/admin-console", "/api/local/workspace",
     )) or path in {
         "/api/health", "/api/ready", "/api/capabilities",
-        "/api/platform/config.js", "/api/oidc/login",
+        "/api/platform/config.js", "/api/oidc/login", "/api/security/status",
     }):
         return None
 

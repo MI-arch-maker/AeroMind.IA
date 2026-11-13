@@ -59,6 +59,7 @@ import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
 import { dronePartCatalog, type DronePartDefinition } from "../lib/droneParts";
 import { manufacturerPartCatalog } from "../lib/manufacturerParts";
 import { hasDroneGeometry } from "../lib/droneSketchGeometry";
+import { iddsCatalogAsset, resolveIddsSource } from "../lib/iddsModelSource";
 import { ParametricDronePreview } from "./ParametricDronePreview";
 import { PhysicalDroneModel } from "./PhysicalDroneModel";
 import { IDDSTwinAssemblyEditor } from "./IDDSTwinAssemblyEditor";
@@ -363,7 +364,7 @@ function partsFromSketch(strokes: DroneSketchStroke[]): StudioPart[] {
   });
 }
 function partsForConfig(config: ConceptConfig, profile?: DroneCatalogDesign, preserveSavedSketchParts = true): StudioPart[] {
-  if (hasDroneGeometry(config.customSketch?.strokes)) {
+  if ((!profile || config.engineeringSelection?.source === "custom") && hasDroneGeometry(config.customSketch?.strokes)) {
     const generated = partsFromSketch(config.customSketch?.strokes ?? []);
     const saved = config.installedMaterials ?? [];
     const persistedSketchMatches = preserveSavedSketchParts && generated.length > 0 && saved.length === generated.length && generated.every(part => saved.some(item => item.id === part.id && item.iddsWidth !== undefined));
@@ -557,13 +558,16 @@ export function DesignStudioView({
   onUserIntegration?: () => void;
 }) {
   const { language } = useLanguage();
-  const initialParts = useMemo(() => partsForConfig(config, activeProfile), [config, activeProfile]);
+  const resolvedSource = resolveIddsSource(config, activeProfile);
+  const studioProfile = resolvedSource.profile;
+  const activeAsset = iddsCatalogAsset(studioProfile);
+  const initialParts = useMemo(() => partsForConfig(config, studioProfile), [config, studioProfile]);
   const [parts, setParts] = useState<StudioPart[]>(initialParts);
   const partsRef = useRef<StudioPart[]>(initialParts);
   const [architectureQuery, setArchitectureQuery] = useState("");
   const [partQuery, setPartQuery] = useState("");
   const [activeStudioSection, setActiveStudioSection] = useState<StudioSection>("concept");
-  const profileRef = useRef(`${config.engineeringSelection?.source ?? ""}:${config.platformProfile ?? config.airframe ?? ""}:${activeProfile?.id ?? activeProfile?.key ?? ""}`);
+  const profileRef = useRef(`${config.engineeringSelection?.source ?? ""}:${config.engineeringSelection?.droneId ?? ""}:${config.platformProfile ?? config.airframe ?? ""}:${studioProfile?.id ?? ""}`);
   const publishedSketchRef = useRef(config.customSketch?.modifiedAt ?? "");
   const publishedMaterialsRef = useRef(
     materialsSignature(config.installedMaterials)
@@ -629,6 +633,10 @@ export function DesignStudioView({
   const [kinematicsPlaying, setKinematicsPlaying] = useState(false);
   const [mechanicalExploded, setMechanicalExploded] = useState(false);
   const [generatedVariants, setGeneratedVariants] = useState<Array<{ name: string; wingspan: number; fuselageLength: number; motorCount: number }>>([]);
+  useEffect(() => {
+    setGeneratedVariants([]);
+    setKinematicsPlaying(false);
+  }, [studioProfile?.id, config.engineeringSelection?.droneId]);
   const [engineeringDiscipline, setEngineeringDiscipline] = useState<EngineeringDiscipline>("mechanical");
   const [zoom, setZoom] = useState(1);
   const [snap, setSnap] = useState(true);
@@ -693,7 +701,7 @@ export function DesignStudioView({
     partsRef.current = parts;
   }, [parts]);
   useEffect(() => {
-    const profile = `${config.engineeringSelection?.source ?? ""}:${config.platformProfile ?? config.airframe ?? ""}:${activeProfile?.id ?? activeProfile?.key ?? ""}`;
+    const profile = `${config.engineeringSelection?.source ?? ""}:${config.engineeringSelection?.droneId ?? ""}:${config.platformProfile ?? config.airframe ?? ""}:${studioProfile?.id ?? ""}`;
     const profileChanged = profileRef.current !== profile;
     const incomingSignature = materialsSignature(config.installedMaterials);
     const incomingLayersSignature = JSON.stringify(config.studioLayers ?? []);
@@ -708,7 +716,7 @@ export function DesignStudioView({
       incomingSignature !== currentSignature;
     if (profileChanged || externalMaterialsChanged || externalLayersChanged || externalSketchChanged) {
       profileRef.current = profile;
-      const next = partsForConfig(config, activeProfile, !externalSketchChanged);
+      const next = partsForConfig(config, studioProfile, !externalSketchChanged);
       publishedMaterialsRef.current = incomingSignature;
       publishedLayersRef.current = incomingLayersSignature;
       publishedSketchRef.current = incomingSketchSignature;
@@ -740,21 +748,21 @@ export function DesignStudioView({
     ) {
       publishedGeometryRef.current = incomingGeometrySignature;
       const next = parts.map(part => {
-        if (part.kind === "body") {
+        if (part.id === "studio-fuselage") {
           return {
             ...part,
             width: clamp(140 + config.fuselageLength * 18, 140, 320),
             massKg: Math.max(0.4, config.fuselageLength * 0.45),
           };
         }
-        if (part.kind === "wing") {
+        if (part.id === "studio-wing") {
           return {
             ...part,
             width: clamp(config.wingspan * 30, 160, 440),
             massKg: Math.max(0.25, config.wingspan * 0.22),
           };
         }
-        if (part.kind === "motor") {
+        if (part.id === "studio-propulsion") {
           const count = Math.max(1, Math.round(config.motorCount ?? 1));
           return {
             ...part,
@@ -763,7 +771,7 @@ export function DesignStudioView({
             width: clamp(70 + count * 7, 70, 150),
           };
         }
-        if (part.kind === "payload") {
+        if (part.id === "studio-payload") {
           return { ...part, massKg: Math.max(0.1, config.payloadKg) };
         }
         return part;
@@ -776,6 +784,7 @@ export function DesignStudioView({
     config.platformProfile,
     config.airframe,
     config.engineeringSelection?.source,
+    config.engineeringSelection?.droneId,
     config.customSketch?.modifiedAt,
     config.installedMaterials,
     config.studioLayers,
@@ -784,7 +793,7 @@ export function DesignStudioView({
     config.payloadKg,
     config.motorCount,
     config.propDiameter,
-    activeProfile,
+    studioProfile,
     parts,
     announce,
   ]);
@@ -1009,7 +1018,7 @@ export function DesignStudioView({
       name: `Variante ${String.fromCharCode(65 + (index % 26))}`,
       wingspan: Number((baseSpan * (index % 2 === 0 ? 1.08 : 0.92)).toFixed(2)),
       fuselageLength: Number((baseLength * (index % 2 === 0 ? 1 : 1.06)).toFixed(2)),
-      motorCount: Math.max(1, Math.min(12, baseMotors + (index % 2 === 0 ? 1 : -1))),
+      motorCount: activeAsset ? baseMotors : Math.max(1, Math.min(12, baseMotors + (index % 2 === 0 ? 1 : -1))),
     };
     setGeneratedVariants(current => [...current, variant]);
     setConfig(current => ({ ...current, wingspan: variant.wingspan, fuselageLength: variant.fuselageLength, motorCount: variant.motorCount }));
@@ -1361,6 +1370,7 @@ export function DesignStudioView({
     }
   };
   useEffect(() => {
+    if (studioProfile) return;
     const onKey = (event: KeyboardEvent) => {
       if ((event.target as HTMLElement)?.tagName === "INPUT") return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
@@ -1404,8 +1414,8 @@ export function DesignStudioView({
     },
   ];
   const iddsSketch = config.customSketch?.strokes ?? [];
-  const iddsUsesSketch = hasDroneGeometry(iddsSketch);
-  const iddsProfile = iddsUsesSketch ? undefined : activeProfile;
+  const iddsUsesSketch = resolvedSource.usesSketch;
+  const iddsProfile = studioProfile;
   const hasStudioSource = Boolean(iddsProfile || iddsUsesSketch);
   const iddsSourceLabel = iddsProfile?.label ?? (iddsUsesSketch ? config.engineeringSelection?.droneLabel ?? config.designName ?? "Dessin utilisateur" : "Aucune source sélectionnée");
   const renderIddsStroke = (stroke: DroneSketchStroke) => {
@@ -1444,26 +1454,27 @@ export function DesignStudioView({
         onExportEngineeringJson={exportEngineeringJson}
       />
       <section id="studio-physical-design" className="idds-integrated-render-panel" aria-label="Modes de rendu du maillage mécanique IDDS">
-        <header><div><span>ASSEMBLAGE NUMÉRIQUE · JUMEAU MÉCANIQUE</span><strong>{integratedProfile.label} · maillage paramétrique éditable</strong></div><small>Une seule géométrie pilote les rendus, les calques et l’inspecteur.</small></header>
+        <header><div><span>ASSEMBLAGE NUMÉRIQUE · JUMEAU MÉCANIQUE</span><strong>{integratedProfile.label} · {activeAsset ? "reconstruction OBJ éditable" : "maquette paramétrique générique"}</strong></div><small>{activeAsset ? "Maquette reconstruite depuis des images 2D, non certifiée ; ce n’est pas un relevé fidèle." : "Approximation de l’architecture et des paramètres, sans géométrie source attestée."}</small></header>
         <nav className="idds-render-modes" role="toolbar" aria-label="Modes de rendu synchronisés du Studio IDDS">
           {renderModes.map(mode => <button key={mode.id} type="button" className={renderMode === mode.id ? "is-active" : ""} aria-pressed={renderMode === mode.id} title={mode.label} onClick={() => { setRenderMode(mode.id); if (mode.id !== "kinematics") setKinematicsPlaying(false); }}><span>{mode.label}</span></button>)}
         </nav>
         <div className="idds-render-controls" aria-live="polite">
           {renderMode === "simulation" && <>
-            <div className="idds-render-control-heading"><strong>Simulation paramétrique en direct</strong><span>Ces cotes reconstruisent le même modèle 3D et restent liées à l’inspecteur mécanique.</span></div>
+            <div className="idds-render-control-heading"><strong>Simulation paramétrique en direct</strong><span>{activeAsset ? "Envergure et longueur appliquent une mise à l’échelle globale du même OBJ ; pas de reconstruction structurelle." : "Ces cotes reconstruisent la maquette paramétrique indicative liée à l’inspecteur."}</span></div>
             <label>Envergure <output>{Number(config.wingspan || 0).toFixed(2)} m</output><input type="range" min="0.2" max="15" step="0.05" value={Math.max(.2, Math.min(15, Number(config.wingspan) || .2))} onChange={event => setConfig(current => ({ ...current, wingspan: Number(event.target.value) }))}/></label>
             <label>Longueur fuselage <output>{Number(config.fuselageLength || 0).toFixed(2)} m</output><input type="range" min="0.1" max="5" step="0.05" value={Math.max(.1, Math.min(5, Number(config.fuselageLength) || .1))} onChange={event => setConfig(current => ({ ...current, fuselageLength: Number(event.target.value) }))}/></label>
-            <label>Motorisations <output>{Math.max(1, Math.round(Number(config.motorCount) || 1))}</output><input type="range" min="1" max="12" step="1" value={Math.max(1, Math.min(12, Math.round(Number(config.motorCount) || 1)))} onChange={event => setConfig(current => ({ ...current, motorCount: Number(event.target.value) }))}/></label>
+            <label>Motorisations <output>{Math.max(1, Math.round(Number(config.motorCount) || 1))}</output><input type="range" min="1" max="12" step="1" disabled={Boolean(activeAsset)} title={activeAsset ? "Le nombre de moteurs ne peut pas être reconstruit depuis l’OBJ." : undefined} value={Math.max(1, Math.min(12, Math.round(Number(config.motorCount) || 1)))} onChange={event => setConfig(current => ({ ...current, motorCount: Number(event.target.value) }))}/></label>
             <span className="idds-sim-readout">Masse déclarée du modèle : {totalMass.toFixed(2)} kg · estimation indicative</span>
           </>}
-          {renderMode === "kinematics" && <><div className="idds-render-control-heading"><strong>Cinématique des hélices du maillage</strong><span>La géométrie des hélices tourne autour de leur propre axe ; le reste du modèle reste sélectionnable.</span></div><button type="button" className="idds-render-action" aria-pressed={kinematicsPlaying} onClick={() => setKinematicsPlaying(value => !value)}>{kinematicsPlaying ? "Mettre en pause" : "Lancer le mouvement"}</button></>}
-          {renderMode === "variants" && <><div className="idds-render-control-heading"><strong>Générateur de variantes paramétriques</strong><span>Les variantes modifient les paramètres du même maillage mécanique.</span></div><button type="button" className="idds-render-action" onClick={createParametricVariant}>Générer une variante</button><div className="idds-variant-list">{generatedVariants.map(variant => <button type="button" key={variant.name} onClick={() => applyParametricVariant(variant)}><strong>{variant.name}</strong><span>{variant.wingspan.toFixed(2)} m · {variant.fuselageLength.toFixed(2)} m · {variant.motorCount} moteurs</span></button>)}{!generatedVariants.length && <span>Aucune variante générée dans cette session.</span>}</div></>}
-          {renderMode === "internals" && <><div className="idds-render-control-heading"><strong>Détails mécaniques internes</strong><span>Le mode X-ray intégré inspecte les calques réels du jumeau numérique.</span></div><span>Utilisez les commandes de coupe et d’opacité des calques dans l’éditeur.</span></>}
-          {renderMode === "assembly" && <><div className="idds-render-control-heading"><strong>Assemblage mécanique complet</strong><span>Maillage généré depuis la cellule sélectionnée ; toutes les pièces et leurs calques sont éditables.</span></div><span>{parts.length} éléments de nomenclature · {totalMass.toFixed(2)} kg déclarés</span></>}
+          {renderMode === "kinematics" && <><div className="idds-render-control-heading"><strong>Cinématique des hélices du maillage</strong><span>{activeAsset ? "Axes et pivots des rotors non fournis dans l’OBJ ; animation indisponible pour éviter un mouvement inventé." : "Animation illustrative des hélices de la maquette paramétrique ; pas de cinématique validée."}</span></div><button type="button" className="idds-render-action" disabled={Boolean(activeAsset)} aria-pressed={kinematicsPlaying} onClick={() => setKinematicsPlaying(value => !value)}>{kinematicsPlaying ? "Mettre en pause" : "Lancer le mouvement"}</button></>}
+          {renderMode === "variants" && <><div className="idds-render-control-heading"><strong>Générateur de variantes paramétriques</strong><span>{activeAsset ? "Variantes par mise à l’échelle globale de l’OBJ ; motorisation inchangée." : "Les variantes modifient les paramètres de la maquette indicative."}</span></div><button type="button" className="idds-render-action" onClick={createParametricVariant}>Générer une variante</button><div className="idds-variant-list">{generatedVariants.map(variant => <button type="button" key={variant.name} onClick={() => applyParametricVariant(variant)}><strong>{variant.name}</strong><span>{variant.wingspan.toFixed(2)} m · {variant.fuselageLength.toFixed(2)} m · {variant.motorCount} moteurs</span></button>)}{!generatedVariants.length && <span>Aucune variante générée dans cette session.</span>}</div></>}
+          {renderMode === "internals" && <><div className="idds-render-control-heading"><strong>Détails mécaniques internes</strong><span>Coupe et transparence du maillage disponible uniquement ; aucun détail interne non fourni n’est reconstruit.</span></div><span>Utilisez les commandes de coupe et d’opacité des calques dans l’éditeur.</span></>}
+          {renderMode === "assembly" && <><div className="idds-render-control-heading"><strong>Assemblage mécanique complet</strong><span>{activeAsset ? "Objets nommés de la reconstruction OBJ sélectionnée, éditables comme pièces." : "Maquette générique indicative de la cellule sélectionnée ; pièces et calques éditables."}</span></div><span>{parts.length} éléments de nomenclature · {totalMass.toFixed(2)} kg déclarés</span></>}
         </div>
       </section>
       <div id="studio-assembly-workbench" className="studio-subsystem-anchor">
         <IDDSTwinAssemblyEditor
+          key={integratedProfile.id}
           design={integratedProfile}
           config={config}
           language={language}

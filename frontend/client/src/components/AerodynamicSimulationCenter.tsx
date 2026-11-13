@@ -176,18 +176,187 @@ function scanObject(object: THREE.Object3D, unitsToMeters: number) {
   };
 }
 
+type AeroRenderPreset =
+  | "axonometric" | "orthographic" | "perspective" | "npr" | "clay" | "lowpoly"
+  | "archviz" | "mechanical" | "exploded" | "bionic" | "carbon" | "cyberpunk" | "crystal";
+
+type AeroDisplayPart = { mesh: THREE.Mesh; initialPosition: THREE.Vector3; explodedOffset: THREE.Vector3 };
+export type AeroDisplayModel = {
+  object: THREE.Group;
+  meshes: THREE.Mesh[];
+  parts: AeroDisplayPart[];
+  materials: THREE.Material[];
+  ownedGeometries: THREE.BufferGeometry[];
+  radius: number;
+};
+
+// Each top-level mesh is an available mesh part, not necessarily a physical CAD component.
+function displayPartMeshes(root: THREE.Object3D): THREE.Mesh[] {
+  const parts: THREE.Mesh[] = [];
+  root.traverse(child => {
+    if (!(child instanceof THREE.Mesh) || !child.geometry.getAttribute("position")) return;
+    if ((child.geometry.index?.count ?? child.geometry.getAttribute("position").count) < 3) return;
+    let visibility: THREE.Object3D | null = child;
+    while (visibility) {
+      if (!visibility.visible) return;
+      if (visibility === root) break;
+      visibility = visibility.parent;
+    }
+    let parent = child.parent;
+    while (parent) {
+      if (parent instanceof THREE.Mesh) return;
+      if (parent === root) break;
+      parent = parent.parent;
+    }
+    parts.push(child);
+  });
+  return parts;
+}
+
+/** Build a centered view clone without changing the imported geometry or its materials. */
+export function createAeroDisplayModel(source: THREE.Object3D): AeroDisplayModel {
+  const clone = source.clone(true);
+  const wrapper = new THREE.Group();
+  wrapper.add(clone);
+  wrapper.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(wrapper);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const largest = Math.max(size.x, size.y, size.z);
+  if (box.isEmpty() || !Number.isFinite(largest) || largest <= 0) throw new Error("Géométrie sans enveloppe valide.");
+  const scale = 3.2 / largest;
+  wrapper.scale.setScalar(scale);
+  // Translation is in the parent's coordinates, so it must include the display scale.
+  wrapper.position.copy(center).multiplyScalar(-scale);
+  wrapper.updateMatrixWorld(true);
+
+  const meshes: THREE.Mesh[] = [];
+  const ownedGeometries: THREE.BufferGeometry[] = [];
+  clone.traverse(child => {
+    if (!(child instanceof THREE.Mesh)) return;
+    if (!child.geometry.getAttribute("normal") && child.geometry.getAttribute("position")) {
+      child.geometry = child.geometry.clone();
+      child.geometry.computeVertexNormals();
+      ownedGeometries.push(child.geometry);
+    }
+    meshes.push(child);
+  });
+
+  const partMeshes = displayPartMeshes(clone);
+  const modelCenter = new THREE.Box3().setFromObject(wrapper).getCenter(new THREE.Vector3());
+  const parts = partMeshes.map((mesh, index) => {
+    const partCenter = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
+    const direction = partCenter.clone().sub(modelCenter);
+    // Coincident centers can occur in legitimate assemblies; use a deterministic visual offset.
+    if (direction.lengthSq() < 1e-12) {
+      const angle = index * Math.PI * 2 / Math.max(partMeshes.length, 1);
+      direction.set(Math.cos(angle), 0.35, Math.sin(angle));
+    }
+    direction.normalize().multiplyScalar(0.65);
+    const parent = mesh.parent!;
+    const from = parent.worldToLocal(partCenter.clone());
+    const to = parent.worldToLocal(partCenter.clone().add(direction));
+    return { mesh, initialPosition: mesh.position.clone(), explodedOffset: to.sub(from) };
+  });
+  const radius = new THREE.Box3().setFromObject(wrapper).getBoundingSphere(new THREE.Sphere()).radius;
+  return { object: wrapper, meshes, parts, materials: [], ownedGeometries, radius };
+}
+
+/** Apply only visual changes; explosion moves distinct decoded mesh objects, not invented parts. */
+export function applyAeroRenderPreset(model: AeroDisplayModel, preset: AeroRenderPreset) {
+  for (const part of model.parts) {
+    part.mesh.position.copy(part.initialPosition);
+    if (preset === "exploded" && model.parts.length > 1) part.mesh.position.add(part.explodedOffset);
+  }
+  model.materials.forEach(material => material.dispose());
+  model.materials = [];
+  for (const mesh of model.meshes) {
+    let material: THREE.Material;
+    if (preset === "npr") {
+      material = new THREE.MeshToonMaterial({ color: 0x70d5ce, side: THREE.DoubleSide });
+    } else {
+      const settings: THREE.MeshStandardMaterialParameters = { color: 0x71d8d3, metalness: 0.34, roughness: 0.42, side: THREE.DoubleSide };
+      if (preset === "clay") Object.assign(settings, { color: 0xc9c3b6, metalness: 0, roughness: 0.92 });
+      if (preset === "lowpoly") Object.assign(settings, { color: 0x74b2ac, flatShading: true, roughness: 0.8, metalness: 0.05 });
+      if (preset === "archviz") Object.assign(settings, { color: 0xc3d5d3, roughness: 0.3, metalness: 0.25 });
+      if (preset === "bionic") Object.assign(settings, { color: 0x92eee2, wireframe: true, metalness: 0, roughness: 0.8 });
+      if (preset === "carbon") Object.assign(settings, { color: 0x303b41, metalness: 0.25, roughness: 0.55 });
+      if (preset === "cyberpunk") Object.assign(settings, { color: 0x494264, emissive: 0x53105f, emissiveIntensity: 0.6, metalness: 0.65, roughness: 0.28 });
+      if (preset === "crystal") Object.assign(settings, { color: 0xa7ebf2, transparent: true, opacity: 0.28, depthWrite: false, metalness: 0.05, roughness: 0.18 });
+      material = new THREE.MeshStandardMaterial(settings);
+    }
+    mesh.material = material;
+    model.materials.push(material);
+  }
+  model.object.updateMatrixWorld(true);
+}
+
+export function disposeAeroDisplayModel(model: AeroDisplayModel) {
+  model.materials.forEach(material => material.dispose());
+  model.ownedGeometries.forEach(geometry => geometry.dispose());
+}
+
+type AeroCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
+
+function updateAeroOrthoFrustum(camera: THREE.OrthographicCamera, height: number, aspect: number) {
+  camera.left = -height * aspect / 2;
+  camera.right = height * aspect / 2;
+  camera.top = height / 2;
+  camera.bottom = -height / 2;
+  camera.updateProjectionMatrix();
+}
+
+/** Switch projection while retaining the target and approximately the same apparent scale. */
+export function switchAeroProjection(current: AeroCamera, perspective: THREE.PerspectiveCamera, orthographic: THREE.OrthographicCamera, target: THREE.Vector3, aspect: number, preset: AeroRenderPreset): AeroCamera {
+  const wantsOrtho = preset === "orthographic" || preset === "axonometric";
+  let next = current;
+  if (wantsOrtho && current !== orthographic) {
+    const distance = Math.max(current.position.distanceTo(target), 0.01);
+    const height = 2 * distance * Math.tan(THREE.MathUtils.degToRad(perspective.fov / 2)) / perspective.zoom;
+    orthographic.position.copy(current.position);
+    orthographic.up.copy(current.up);
+    orthographic.zoom = 1;
+    updateAeroOrthoFrustum(orthographic, height, aspect);
+    next = orthographic;
+  } else if (!wantsOrtho && current !== perspective) {
+    const height = (orthographic.top - orthographic.bottom) / orthographic.zoom;
+    const distance = height / (2 * Math.tan(THREE.MathUtils.degToRad(perspective.fov / 2)));
+    const direction = current.position.clone().sub(target).normalize();
+    perspective.position.copy(target).addScaledVector(direction, distance);
+    perspective.up.copy(current.up);
+    perspective.zoom = 1;
+    perspective.updateProjectionMatrix();
+    next = perspective;
+  }
+  if (preset === "axonometric") {
+    const distance = Math.max(next.position.distanceTo(target), 0.01);
+    next.position.copy(target).addScaledVector(new THREE.Vector3(1, 1, 1).normalize(), distance);
+  }
+  return next;
+}
+
 function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset | null; unitsToMeters: number; onSurface: (surface: string) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | THREE.OrthographicCamera | null>(null);
   const modelRef = useRef<THREE.Object3D | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const applyPresetRef = useRef<((preset: AeroRenderPreset) => void) | null>(null);
+  const resetViewRef = useRef<(() => void) | null>(null);
   const [renderError, setRenderError] = useState("");
   const [renderStatus, setRenderStatus] = useState("Initialisation du viewport WebGL…");
   const [retryRenderer, setRetryRenderer] = useState(0);
   const [rendererFailed, setRendererFailed] = useState(false);
   const [surface, setSurface] = useState("");
-  const [renderPreset, setRenderPreset] = useState("mechanical");
+  const [renderPreset, setRenderPreset] = useState<AeroRenderPreset>("mechanical");
+  const canExplode = useMemo(() => !!asset?.object && displayPartMeshes(asset.object).length > 1, [asset]);
+  const effectivePreset = renderPreset === "exploded" && !canExplode ? "mechanical" : renderPreset;
+  const presetRef = useRef(effectivePreset);
+  presetRef.current = effectivePreset;
+
+  useEffect(() => {
+    if (renderPreset === "exploded" && !canExplode) setRenderPreset("mechanical");
+    applyPresetRef.current?.(effectivePreset);
+  }, [renderPreset, effectivePreset, canExplode]);
 
   useEffect(() => {
     const node = host.current;
@@ -234,38 +403,36 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
           }
         }
         if (!canvas || !context) throw new Error(lastFailure);
-        renderer = new THREE.WebGLRenderer({
-          canvas,
-          context,
-          alpha: false,
-        });
+        renderer = new THREE.WebGLRenderer({ canvas, context, alpha: false });
       } catch (error) {
         context?.getExtension("WEBGL_lose_context")?.loseContext();
         releaseSlot?.();
         releaseSlot = null;
         const detail = error instanceof Error ? ` (${error.message})` : "";
         setRenderStatus("");
-        setRenderError(`WebGL 2 est obligatoire pour ce viewport, mais le navigateur n’a pas accordé de contexte${detail}. Activez WebGL / l’accélération matérielle, fermez d’autres vues 3D, puis réessayez.`);
+        setRenderError(`WebGL 2 est obligatoire pour ce viewport, mais le navigateur n’a pas accordé de contexte${detail}. Fermez d’autres vues 3D, puis réessayez.`);
         setRendererFailed(true);
         return;
       }
 
-      rendererRef.current = renderer;
       setRenderStatus("");
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
       const initialWidth = node.clientWidth || 640;
       const initialHeight = node.clientHeight || 400;
-      renderer.setPixelRatio(pixelRatio);
+      let aspect = initialWidth / initialHeight;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(initialWidth, initialHeight);
       canvas.dataset.renderer = "webgl2";
+      // The old stylesheet filters affected the entire canvas, not the model material.
+      canvas.style.filter = "none";
       node.replaceChildren(canvas);
-      canvas.setAttribute("aria-label", "Viewport 3D WebGL interactif; glisser pour tourner, molette pour zoomer, clic pour sélectionner une face");
+      canvas.setAttribute("aria-label", "Viewport 3D WebGL interactif; glisser pour tourner, molette pour zoomer, double-clic pour sélectionner une face");
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x071216);
-      const camera = new THREE.PerspectiveCamera(42, initialWidth / initialHeight, 0.01, 10_000);
-      camera.position.set(3.8, 2.8, 4.8);
-      cameraRef.current = camera;
+      const perspective = new THREE.PerspectiveCamera(42, aspect, 0.01, 10_000);
+      const orthographic = new THREE.OrthographicCamera(-3 * aspect, 3 * aspect, 3, -3, 0.01, 10_000);
+      perspective.position.set(3.8, 2.8, 4.8);
+      cameraRef.current = perspective;
       scene.add(new THREE.HemisphereLight(0xb7f6f2, 0x132128, 2.2));
       const key = new THREE.DirectionalLight(0xffffff, 3.0);
       key.position.set(4, 8, 5);
@@ -274,23 +441,74 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
       fill.position.set(-5, 2, -4);
       scene.add(fill);
       const grid = new THREE.GridHelper(8, 24, 0x376169, 0x1b3238);
-      grid.position.y = -1.45;
+      grid.position.y = -1.8;
       scene.add(grid);
       const axes = new THREE.AxesHelper(0.8);
-      axes.position.set(-3.4, -1.42, -3.1);
+      axes.position.set(-3.4, -1.78, -3.1);
       scene.add(axes);
-      const controls = new OrbitControls(camera, canvas);
+      const controls = new OrbitControls<AeroCamera>(perspective, canvas);
       controls.enableDamping = true;
       controls.dampingFactor = 0.08;
       controls.screenSpacePanning = true;
       controlsRef.current = controls;
 
+      let display: AeroDisplayModel | null = null;
+      if (asset?.status === "decoded" && asset.object) {
+        try {
+          display = createAeroDisplayModel(asset.object);
+          modelRef.current = display.object;
+          scene.add(display.object);
+          setSurface("");
+          onSurface("");
+        } catch (error) {
+          modelRef.current = null;
+          setRenderError(error instanceof Error ? error.message : "Impossible d’afficher cette géométrie.");
+        }
+      } else {
+        modelRef.current = null;
+      }
+
+      const applyPreset = (preset: AeroRenderPreset) => {
+        if (display) applyAeroRenderPreset(display, preset);
+        const current = cameraRef.current;
+        if (!current) return;
+        const next = switchAeroProjection(current, perspective, orthographic, controls.target, aspect, preset);
+        cameraRef.current = next;
+        controls.object = next;
+        controls.update();
+      };
+      const resetView = () => {
+        const camera = cameraRef.current;
+        if (!camera) return;
+        const radius = Math.max(display?.radius ?? 1.6, 0.01);
+        const verticalHalfFov = THREE.MathUtils.degToRad(perspective.fov / 2);
+        const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * aspect);
+        const distance = radius * 1.2 / Math.sin(Math.min(verticalHalfFov, horizontalHalfFov));
+        controls.target.set(0, 0, 0);
+        const direction = presetRef.current === "axonometric" ? new THREE.Vector3(1, 1, 1) : new THREE.Vector3(3.8, 2.8, 4.8);
+        camera.position.copy(direction.normalize().multiplyScalar(distance));
+        if (camera === orthographic) {
+          orthographic.zoom = 1;
+          updateAeroOrthoFrustum(orthographic, 2 * radius * 1.2 / Math.min(aspect, 1), aspect);
+        } else {
+          perspective.zoom = 1;
+          perspective.updateProjectionMatrix();
+        }
+        controls.update();
+      };
+      applyPresetRef.current = applyPreset;
+      resetViewRef.current = resetView;
+      applyPreset(presetRef.current);
+      resetView();
+
       const observer = new ResizeObserver(entries => {
         const rect = entries[0]?.contentRect;
         if (!rect || !rect.width || !rect.height) return;
         renderer.setSize(rect.width, rect.height);
-        camera.aspect = rect.width / rect.height;
-        camera.updateProjectionMatrix();
+        aspect = rect.width / rect.height;
+        perspective.aspect = aspect;
+        perspective.updateProjectionMatrix();
+        updateAeroOrthoFrustum(orthographic, orthographic.top - orthographic.bottom, aspect);
       });
       observer.observe(node);
       let frame = 0;
@@ -318,16 +536,17 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
         if (contextLost || disposed) return;
         frame = window.requestAnimationFrame(animate);
         controls.update();
-        renderer.render(scene, camera);
+        if (cameraRef.current) renderer.render(scene, cameraRef.current);
       };
       frame = window.requestAnimationFrame(animate);
 
       const selectSurface = (event: MouseEvent) => {
-        if (!modelRef.current) return;
+        if (!modelRef.current || !cameraRef.current) return;
         const rect = canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
         const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
         const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(pointer, camera);
+        raycaster.setFromCamera(pointer, cameraRef.current);
         const hit = raycaster.intersectObject(modelRef.current, true)[0];
         if (!hit) return;
         const name = hit.faceIndex == null ? "Surface sélectionnée" : `Face maillage ${hit.faceIndex + 1}`;
@@ -335,40 +554,6 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
         onSurface(name);
       };
       canvas.addEventListener("dblclick", selectSurface);
-      const previousAsset = modelRef.current;
-      if (previousAsset) scene.remove(previousAsset);
-      if (asset?.status === "decoded" && asset.object) {
-        const object = asset.object.clone(true);
-        const wrapper = new THREE.Group();
-        wrapper.add(object);
-        wrapper.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(wrapper);
-        const center = box.getCenter(new THREE.Vector3());
-        wrapper.position.sub(center);
-        wrapper.scale.setScalar(unitsToMeters);
-        const scaledSize = box.getSize(new THREE.Vector3()).multiplyScalar(unitsToMeters);
-        const biggest = Math.max(scaledSize.x, scaledSize.y, scaledSize.z, 0.01);
-        wrapper.scale.multiplyScalar(3.2 / biggest);
-        wrapper.traverse(child => {
-          if (!(child instanceof THREE.Mesh)) return;
-          child.material = new THREE.MeshStandardMaterial({
-            color: 0x71d8d3,
-            metalness: 0.34,
-            roughness: 0.42,
-            side: THREE.DoubleSide,
-          });
-          child.geometry.computeVertexNormals();
-        });
-        modelRef.current = wrapper;
-        scene.add(wrapper);
-        controls.target.set(0, 0, 0);
-        camera.position.set(3.8, 2.8, 4.8);
-        camera.lookAt(0, 0, 0);
-        controls.update();
-        setSurface("");
-      } else {
-        modelRef.current = null;
-      }
 
       cleanupRenderer = () => {
         window.cancelAnimationFrame(frame);
@@ -377,11 +562,17 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
         canvas.removeEventListener("webglcontextlost", handleContextLost);
         canvas.removeEventListener("webglcontextrestored", handleContextRestored);
         controls.dispose();
+        if (display) disposeAeroDisplayModel(display);
+        grid.geometry.dispose();
+        (grid.material as THREE.Material).dispose();
+        axes.geometry.dispose();
+        (axes.material as THREE.Material).dispose();
         renderer.dispose();
-        rendererRef.current = null;
         controlsRef.current = null;
         cameraRef.current = null;
         modelRef.current = null;
+        applyPresetRef.current = null;
+        resetViewRef.current = null;
         node.replaceChildren();
       };
     });
@@ -396,17 +587,29 @@ function ModelViewport({ asset, unitsToMeters, onSurface }: { asset: ModelAsset 
   }, [asset, unitsToMeters, onSurface, retryRenderer]);
 
   const reset = () => {
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-    if (!camera || !controls) return;
-    camera.position.set(3.8, 2.8, 4.8);
-    controls.target.set(0, 0, 0);
-    controls.update();
+    resetViewRef.current?.();
     setSurface("");
     onSurface("");
   };
-  return <div className="aero-viewport-shell" data-renderer="webgl-required" data-render-preset={renderPreset}>
-    {asset?.object && <div className="aero-render-presets"><label htmlFor="aero-render-style">RENDU DU MODÈLE IMPORTÉ</label><select id="aero-render-style" value={renderPreset} onChange={event => setRenderPreset(event.target.value)} aria-label="Choisir un style de rendu aérodynamique"><option value="axonometric">Axonométrique</option><option value="orthographic">Orthographique</option><option value="perspective">Perspective</option><option value="npr">NPR / Cel-shading</option><option value="clay">Argile / Clay Render</option><option value="lowpoly">Low-Poly</option><option value="archviz">Photoréaliste / ArchViz · aperçu</option><option value="interior">Intérieur / Extérieur · présentation</option><option value="immersive">Immersif / 360° / VR</option><option value="mechanical">Mécanique / Industriel</option><option value="exploded">Écorché · explosion & coupe</option><option value="bionic">Squelette bionique · generative design visuel</option><option value="carbon">Monocoque carbone & composites</option><option value="cyberpunk">Cyberpunk · mécanique apparente</option><option value="crystal">Transparent cristallin · Clear Tech</option><option value="energyflow">Flux énergétique</option></select><small>Style d’affichage local du maillage décodé sélectionné; pas un solveur CFD, FEA ni un rendu photométrique.</small></div>}
+  return <div className="aero-viewport-shell" data-renderer="webgl-required" data-render-preset={effectivePreset}>
+    {asset?.object && <div className="aero-render-presets"><label htmlFor="aero-render-style">RENDU DU MODÈLE IMPORTÉ</label><select id="aero-render-style" value={effectivePreset} onChange={event => setRenderPreset(event.target.value as AeroRenderPreset)} aria-label="Choisir un style de rendu aérodynamique">
+      <option value="axonometric">Axonométrique · orthographique</option>
+      <option value="orthographic">Orthographique</option>
+      <option value="perspective">Perspective</option>
+      <option value="npr">NPR / Cel-shading</option>
+      <option value="clay">Argile / Clay Render</option>
+      <option value="lowpoly">Facettes · sans réduction du maillage</option>
+      <option value="archviz">Présentation · matériau clair</option>
+      <option value="interior" disabled>Intérieur / Extérieur · indisponible</option>
+      <option value="immersive" disabled>Immersif / 360° / VR · indisponible</option>
+      <option value="mechanical">Mécanique / Industriel</option>
+      <option value="exploded" disabled={!canExplode}>Explosion de maillages distincts{canExplode ? "" : " · plusieurs pièces requises"}</option>
+      <option value="bionic">Filaire du maillage importé</option>
+      <option value="carbon">Aspect sombre · carbone non vérifié</option>
+      <option value="cyberpunk">Cyberpunk · matériau émissif</option>
+      <option value="crystal">Transparent · aperçu</option>
+      <option value="energyflow" disabled>Flux énergétique · données absentes</option>
+    </select><small>Présentation locale du maillage, sans CFD, FEA, coupe, VR ou matériaux physiques vérifiés. {canExplode ? "Explosion visuelle des maillages distincts, sans classification des pièces." : "Explosion indisponible : un seul maillage détecté."}</small></div>}
     <div className="aero-viewport" ref={host} />
     {!asset?.object && <div className="aero-viewport-empty"><Box size={28} /><strong>{asset?.status === "received-not-decoded" ? "Fichier reçu — géométrie non décodée" : "Aucune géométrie inspectée"}</strong><span>{asset?.note ?? "Importez un fichier STL, OBJ ou 3MF pour ouvrir un viewport 3D interactif."}</span></div>}
     {renderStatus && <div className="aero-viewport-waiting" role="status">{renderStatus}</div>}
@@ -649,6 +852,10 @@ export function AerodynamicSimulationCenter({ config, projectName, onNavigate }:
       }
       const scan = scanObject(object, unitsToMeters);
       if (!scan.vertices || scan.vertices > 1_000_000) throw new Error("Géométrie vide ou dépassant la limite de 1 000 000 sommets.");
+      const dimensions = Object.values(scan.boundsM);
+      if (!scan.triangles || !dimensions.every(Number.isFinite) || Math.max(...dimensions) <= 0) {
+        throw new Error("Géométrie sans triangles ou sans dimensions finies non nulles.");
+      }
       const parsed: ModelAsset = {
         name: file.name,
         extension: ext.toUpperCase(),

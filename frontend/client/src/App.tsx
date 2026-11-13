@@ -19,6 +19,7 @@ const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
 const AdminConsole = lazy(() => import("@/pages/AdminConsole"));
 const AuditJournal = lazy(() => import("@/pages/AuditJournal"));
 const BuildReadiness = lazy(() => import("@/pages/BuildReadiness"));
+const SecurityCenter = lazy(() => import("@/pages/SecurityCenter"));
 
 function PageLoader() {
   return (
@@ -62,6 +63,11 @@ function Router() {
       <Route path="/audit-journal">
         <Suspense fallback={<PageLoader />}>
           <AuditJournal />
+        </Suspense>
+      </Route>
+      <Route path="/security-center">
+        <Suspense fallback={<PageLoader />}>
+          <SecurityCenter />
         </Suspense>
       </Route>
       <Route path={"/404"} component={NotFound} />

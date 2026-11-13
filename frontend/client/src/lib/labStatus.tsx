@@ -66,7 +66,7 @@ export function LabStatusBar({ projectId }: { projectId: string }) {
     queryFn: async () => {
       const r = await fetch(`/api/lab/mode/${projectId}`, {
         credentials: "include",
-        headers: { "X-Lab-Session": sessionStorage.getItem("lab_session_token") || "" },
+        headers: {},
       });
       if (!r.ok) throw new Error(`Mode fetch failed: ${r.status}`);
       return r.json();
@@ -162,12 +162,68 @@ export function LabStatusBar({ projectId }: { projectId: string }) {
 }
 
 // Step-up login hook — call from the LABBENCH entry screen.
+
+export type RestoredLabSession = {
+  project_id: string;
+  roles: string[];
+  assurance_level: string;
+  expires_at: string;
+};
+
+function csrfCookie(): string {
+  if (typeof document === "undefined") return "";
+  const cookie = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("aeromind_lab_csrf="));
+  return cookie ? decodeURIComponent(cookie.slice("aeromind_lab_csrf=".length)) : "";
+}
+
+/** Recover the active authorization from the server-managed HttpOnly cookie. */
+export async function restoreLabSession(): Promise<RestoredLabSession | null> {
+  const response = await fetch("/api/lab/sessions/current", { credentials: "include", cache: "no-store" });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error(`Restauration de session LABBENCH impossible (${response.status})`);
+  return response.json();
+}
+
+export async function revokeLabSession(): Promise<void> {
+  const csrf = csrfCookie();
+  const response = await fetch("/api/lab/sessions/revoke", {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF-Token": csrf },
+  });
+  if (!response.ok) throw new Error(`Déconnexion LABBENCH refusée (${response.status})`);
+  sessionStorage.removeItem("lab_csrf_token");
+  sessionStorage.removeItem("lab_session_info");
+}
+
+/** Persist the Home workspace's explicit selection in the canonical LabBench project. */
+export async function syncSelectedDrone(projectId: string, config: unknown, sessionToken?: string): Promise<void> {
+  const record = config && typeof config === "object" ? config as Record<string, unknown> : {};
+  const selection = record.engineeringSelection && typeof record.engineeringSelection === "object"
+    ? record.engineeringSelection as Record<string, unknown> : {};
+  const droneId = typeof selection.droneId === "string" && selection.droneId !== "unselected"
+    ? selection.droneId : typeof record.platformProfile === "string" ? record.platformProfile : "";
+  if (!droneId) return;
+  const csrf = csrfCookie();
+  const headers: Record<string, string> = { "Content-Type": "application/json", "X-CSRF-Token": csrf };
+  if (sessionToken) headers["X-Lab-Session"] = `Lab ${sessionToken}`;
+  const source = selection.source === "industrial" ? "industrial" : selection.source === "custom" ? "sketch" : "catalog";
+  const response = await fetch(`/api/lab/projects/${encodeURIComponent(projectId)}/drones/select`, {
+    method: "POST", credentials: "include", headers,
+    body: JSON.stringify({ drone_id: droneId, source, source_id: typeof selection.sourceId === "string" ? selection.sourceId : droneId, config_json: record }),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.detail || `Synchronisation du drone refusée (${response.status})`);
+  }
+}
+
 export async function performStepUp(
   projectId: string,
   mfaCode: string,
   roles: string[] = ["reader"],
   assuranceLevel: "step-up" | "mfa" | "passkey" = "step-up",
-): Promise<{ token: string; csrf: string; expires_at: string }> {
+): Promise<{ token: string; csrf: string; expires_at: string; roles: string[] }> {
   const r = await fetch("/api/lab/sessions/step-up", {
     method: "POST",
     credentials: "include",
@@ -185,7 +241,6 @@ export async function performStepUp(
   }
   const data = await r.json();
   // Persist session info for LabStatusBar
-  sessionStorage.setItem("lab_session_token", data.session_token);
   sessionStorage.setItem("lab_csrf_token", data.csrf_token);
   sessionStorage.setItem(
     "lab_session_info",
@@ -197,13 +252,13 @@ export async function performStepUp(
       expires_at: data.expires_at,
     }),
   );
-  return { token: data.session_token, csrf: data.csrf_token, expires_at: data.expires_at };
+  return { token: data.session_token, csrf: data.csrf_token, expires_at: data.expires_at, roles: data.roles ?? [] };
 }
 
 // Helper — fetch the active drone + revision at LABBENCH entry (EXIGENCE SYNC-03).
 export async function fetchActiveDrone(
   projectId: string,
-  sessionToken: string,
+  sessionToken?: string,
 ): Promise<{
   active_drone: { drone_id: string; drone_name: string; config_json: Record<string, unknown> } | null;
   active_revision: {
@@ -217,7 +272,7 @@ export async function fetchActiveDrone(
 }> {
   const r = await fetch(`/api/lab/projects/${projectId}/drones/active`, {
     credentials: "include",
-    headers: { "X-Lab-Session": `Lab ${sessionToken}` },
+    headers: sessionToken ? { "X-Lab-Session": `Lab ${sessionToken}` } : {},
   });
   if (!r.ok) throw new Error(`fetch active drone failed: ${r.status}`);
   return r.json();

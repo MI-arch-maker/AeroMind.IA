@@ -1,14 +1,14 @@
 export const INSTITUTIONAL_GATES = ["GATE_01", "GATE_02", "GATE_03", "GATE_04"] as const;
 export type InstitutionalGate = (typeof INSTITUTIONAL_GATES)[number];
-export type InstitutionalRole = "operator" | "analyst" | "gate_01_reviewer" | "gate_02_reviewer" | "gate_03_reviewer" | "gate_04_reviewer" | "super_admin";
+export type InstitutionalRole = "reader" | "designer" | "analyst" | "operator" | "admin" | "gate_01_reviewer" | "gate_02_reviewer" | "gate_03_reviewer" | "gate_04_reviewer" | "super_admin";
 export type InstitutionalDecision = "allow" | "deny";
 
-export const GATE_RESPONSIBILITY: Record<InstitutionalGate | "GATE_05", InstitutionalRole> = {
-  GATE_01: "gate_01_reviewer",
-  GATE_02: "gate_02_reviewer",
-  GATE_03: "gate_03_reviewer",
-  GATE_04: "gate_04_reviewer",
-  GATE_05: "super_admin",
+export const GATE_RESPONSIBILITY: Record<InstitutionalGate | "GATE_05", InstitutionalRole[]> = {
+  GATE_01: ["reader", "designer", "analyst", "admin", "super_admin", "gate_01_reviewer"],
+  GATE_02: ["designer", "analyst", "admin", "super_admin", "gate_02_reviewer"],
+  GATE_03: ["analyst", "admin", "super_admin", "gate_03_reviewer"],
+  GATE_04: ["admin", "super_admin", "gate_04_reviewer"],
+  GATE_05: ["super_admin"],
 };
 
 export type InstitutionalAuditEvent = {
@@ -89,7 +89,7 @@ export function validateInstitutionalGate(
   const expected = expectedGate(workflow);
   if (workflow.status === "refused" || workflow.status === "approved_gate_05") return { workflow, error: "La demande locale est clôturée." };
   if (expected !== gate) return { workflow, error: `Étape attendue : ${expected ?? "GATE_05"}.` };
-  if (GATE_RESPONSIBILITY[gate] !== actorRole) return { workflow, error: `Rôle requis : ${GATE_RESPONSIBILITY[gate]}.` };
+  if (!GATE_RESPONSIBILITY[gate].includes(actorRole)) return { workflow, error: `Rôle requis : ${GATE_RESPONSIBILITY[gate].join(", ")}.` };
   const approvedGates = [...workflow.approvedGates, gate];
   const next = INSTITUTIONAL_GATES.find(item => !approvedGates.includes(item));
   const nextWorkflow: InstitutionalWorkflow = {

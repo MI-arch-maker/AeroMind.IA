@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
 import type { DroneCatalogDesign } from "../lib/droneCatalog";
+import { hasDroneGeometry } from "../lib/droneSketchGeometry";
 import { calculateParametricMetrics } from "../lib/engineeringDisplayState";
 import {
   buildMechanicalModel,
@@ -154,8 +155,33 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
   const [, setHistoryTick] = useState(0);
   configRef.current = config;
 
-  const mechanicalModel = useMemo<MechanicalModel | null>(() => activeProfile ? buildMechanicalModel(activeProfile, config) : null, [activeProfile, config]);
-  const activeDesignId = activeProfile?.id;
+  // Same identity contract as DigitalTwinExplorer: the geometry engine recognizes
+  // this prefix and projects the actual strokes, not a catalogue silhouette.
+  // Require an explicit custom selection and drawable strokes; otherwise do not
+  // let a stale profile or a default airframe manufacture a selected model.
+  const resolvedProfile = useMemo<DroneCatalogDesign | undefined>(() => {
+    if (config.engineeringSelection?.source !== "custom") return activeProfile;
+    const selection = config.engineeringSelection;
+    if (!selection.droneId?.trim() || !hasDroneGeometry(config.customSketch?.strokes)) return undefined;
+    return {
+      key: config.airframe ?? "quadcopter",
+      modelType: config.modelType as DroneCatalogDesign["modelType"],
+      id: `custom-sketch-${selection.droneId}`,
+      label: selection.droneLabel || config.designName || "Dessin personnalisé",
+      family: "Jumeau mécanique · source dessin utilisateur",
+      mission: "Projection de travail issue des traits du croquis utilisateur.",
+      specs: "Projection indicative",
+      disciplines: "Géométrie de dessin",
+      tone: "cyan",
+      configuration: { ...config },
+      role: "civil",
+      defenseUse: "Prototype conceptuel non armé; revue humaine et validation technique requises.",
+      origin: "aeromind-parametric",
+    };
+  }, [activeProfile, config]);
+  const customSource = config.engineeringSelection?.source === "custom" && Boolean(resolvedProfile);
+  const mechanicalModel = useMemo<MechanicalModel | null>(() => resolvedProfile ? buildMechanicalModel(resolvedProfile, config) : null, [resolvedProfile, config]);
+  const activeDesignId = resolvedProfile?.id;
   const activeTwin = getActiveMechanicalTwin(config, activeDesignId);
   const variableRows = useMemo(() => collectVariableRows(config, true, activeDesignId), [config, activeDesignId]);
   const metrics = useMemo(() => calculateParametricMetrics(Object.fromEntries(variableRows.map(variable => [variable.id, variable.value]))), [variableRows]);
@@ -400,11 +426,11 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
       return;
     }
     setSelectedSketchId(value);
-    setCommandStatus(value ? "Profil d’esquisse actif synchronisé." : "Aucun profil d’esquisse actif.");
+    setCommandStatus(value ? "Profil d’esquisse sélectionné pour les opérations locales." : "Aucun profil d’esquisse actif.");
   };
 
   const applyFeatureOperation = (operation: FeatureOperation) => {
-    if (!activeDesignId || !activeProfile || !hasProject) {
+    if (!activeDesignId || !resolvedProfile || !hasProject) {
       toast.info(t("Opération indisponible"), { description: t("Sélectionnez un design enregistré dans un projet actif avant de construire une feature.") });
       return;
     }
@@ -568,7 +594,7 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
 
   const handleExport = (kind: "json" | "csv" | "obj" | "stl") => {
     try {
-      const filename = safeName(activeProfile?.id ?? "preview-local");
+      const filename = safeName(resolvedProfile?.id ?? "preview-local");
       if (kind === "json") {
         if (!activeDesignId) throw new Error("Sélectionnez un design actif pour un export versionné.");
         if (variableRows.some(variable => variable.error)) throw new Error("Corrigez les variables hors plage ou les expressions avant export.");
@@ -616,12 +642,12 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
     <div className={`pdc-app ${isFullscreen ? "pdc-fullscreen" : ""}`}>
       <header className="pdc-menubar">
         <div className="pdc-logo"><span className="pdc-mark">A</span><div><div className="pdc-name">AEROMIND</div><div className="pdc-tag">{t("Centre Parametric")}</div></div></div>
-        <span className="pdc-menu-item">{activeProfile?.label ?? "Aucun design actif"}</span>
+        <span className="pdc-menu-item">{resolvedProfile?.label ?? "Aucun design actif"}</span>
         <div className="pdc-spacer" />
         <div className={`pdc-pill ${saveState === "server" ? "green" : saveState === "error" ? "amber" : "cyan"}`} role="status">
           {saveState === "saving" ? "Enregistrement…" : saveState === "server" ? "Synchronisation confirmée" : saveState === "local" ? "Enregistré sur cet appareil" : saveState === "error" ? "Enregistrement en échec" : hasProject ? "Modifications en attente" : "Prévisualisation locale"}
         </div>
-        <div className="pdc-pill cyan" title={activeProfile?.mission}>{activeDroneLabel}</div>
+        <div className="pdc-pill cyan" title={resolvedProfile?.mission}>{customSource ? resolvedProfile?.label : activeDroneLabel}</div>
       </header>
 
       <nav className="pdc-toolbar" aria-label={t("Outils du Centre Parametric")}>
@@ -650,7 +676,7 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
         <label className="pdc-search"><Search size={13} /><input aria-label={t("Rechercher une pièce ou variable")} placeholder="Rechercher…" value={search} onChange={event => setSearch(event.target.value)} /></label>
       </nav>
 
-      <div className="pdc-preview-disclaimer" role="note">{!activeProfile ? "Prévisualisation locale non associée à un design : aucune pièce, analyse ou sauvegarde de projet n’est revendiquée. Sélectionnez un design AeroMind pour éditer sa géométrie réelle." : hasProject ? "Design actif : les opérations et sauvegardes sont limitées à ce workspace. Aucune commande matérielle ne sera déclenchée." : "Design sélectionné en mode local : les modifications ne seront pas enregistrées dans un projet."}</div>
+      <div className="pdc-preview-disclaimer" role="note">{!resolvedProfile ? "Prévisualisation locale non associée à un design : aucune pièce, analyse ou sauvegarde de projet n’est revendiquée. Sélectionnez un design ou un dessin avec des traits géométriques." : customSource ? `Dessin actif : projection indicative des traits 2D aux dimensions du projet, sans reconstruction volumique fidèle. Les triangles, hexagones, engrenages et hélices sont simplifiés aux segments entre points stockés et certains contours restent ouverts ; annotations et mesures sont exclues, la visibilité des calques et les animations ne sont pas appliquées. Les éditions du jumeau ne modifient pas le dessin source ; certains paramètres ne s’appliquent pas aux traits. ${hasProject ? "Les sauvegardes restent limitées au workspace." : "Les modifications ne seront pas enregistrées dans un projet."} Aucune commande matérielle.` : hasProject ? "Design actif : les opérations et sauvegardes sont limitées à ce workspace. Aucune commande matérielle ne sera déclenchée." : "Design sélectionné en mode local : les modifications ne seront pas enregistrées dans un projet."}</div>
 
       <main className="pdc-main">
         <aside className="pdc-left" aria-label={t("Arbre du modèle")}>
@@ -719,7 +745,7 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
                 </tr>;
               })}
             </tbody></table></div>
-            <div className="pdc-variable-footer"><span>{variableRows.length} variables</span><span>{t("Design :")} {activeProfile?.label ?? "aperçu local"}</span><span>{t("Les erreurs de formule bloquent l’enregistrement.")}</span></div>
+            <div className="pdc-variable-footer"><span>{variableRows.length} variables</span><span>{t("Design :")} {resolvedProfile?.label ?? "aperçu local"}</span><span>{t("Les erreurs de formule bloquent l’enregistrement.")}</span></div>
           </div>}
 
           {activeTab === "assembly" && <div className="pdc-assembly-page">

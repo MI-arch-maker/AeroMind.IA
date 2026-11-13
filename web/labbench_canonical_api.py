@@ -345,9 +345,21 @@ def _verify_project_owner_str(user: dict, project_id: str) -> None:
             )
 
 
+@router.get("/sessions/current")
+def current_session(session: StepUpSession = Depends(verify_lab_session)):
+    """Restore the current browser session from its HttpOnly cookie after reload."""
+    response = JSONResponse({
+        "project_id": session.project_id,
+        "roles": sorted(session.scope),
+        "assurance_level": session.assurance_level,
+        "expires_at": session.expires_at.isoformat(),
+    }, headers={"Cache-Control": "no-store", "Vary": "Cookie"})
+    return response
+
+
 @router.post("/sessions/revoke", dependencies=[Depends(verify_csrf_double_submit)])
-def revoke_session_endpoint(session: StepUpSession = Depends(verify_lab_session)):
-    """Revoke the current LABBENCH session immediately (logout, role change)."""
+def revoke_session_endpoint(request: Request, session: StepUpSession = Depends(verify_lab_session)):
+    """Revoke the current LABBENCH session immediately (explicit user logout)."""
     revoke_step_up_session(session.session_id)
     audit_decision(
         actor_id=session.user_id, actor_role="user",
@@ -355,7 +367,12 @@ def revoke_session_endpoint(session: StepUpSession = Depends(verify_lab_session)
         project_id=session.project_id,
         message=f"Session LABBENCH révoquée pour utilisateur {session.user_id}",
     )
-    return {"status": "revoked", "session_id": session.session_id[:8] + "..."}
+    response = JSONResponse({"status": "revoked", "session_id": session.session_id[:8] + "..."}, headers={"Cache-Control": "no-store"})
+    from .oidc import _cookie_security
+    cookie_security = _cookie_security(request)
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/", secure=cookie_security["secure"], samesite=cookie_security["samesite"])
+    response.delete_cookie(CSRF_COOKIE_NAME, path="/", secure=cookie_security["secure"], samesite=cookie_security["samesite"])
+    return response
 
 
 @router.get("/projects/{project_id}/drones/active")

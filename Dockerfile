@@ -27,6 +27,9 @@ WORKDIR /app
 
 # Utilisateur non-root pour Render.
 RUN addgroup --system aeromind && adduser --system --ingroup aeromind aeromind
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends clamav \
+  && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 

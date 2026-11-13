@@ -31,6 +31,14 @@ GATE_ROLE: dict[str, str] = {
     "GATE_04": "gate_04_reviewer",
     "GATE_05": "super_admin",
 }
+# L1 contrôle G01, L2 ajoute G02, L3 ajoute G03, Admin/L4 ajoute G04 et
+# Super-Admin/L5 conserve tout le périmètre L1–L4 en plus de G05.
+GATE_AUTHORIZED_ROLES: dict[str, frozenset[str]] = {
+    "GATE_01": frozenset({"reader", "designer", "analyst", "admin", "super_admin", "gate_01_reviewer"}),
+    "GATE_02": frozenset({"designer", "analyst", "admin", "super_admin", "gate_02_reviewer"}),
+    "GATE_03": frozenset({"analyst", "admin", "super_admin", "gate_03_reviewer"}),
+    "GATE_04": frozenset({"admin", "super_admin", "gate_04_reviewer"}),
+}
 
 
 @dataclass
@@ -183,14 +191,18 @@ def _next_gate(db: Session, request_id: str) -> str | None:
     return next((gate for gate in INSTITUTIONAL_GATES if gate not in validated), None)
 
 
-def _require_role(actor_roles: Iterable[str], expected_role: str) -> None:
+def _require_role(actor_roles: Iterable[str], expected_role: str | Iterable[str]) -> str:
     roles = set(actor_roles)
-    if expected_role not in roles:
+    allowed = {expected_role} if isinstance(expected_role, str) else set(expected_role)
+    priority = ("super_admin", "admin", "analyst", "designer", "reader")
+    granted = next((role for role in (*priority, *sorted(allowed)) if role in roles and role in allowed), None)
+    if granted is None:
         raise InstitutionalGateError(
             403,
             "INSTITUTIONAL_ROLE_REQUIRED",
-            f"Le rôle explicite « {expected_role} » est requis pour cette étape; aucun approbateur générique ne peut le remplacer.",
+            f"Un rôle habilité parmi {sorted(allowed)} est requis pour cette étape; aucun approbateur générique ne peut le remplacer.",
         )
+    return granted
 
 
 def create_request(
@@ -260,9 +272,7 @@ def decide_gate(
             "INSTITUTIONAL_SEQUENCE_REQUIRED",
             f"Étape attendue : {expected_gate or 'GATE_05'}; {normalized_gate} ne peut pas être validée maintenant.",
         )
-    expected_role = GATE_ROLE[normalized_gate]
-    _require_role(actor_roles, expected_role)
-    actor_role = expected_role
+    actor_role = _require_role(actor_roles, GATE_AUTHORIZED_ROLES[normalized_gate])
     if normalized_decision == "refuse":
         request.status = f"refused_{normalized_gate.lower()}"
         request.updated_at = _utc_now()

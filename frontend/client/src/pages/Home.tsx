@@ -3836,6 +3836,13 @@ function ConceptView({
       airframe,
       platformProfile: airframe,
       designName: `${preset.label} / variante générée`,
+      engineeringSelection: {
+        ...config.engineeringSelection,
+        source: "catalog",
+        droneId: airframe,
+        droneLabel: preset.label,
+        updatedAt: new Date().toISOString(),
+      },
     });
   };
   const selected = !config.airframe
@@ -4072,6 +4079,13 @@ function ConceptView({
                   platformProfile:
                     catalogProfileForChoice[choice.id] ?? choice.id,
                   designName: `${choice.label} / variante manuelle`,
+                  engineeringSelection: {
+                    ...config.engineeringSelection,
+                    source: "catalog",
+                    droneId: catalogProfileForChoice[choice.id] ?? choice.id,
+                    droneLabel: choice.label,
+                    updatedAt: new Date().toISOString(),
+                  },
                   wingspan: choice.wingspan,
                   fuselageLength: choice.fuselageLength,
                   motorCount: choice.motors,
@@ -10117,6 +10131,13 @@ function MissionOperationsView({
                   platformProfile:
                     catalogProfileForChoice[choice.id] ?? choice.id,
                   designName: `${choice.label} / variante manuelle`,
+                  engineeringSelection: {
+                    ...config.engineeringSelection,
+                    source: "catalog",
+                    droneId: catalogProfileForChoice[choice.id] ?? choice.id,
+                    droneLabel: choice.label,
+                    updatedAt: new Date().toISOString(),
+                  },
                   wingspan: choice.wingspan,
                   fuselageLength: choice.fuselageLength,
                   motorCount: choice.motors,
@@ -14389,7 +14410,12 @@ export default function Home() {
         configuration: { ...activeLibraryProfile.configuration, ...config },
       }
     : undefined;
-  const activeDroneLabel = !cellIntegratedThisSession
+  // L'identité déjà enregistrée reste visible après rechargement ; l'état de
+  // session reste séparé et continue de piloter les commandes existantes.
+  const hasVisibleDrone = cellIntegratedThisSession || Boolean(activeLibraryProfile)
+    || hasDroneGeometry(config.customSketch?.strokes)
+    || Boolean(config.engineeringSelection?.droneId && config.engineeringSelection.droneId !== "unselected");
+  const activeDroneLabel = !hasVisibleDrone
     ? "Aucun drone sélectionné"
     : hasDroneGeometry(config.customSketch?.strokes)
     ? config.engineeringSelection?.droneLabel ?? config.designName ?? "Drone personnalisé"
@@ -14532,6 +14558,16 @@ export default function Home() {
               <small>PERSONNEL</small>
             </button>
           )}
+          <button
+            className="nav-item"
+            onClick={() => {
+              window.location.href = "/security-center";
+            }}
+          >
+            <ShieldCheck size={16} />
+            <span>Centre de protection</span>
+            <small>SECURITY</small>
+          </button>
           <SessionControls />
           <button
             className="user-row"
@@ -14736,9 +14772,9 @@ export default function Home() {
                 integrated
                 integratedProjectId={activeProjectId || undefined}
                 projectName={project.name}
-                activeDroneLabel={cellIntegratedThisSession ? activeDroneLabel : "Aucun drone sélectionné"}
-                workspaceConfig={cellIntegratedThisSession ? config : undefined}
-                userIntegratedThisSession={cellIntegratedThisSession}
+                activeDroneLabel={config.engineeringSelection?.droneLabel ?? activeDroneLabel}
+                workspaceConfig={config}
+                userIntegratedThisSession={true}
               />
             ) : (
               <WorkspaceWindow
@@ -14752,8 +14788,8 @@ export default function Home() {
                       <EngineeringHub
                         projectId={activeProjectId || undefined}
                         projectName={project.name}
-                        cellName={cellIntegratedThisSession ? activeDroneLabel : "Aucun drone sélectionné"}
-                        design={cellIntegratedThisSession ? activeLibraryDesign : undefined}
+                        cellName={activeDroneLabel}
+                        design={activeLibraryDesign}
                         config={config}
                         setConfig={setConfig}
                         runId={runId === "SIM-000" ? "Aucun run" : runId}
@@ -14793,7 +14829,7 @@ export default function Home() {
                           loadDroneExample(design, false, false);
                           setActiveView("simulation");
                         }}
-                        activeDroneId={cellIntegratedThisSession ? config.engineeringSelection?.droneId ?? config.platformProfile : undefined}
+                        activeDroneId={hasVisibleDrone ? config.engineeringSelection?.droneId ?? config.platformProfile : undefined}
                         onOpenTools={() => setActiveView("digital-twin")}
                         onApplyIndustrial={applyIndustrialReference}
                       />

@@ -36,6 +36,7 @@
     {"path":"/admin","title":"AeroMind — Administration"},
     {"path":"/admin-console","title":"AeroMind — Console Administrateur"},
     {"path":"/super-admin","title":"AeroMind — Super-Admin"},
-    {"path":"/audit-journal","title":"AeroMind — Journal d’audit"}
+    {"path":"/audit-journal","title":"AeroMind — Journal d’audit"},
+    {"path":"/security-center","title":"AeroMind — Centre de protection"}
   ]
 }

@@ -1,0 +1,26 @@
+{
+  "profile": "enterprise-hardware-development",
+  "owner": "ICX POWER SOLUTIONS SRL",
+  "agentRole": "Manus.ai — agent de codage uniquement",
+  "environment": {
+    "HARDWARE_CONTROL": "true",
+    "AEROMIND_VIRTUAL_ONLY": "development"
+  },
+  "physicalOutputEnabled": true,
+  "defaultLoaded": false,
+  "previewLoaded": false,
+  "activationScope": "external-enterprise-deployment-only",
+  "requiredControls": {
+    "humanReview": true,
+    "institutionalGates": ["G01", "G02", "G03", "G04", "G05"],
+    "dualControl": true,
+    "independentAudit": true,
+    "emergencyStop": true
+  },
+  "notes": [
+    "Ce manifeste ne modifie pas l’arborescence organisationnelle d’Aeromind.",
+    "Le profil n’est jamais chargé par la Preview Webdev ni par start.sh.",
+    "HARDWARE_CONTROL=true seul ne constitue pas une autorisation d’exécution.",
+    "L’activation opérationnelle relève exclusivement d’ICX POWER SOLUTIONS SRL et de ses contrôles humains et G01–G05."
+  ]
+}

@@ -8,7 +8,7 @@ This module implements an in-memory allowlist of active primary sessions, keyed
 by SHA-256(token) (not the token itself, to avoid leaking tokens via memory dumps).
 Each entry records:
   - issued_at: when the session was created
-  - expires_at: issued_at + PRIMARY_SESSION_TTL (8 hours by default)
+  - expires_at: issued_at + PRIMARY_SESSION_TTL (24 hours by default)
   - subject: the OIDC/local subject (for audit)
   - email: the user email (for audit)
 
@@ -29,7 +29,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-PRIMARY_SESSION_TTL_S = 8 * 3600  # 8 hours
+PRIMARY_SESSION_TTL_S = 24 * 3600  # one daily login window
 
 _lock = threading.Lock()
 _active: dict[str, "_SessionEntry"] = {}

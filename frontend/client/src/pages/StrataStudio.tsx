@@ -1,23 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Canvas } from "@react-three/fiber";
-import { Grid, Line, OrbitControls, PerspectiveCamera } from "@react-three/drei";
-import * as THREE from "three";
-import { Camera, Contrast, Download, Expand, Grid3X3, Move3d, RotateCcw, RotateCw, Save, Sun, ZoomIn, ZoomOut } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
 import { droneCatalog, type DroneCatalogDesign } from "../lib/droneCatalog";
-
-type DisplayDrone = {
-  id: string;
-  name: string;
-  family: string;
-  type: string;
-  rotors: number;
-  span: number;
-  mass: string;
-  mission: string;
-  tone: string;
-  wing: boolean;
-};
+import { buildMechanicalModel, type MechanicalPart } from "../lib/mechanicalTwinGeometry";
+import { MechanicalTwinViewport, type MechanicalView } from "../components/MechanicalTwinViewport";
+import "./StrataStudio.css";
 
 type StrataStudioProps = {
   embedded?: boolean;
@@ -36,155 +23,199 @@ const colors = [
   { name: "Bleu", hex: "#1b7eaa" },
 ];
 const materials = ["Composite sombre", "Aluminium brossé", "Fibre de carbone", "Plastique technique", "Surface mate", "Surface satinée"];
-const referenceCardLabels = ["STRATA-02", "SKYFALCON X1", "TALON-7", "AERIAL-3", "RAVEN-5", "WORKER-8", "VIPER-S", "SHADOW-1"];
-const referenceCardMeta = ["Multirole / Défense", "Reconnaissance / ISR", "Combat / Défense", "Surveillance / Sécurité", "Haute altitude / ISR", "Inspection industrielle", "Tactique / Reconnaissance", "Défense / Appui"];
+const supportedModelTypes = new Set([
+  "aile-volante", "voilure-conventionnelle", "tiltrotor", "tilt-wing", "tail-sitter", "coaxial-x8", "octocoptère", "ducted-fan", "multirotor", "aérostat", "effet-de-sol", "tandem-wing", "canard", "tricoptère", "hexacoptère", "biplan", "double-poutre", "parapente", "ornithoptère", "cyclocoptère", "planeur", "hale-voilure", "male-voilure", "stealth-wing", "blended-pusher",
+]);
+const componentLabels = {
+  arms: "Bras et supports",
+  motors: "Moteurs",
+  rotors: "Hélices / rotors",
+  landing: "Train d’atterrissage",
+  camera: "Nacelle caméra",
+  sensors: "Capteurs visibles",
+} as const;
+type ComponentKey = keyof typeof componentLabels;
+type Appearance = { color: string; material: string; technical: boolean; visible: Record<ComponentKey, boolean> };
+const defaultVisible: Record<ComponentKey, boolean> = { arms: true, motors: true, rotors: true, landing: true, camera: true, sensors: true };
+const materialSurface: Record<string, { metalness: number; roughness: number }> = {
+  "Composite sombre": { metalness: 0.28, roughness: 0.58 },
+  "Aluminium brossé": { metalness: 0.75, roughness: 0.32 },
+  "Fibre de carbone": { metalness: 0.52, roughness: 0.3 },
+  "Plastique technique": { metalness: 0.05, roughness: 0.62 },
+  "Surface mate": { metalness: 0.12, roughness: 0.85 },
+  "Surface satinée": { metalness: 0.28, roughness: 0.22 },
+};
 
-function profileToDrone(profile: DroneCatalogDesign, config?: ConceptConfig): DisplayDrone {
-  const values = { ...profile.configuration, ...(config ?? {}) };
-  const type = profile.modelType ?? "Architecture paramétrique";
+function appearanceFromConfig(config?: ConceptConfig): Appearance {
+  const stored = config?.physicalAppearance;
   return {
-    id: profile.id,
-    name: profile.label,
-    family: profile.family,
-    type,
-    rotors: Math.max(0, Math.round(values.motorCount ?? 0)),
-    span: values.wingspan ?? 0,
-    mass: `${(config?.constructionMassKg ?? values.maxTakeoffKg ?? 0).toFixed(2)} kg`,
-    mission: profile.mission,
-    tone: profile.tone,
-    wing: profile.key === "fixed-wing" || type.includes("wing") || type.includes("aile") || type.includes("voilure"),
+    color: stored?.color ?? colors[0].hex,
+    material: stored?.material ?? config?.materialFamily ?? materials[0],
+    technical: stored?.technical ?? false,
+    visible: { ...defaultVisible, ...stored?.visible },
   };
 }
 
-function emptyDrone(config?: ConceptConfig): DisplayDrone {
+// Ces associations portent uniquement sur des identifiants connus du générateur ;
+// une pièce non identifiée n'est jamais inventée ni arbitrairement masquée.
+function componentForPart(part: MechanicalPart): ComponentKey | undefined {
+  const id = part.id.toLowerCase();
+  if (/^(arm-|cyclo-support-|ornitho-drive-mount-)/.test(id)) return "arms";
+  if (/^(motor-|ornitho-motor-)/.test(id)) return "motors";
+  if (/^(propeller-|rotor-blade-|cyclo-blade-|cyclo-cage-|cyclo-hub-)/.test(id)) return "rotors";
+  if (part.category === "landing-gear") return "landing";
+  if (/^(camera(?:-|$)|gimbal(?:-|$)|nacelle-camera(?:-|$))/.test(id)) return "camera";
+  if (/^(sensor-|male-sensor-bay(?:-|$))/.test(id)) return "sensors";
+  return undefined;
+}
+
+function canPaintPart(part: MechanicalPart) {
+  // Les traits du dessin utilisateur gardent leur couleur source.
+  return part.category === "airframe" && !part.id.startsWith("sketch-");
+}
+
+function hasDrawingGeometry(config?: ConceptConfig) {
+  return Boolean(config?.customSketch?.strokes?.some(stroke => stroke.points.length > 1 && stroke.tool !== "annotation" && stroke.tool !== "measure"));
+}
+
+function drawingProfile(config: ConceptConfig): DroneCatalogDesign {
   return {
-    id: "workspace-selection-required",
-    name: config?.designName ?? "Aucune architecture sélectionnée",
-    family: "Workspace AeroMind",
-    type: "Sélection humaine requise",
-    rotors: Math.max(0, Math.round(config?.motorCount ?? 0)),
-    span: config?.wingspan ?? 0,
-    mass: `${(config?.constructionMassKg ?? 0).toFixed(2)} kg`,
-    mission: "Sélectionnez une architecture depuis la Bibliothèque drones.",
-    tone: "cyan",
-    wing: config?.airframe === "fixed-wing",
+    id: `custom-sketch-${config.engineeringSelection?.droneId ?? "active"}`,
+    key: config.airframe ?? "fixed-wing",
+    modelType: config.modelType,
+    label: config.engineeringSelection?.droneLabel ?? config.designName ?? "Dessin personnalisé",
+    family: "Dessin utilisateur",
+    mission: "Géométrie issue des traits du projet",
+    specs: "", disciplines: "", tone: "cyan", role: "civil", defenseUse: "", origin: "aeromind-parametric",
+    configuration: config,
   };
 }
 
-function download(name: string, data: string) {
-  const anchor = document.createElement("a");
-  anchor.href = `data:application/json;charset=utf-8,${encodeURIComponent(data)}`;
-  anchor.download = name;
-  anchor.click();
-}
-
-function CaptureButton({ onCapture }: { onCapture: (canvas: HTMLCanvasElement) => void }) {
-  return <button type="button" onClick={() => {
-    const canvas = document.querySelector(".strata-canvas canvas") as HTMLCanvasElement | null;
-    if (canvas) onCapture(canvas);
-  }}><Camera size={14} /> PNG</button>;
-}
-
-function SketchVehicle({ strokes }: { strokes: NonNullable<ConceptConfig["customSketch"]>["strokes"] }) {
-  return <group scale={[.004, .004, .004]} position={[-2, .05, 0]} rotation={[0, 0, 0]}>{strokes.filter(stroke => stroke.points.length > 1).map(stroke => <Line key={stroke.id} points={stroke.points.map(point => [(point.x - 500), 0, (point.y - 280)] as [number, number, number])} color={stroke.color} lineWidth={Math.max(1, stroke.width / 2)} />)}</group>;
-}
-
-function Vehicle({ drone, color, material, visible, technical, customSketch }: { drone: DisplayDrone; color: string; material: string; visible: Record<string, boolean>; technical: boolean; customSketch?: ConceptConfig["customSketch"] }) {
-  if (customSketch?.strokes?.length) return <SketchVehicle strokes={customSketch.strokes} />;
-  const body = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: material.includes("satin") ? .22 : .58, metalness: material.includes("Aluminium") ? .75 : .28, wireframe: technical }), [color, material, technical]);
-  const dark = useMemo(() => new THREE.MeshStandardMaterial({ color: "#101820", roughness: .3, metalness: .7, wireframe: technical }), [technical]);
-  const reference = drone.id === "aeromind-reference-multirotor-001";
-  return <group rotation={[0, .15, 0]}>
-    <mesh material={body} scale={drone.wing ? [1.55, .24, .38] : reference ? [1.12, .24, .68] : [1, .28, .55]}><capsuleGeometry args={[.62, reference ? .55 : .62, 8, 18]} /></mesh>
-    {drone.wing ? <>
-      <mesh material={body} position={[0, .02, 0]} scale={[1.8, .08, .12]}><boxGeometry args={[1, 1, 1]} /></mesh>
-      <mesh material={body} position={[0, .18, 0]} scale={[.65, .12, .18]}><boxGeometry args={[1, 1, 1]} /></mesh>
-    </> : <>
-      {visible.arms && Array.from({ length: Math.max(0, drone.rotors) }, (_, index) => {
-        const angle = index / Math.max(1, drone.rotors) * Math.PI * 2;
-        return <group key={index} position={[Math.cos(angle) * .72, 0, Math.sin(angle) * .72]} rotation={[0, -angle, 0]}>
-          <mesh material={body} scale={[reference ? .82 : .72, .09, .1]}><boxGeometry args={[1, 1, 1]} /></mesh>
-          {visible.motors && <mesh material={dark} position={[.55, .08, 0]}><cylinderGeometry args={[.14, .14, .12, 16]} /></mesh>}
-          {visible.rotors && <mesh material={dark} position={[.55, .16, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.22, .025, 8, 32]} /></mesh>}
-        </group>;
-      })}
-    </>}
-    {visible.landing && <group>{[-.42, .42].map(x => <mesh key={x} material={dark} position={[x, -.38, 0]} scale={[.08, .45, .08]}><boxGeometry args={[1, 1, 1]} /></mesh>)}</group>}
-    {visible.camera && <mesh material={dark} position={[0, -.28, .18]}><sphereGeometry args={[.18, 20, 12]} /></mesh>}
-    {visible.sensors && <mesh material={new THREE.MeshStandardMaterial({ color: "#19d7e8", emissive: "#087680", emissiveIntensity: 1 })} position={[0, .18, .3]}><sphereGeometry args={[reference ? .14 : .08, 16, 8]} /></mesh>}
-    {reference && <mesh position={[0, .38, .02]}><sphereGeometry args={[.16, 20, 12]} /><meshStandardMaterial color="#19d7e8" emissive="#087680" emissiveIntensity={1.4} metalness={.35} roughness={.2} /></mesh>}
-    {reference && <mesh position={[0, .12, .38]}><boxGeometry args={[.28, .16, .18]} /><meshStandardMaterial color="#e66b27" metalness={.25} roughness={.34} /></mesh>}
-  </group>;
+function readSavedNames(): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem("strata-variants") || "[]");
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 export default function StrataStudio({ embedded = false, config, setConfig, activeProfile, onSelectProfile }: StrataStudioProps) {
-  const [color, setColor] = useState(config?.physicalAppearance?.color ?? colors[0].hex);
-  const [material, setMaterial] = useState(config?.physicalAppearance?.material ?? config?.materialFamily ?? materials[0]);
+  const [appearance, setAppearance] = useState(() => appearanceFromConfig(config));
   const [customName, setCustomName] = useState("");
   const [customMode, setCustomMode] = useState(false);
-  const [visible, setVisible] = useState(config?.physicalAppearance?.visible ?? { arms: true, motors: true, rotors: true, landing: true, camera: true, sensors: true });
-  const [technical, setTechnical] = useState(config?.physicalAppearance?.technical ?? false);
-  const [auto, setAuto] = useState(false);
-  const [webglAvailable, setWebglAvailable] = useState<boolean | null>(null);
-  const [saved, setSaved] = useState<string[]>(() => JSON.parse(localStorage.getItem("strata-variants") || "[]"));
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [brightness, setBrightness] = useState(108);
-  const [contrast, setContrast] = useState(112);
-  const [saturation, setSaturation] = useState(112);
-  const [showGrid, setShowGrid] = useState(true);
-  const [drag, setDrag] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const [localProfile, setLocalProfile] = useState<DroneCatalogDesign>();
+  const [selectedPart, setSelectedPart] = useState<{ designId: string; id: string }>();
+  const [view, setView] = useState<MechanicalView>("iso");
+  const [resetKey, setResetKey] = useState(0);
+  const [saved] = useState(readSavedNames);
+  const previousMaterial = useRef({ appearance: config?.physicalAppearance?.material, family: config?.materialFamily });
 
-  const resolvedProfile = activeProfile ?? (config?.platformProfile ? droneCatalog.find(item => item.id === config.platformProfile) : undefined) ?? (config?.airframe ? droneCatalog.find(item => item.key === config.airframe) : undefined);
+  // Une modification externe de materialFamily est aussi reflétée quand le
+  // matériau d'apparence n'a pas changé dans la même mise à jour.
+  useEffect(() => {
+    if (!config) return;
+    const next = appearanceFromConfig(config);
+    const previous = previousMaterial.current;
+    if (config.materialFamily !== previous.family && config.physicalAppearance?.material === previous.appearance && config.materialFamily) {
+      next.material = config.materialFamily;
+    }
+    previousMaterial.current = { appearance: config.physicalAppearance?.material, family: config.materialFamily };
+    setAppearance(next);
+  }, [config?.physicalAppearance?.color, config?.physicalAppearance?.material, config?.physicalAppearance?.technical, config?.physicalAppearance?.visible, config?.materialFamily]);
+
   const referenceProfiles = useMemo(() => [droneCatalog.find(item => item.id === "aeromind-reference-multirotor-001"), ...droneCatalog.filter(item => item.id !== "aeromind-reference-multirotor-001").slice(0, 7)].filter((profile): profile is DroneCatalogDesign => Boolean(profile)), []);
-  const referenceIndex = referenceProfiles.findIndex(profile => profile.id === resolvedProfile?.id);
-  const referenceImage = referenceIndex >= 0 ? referenceIndex === 0 ? "/assets/strata-reference/hero-strata-02.webp" : `/assets/strata-reference/drone-${referenceIndex + 1}.webp` : null;
-  const selected = useMemo(() => resolvedProfile ? profileToDrone(resolvedProfile, config) : emptyDrone(config), [resolvedProfile, config]);
-  const activeName = customMode && customName.trim() ? customName.trim() : selected.name;
-  const visibleName = referenceIndex >= 0 ? referenceCardLabels[referenceIndex] : activeName;
-  const visualConfig = { schema: "aeromind-physical-studio-v2", projectConfig: config ?? null, selectedProfileId: resolvedProfile?.id ?? null, model: selected, appearance: { color, material }, visible, technical, updatedAt: new Date().toISOString() };
+  const isCustomSource = config?.engineeringSelection?.source === "custom";
+  const resolvedProfile = useMemo(() => {
+    if (isCustomSource) return config && hasDrawingGeometry(config) ? drawingProfile(config) : undefined;
+    if (activeProfile?.id.startsWith("custom-sketch-")) return config && hasDrawingGeometry(config) ? activeProfile : undefined;
+    return activeProfile ?? (config?.platformProfile ? droneCatalog.find(item => item.id === config.platformProfile) : undefined) ?? (!config ? localProfile : undefined);
+  }, [activeProfile, config, isCustomSource, localProfile]);
+  const effectiveModelType = resolvedProfile?.modelType ?? config?.modelType;
+  const unsupportedModelType = Boolean(resolvedProfile && !resolvedProfile.id.startsWith("custom-sketch-") && (effectiveModelType ? !supportedModelTypes.has(effectiveModelType) : !["fixed-wing", "vtol", "quadcopter"].includes(resolvedProfile.key)));
+  const selectedMechanicalModel = useMemo(() => {
+    if (!resolvedProfile || unsupportedModelType) return null;
+    return buildMechanicalModel(resolvedProfile, (config ?? resolvedProfile.configuration) as ConceptConfig);
+  }, [resolvedProfile, config, unsupportedModelType]);
+  const componentCounts = useMemo(() => {
+    const counts: Record<ComponentKey, number> = { arms: 0, motors: 0, rotors: 0, landing: 0, camera: 0, sensors: 0 };
+    selectedMechanicalModel?.parts.forEach(part => { const key = componentForPart(part); if (key) counts[key] += 1; });
+    return counts;
+  }, [selectedMechanicalModel]);
+  const displayModel = useMemo(() => {
+    if (!selectedMechanicalModel) return null;
+    const surface = materialSurface[appearance.material] ?? materialSurface[materials[0]];
+    return {
+      ...selectedMechanicalModel,
+      parts: selectedMechanicalModel.parts.map(part => {
+        const component = componentForPart(part);
+        return {
+          ...part,
+          ...(canPaintPart(part) ? { color: appearance.color, ...surface } : {}),
+          hidden: part.hidden || Boolean(component && !appearance.visible[component]),
+        };
+      }),
+    };
+  }, [selectedMechanicalModel, appearance]);
+  const paintedPartCount = selectedMechanicalModel?.parts.filter(canPaintPart).length ?? 0;
+  const activePart = displayModel && selectedPart && displayModel.designId === selectedPart.designId
+    ? displayModel.parts.find(part => part.id === selectedPart.id && !part.hidden)
+    : undefined;
+  const visibleName = customMode && customName.trim() ? customName.trim() : resolvedProfile?.label ?? "Aucune architecture sélectionnée";
+  const canChooseProfile = Boolean(onSelectProfile || (!activeProfile && (setConfig || !config)));
 
   useEffect(() => {
-    const probe = document.createElement("canvas");
-    let context: RenderingContext | null = null;
-    try { context = probe.getContext("webgl2") || probe.getContext("webgl") || probe.getContext("experimental-webgl"); } catch { context = null; }
-    setWebglAvailable(Boolean(context));
-  }, []);
-  useEffect(() => {
-    if (config?.materialFamily && materials.includes(config.materialFamily)) setMaterial(config.materialFamily);
-  }, [config?.materialFamily]);
+    setSelectedPart(current => current && displayModel?.designId === current.designId && displayModel.parts.some(part => part.id === current.id && !part.hidden) ? current : undefined);
+  }, [displayModel]);
 
-  const persistAppearance = (next: Partial<NonNullable<ConceptConfig["physicalAppearance"]>>) => {
-    setConfig?.(current => ({ ...current, physicalAppearance: { color, material, technical, visible, ...current.physicalAppearance, ...next } }));
+  const updateAppearance = (next: Appearance, updateFamily = false) => {
+    setAppearance(next);
+    setConfig?.(current => ({ ...current, ...(updateFamily ? { materialFamily: next.material } : {}), physicalAppearance: next }));
   };
-  const updateMaterial = (next: string) => {
-    setMaterial(next);
-    setConfig?.(current => ({ ...current, materialFamily: next, physicalAppearance: { color, material: next, technical, visible } }));
+  const chooseProfile = (profile: DroneCatalogDesign) => {
+    if (onSelectProfile) {
+      onSelectProfile(profile);
+    } else if (!activeProfile && setConfig) {
+      setConfig(current => ({
+        ...current, ...profile.configuration, airframe: profile.key, modelType: profile.modelType,
+        platformProfile: profile.id, designName: profile.label, customSketch: undefined,
+        engineeringSelection: { source: "catalog", droneId: profile.id, droneLabel: profile.label, updatedAt: new Date().toISOString() },
+      }));
+    } else if (!config && !activeProfile) {
+      setLocalProfile(profile);
+    }
   };
-  const toggle = (key: keyof typeof visible) => setVisible(current => { const next = { ...current, [key]: !current[key] }; persistAppearance({ visible: next }); return next; });
-  const chooseColor = (next: string) => { setColor(next); persistAppearance({ color: next }); };
-  const reset = () => { const nextVisible = { arms: true, motors: true, rotors: true, landing: true, camera: true, sensors: true }; setColor(colors[0].hex); setMaterial(materials[0]); setVisible(nextVisible); setTechnical(false); setAuto(false); persistAppearance({ color: colors[0].hex, material: materials[0], visible: nextVisible, technical: false }); };
-  const save = () => { const next = [...saved, `${activeName} · ${new Date().toLocaleString("fr-FR")}`]; setSaved(next); localStorage.setItem("strata-variants", JSON.stringify(next)); };
-  const resetStudio = () => { setZoom(1); setPan({ x: 0, y: 0 }); setBrightness(108); setContrast(112); setSaturation(112); setShowGrid(true); };
-  const imageFilter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
-  const imageTransform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+  const resetAppearance = () => updateAppearance({ color: colors[0].hex, material: materials[0], visible: { ...appearance.visible, ...defaultVisible }, technical: false }, true);
+  const resetView = () => { setView("iso"); setResetKey(key => key + 1); };
+  const emptyReason = unsupportedModelType
+    ? "La géométrie de cette architecture n’est pas prise en charge par le jumeau mécanique. Aucun modèle de substitution n’est affiché."
+    : isCustomSource || activeProfile?.id.startsWith("custom-sketch-")
+    ? "Le dessin ne contient aucun trait géométrique exploitable. Aucun modèle de substitution n’est affiché."
+    : config?.platformProfile
+      ? "Le profil actif n’est pas disponible dans ce catalogue. Aucun autre modèle n’est substitué."
+      : "Sélectionnez une architecture dans la bibliothèque pour afficher son jumeau mécanique.";
 
   return <section className={`strata-app ${embedded ? "strata-embedded" : ""}`} aria-label="Construction physique du drone actif">
-    <header className="strata-top"><div className="strata-brand"><span>AEROMIND / STUDIO DE CONCEPTION</span><strong>{visibleName}</strong></div><div><b>CONSTRUCTION PHYSIQUE</b><small>JUMEAU VISUEL · DONNÉES INDICATIVES · REVUE HUMAINE REQUISE</small></div><span className="strata-status"><i /> {resolvedProfile ? "CONFIGURATION SYNCHRONISÉE" : "SÉLECTION REQUISE"}</span></header>
+    <header className="strata-top"><div className="strata-brand"><span>AEROMIND / STUDIO DE CONCEPTION</span><strong>{visibleName}</strong></div><div><b>CONSTRUCTION PHYSIQUE</b><small>JUMEAU VISUEL · DONNÉES INDICATIVES · REVUE HUMAINE REQUISE</small></div><span className="strata-status"><i /> {displayModel ? "CONFIGURATION SYNCHRONISÉE" : resolvedProfile ? "GÉOMÉTRIE INDISPONIBLE" : "SÉLECTION REQUISE"}</span></header>
     <main className="strata-layout strata-reference-layout">
-      <aside className="strata-library"><div className="strata-heading"><span>01 / BIBLIOTHÈQUE DRONES</span><span className="strata-heading-meta">CATALOGUE / 08</span><span className="orange-dot" /></div><p className="strata-library-note">Modèles reproduits depuis l’image de référence</p><div className="strata-library-grid">{referenceProfiles.map((profile, index) => <button type="button" key={profile.id} className={`strata-library-card ${resolvedProfile?.id === profile.id ? "active" : ""}`} onClick={() => onSelectProfile?.(profile)}><span className="strata-card-index">0{index + 1}</span><span className="strata-mini-drone"><img src={`/assets/strata-reference/drone-${index + 1}.webp`} alt="" /></span><strong>{referenceCardLabels[index]}</strong><small>{referenceCardMeta[index]}</small></button>)}</div><button type="button" className="strata-create-drone" onClick={() => setCustomMode(true)}>＋ Créer mon drone</button></aside>
-      <section className="strata-view"><div className="strata-viewbar"><span className="strata-viewbar-title"><b>01</b> / JUMEAU NUMÉRIQUE · {visibleName}</span><span className="strata-live"><i /> RENDU DE RÉFÉRENCE <em>· PIXEL SOURCE</em></span></div><div className="strata-editor-toolbar"><div className="strata-editor-toolgroup"><span className="strata-editor-kicker"><Move3d size={12} /> STUDIO VISUEL</span><button type="button" title="Réduire le zoom" onClick={() => setZoom(value => Math.max(.5, Number((value - .1).toFixed(1))))}><ZoomOut size={14} /></button><strong>{Math.round(zoom * 100)}%</strong><button type="button" title="Augmenter le zoom" onClick={() => setZoom(value => Math.min(2.5, Number((value + .1).toFixed(1))))}><ZoomIn size={14} /></button><button type="button" className={showGrid ? "active" : ""} title="Afficher la grille" onClick={() => setShowGrid(value => !value)}><Grid3X3 size={14} /></button><button type="button" title="Réinitialiser la vue" onClick={resetStudio}><RotateCcw size={14} /></button></div><div className="strata-editor-sliders"><label title="Luminosité"><Sun size={13} /><input type="range" min="75" max="140" value={brightness} onChange={event => setBrightness(Number(event.target.value))} /></label><label title="Contraste"><Contrast size={13} /><input type="range" min="75" max="150" value={contrast} onChange={event => setContrast(Number(event.target.value))} /></label><label title="Saturation"><span className="strata-slider-label">SAT</span><input type="range" min="0" max="160" value={saturation} onChange={event => setSaturation(Number(event.target.value))} /></label></div><button type="button" className="strata-editor-fullscreen" title="Mode studio plein écran" onClick={() => stageRef.current?.requestFullscreen?.()}><Expand size={14} /> <span>PLEIN ÉCRAN</span></button></div><div ref={stageRef} className={`strata-canvas ${showGrid ? "has-grid" : ""}`} onPointerDown={event => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); setDrag({ x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }); }} onPointerMove={event => { if (!drag) return; setPan({ x: drag.panX + event.clientX - drag.x, y: drag.panY + event.clientY - drag.y }); }} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>{referenceImage ? <img className="strata-reference-hero" style={{ filter: imageFilter, transform: imageTransform }} src={referenceImage} alt={`Modèle ${visibleName} extrait de l’image de référence`} /> : webglAvailable === false ? <Fallback drone={selected} color={color} technical={technical} customSketch={config?.customSketch} /> : <Canvas fallback={<Fallback drone={selected} color={color} technical={technical} customSketch={config?.customSketch} />} gl={{ preserveDrawingBuffer: true }}><PerspectiveCamera makeDefault position={[3.4, 2.5, 4.2]} /><color attach="background" args={["#07131d"]} /><ambientLight intensity={1.2} /><directionalLight position={[3, 5, 4]} intensity={3} color="#b9f8ff" /><pointLight position={[-3, 1, 2]} intensity={12} color="#1acde5" /><Grid args={[20, 20]} cellSize={.25} cellThickness={.35} cellColor="#174454" sectionSize={1} sectionThickness={.8} sectionColor="#21768a" fadeDistance={12} infiniteGrid /><Vehicle drone={selected} color={color} material={material} visible={visible} technical={technical} customSketch={config?.customSketch} /><OrbitControls autoRotate={auto} autoRotateSpeed={1.2} enableDamping /></Canvas>}<div className="strata-overlay"><b>{visibleName}</b><span>{config?.customSketch?.strokes?.length ? "Conception issue de Dessiner · géométrie synchronisée" : selected.mission}</span><small>RÉFÉRENCE VISUELLE · CONFIGURATION PROJET ACTIVE</small></div></div><div className="strata-actions"><button type="button" onClick={() => setAuto(current => !current)} className={auto ? "active" : ""}><RotateCw size={14} /> {auto ? "Arrêter rotation" : "Rotation auto"}</button><button type="button" onClick={reset}><RotateCcw size={14} /> Réinitialiser</button><button type="button" onClick={save}><Save size={14} /> Enregistrer variante</button><button type="button" onClick={() => download(`${selected.id}.json`, JSON.stringify(visualConfig, null, 2))}><Download size={14} /> JSON</button><CaptureButton onCapture={canvas => { const anchor = document.createElement("a"); anchor.href = canvas.toDataURL("image/png"); anchor.download = `${selected.id}.png`; anchor.click(); }} /></div></section>
-      <aside className="strata-panel"><div className="strata-heading"><span>02 / CONSTRUCTION SYNCHRONISÉE</span><span className="strata-heading-meta">LIVE LINK / N2</span><span className="orange-dot" /></div><section><h4>DRONE ACTIF DU PROJET</h4><strong>{visibleName}</strong><p>{selected.type} · {selected.family}</p><button type="button" className="strata-inline-action" onClick={() => setCustomMode(current => !current)}>{customMode ? "Revenir au modèle actif" : "Créer un dessin personnalisé"}</button>{customMode && <input className="strata-name-input" value={customName} onChange={event => setCustomName(event.target.value)} placeholder="Nom de votre variante…" aria-label="Nom de la variante" />}</section><section><h4>COULEUR / MATÉRIAU</h4><div className="strata-colors">{colors.map(item => <button type="button" title={item.name} key={item.hex} onClick={() => chooseColor(item.hex)} style={{ background: item.hex }} className={color === item.hex ? "active" : ""} />)}</div><select value={material} onChange={event => updateMaterial(event.target.value)} aria-label="Matériau de construction">{materials.map(item => <option key={item}>{item}</option>)}</select></section><section><h4>COMPOSANTS PHYSIQUES</h4>{Object.entries({ arms: "Bras et supports", motors: "Moteurs", rotors: "Hélices / rotors", landing: "Train d’atterrissage", camera: "Nacelle caméra", sensors: "Capteurs visibles" }).map(([key, label]) => <label className="strata-toggle" key={key}><span>{label}</span><input type="checkbox" checked={visible[key as keyof typeof visible]} onChange={() => toggle(key as keyof typeof visible)} /></label>)}</section><section><h4>PARAMÈTRES DE VISUALISATION</h4><label className="strata-toggle"><span>Vue technique filaire</span><input type="checkbox" checked={technical} onChange={event => { setTechnical(event.target.checked); persistAppearance({ technical: event.target.checked }); }} /></label><p className="strata-note">La vue est illustrative. Les modifications restent dans la configuration partagée du projet et ne constituent pas une validation de fabrication.</p></section><section><h4>FICHE PROJET ACTIVE</h4><dl className="strata-specs"><dt>Architecture</dt><dd>{config?.airframe ?? "—"}</dd><dt>Envergure</dt><dd>{selected.span.toFixed(2)} m</dd><dt>Moteurs</dt><dd>{config?.motorCount ?? selected.rotors}</dd><dt>Masse déclarée</dt><dd>{selected.mass}</dd><dt>État</dt><dd className="orange">{resolvedProfile ? "Synchronisé" : "À sélectionner"}</dd></dl></section><section><h4>VARIANTES LOCALES ({saved.length})</h4>{saved.slice(-3).map(item => <small className="saved-row" key={item}>{item}</small>)}{!saved.length && <p className="strata-note">Aucune variante enregistrée.</p>}</section></aside>
+      <aside className="strata-library"><div className="strata-heading"><span>01 / BIBLIOTHÈQUE DRONES</span><span className="strata-heading-meta">CATALOGUE / 08</span><span className="orange-dot" /></div><p className="strata-library-note">Profils catalogue · géométrie paramétrique synchronisée</p><div className="strata-library-grid">{referenceProfiles.map((profile, index) => <button type="button" key={profile.id} className={`strata-library-card ${resolvedProfile?.id === profile.id ? "active" : ""}`} aria-pressed={resolvedProfile?.id === profile.id} disabled={!canChooseProfile} onClick={() => chooseProfile(profile)}><span className="strata-card-index">0{index + 1}</span><span className="strata-mini-drone"><img src={`/assets/strata-reference/drone-${index + 1}.webp`} alt="" /></span><strong>{profile.label}</strong><small>{profile.family}</small></button>)}</div>{!canChooseProfile && <p className="strata-note">La sélection est pilotée par le projet parent.</p>}<button type="button" className="strata-create-drone" onClick={() => setCustomMode(true)}>＋ Nommer une variante</button></aside>
+      <section className="strata-view" aria-label="Vue du jumeau mécanique">
+        <div className="strata-viewbar"><span>02 / JUMEAU MÉCANIQUE</span><span>{displayModel ? `${displayModel.parts.filter(part => !part.hidden).length} PIÈCES VISIBLES` : "AUCUN MODÈLE"}</span></div>
+        <div className="strata-canvas strata-twin">
+          {displayModel ? <MechanicalTwinViewport model={displayModel} selected={activePart?.id ?? ""} onSelect={id => setSelectedPart({ designId: displayModel.designId, id })} view={view} mode={appearance.technical ? "wireframe" : "solid"} explosion={0} resetKey={resetKey} xrayCut={1} xrayOpacity={{}} renderPreset="mechanical" /> : <div className="strata-empty" role="status"><strong>AUCUNE GÉOMÉTRIE CHARGÉE</strong><span>{emptyReason}</span></div>}
+        </div>
+        <div className="strata-actions" role="group" aria-label="Orientation de la vue mécanique">{([ ["iso", "Iso"], ["top", "Dessus"], ["front", "Face"], ["side", "Côté"] ] as const).map(([projection, label]) => <button type="button" key={projection} disabled={!displayModel} className={view === projection ? "active" : ""} aria-pressed={view === projection} onClick={() => setView(projection)}>{label}</button>)}<button type="button" disabled={!displayModel} onClick={resetView}><RotateCcw size={14} /> Réinitialiser la vue</button></div>
+        <p className="strata-view-help">Glisser pour orbiter · molette pour zoomer · cliquer une pièce pour l’identifier. La projection de secours utilise le même maillage.</p>
+        {activePart && <p className="strata-selected-part">Pièce sélectionnée : <strong>{activePart.name}</strong> <button type="button" onClick={() => setSelectedPart(undefined)}>Effacer la sélection</button></p>}
+      </section>
+      <aside className="strata-panel"><div className="strata-heading"><span>03 / CONSTRUCTION SYNCHRONISÉE</span><span className="strata-heading-meta">LIVE LINK / N2</span><span className="orange-dot" /></div>
+        <section><h4>DRONE ACTIF DU PROJET</h4><strong>{visibleName}</strong><p>{resolvedProfile ? `${resolvedProfile.modelType ?? "Architecture paramétrique"} · ${resolvedProfile.family}` : "Sélection humaine requise"}</p><button type="button" className="strata-inline-action" onClick={() => setCustomMode(current => !current)}>{customMode ? "Revenir au nom du modèle actif" : "Nommer une variante"}</button>{customMode && <input className="strata-name-input" value={customName} onChange={event => setCustomName(event.target.value)} placeholder="Nom de votre variante…" aria-label="Nom de la variante" />}</section>
+        <section><h4>COULEUR / MATÉRIAU</h4><div className="strata-colors">{colors.map(item => <button type="button" title={item.name} aria-label={item.name} aria-pressed={appearance.color === item.hex} disabled={!paintedPartCount} key={item.hex} onClick={() => updateAppearance({ ...appearance, color: item.hex })} style={{ background: item.hex }} className={appearance.color === item.hex ? "active" : ""} />)}</div><select value={appearance.material} disabled={!paintedPartCount} onChange={event => updateAppearance({ ...appearance, material: event.target.value }, true)} aria-label="Matériau de construction">{!materials.includes(appearance.material) && <option value={appearance.material}>{appearance.material}</option>}{materials.map(item => <option key={item}>{item}</option>)}</select><p className="strata-note">Aspect indicatif des pièces de cellule ; les traits dessinés gardent leur couleur. Le relief matériau n’est pas rendu en secours vectoriel.</p></section>
+        <section><h4>COMPOSANTS PHYSIQUES</h4>{(Object.entries(componentLabels) as [ComponentKey, string][]).map(([key, label]) => <label className="strata-toggle" key={key}><span>{label}{displayModel && !componentCounts[key] && <small> · non représenté</small>}</span><input type="checkbox" checked={appearance.visible[key]} disabled={!componentCounts[key]} onChange={event => updateAppearance({ ...appearance, visible: { ...appearance.visible, [key]: event.target.checked } })} /></label>)}<p className="strata-note">Les pièces masquées par le jumeau mécanique restent masquées ; les modules non identifiés ne sont pas modifiés.</p></section>
+        <section><h4>PARAMÈTRES DE VISUALISATION</h4><label className="strata-toggle"><span>Vue technique filaire</span><input type="checkbox" checked={appearance.technical} disabled={!displayModel} onChange={event => updateAppearance({ ...appearance, technical: event.target.checked })} /></label><button type="button" className="strata-inline-action" onClick={resetAppearance}>Réinitialiser l’apparence</button><p className="strata-note">La vue est indicative et ne constitue pas une validation de fabrication.</p></section>
+        <section><h4>FICHE PROJET ACTIVE</h4><dl className="strata-specs"><dt>Architecture</dt><dd>{resolvedProfile ? config?.airframe ?? resolvedProfile.key : "—"}</dd><dt>Envergure</dt><dd>{displayModel ? `${displayModel.span.toFixed(2)} m` : "—"}</dd><dt>Moteurs</dt><dd>{resolvedProfile ? config?.motorCount ?? resolvedProfile.configuration.motorCount ?? "—" : "—"}</dd><dt>Masse déclarée</dt><dd>{resolvedProfile && typeof config?.constructionMassKg === "number" ? `${config.constructionMassKg.toFixed(2)} kg` : "—"}</dd><dt>État</dt><dd className="orange">{displayModel ? "Synchronisé" : resolvedProfile ? "Géométrie indisponible" : "À sélectionner"}</dd></dl></section>
+        <section><h4>VARIANTES LOCALES ({saved.length})</h4>{saved.slice(-3).map((item, index) => <small className="saved-row" key={`${item}-${index}`}>{item}</small>)}<p className="strata-note">{saved.length ? "Noms enregistrés localement, sans sauvegarde de géométrie." : "Aucune variante enregistrée."}</p></section>
+      </aside>
     </main>
   </section>;
-
-  function Fallback({ drone, color, technical, customSketch }: { drone: DisplayDrone; color: string; technical: boolean; customSketch?: ConceptConfig["customSketch"] }) {
-    const reference = drone.id === "aeromind-reference-multirotor-001";
-    const count = Math.max(1, drone.rotors || 0);
-    const hasSketch = Boolean(customSketch?.strokes?.length);
-    const sketchView = hasSketch ? <svg className="fallback-sketch-render" viewBox="0 0 1000 560" aria-label="Dessin utilisateur synchronisé">{customSketch!.strokes.filter(stroke => stroke.points.length > 1).map(stroke => <polyline key={stroke.id} points={stroke.points.map(point => `${point.x},${point.y}`).join(" ")} fill={stroke.fill ?? "none"} stroke={stroke.color} strokeWidth={stroke.width} opacity={stroke.opacity ?? 1} />)}</svg> : null;
-    const modelView = <div className={`fallback-drone-shape ${drone.wing ? "is-wing" : "is-multirotor"} ${reference ? "is-reference" : ""}`} style={{ borderColor: color, boxShadow: `0 0 28px ${color}55`, filter: technical ? "grayscale(1)" : "none" }}><span className="fallback-body" />{!drone.wing && Array.from({ length: count }, (_, index) => <i key={index} style={{ transform: `rotate(${index * 360 / count}deg) translateY(-86px)` }} />)}<b className="fallback-sensor" />{reference && <em className="fallback-payload" />}</div>;
-    return <div className="strata-webgl-fallback"><div className="strata-fallback-grid">{sketchView ?? modelView}</div><div className="strata-fallback-copy"><strong>{hasSketch ? "DESSIN SYNCHRONISÉ · SOURCE DESSINER" : `${drone.name.toUpperCase()} · MODÈLE ACTIF`}</strong><span>Visualisation technique sans WebGL — géométrie du modèle sélectionné conservée.</span><small>{hasSketch ? `${customSketch!.strokes.length} composant(s) graphique(s) chargés depuis le projet.` : `${drone.rotors || 0} rotor(s) · ${drone.type} · sélection réelle du catalogue.`}</small></div></div>;
-  }
 }
