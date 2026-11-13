@@ -383,7 +383,9 @@ def issue_daily_totp_code(actor: dict[str, Any], account_id: str) -> dict[str, A
     _assert_superadmin_actor(actor)
     day = _utc_day()
     with SessionLocal() as db:
-        row = db.scalar(select(AdminAccountRecord).where(AdminAccountRecord.id == account_id))
+        row = db.scalar(select(AdminAccountRecord).where(
+            AdminAccountRecord.id == account_id
+        ).with_for_update())
         if row is None:
             raise KeyError("Compte introuvable")
         account = _record_account(row)
@@ -413,6 +415,33 @@ def verify_daily_totp_code(email: str, code: str) -> bool:
                 and account.get("dailyTotpCodeDate") == _utc_day()
                 and account.get("dailyTotpCodeHash")
                 and secrets.compare_digest(account["dailyTotpCodeHash"], _code_hash(code)))
+def consume_daily_totp_code(email: str, code: str) -> bool:
+    """Atomically validate and invalidate the current-day LabBench fallback code."""
+    if not code or len(code) != 6 or not code.isdigit():
+        return False
+    normalized = email.strip().casefold()
+    if not normalized:
+        return False
+    with SessionLocal() as db:
+        row = db.scalar(select(AdminAccountRecord).where(
+            AdminAccountRecord.email == normalized
+        ).with_for_update())
+        if row is None:
+            return False
+        account = _record_account(row)
+        valid = (account.get("accountStatus") in {"active", "evaluation"}
+                 and account.get("dailyTotpCodeDate") == _utc_day()
+                 and account.get("dailyTotpCodeHash")
+                 and secrets.compare_digest(account["dailyTotpCodeHash"], _code_hash(code)))
+        if not valid:
+            return False
+        account.pop("dailyTotpCodeHash", None)
+        account.pop("dailyTotpCodeDate", None)
+        account.pop("dailyTotpCodeLast4", None)
+        account.pop("dailyTotpCodeIssuedAt", None)
+        row.data_json = json.dumps(account, ensure_ascii=False, separators=(",", ":"))
+        db.commit()
+        return True
 
 
 def create_account(actor: dict[str, Any], email: str, name: str, requested_role: str = "user", level: str = "L1") -> dict[str, Any]:

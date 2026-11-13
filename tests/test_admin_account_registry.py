@@ -10,7 +10,7 @@ os.environ.setdefault("AEROMIND_SESSION_SECRET", "local-admin-registry-test-secr
 os.environ.setdefault("DATABASE_URL", f"sqlite:////tmp/aeromind-admin-registry-{os.getpid()}.db")
 
 from sqlalchemy import select
-from web.admin import account_for_email, account_for_identity, create_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, update_account, verify_authorization_code, verify_daily_totp_code
+from web.admin import account_for_email, account_for_identity, create_account, issue_daily_totp_code, consume_daily_totp_code, list_accounts, migrate_legacy_registry, update_account, verify_authorization_code, verify_daily_totp_code
 from web.database import Base, SessionLocal, engine
 from web.models import AdminAccountEvent, AdminAccountRecord
 
@@ -54,8 +54,31 @@ class AdminAccountRegistryTest(unittest.TestCase):
         self.assertTrue(verify_daily_totp_code(email, issued["dailyTotpCode"]))
         self.assertNotIn("dailyTotpCodeHash", issued)
         self.assertEqual(account_for_email(email)["dailyTotpCodeLast4"], issued["dailyTotpCode"][-4:])
+        self.assertTrue(consume_daily_totp_code(email, issued["dailyTotpCode"]))
+        self.assertFalse(consume_daily_totp_code(email, issued["dailyTotpCode"]))
+        self.assertFalse(verify_daily_totp_code(email, issued["dailyTotpCode"]))
         with self.assertRaises(ValueError):
             issue_daily_totp_code({"id": "user", "email": "user@example.test", "role": "user"}, created["id"])
+
+    def test_labbench_step_up_totp_is_consumed_once(self):
+        from unittest.mock import patch
+        from web.local_auth import _encrypt_secret, _totp_for_counter, OTP_STEP, verify_account_totp
+        email = f"step-up-{uuid4()}@example.test"
+        actor = {"id": "admin-test", "email": "admin@example.test", "role": "super_admin"}
+        created = create_account(actor, email, "Step-up test", "user", "L2")
+        counter = int(__import__("time").time()) // OTP_STEP
+        secret = "JBSWY3DPEHPK3PXP"
+        with SessionLocal() as db:
+            row = db.get(AdminAccountRecord, created["id"])
+            stored = json.loads(row.data_json)
+            stored.update({"localAuthEnabled": True, "localTotpSecretEnc": _encrypt_secret(secret),
+                           "localTotpLastCounter": counter - 1})
+            row.data_json = json.dumps(stored)
+            db.commit()
+        code = _totp_for_counter(secret, counter)
+        with patch("web.local_auth.time.time", return_value=counter * OTP_STEP + 1):
+            self.assertTrue(verify_account_totp(email, code))
+            self.assertFalse(verify_account_totp(email, code))
 
     def test_local_enrollment_requires_admin_invite_and_totp_then_sets_session(self):
         from starlette.requests import Request

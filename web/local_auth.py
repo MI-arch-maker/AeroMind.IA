@@ -142,7 +142,7 @@ def verify_account_totp(email: str, supplied: str) -> bool:
     if not supplied or len(supplied) != 6 or not supplied.isdigit():
         return False
     with SessionLocal() as db:
-        row = _row_for_email(db, _normalize_email(email))
+        row = _row_for_email(db, _normalize_email(email), lock=True)
         if row is None:
             return False
         stored = _load_record(row)
@@ -150,7 +150,15 @@ def verify_account_totp(email: str, supplied: str) -> bool:
             secret = _decrypt_secret(stored.get("localTotpSecretEnc", ""))
         except Exception:
             return False
-        return _verify_totp(secret, supplied)
+        matched_counter = _matching_totp_counter(
+            secret, supplied, int(stored.get("localTotpLastCounter", -1))
+        )
+        if matched_counter is None:
+            return False
+        stored["localTotpLastCounter"] = matched_counter
+        row.data_json = json.dumps(stored, ensure_ascii=False, separators=(",", ":"))
+        db.commit()
+        return True
 
 
 def _encryption_key() -> bytes:

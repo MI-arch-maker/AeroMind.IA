@@ -44,6 +44,8 @@ from web.local_auth import (
     OTP_STEP, OTP_WINDOW,
 )
 from web.models import User, Project
+from web.labbench_canonical_api import _server_labbench_roles
+from web.labbench_auth import ROLES as LABBENCH_ROLES
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -119,6 +121,24 @@ def test_R03_totp_window_accepts_recent_counters():
     # the window should be rejected.
     code_too_old = _totp(secret, current - (OTP_WINDOW + 2))
     assert _verify_totp(secret, code_too_old) is False
+
+
+@pytest.mark.parametrize(("role", "level", "expected"), [
+    ("user", "L1", {"reader"}),
+    ("demo", "L2", {"reader", "designer"}),
+    ("user", "L3", {"reader", "designer", "analyst"}),
+    ("admin", "L1", {"reader", "designer", "analyst", "admin"}),
+    ("super_admin", "L1", LABBENCH_ROLES),
+])
+def test_labbench_role_mapping_is_derived_from_account_role_and_level(role, level, expected):
+    user = {"role": role, "level": level}
+    assert _server_labbench_roles(user, {"role": role, "level": level}) == expected
+
+
+def test_labbench_client_role_request_can_only_downgrade_server_roles():
+    roles = _server_labbench_roles({"role": "user", "level": "L3"}, {"role": "user", "level": "L3"})
+    assert roles & {"reader"} == {"reader"}
+    assert roles & {"admin"} == set()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

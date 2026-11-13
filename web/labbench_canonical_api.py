@@ -42,7 +42,7 @@ from .labbench_auth import (
 from .rate_limit import limiter as _limiter  # P1-01 fix
 from .operation_mode import OperationMode, determine_mode
 from .database import SessionLocal
-from .admin import verify_daily_totp_code
+from .admin import consume_daily_totp_code
 
 router = APIRouter(prefix="/api/lab", tags=["labbench-canonical"])
 
@@ -173,6 +173,23 @@ def _verify_project_owner(sess: StepUpSession, project_id: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
+def _server_labbench_roles(user: dict[str, Any], account: dict[str, Any] | None) -> set[str]:
+    """Map AeroMind identity/level to bounded LabBench roles, never client input."""
+    identity = account or user
+    identity_role = str(identity.get("role", user.get("role", "user")))
+    identity_level = str(identity.get("level", user.get("level", "L1")))
+    if identity_role == "super_admin" or user.get("role") == "super_admin":
+        return set(ROLES)
+    if identity_role == "admin":
+        return {"reader", "designer", "analyst", "admin"}
+    roles = {"reader"}
+    if identity_level in {"L2", "L3"}:
+        roles.add("designer")
+    if identity_level == "L3":
+        roles.add("analyst")
+    return roles
+
+
 @router.post("/sessions/step-up")
 @_limiter.limit("5/minute")
 def step_up(
@@ -208,13 +225,7 @@ def step_up(
         acct = None
     # Compute server-side roles: from account if present, otherwise fall back
     # to the user's authenticated role, with a minimal 'reader' default.
-    if acct and acct.get("role"):
-        _server_roles = {acct["role"]}
-    else:
-        _server_roles = {user.get("role", "reader")}
-    # super_admin always allowed (it implies all roles)
-    if user.get("role") == "super_admin":
-        _server_roles = ROLES  # full set
+    _server_roles = _server_labbench_roles(user, acct)
     # Validate requested role names against ROLES (still reject typos).
     invalid = set(payload.roles) - ROLES
     if invalid:
@@ -260,7 +271,7 @@ def step_up(
         except Exception:
             totp_ok = False
         # Fallback: super-admin daily code (legacy path)
-        if not totp_ok and not verify_daily_totp_code(user["email"], code):
+        if not totp_ok and not consume_daily_totp_code(user["email"], code):
             raise HTTPException(
                 status.HTTP_401_UNAUTHORIZED,
                 detail="Code MFA invalide ou expiré. Utilisez le code de votre application "
