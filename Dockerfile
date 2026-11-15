@@ -21,7 +21,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HARDWARE_CONTROL=true \
     AEROMIND_SITL_AUTOSTART=true \
     AEROMIND_CAD_STORAGE_DIR=/app/data/cad \
-    PORT=3000 \
+    PORT=10000 \
+    WEB_CONCURRENCY=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
@@ -46,11 +47,11 @@ COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 # Dossiers runtime + permissions.
 RUN mkdir -p data/engineering_files data/cad logs && chown -R aeromind:aeromind /app
 USER aeromind
-EXPOSE 3000
+EXPOSE 10000
 
 # Render utilise /api/ready comme health check ; le port est défini par PORT.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD ["python", "-c", "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT','3000') + '/api/ready', timeout=3).status == 200 else 1)"]
+  CMD ["python", "-c", "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT','10000') + '/api/ready', timeout=3).status == 200 else 1)"]
 
-# CMD en forme exec (pas shell form) : permet à uvicorn de recevoir SIGTERM directement.
-CMD ["sh", "-c", "exec uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-3000} --workers 2 --limit-concurrency 100 --timeout-keep-alive 30 --timeout-graceful-shutdown 5"]
+# CMD en forme exec avec 1 seul worker pour éviter la saturation RAM au démarrage.
+CMD ["sh", "-c", "exec uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --limit-concurrency 100 --timeout-keep-alive 30 --timeout-graceful-shutdown 5"]
