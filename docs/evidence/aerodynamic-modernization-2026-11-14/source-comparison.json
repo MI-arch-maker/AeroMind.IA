@@ -1,0 +1,14 @@
+{
+  "reference": "Aeromind.IA.zip fourni par utilisateur",
+  "unchangedFiles": 847,
+  "changedOriginalFiles": [
+    "TODO.md",
+    "frontend/client/src/components/AerodynamicSimulationCenter.test.ts",
+    "frontend/client/src/components/AerodynamicSimulationCenter.tsx",
+    "frontend/client/src/components/PhysicalDroneModel.tsx",
+    "frontend/client/src/components/PhysicalDroneModel.webgl.test.ts",
+    "frontend/client/src/lib/aerodynamicWorkspace.test.ts",
+    "frontend/client/src/lib/aerodynamicWorkspace.ts"
+  ],
+  "deletedOriginalFiles": []
+}

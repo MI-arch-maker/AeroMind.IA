@@ -13,8 +13,9 @@ Each entry records:
   - email: the user email (for audit)
 
 On require_session, after HMAC signature verification, the caller checks
-is_session_active(token) — if False, the session has been revoked via logout
-or expired server-side.
+is_primary_session_active(token) — if False, a known session was revoked via
+logout or expired server-side. Revoked known tokens remain tombstoned so their
+removal from the active map cannot make them look like unknown active sessions.
 
 The store is process-local (in-memory). For multi-worker deployments, each
 worker maintains its own allowlist. A session created on worker A is unknown to
@@ -33,6 +34,7 @@ PRIMARY_SESSION_TTL_S = 24 * 3600  # one daily login window
 
 _lock = threading.Lock()
 _active: dict[str, "_SessionEntry"] = {}
+_revoked: set[str] = set()
 
 
 @dataclass
@@ -64,6 +66,9 @@ def register_primary_session(token: str, subject: str, email: str) -> None:
     )
     with _lock:
         _active[entry.token_hash] = entry
+        # A new, explicit authentication may issue the same deterministic
+        # subject token again; registration starts a fresh session lifetime.
+        _revoked.discard(entry.token_hash)
         _purge_expired_unlocked()
 
 
@@ -72,18 +77,21 @@ def is_primary_session_active(token: str) -> bool:
 
     Returns True if:
     - The session is in the allowlist and not expired.
-    - OR the session is not in the allowlist (multi-worker: another worker
-      issued it). This fail-open behavior is documented and acceptable because
-      the HMAC signature verification in _verified() still protects against
-      forgery. The allowlist adds revocation capability, not authentication.
+    - OR the session is unknown to this worker and has no local revocation
+      tombstone (multi-worker compatibility: another worker may have issued it).
+      HMAC signature verification in _verified() still protects against forgery.
+      The allowlist adds revocation capability, not authentication.
     """
     th = _hash_token(token)
     with _lock:
+        if th in _revoked:
+            return False
         entry = _active.get(th)
         if entry is None:
             return True  # Not in this worker's allowlist — multi-worker compat
         if entry.is_expired:
             del _active[th]
+            _revoked.add(th)
             return False
         return True
 
@@ -94,6 +102,8 @@ def revoke_primary_session(token: str) -> bool:
     with _lock:
         existed = th in _active
         _active.pop(th, None)
+        if existed:
+            _revoked.add(th)
         return existed
 
 
@@ -103,6 +113,7 @@ def _purge_expired_unlocked() -> None:
     expired = [th for th, e in _active.items() if now >= e.expires_at]
     for th in expired:
         del _active[th]
+        _revoked.add(th)
 
 
 def active_session_count() -> int:

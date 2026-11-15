@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   Activity, AlertTriangle, ChevronLeft, Clock, Filter, Loader2, Plus,
@@ -56,6 +56,8 @@ export default function AuditJournal({ onAuthenticated }: Props) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const authRequestVersion = useRef(0);
+  const eventsRequestVersion = useRef(0);
 
   // Filters
   const [actionFilter, setActionFilter] = useState("");
@@ -88,20 +90,24 @@ export default function AuditJournal({ onAuthenticated }: Props) {
   }, [events, totalCount]);
 
   const refreshSession = useCallback(async () => {
+    const requestVersion = ++authRequestVersion.current;
     setAuthLoading(true);
     try {
       const r = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
       const u = r.ok ? await r.json() : null;
+      if (requestVersion !== authRequestVersion.current) return;
       setUser(u);
       onAuthenticated?.(u);
     } catch {
+      if (requestVersion !== authRequestVersion.current) return;
       setUser(null);
     } finally {
-      setAuthLoading(false);
+      if (requestVersion === authRequestVersion.current) setAuthLoading(false);
     }
   }, [onAuthenticated]);
 
   const fetchEvents = useCallback(async (cursor?: string) => {
+    const requestVersion = ++eventsRequestVersion.current;
     if (cursor) setLoadingMore(true); else setLoadingEvents(true);
     try {
       const params = new URLSearchParams();
@@ -114,6 +120,7 @@ export default function AuditJournal({ onAuthenticated }: Props) {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error?.message || "Fetch failed");
+      if (requestVersion !== eventsRequestVersion.current) return;
       const result = data.result?.data?.json ?? data;
       const newEvents = (result.events || []) as AuditEvent[];
       // Local message filter (server doesn't filter message text)
@@ -124,9 +131,12 @@ export default function AuditJournal({ onAuthenticated }: Props) {
       setTotalCount(result.totalCount ?? filtered.length);
       setNextCursor(result.nextCursor || null);
     } catch (e: any) {
+      if (requestVersion !== eventsRequestVersion.current) return;
       toast.error(t("Chargement du journal échoué"), { description: e.message });
     } finally {
-      setLoadingMore(false); setLoadingEvents(false);
+      if (requestVersion === eventsRequestVersion.current) {
+        setLoadingMore(false); setLoadingEvents(false);
+      }
     }
   }, [actionFilter, decisionFilter, searchMessage, t]);
 
@@ -204,12 +214,29 @@ export default function AuditJournal({ onAuthenticated }: Props) {
   };
 
   const logout = async () => {
-    try {
-      await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
-    } catch { /* ignore */ }
+    const headers = bearerHeaders();
+    ++authRequestVersion.current;
+    ++eventsRequestVersion.current;
     clearSessionToken();
     setUser(null);
-    startLogin();
+    setAuthLoading(false);
+    setEvents([]); setTotalCount(0); setNextCursor(null);
+    setLoadingEvents(false); setLoadingMore(false);
+    setShowRecordDialog(false);
+    onAuthenticated?.(null);
+    window.dispatchEvent(new Event("aeromind-auth-logout"));
+
+    let serverConfirmed = false;
+    try {
+      const response = await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers });
+      serverConfirmed = response.ok;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      toast.error(t("Déconnexion locale effectuée; révocation serveur non confirmée."), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+    if (serverConfirmed) window.dispatchEvent(new Event("aeromind-auth-changed"));
   };
 
   if (authLoading) {

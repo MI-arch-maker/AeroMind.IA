@@ -1,0 +1,130 @@
+
+> aeromind@1.0.0 test /home/ubuntu/aeromind/frontend
+> vitest run
+
+
+ RUN  v2.1.9 /home/ubuntu/aeromind/frontend/client
+
+ ✓ src/lib/aerodynamicWorkspace.test.ts (18 tests) 32ms
+ ✓ src/lib/projectSyncStore.test.ts (14 tests) 47ms
+(node:2278) [THREE_CJS_DEPRECATED] DeprecationWarning: `require("three")` is deprecated and will be removed.
+Replace `const THREE = require("three")` with `import * as THREE from "three"`.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/lib/simulationOnlyAdapter.test.ts (21 tests) 297ms
+ ✓ src/lib/mechanicalTwinGeometry.test.ts (14 tests) 827ms
+   ✓ mechanicalTwinGeometry > construit pour chaque drone catalogue des triangles finis, indexés et des IDs stables 658ms
+ ✓ src/components/ParametricDronePreview.test.tsx (14 tests) 1012ms
+   ✓ ParametricDronePreview · interactions et provenance > n’attribue les fichiers qu’aux références canoniques dont tous les actifs correspondent 661ms
+ ✓ src/components/AerodynamicSimulationCenter.test.ts (11 tests) 178ms
+ ✓ src/components/HardwareControlPanel.test.tsx (4 tests) 133ms
+ ✓ src/lib/conceptGenerator.test.ts (17 tests) 143ms
+(node:2472) [THREE_CJS_DEPRECATED] DeprecationWarning: `require("three")` is deprecated and will be removed.
+Replace `const THREE = require("three")` with `import * as THREE from "three"`.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/lib/parametricFeatureOperations.test.ts (8 tests) 99ms
+ ✓ src/components/EngineeringCadWorkbench.test.ts (7 tests) 490ms
+ ✓ src/components/SketchMechanicalCenters.test.tsx (5 tests) 794ms
+ ✓ src/components/MechanicalTwinRendering.test.tsx (10 tests) 69ms
+ ✓ src/lib/liveSimulation.test.ts (11 tests) 179ms
+ ✓ src/lib/parametricStudioModel.test.ts (8 tests) 26ms
+ ✓ src/lib/aeroEngine.test.ts (9 tests) 73ms
+ ✓ src/lib/partCommands.test.ts (13 tests) 13ms
+(node:2606) [THREE_CJS_DEPRECATED] DeprecationWarning: `require("three")` is deprecated and will be removed.
+Replace `const THREE = require("three")` with `import * as THREE from "three"`.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/lib/studioLayerCommands.test.ts (6 tests) 14ms
+ ✓ src/lib/flightEngineering.test.ts (9 tests) 72ms
+ ✓ src/lib/aircraftControlBoundary.test.ts (11 tests) 26ms
+ ✓ src/lib/iddsModelSource.test.ts (4 tests) 327ms
+ ✓ src/components/PhysicalDroneModel.webgl.test.ts (12 tests) 62ms
+ ✓ src/lib/externalDroneImport.test.ts (7 tests) 33ms
+ ✓ src/lib/anonymousWorkspaceKey.test.ts (11 tests) 12ms
+ ✓ src/components/WorkspaceWindow.test.tsx (15 tests) 128ms
+ ✓ src/lib/droneCatalog.test.ts (7 tests) 192ms
+ ✓ src/lib/aeroLab/simulation.test.ts (9 tests) 37ms
+ ✓ src/lib/engineeringDisplayState.test.ts (5 tests) 10ms
+ ✓ src/lib/engineeringSyncHealth.test.ts (4 tests) 7ms
+ ✓ src/lib/aerodynamicWebGL.test.ts (7 tests) 16ms
+ ✓ src/lib/labBench.test.ts (7 tests) 14ms
+ ✓ src/lib/longRangeObservation.test.ts (6 tests) 44ms
+ ✓ src/lib/iddsEditor.test.tsx (3 tests) 143ms
+ ✓ src/lib/aeroLab/adapter.test.ts (3 tests) 8ms
+ ✓ src/lib/hardwareVirtualControl.test.ts (4 tests) 8ms
+ ✓ src/lib/mechanicalTwinReview.test.ts (5 tests) 38ms
+ ✓ src/lib/fixedWingAerodynamics.test.ts (6 tests) 15ms
+ ✓ src/lib/missionPlanFile.test.ts (6 tests) 35ms
+ ✓ src/lib/missionRouteOptimizer.test.ts (6 tests) 105ms
+ ✓ src/lib/engineeringWorkspace.test.ts (4 tests) 11ms
+ ✓ src/lib/engineeringReview.test.ts (5 tests) 42ms
+ ✓ src/lib/renderEngines.test.ts (5 tests) 27ms
+ ✓ src/lib/labBenchDataGate.test.ts (6 tests) 9ms
+ ✓ src/lib/aeronauticalCenter.test.ts (5 tests) 10ms
+ ✓ src/lib/mechanicalTwinFile.test.ts (3 tests) 15ms
+ ✓ src/lib/iddsStudioView.test.tsx (2 tests) 75ms
+ ✓ src/lib/missionRequirements.test.ts (3 tests) 7ms
+ ✓ src/lib/virtualTestBench.test.ts (3 tests) 56ms
+ ✓ src/lib/engineeringSolvers.test.ts (4 tests) 21ms
+ ✓ src/lib/globalWaypointEngine.test.ts (3 tests) 23ms
+ ✓ src/lib/digitalTwinPresentation.test.ts (3 tests) 8ms
+ ✓ src/lib/payloadCalibration.test.ts (4 tests) 8ms
+ ✓ src/lib/administrativeMechanicalPreview.test.ts (4 tests) 20ms
+(node:3290) [THREE_CJS_DEPRECATED] DeprecationWarning: `require("three")` is deprecated and will be removed.
+Replace `const THREE = require("three")` with `import * as THREE from "three"`.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/lib/technicalRenderingPipeline.test.ts (3 tests) 8ms
+ ✓ src/lib/missionBridge.test.ts (3 tests) 7ms
+ ✓ src/lib/institutionalWorkflow.test.ts (2 tests) 7ms
+ ✓ src/components/PhysicalDesignWorkbench.test.ts (3 tests) 6ms
+ ✓ src/lib/manufacturerParts.test.ts (3 tests) 14ms
+ ✓ src/lib/cockpitLabBenchPropagation.test.ts (2 tests) 29ms
+ ✓ src/components/LabPreparationChecklist.test.tsx (1 test) 29ms
+ ✓ src/lib/language.test.ts (5 tests) 10ms
+ ✓ src/lib/droneModelProfile.test.ts (4 tests) 5ms
+ ✓ src/lib/validationAuditOutbox.test.ts (2 tests) 6ms
+ ✓ src/components/MissionPlanner.test.ts (4 tests) 17ms
+ ✓ src/lib/aircraftRenderSchema.test.ts (3 tests) 15ms
+ ✓ src/i18n/i18n.test.ts (3 tests) 47ms
+ ✓ src/lib/mavlinkBridge.test.ts (2 tests) 6ms
+ ✓ src/lib/fleetSimulation.test.ts (3 tests) 53ms
+ ✓ src/lib/flightTestSync.test.ts (3 tests) 6ms
+ ✓ src/lib/hardwareControl.test.ts (6 tests) 11ms
+ ✓ src/components/MechanicalTwinIntegrationDock.test.ts (3 tests) 6ms
+ ✓ src/lib/materialLibrary.test.ts (3 tests) 7ms
+ ✓ src/lib/engineeringExports.test.ts (1 test) 4ms
+ ✓ src/lib/mechanicalSnapping.test.ts (3 tests) 5ms
+ ✓ src/lib/homeViewRouting.test.ts (3 tests) 7ms
+ ✓ src/lib/engineeringDocument.test.ts (2 tests) 21ms
+ ✓ src/lib/labBenchArchitecture.test.ts (3 tests) 7ms
+ ✓ src/components/GovernanceCapabilityMatrix.test.ts (3 tests) 7ms
+ ✓ src/lib/workspaceSync.test.ts (2 tests) 7ms
+ ✓ src/lib/droneSketchGeometry.test.ts (2 tests) 5ms
+ ✓ src/components/DashboardLayout.test.ts (3 tests) 7ms
+ ✓ src/lib/integratedWorkflow.test.ts (3 tests) 16ms
+(node:3899) [THREE_CJS_DEPRECATED] DeprecationWarning: `require("three")` is deprecated and will be removed.
+Replace `const THREE = require("three")` with `import * as THREE from "three"`.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/lib/droneSketchAnimation.test.ts (3 tests) 5ms
+ ✓ src/lib/xrayLayerControls.test.ts (3 tests) 6ms
+ ✓ src/lib/industrialDroneRegistry.test.ts (2 tests) 6ms
+ ✓ src/components/OpenStreetMapView.test.ts (2 tests) 6ms
+ ✓ src/lib/mechanicalCenterModel.test.ts (2 tests) 4ms
+ ✓ src/modules/engineering-hub/EngineeringHub.test.tsx (1 test) 71ms
+ ✓ src/lib/wgs84Coordinates.test.ts (3 tests) 5ms
+ ✓ src/lib/activationProtocol.test.ts (2 tests) 4ms
+ ✓ src/lib/resizeObserverPolyfill.test.ts (2 tests) 4ms
+ ✓ src/lib/droneParts.test.ts (2 tests) 7ms
+ ✓ src/lib/referenceScenarios.test.ts (2 tests) 42ms
+(node:4166) [THREE_CJS_DEPRECATED] DeprecationWarning: `require("three")` is deprecated and will be removed.
+Replace `const THREE = require("three")` with `import * as THREE from "three"`.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/components/MaterialLibraryView.test.ts (2 tests) 4ms
+ ✓ src/lib/simulationRunId.test.ts (2 tests) 5ms
+ ✓ src/components/AeroMindOutdoorTestCenter.test.ts (2 tests) 6ms
+ ✓ src/components/MechanicalTwinViewport.test.ts (2 tests) 5ms
+ ✓ src/components/MaintenanceView.test.ts (2 tests) 4ms
+
+ Test Files  97 passed (97)
+      Tests  508 passed (508)
+   Start at  14:03:03
+   Duration  15.14s (transform 7.10s, setup 0ms, collect 24.79s, tests 6.65s, environment 24ms, prepare 11.60s)
+

@@ -22,6 +22,11 @@ from .workflow import router as workflow_router
 from .command_center import router as command_center_router
 from .engineering_document import router as engineering_document_router
 from .engineering_connectors_api import router as engineering_connectors_router
+from .cad_api import router as cad_router
+from .inspection_api import router as inspection_router
+from .factory_api import router as factory_router
+from .gcs_api import router as gcs_router
+from .cad_body_limit import CadBodyLimitMiddleware
 from .admin import activity as admin_activity, archive_project_for_superadmin, clear_audit_logs, create_account, delete_account, delete_project_dependents, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
 from .admin_console_api import router as admin_console_router
 from .app_auth_helpers import current_user as resolve_current_user
@@ -254,6 +259,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.hosts)
 if settings.origins:
     app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credentials=True, allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], allow_headers=['Authorization', 'Content-Type', 'X-Request-ID', 'X-AeroMind-Workspace', 'X-CSRF-Token', 'Idempotency-Key'])
 app.add_middleware(CapabilityMiddleware)
+app.add_middleware(CadBodyLimitMiddleware)
 
 FRONTEND_DIR = Path('frontend/dist')
 FRONTEND_INDEX = FRONTEND_DIR / 'index.html'
@@ -286,6 +292,10 @@ app.include_router(workflow_router)
 app.include_router(command_center_router)
 app.include_router(engineering_document_router)
 app.include_router(engineering_connectors_router)
+app.include_router(cad_router)
+app.include_router(inspection_router)
+app.include_router(factory_router)
+app.include_router(gcs_router)
 app.include_router(sitl_router)
 app.include_router(mavlink_telemetry_router)
 app.include_router(fleet_telemetry_router)
@@ -368,7 +378,7 @@ async def security_headers(request: Request, call_next):
         "font-src 'self' data:; "
         "img-src 'self' data: blob: https:; "
         "connect-src 'self' https://login.microsoftonline.com https://api.openai.com "
-        "wss://*.onrender.com https://*.openstreetmap.org https://server.arcgisonline.com "
+        "wss://*.onrender.com ws://127.0.0.1:8765 https://*.openstreetmap.org https://server.arcgisonline.com "
         "https://nominatim.openstreetmap.org; "
         "base-uri 'self'"
     )

@@ -1,0 +1,156 @@
+{
+  "status": 200,
+  "section": {
+    "normal": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "offset_mm": 0.0,
+    "elapsed_ms": 846.7636740001581,
+    "property_method": "BRepGProp on Boolean result",
+    "retained_halfspace": "dot(normal,p)<=offset_mm"
+  },
+  "properties": {
+    "volume_mm3": 88866.66695632621,
+    "mass_kg": 0.25977484364832626,
+    "center_of_gravity_mm": [
+      -31.970494762741474,
+      1.1186313879655734,
+      12.284191236713172
+    ],
+    "center_of_volume_mm": [
+      -31.660547910691342,
+      0.7381446480850373,
+      10.025810823842171
+    ]
+  },
+  "source": {
+    "format": "STEP",
+    "schema": "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF {1 0 10303 442 1 1 4 }",
+    "sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+    "immutable": true,
+    "external_references_followed": false,
+    "xde_semantic_objects": 0,
+    "fixture": "aeromind-support-v1",
+    "material_attribution": "fixed demo bill of materials, nominal densities"
+  },
+  "caps": [
+    {
+      "part_id": "part-0000",
+      "face_id": "part-0000:section:4da6df1f71eb:face:0005",
+      "triangles": 2,
+      "provenance": {
+        "operation": "BRepAlgoAPI_Common halfspace",
+        "source_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "offset_mm": 0.0,
+        "role": "new section cap"
+      }
+    },
+    {
+      "part_id": "part-0000",
+      "face_id": "part-0000:section:4da6df1f71eb:face:0006",
+      "triangles": 2,
+      "provenance": {
+        "operation": "BRepAlgoAPI_Common halfspace",
+        "source_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "offset_mm": 0.0,
+        "role": "new section cap"
+      }
+    },
+    {
+      "part_id": "part-0005",
+      "face_id": "part-0005:section:4da6df1f71eb:face:0001",
+      "triangles": 116,
+      "provenance": {
+        "operation": "BRepAlgoAPI_Common halfspace",
+        "source_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "offset_mm": 0.0,
+        "role": "new section cap"
+      }
+    },
+    {
+      "part_id": "part-0012",
+      "face_id": "part-0012:section:4da6df1f71eb:face:0005",
+      "triangles": 2,
+      "provenance": {
+        "operation": "BRepAlgoAPI_Common halfspace",
+        "source_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "offset_mm": 0.0,
+        "role": "new section cap"
+      }
+    }
+  ],
+  "pmi": [
+    {
+      "id": "d7ae2eb777d14ac58a411c10cd814e12",
+      "part_id": "part-0000",
+      "face_id": "part-0000:face:0000",
+      "anchor_mm": [
+        -60.0,
+        -13.333333333333332,
+        4.0
+      ],
+      "kind": "flatness",
+      "text": "Planéité 8 µm — démonstration",
+      "source": "demo",
+      "source_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+      "tolerance_um": 8.0,
+      "datum": "A",
+      "visible": true
+    },
+    {
+      "id": "dfb8c585acf240c9aba8a31ce19db1fb",
+      "part_id": "part-0005",
+      "face_id": "part-0005:face:0000",
+      "anchor_mm": [
+        19.33333333333333,
+        7.4804492363846204,
+        29.458816831495348
+      ],
+      "kind": "dimension",
+      "text": "Ø15 ±5 µm — démonstration",
+      "source": "demo",
+      "source_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+      "nominal_mm": 15.0,
+      "tolerance_um": 5.0,
+      "visible": false,
+      "visibility_reason": "source anchor/face removed by section; not reanchored"
+    },
+    {
+      "id": "c7c71105505c4eeaaf020e9a7a292cce",
+      "part_id": "part-0012",
+      "face_id": "part-0012:face:0000",
+      "anchor_mm": [
+        -56.0,
+        -11.999999999999996,
+        -7.0
+      ],
+      "kind": "material",
+      "text": "CFRP fabric Vf≈50%, 1600 kg/m³ — stratification et lot à confirmer",
+      "source": "demo",
+      "source_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+      "visible": true
+    }
+  ]
+}

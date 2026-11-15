@@ -1,4 +1,4 @@
-export type MechanicalCenterTab = "overview" | "workshop" | "assembly" | "parts" | "wiring" | "connectors" | "fasteners" | "lubrication" | "maintenance";
+export type MechanicalCenterTab = "overview" | "solid-cad" | "workshop" | "assembly" | "parts" | "wiring" | "connectors" | "fasteners" | "lubrication" | "maintenance";
 export type MechanicalReviewState = "draft" | "review" | "verified";
 export type InstallState = "planned" | "installed" | "inspected";
 
@@ -84,6 +84,8 @@ export type MechanicalLubricationPoint = {
 export type MechanicalCenterConfig = {
   activeTab?: MechanicalCenterTab;
   selectedPartId?: string;
+  /** Server-owned private B-Rep model, persisted with this project config. */
+  solidCadModelId?: string | null;
   parts?: MechanicalCenterPart[];
   wires?: MechanicalCenterWire[];
   connectors?: MechanicalCenterConnector[];

@@ -1,0 +1,80 @@
+Native CAD review regression evidence
+
+Scope: web/cad_kernel.py and new tests/test_cad_review_fixes.py only; this file records the requested test evidence.
+No API/frontend/app/fixtures/requirements changes; no fixture regeneration, commit, browser or service launch.
+
+Before fixes:
+Command: .venv/bin/python -m pytest tests/test_cad_review_fixes.py -q
+Result: 2 failed, 1 passed in 3.23s.
+- Native external-reference guard regression failed because STEPCAF Transfer was reached.
+- U plate split-face regression failed because the first top fragment retained the source ID.
+- Single-fragment identity/PMI control passed.
+Reproduction confirmed source top anchor [8.666666666666666, 4.666666666666667, 2.0]; first top fragment at x=1 retained the source ID, while anchor was on the right fragment at x=8; rendered PMI visible=True before fixes.
+
+After fixes:
+Command: .venv/bin/python -m pytest tests/test_cad_kernel.py tests/test_cad_external_references.py tests/test_cad_review_fixes.py -q
+/home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:306: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session". Set it to "fixture-scope" to keep the current behavior.
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+....................................                                     [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/starlette/testclient.py:45
+  /home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/starlette/testclient.py:45: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+36 passed, 1 warning in 8.86s
+
+Additional parent-requested Unicode name regression, before UTF-8 export fix:
+/home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:306: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session". Set it to "fixture-scope" to keep the current behavior.
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_ap242_roundtrip_preserves_exact_unicode_names ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-8/test_ap242_roundtrip_preserves0')
+
+    def test_ap242_roundtrip_preserves_exact_unicode_names(tmp_path):
+        model = model_for(cq.Solid.makeBox(10, 12, 2))
+        model.name = "Ensemble usiné — perçages"
+        model.parts[0].name = "usinée — perçages"
+        path = tmp_path / "unicode-names.step"
+        cad.export_ap242(model, path)
+        restored = cad.import_model(path.read_bytes(), path.name)
+        assert len(restored.parts) == 1
+>       assert restored.parts[0].name == "usinée — perçages"
+E       AssertionError: assert 'usinÃ©e â\x80\x94 perÃ§ages' == 'usinée — perçages'
+E         
+E         - usinée — perçages
+E         + usinÃ©e â perÃ§ages
+
+tests/test_cad_review_fixes.py:137: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_cad_review_fixes.py::test_ap242_roundtrip_preserves_exact_unicode_names
+1 failed in 2.60s
+
+Final verification including UTF-8 export fix:
+Command: .venv/bin/python -m pytest tests/test_cad_kernel.py tests/test_cad_external_references.py tests/test_cad_review_fixes.py -q
+/home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:306: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session". Set it to "fixture-scope" to keep the current behavior.
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+.....................................                                    [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/starlette/testclient.py:45
+  /home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/starlette/testclient.py:45: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+37 passed, 1 warning in 8.58s
+
+Final result: 37 passed, 1 warning in 8.58s; 37 tests collected.
+New tests: 4 (native positive-result guard with genuine STEP/native work-session + Transfer spy; all split-face fragments derived/PMI hidden; single-fragment preservation; exact Unicode names round-trip).
+Native-reference positive result is injected; no claim of generating a genuine external-reference STEP fixture.
+Line references in web/cad_kernel.py: 41 import; 267-272 native guard before Transfer; 478-499 correspondence counting and fragment IDs; 691, 694, 696 UTF-8 ExtendedString names.
+Line references in tests/test_cad_review_fixes.py: 20 native guard; 71 split face; 114 single fragment; 129 Unicode round-trip.
+Unicode regression reproduced before fix: 'usinÃ©e â\x80\x94 perÃ§ages' instead of 'usinée — perçages'; exact names pass after fix.
+No fixtures regenerated and no service restarted by this task; parent handles those after completion.

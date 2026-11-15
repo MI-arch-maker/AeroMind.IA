@@ -1,0 +1,798 @@
+/home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:306: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session". Set it to "fixture-scope" to keep the current behavior.
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+.....F..............................................................FFFF [ 20%]
+FFFFF.............s..............FFF..F.FFFFFFFF......FFFF.............. [ 41%]
+............................................sssss.s.ss.......Fs.s....... [ 62%]
+...................................FFFFFFFFF.F.......................... [ 82%]
+...........................................................              [100%]
+=================================== FAILURES ===================================
+_ AdminAccountRegistryTest.test_superadmin_can_issue_local_invite_from_existing_entra_session_and_reset_revokes_session _
+
+self = <test_admin_account_registry.AdminAccountRegistryTest testMethod=test_superadmin_can_issue_local_invite_from_existing_entra_session_and_reset_revokes_session>
+
+    def test_superadmin_can_issue_local_invite_from_existing_entra_session_and_reset_revokes_session(self):
+        from http.cookies import SimpleCookie
+        from fastapi import HTTPException
+        from web.admin import _primary_account
+        from web.local_auth import Confirmation, Enrollment, _b64, _totp, confirm_enrollment, enroll, issue_superadmin_invite
+        from web.oidc import me
+        from starlette.requests import Request
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"}, "http_version": "1.1", "method": "POST", "scheme": "http", "path": "/api/auth/local/enroll", "raw_path": b"/api/auth/local/enroll", "query_string": b"", "root_path": "", "headers": [], "client": ("127.0.0.1", 1234), "server": ("testserver", 80)}
+        request = Request(scope)
+        primary = _primary_account()
+>       self.assertIsNotNone(primary)
+E       AssertionError: unexpectedly None
+
+tests/test_admin_account_registry.py:130: AssertionError
+____________________ test_snapshot_returns_drone_positions _____________________
+
+    def test_snapshot_returns_drone_positions():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=12.5, armed=True)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+>       assert snap["poolSize"] == 1
+E       assert 0 == 1
+
+tests/test_fleet_telemetry.py:104: AssertionError
+__________ test_snapshot_only_exposes_drones_for_authenticated_owner ___________
+
+    def test_snapshot_only_exposes_drones_for_authenticated_owner():
+        pool = pool_mod.get_pool()
+        _register_drone_with_observer(
+            pool, "owned-drone", "Owned", _make_observer(True, 38.0, -122.0, 10.0)
+        )
+        pool.register(
+            "foreign-drone", "Foreign", "udpout:127.0.0.1:14550",
+            owner_id="other-user", project_id="p1",
+        )
+        pool.entry(
+            "foreign-drone", owner_id="other-user", project_id="p1"
+        ).observer = _make_observer(True, 38.0, -122.0, 10.0)
+    
+        own_snapshot = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+        foreign_snapshot = ft.fleet_snapshot_sync(user_id="other-user", project_id="p1")
+        with pytest.raises(ValueError, match="authenticated owner and explicit project_id"):
+            ft.fleet_snapshot_sync(user_id="", project_id="p1")
+    
+>       assert [drone["droneId"] for drone in own_snapshot["drones"]] == ["owned-drone"]
+E       AssertionError: assert [] == ['owned-drone']
+E         
+E         Right contains one more item: 'owned-drone'
+E         Use -v to get more diff
+
+tests/test_fleet_telemetry.py:134: AssertionError
+_______________ test_snapshot_computes_xy_when_geofence_home_set _______________
+
+    def test_snapshot_computes_xy_when_geofence_home_set():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=5.0)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        # Geofence with home at (38.0, -122.0)
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
+            max_altitude_m=100,
+            max_distance_m=500,
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+>       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:154: IndexError
+______________ test_snapshot_flags_drone_outside_geofence_polygon ______________
+
+    def test_snapshot_flags_drone_outside_geofence_polygon():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.5, lon=-122.5, alt=5.0)  # far outside
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+>       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:178: IndexError
+_________________ test_snapshot_flags_drone_above_max_altitude _________________
+
+    def test_snapshot_flags_drone_above_max_altitude():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=200.0)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
+            max_altitude_m=100,
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+>       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:196: IndexError
+_________________ test_snapshot_handles_disconnected_observer __________________
+
+    def test_snapshot_handles_disconnected_observer():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=False, lat=None, lon=None, alt=None)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+>       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:206: IndexError
+____________________ test_snapshot_handles_multiple_drones _____________________
+
+    def test_snapshot_handles_multiple_drones():
+        pool = pool_mod.get_pool()
+        obs1 = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=5.0)
+        obs2 = _make_observer(connected=True, lat=38.002, lon=-122.002, alt=10.0, armed=True)
+        _register_drone_with_observer(pool, "drone-1", "Alpha", obs1)
+        _register_drone_with_observer(pool, "drone-2", "Bravo", obs2)
+    
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.05, -122.01), (38.05, -121.99), (37.99, -121.99)],
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+>       assert snap["poolSize"] == 2
+E       assert 0 == 2
+
+tests/test_fleet_telemetry.py:228: AssertionError
+___________________ test_snapshot_includes_geofence_metadata ___________________
+
+    def test_snapshot_includes_geofence_metadata():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.0, lon=-122.0, alt=10.0)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
+            max_altitude_m=120,
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+>       assert snap["geofenceConfigured"] is True
+E       assert False is True
+
+tests/test_fleet_telemetry.py:250: AssertionError
+_________________ test_snapshot_no_geofence_returns_null_home __________________
+
+    def test_snapshot_no_geofence_returns_null_home():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.0, lon=-122.0, alt=10.0)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+        # No geofence set
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+        assert snap["geofenceConfigured"] is False
+        assert snap["homeLat"] is None
+>       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:265: IndexError
+_______________ test_hardware_mode_requires_explicit_project_id ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0xffff863ec920>
+
+    def test_hardware_mode_requires_explicit_project_id(monkeypatch):
+        monkeypatch.setattr(ops_api, "current_user_or_401", lambda _request: {"role": "super_admin"})
+        monkeypatch.setenv("HARDWARE_CONTROL", "false")
+        with pytest.raises(HTTPException) as exc:
+            ops_api.set_operation_mode(ops_api.ModeChangeRequest(mode="HARDWARE"), object())
+>       assert exc.value.status_code == 412
+E       AssertionError: assert 409 == 412
+E        +  where 409 = HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.').status_code
+E        +    where HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.') = <ExceptionInfo HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.') tblen=2>.value
+
+tests/test_global_regression_fixes.py:37: AssertionError
+___________________ test_unavailable_gate_store_fails_closed ___________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0xffff863edcd0>
+
+    def test_unavailable_gate_store_fails_closed(monkeypatch):
+        monkeypatch.setattr(ops_api, "current_user_or_401", lambda _request: {"role": "super_admin"})
+    
+        class _BrokenSession:
+            def __enter__(self):
+                raise RuntimeError("database unavailable")
+    
+            def __exit__(self, *_args):
+                return False
+    
+        monkeypatch.setattr(ops_api, "SessionLocal", _BrokenSession)
+        monkeypatch.setenv("HARDWARE_CONTROL", "false")
+        body = ops_api.ModeChangeRequest(mode="HARDWARE", project_id="project-a")
+        with pytest.raises(HTTPException) as exc:
+            ops_api.set_operation_mode(body, object())
+>       assert exc.value.status_code == 503
+E       AssertionError: assert 409 == 503
+E        +  where 409 = HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.').status_code
+E        +    where HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.') = <ExceptionInfo HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.') tblen=2>.value
+
+tests/test_global_regression_fixes.py:57: AssertionError
+_____________ test_switching_to_sitl_always_disables_hardware_flag _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0xffff86596f90>
+
+    def test_switching_to_sitl_always_disables_hardware_flag(monkeypatch):
+        monkeypatch.setattr(ops_api, "current_user_or_401", lambda _request: {"role": "super_admin", "email": "test"})
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+>       ops_api.set_operation_mode(ops_api.ModeChangeRequest(mode="SITL"), object())
+
+tests/test_global_regression_fixes.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+body = ModeChangeRequest(mode='SITL', reason='', project_id=None)
+request = <object object at 0xffff86942370>
+
+    @router.post("/mode")
+    def set_operation_mode(body: ModeChangeRequest, request: Request):
+        """Set the operation mode (super-admin only).
+    
+        This sets environment variables that control the mode. In production
+        with multiple workers, this requires a shared state store (Redis);
+        for now, it works in single-worker mode and logs the intent.
+        """
+        user = current_user_or_401(request)
+        if user.get("role") != "super_admin":
+            raise HTTPException(403, "Réservé au super-admin.")
+        if body.mode not in VALID_MODES:
+            raise HTTPException(400, f"Mode invalide. Valides: {sorted(VALID_MODES)}")
+        if virtual_only_mode() and body.mode in {"SITL", "HIL", "HARDWARE"}:
+>           raise HTTPException(409, "Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.")
+E           fastapi.exceptions.HTTPException: 409: Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.
+
+web/ops_control_api.py:120: HTTPException
+________ test_hardware_control_true_alone_does_not_authorize_transport _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0xffff865969c0>
+
+    def test_hardware_control_true_alone_does_not_authorize_transport(monkeypatch):
+        """V3.1 #1 — the EXIGENCE test. HARDWARE_CONTROL=true alone MUST NEVER
+        authorize a physical transport. Even with the env var set, the pilot
+        refuses the command if the confirmation token has not been issued by
+        hardware_gate (i.e. the G0–G5 gate state was never satisfied).
+    
+        This test injects a FAKE token ("x"*64) that was NOT registered in the
+        hardware_gate._tokens store. The pilot MUST refuse with TOKEN_INVALID.
+        """
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF",
+                parameters=cmd.build_takeoff_params(30),
+                confirmation_token="x" * 64,  # valid shape, but NOT in _tokens
+                geofence_validation=_ok_geofence,
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+            )
+>       assert exc_info.value.code in {"TOKEN_INVALID", "CONFIRMATION_TOKEN_INVALID"}
+E       assert 'HARDWARE_DISABLED' in {'CONFIRMATION_TOKEN_INVALID', 'TOKEN_INVALID'}
+E        +  where 'HARDWARE_DISABLED' = HardwareCommandError("HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).").code
+E        +    where HardwareCommandError("HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).") = <ExceptionInfo HardwareCommandError("HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).") tblen=3>.value
+
+tests/test_hardware_phases.py:224: AssertionError
+_____________ test_hardware_control_true_alone_no_geofence_refused _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0xffff86596840>
+
+    def test_hardware_control_true_alone_no_geofence_refused(monkeypatch):
+        """V3.1 #1 — even with HARDWARE_CONTROL=true + valid token, navigation
+        commands WITHOUT a geofence_validator are refused (fail-closed)."""
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        token = _inject_real_token("p1", "d1")
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF",
+                parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token,
+                geofence_validation=None,  # MISSING — fail-closed
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+            )
+>       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:259: AssertionError
+__________________ test_token_project_drone_mismatch_refused ___________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0xffff86516150>
+
+    def test_token_project_drone_mismatch_refused(monkeypatch):
+        """V3.1 #1 — a valid token issued for (p1, d1) MUST NOT be usable for
+        a command targeting (p2, d2). SEC-02 isolation."""
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        token = _inject_real_token("p1", "d1")  # bound to (p1, d1)
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF",
+                parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token,
+                geofence_validation=_ok_geofence,
+                project_id="p2",  # WRONG project — token is for p1
+                drone_id="d2",  # WRONG drone
+                actor_id="u1",
+            )
+>       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:278: AssertionError
+__________________________ test_token_replay_refused ___________________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0xffff865141a0>
+
+    def test_token_replay_refused(monkeypatch):
+        """V3.1 #1 — single-use tokens cannot be replayed. The second call MUST
+        fail with TOKEN_ALREADY_USED."""
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        token = _inject_real_token("p1", "d1")
+        # In-memory confirmations are not a DB-backed authorization and must never
+        # reach the mocked transport, even on the first attempt.
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token, geofence_validation=_ok_geofence,
+                project_id="p1", drone_id="d1", actor_id="u1",
+            )
+>       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:295: AssertionError
+_________________ test_pilot_refuses_command_not_on_allowlist __________________
+
+hardware_enabled = None
+
+    def test_pilot_refuses_command_not_on_allowlist(hardware_enabled):
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "MAV_CMD_DO_SOMETHING_WEIRD",
+                parameters={},
+                confirmation_token="x" * 32,
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+            )
+>       assert exc_info.value.code == "COMMAND_NOT_ALLOWED"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'COMMAND_NOT_ALLOWED'
+E         
+E         - COMMAND_NOT_ALLOWED
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:310: AssertionError
+_________________ test_pilot_refuses_short_confirmation_token __________________
+
+hardware_enabled = None
+
+    def test_pilot_refuses_short_confirmation_token(hardware_enabled):
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF",
+                parameters={"p7": 30},
+                confirmation_token="short",
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+                # No geofence_validation — Gate 3a (token length) rejects first.
+            )
+>       assert exc_info.value.code == "CONFIRMATION_TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'CONFIRMATION_TOKEN_INVALID'
+E         
+E         - CONFIRMATION_TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:325: AssertionError
+___________________ test_pilot_refuses_mode_not_on_allowlist ___________________
+
+hardware_enabled = None
+
+    def test_pilot_refuses_mode_not_on_allowlist(hardware_enabled):
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        token = _inject_real_token("p1", "d1")
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "DO_SET_MODE",
+                parameters={"mode": 999},
+                confirmation_token=token,
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+            )
+>       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:340: AssertionError
+___________ test_pilot_rejects_legacy_memory_token_without_transport ___________
+
+hardware_enabled = None
+
+    def test_pilot_rejects_legacy_memory_token_without_transport(hardware_enabled):
+        fake = FakeConnection()
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: fake)
+        token = _inject_real_token("p1", "d1")
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token, geofence_validation=_ok_geofence,
+                project_id="p1", drone_id="d1", actor_id="u1",
+            )
+>       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:353: AssertionError
+_____________ test_pilot_does_not_open_connection_for_legacy_token _____________
+
+hardware_enabled = None
+
+    def test_pilot_does_not_open_connection_for_legacy_token(hardware_enabled):
+        opened = []
+        pilot = cmd.MavlinkCommandPilot(
+            "udpout:127.0.0.1:14550",
+            connection_factory=lambda url: opened.append(url) or FakeConnection(),
+        )
+        token = _inject_real_token("p1", "d1")
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token, geofence_validation=_ok_geofence,
+                project_id="p1", drone_id="d1", actor_id="u1",
+            )
+>       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:370: AssertionError
+_________________ test_geofence_fails_closed_when_no_geofence __________________
+
+hardware_enabled = None
+
+    def test_geofence_fails_closed_when_no_geofence(hardware_enabled):
+        result = geo.validate_command_geofence({"p7": 30}, geofence=None)
+        assert result["inside_geofence"] is False
+>       assert "fail-closed" in result["reason"]
+E       assert 'fail-closed' in "HARDWARE_CONTROL n'est pas 'true'"
+
+tests/test_hardware_phases.py:456: AssertionError
+___________________ test_geofence_rejects_altitude_above_max ___________________
+
+hardware_enabled = None
+
+    def test_geofence_rejects_altitude_above_max(hardware_enabled):
+        gf = geo.Geofence(project_id="p1", max_altitude_m=100)
+        result = geo.validate_command_geofence({"p7": 150}, gf)
+        assert result["inside_geofence"] is False
+>       assert "Altitude" in result["reason"]
+E       assert 'Altitude' in "HARDWARE_CONTROL n'est pas 'true'"
+
+tests/test_hardware_phases.py:463: AssertionError
+____________________ test_geofence_rejects_outside_polygon _____________________
+
+hardware_enabled = None
+
+    def test_geofence_rejects_outside_polygon(hardware_enabled):
+        gf = geo.Geofence(
+            project_id="p1",
+            polygon=[(48.0, 2.0), (48.1, 2.0), (48.1, 2.1), (48.0, 2.1)],
+        )
+        # Position at (40, 0) is far outside the polygon
+        result = geo.validate_command_geofence({"p5": 40.0, "p6": 0.0}, gf)
+        assert result["inside_geofence"] is False
+>       assert "hors polygone" in result["reason"]
+E       assert 'hors polygone' in "HARDWARE_CONTROL n'est pas 'true'"
+
+tests/test_hardware_phases.py:474: AssertionError
+_____________________ test_geofence_accepts_inside_polygon _____________________
+
+hardware_enabled = None
+
+    def test_geofence_accepts_inside_polygon(hardware_enabled):
+        gf = geo.Geofence(
+            project_id="p1",
+            polygon=[(48.0, 2.0), (48.1, 2.0), (48.1, 2.1), (48.0, 2.1)],
+        )
+        result = geo.validate_command_geofence({"p5": 48.05, "p6": 2.05}, gf)
+>       assert result["inside_geofence"] is True
+E       assert False is True
+
+tests/test_hardware_phases.py:483: AssertionError
+__________________ test_T15_telemetry_without_session_denied ___________________
+
+    def test_T15_telemetry_without_session_denied():
+        """SEC-07 fix — GET /api/telemetry/mavlink/status without a session returns 401."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from web.mavlink_telemetry_api import router as telemetry_router
+    
+        app = FastAPI()
+        app.include_router(telemetry_router)
+        client = TestClient(app)
+        # No X-Lab-Session header
+        r = client.get("/api/telemetry/mavlink/status")
+>       assert r.status_code == 401, f"Expected 401 without session, got {r.status_code}"
+E       AssertionError: Expected 401 without session, got 403
+E       assert 403 == 401
+E        +  where 403 = <Response [403 Forbidden]>.status_code
+
+tests/test_labbench_reception.py:932: AssertionError
+_______________________ test_upload_mission_full_success _______________________
+
+    def test_upload_mission_full_success():
+        waypoints = _waypoints(3)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            FakeFrame("MISSION_REQUEST_INT", seq=2),
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_ACCEPTED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+>       assert result.state == "uploaded", f"got state={result.state}, error={result.error}"
+E       AssertionError: got state=failed, error=HARDWARE_DISABLED
+E       assert 'failed' == 'uploaded'
+E         
+E         - uploaded
+E         + failed
+
+tests/test_mavlink_mission_protocol.py:124: AssertionError
+______________ test_upload_mission_handles_out_of_order_requests _______________
+
+    def test_upload_mission_handles_out_of_order_requests():
+        """ArduPilot may request items out of order during retries. Verify the
+        protocol handles this correctly by sending the requested item each time."""
+        waypoints = _waypoints(3)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=2),
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),  # duplicate — ArduPilot retry
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_ACCEPTED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+>       assert result.state == "uploaded", f"got state={result.state}, error={result.error}"
+E       AssertionError: got state=failed, error=HARDWARE_DISABLED
+E       assert 'failed' == 'uploaded'
+E         
+E         - uploaded
+E         + failed
+
+tests/test_mavlink_mission_protocol.py:154: AssertionError
+______________ test_upload_mission_handles_legacy_mission_request ______________
+
+    def test_upload_mission_handles_legacy_mission_request():
+        """Older autopilots (e.g. ArduCopter 3.x) use the legacy MISSION_REQUEST
+        frame instead of MISSION_REQUEST_INT. The protocol must accept both."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST", seq=0),
+            FakeFrame("MISSION_REQUEST", seq=1),
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_ACCEPTED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+>       assert result.state == "uploaded", f"got state={result.state}, error={result.error}"
+E       AssertionError: got state=failed, error=HARDWARE_DISABLED
+E       assert 'failed' == 'uploaded'
+E         
+E         - uploaded
+E         + failed
+
+tests/test_mavlink_mission_protocol.py:171: AssertionError
+__________________ test_upload_mission_no_ack_returns_failed ___________________
+
+    def test_upload_mission_no_ack_returns_failed():
+        """Autopilot never sends MISSION_ACK → protocol must time out and fail."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            # no ACK — the protocol must fail
+        ])
+        result = upload_mission(autopilot, waypoints)
+        assert result.state == "failed"
+>       assert "ACK_TIMEOUT" in result.error
+E       AssertionError: assert 'ACK_TIMEOUT' in 'HARDWARE_DISABLED'
+E        +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+
+tests/test_mavlink_mission_protocol.py:189: AssertionError
+________________ test_upload_mission_no_requests_returns_failed ________________
+
+    def test_upload_mission_no_requests_returns_failed():
+        """Autopilot accepts MISSION_COUNT but never requests items → fail."""
+        waypoints = _waypoints(3)
+        autopilot = FakeAutopilot(frames=[])
+        result = upload_mission(autopilot, waypoints)
+        assert result.state == "failed"
+>       assert "PARTIAL_UPLOAD" in result.error or "ACK_TIMEOUT" in result.error
+E       AssertionError: assert ('PARTIAL_UPLOAD' in 'HARDWARE_DISABLED' or 'ACK_TIMEOUT' in 'HARDWARE_DISABLED')
+E        +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=3, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+E        +  and   'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=3, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+
+tests/test_mavlink_mission_protocol.py:200: AssertionError
+_______________ test_upload_mission_rejected_ack_returns_failed ________________
+
+    def test_upload_mission_rejected_ack_returns_failed():
+        """Autopilot sends MISSION_ACK with type=DENIED → fail with the label."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_DENIED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+        assert result.state == "failed"
+>       assert result.ack_type == MAV_MISSION_DENIED
+E       AssertionError: assert None == 9
+E        +  where None = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).ack_type
+
+tests/test_mavlink_mission_protocol.py:215: AssertionError
+____________ test_upload_mission_early_ack_rejected_returns_failed _____________
+
+    def test_upload_mission_early_ack_rejected_returns_failed():
+        """Autopilot sends MISSION_ACK immediately with error (e.g. mission
+        rejected because it has too many items)."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_INVALID),
+        ])
+        result = upload_mission(autopilot, waypoints)
+        assert result.state == "failed"
+>       assert result.ack_type == MAV_MISSION_INVALID
+E       AssertionError: assert None == 5
+E        +  where None = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).ack_type
+
+tests/test_mavlink_mission_protocol.py:229: AssertionError
+_______________ test_upload_mission_no_waypoints_returns_failed ________________
+
+    def test_upload_mission_no_waypoints_returns_failed():
+        """Upload with zero waypoints is rejected before any MAVLink call."""
+        autopilot = FakeAutopilot(frames=[])
+        result = upload_mission(autopilot, [])
+        assert result.state == "failed"
+>       assert result.error == "NO_WAYPOINTS"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'NO_WAYPOINTS'
+E         
+E         - NO_WAYPOINTS
+E         + HARDWARE_DISABLED
+
+tests/test_mavlink_mission_protocol.py:239: AssertionError
+___________ test_upload_mission_out_of_range_seq_recorded_as_failure ___________
+
+    def test_upload_mission_out_of_range_seq_recorded_as_failure():
+        """If the autopilot requests an out-of-range sequence, the protocol
+        records the failure but continues; the eventual ACK determines the
+        final state."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=99),  # out of range
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_ACCEPTED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+>       assert result.state == "uploaded"
+E       AssertionError: assert 'failed' == 'uploaded'
+E         
+E         - uploaded
+E         + failed
+
+tests/test_mavlink_mission_protocol.py:258: AssertionError
+_________ test_upload_mission_transport_missing_methods_returns_failed _________
+
+    def test_upload_mission_transport_missing_methods_returns_failed():
+        """A connection that does not expose mission_count_send is rejected."""
+        class InertConnection:
+            def recv_match(self, **kw):
+                return None
+        waypoints = _waypoints(2)
+        result = upload_mission(InertConnection(), waypoints)
+        assert result.state == "failed"
+>       assert "TRANSPORT_INCOMPATIBLE" in result.error or "MISSION_COUNT_SEND_FAILED" in result.error
+E       AssertionError: assert ('TRANSPORT_INCOMPATIBLE' in 'HARDWARE_DISABLED' or 'MISSION_COUNT_SEND_FAILED' in 'HARDWARE_DISABLED')
+E        +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+E        +  and   'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+
+tests/test_mavlink_mission_protocol.py:285: AssertionError
+=============================== warnings summary ===============================
+../../aeromind/.venv/lib/python3.12/site-packages/starlette/testclient.py:45
+  /home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/starlette/testclient.py:45: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+web/canonical_models.py:138
+  /home/ubuntu/aeromind-work/Aeromind.IA/web/canonical_models.py:138: PytestCollectionWarning: cannot collect test class 'TestRun' because it has a __init__ constructor (from: tests/test_e2e_reception_flow.py)
+    class TestRun(Base):
+
+web/canonical_models.py:138
+  /home/ubuntu/aeromind-work/Aeromind.IA/web/canonical_models.py:138: PytestCollectionWarning: cannot collect test class 'TestRun' because it has a __init__ constructor (from: tests/test_lot_c_canonical_sync.py)
+    class TestRun(Base):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_admin_account_registry.py::AdminAccountRegistryTest::test_superadmin_can_issue_local_invite_from_existing_entra_session_and_reset_revokes_session
+FAILED tests/test_fleet_telemetry.py::test_snapshot_returns_drone_positions
+FAILED tests/test_fleet_telemetry.py::test_snapshot_only_exposes_drones_for_authenticated_owner
+FAILED tests/test_fleet_telemetry.py::test_snapshot_computes_xy_when_geofence_home_set
+FAILED tests/test_fleet_telemetry.py::test_snapshot_flags_drone_outside_geofence_polygon
+FAILED tests/test_fleet_telemetry.py::test_snapshot_flags_drone_above_max_altitude
+FAILED tests/test_fleet_telemetry.py::test_snapshot_handles_disconnected_observer
+FAILED tests/test_fleet_telemetry.py::test_snapshot_handles_multiple_drones
+FAILED tests/test_fleet_telemetry.py::test_snapshot_includes_geofence_metadata
+FAILED tests/test_fleet_telemetry.py::test_snapshot_no_geofence_returns_null_home
+FAILED tests/test_global_regression_fixes.py::test_hardware_mode_requires_explicit_project_id
+FAILED tests/test_global_regression_fixes.py::test_unavailable_gate_store_fails_closed
+FAILED tests/test_global_regression_fixes.py::test_switching_to_sitl_always_disables_hardware_flag
+FAILED tests/test_hardware_phases.py::test_hardware_control_true_alone_does_not_authorize_transport
+FAILED tests/test_hardware_phases.py::test_hardware_control_true_alone_no_geofence_refused
+FAILED tests/test_hardware_phases.py::test_token_project_drone_mismatch_refused
+FAILED tests/test_hardware_phases.py::test_token_replay_refused - AssertionEr...
+FAILED tests/test_hardware_phases.py::test_pilot_refuses_command_not_on_allowlist
+FAILED tests/test_hardware_phases.py::test_pilot_refuses_short_confirmation_token
+FAILED tests/test_hardware_phases.py::test_pilot_refuses_mode_not_on_allowlist
+FAILED tests/test_hardware_phases.py::test_pilot_rejects_legacy_memory_token_without_transport
+FAILED tests/test_hardware_phases.py::test_pilot_does_not_open_connection_for_legacy_token
+FAILED tests/test_hardware_phases.py::test_geofence_fails_closed_when_no_geofence
+FAILED tests/test_hardware_phases.py::test_geofence_rejects_altitude_above_max
+FAILED tests/test_hardware_phases.py::test_geofence_rejects_outside_polygon
+FAILED tests/test_hardware_phases.py::test_geofence_accepts_inside_polygon - ...
+FAILED tests/test_labbench_reception.py::test_T15_telemetry_without_session_denied
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_full_success
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_handles_out_of_order_requests
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_handles_legacy_mission_request
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_no_ack_returns_failed
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_no_requests_returns_failed
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_rejected_ack_returns_failed
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_early_ack_rejected_returns_failed
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_no_waypoints_returns_failed
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_out_of_range_seq_recorded_as_failure
+FAILED tests/test_mavlink_mission_protocol.py::test_upload_mission_transport_missing_methods_returns_failed
+37 failed, 299 passed, 11 skipped, 3 warnings in 26.02s

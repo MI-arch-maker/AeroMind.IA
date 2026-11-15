@@ -11,6 +11,9 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import VirtualParametricFactory from "@/pages/VirtualParametricFactory";
+import InspectionQuality from "@/pages/InspectionQuality";
+import FactoryDigitalTwin from "@/pages/FactoryDigitalTwin";
+import GcsSimulation from "@/pages/GcsSimulation";
 
 // LABBENCH 01 is not a second application: its only entry point is the
 // integrated Home workspace. Keep the legacy URL as an alias to that same
@@ -20,6 +23,7 @@ const AdminConsole = lazy(() => import("@/pages/AdminConsole"));
 const AuditJournal = lazy(() => import("@/pages/AuditJournal"));
 const BuildReadiness = lazy(() => import("@/pages/BuildReadiness"));
 const SecurityCenter = lazy(() => import("@/pages/SecurityCenter"));
+const CadValidationPage = lazy(() => import("@/components/SolidCadWorkbench").then(module => ({ default: module.CadValidationPage })));
 
 function PageLoader() {
   return (
@@ -40,6 +44,14 @@ function Router() {
       <Route path="/labbench" component={Home} />
       <Route path="/engineering-hub" component={Home} />
       <Route path="/virtual-factory" component={VirtualParametricFactory} />
+      <Route path="/inspection-quality" component={InspectionQuality} />
+      <Route path="/factory-digital-twin" component={FactoryDigitalTwin} />
+      <Route path="/gcs-simulation" component={GcsSimulation} />
+      <Route path="/cad-validation">
+        <Suspense fallback={<PageLoader />}>
+          <CadValidationPage />
+        </Suspense>
+      </Route>
       <Route path="/build-readiness">
         <Suspense fallback={<PageLoader />}>
           <BuildReadiness />

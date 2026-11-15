@@ -1,0 +1,12 @@
+{
+  "webgl2_context_available": true,
+  "actual_3d_geometry_observed": true,
+  "native_source_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+  "scene_captures": [
+    "demo-pbr.webp",
+    "demo-coupe.webp"
+  ],
+  "cut_ui_state": "VALIDÉ · n=0/-1/0 · offset 0 mm",
+  "cut_outcome": "new native solids with closure faces and visible shaft cavity; PMI removed without reanchoring",
+  "canvas_fallback_text": "Unrendered fallback DOM inside canvas; the actual WebGL2 context and screenshots confirm rendered geometry"
+}

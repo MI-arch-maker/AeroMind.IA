@@ -1,0 +1,265 @@
+{
+  "title": "AeroMind.IA — Cockpit d’ingénierie",
+  "text": "A\nAEROMIND.IA\nENGINEERING SYSTEMS\nA\nWORKSPACE / LOCAL DRAFT\nACTIVE PROJECT\nNo user projects\nCréez votre espace de travail\nOPERATE\nOverview\n01\nCentre Intelligence IA\nAI\nDESIGN\nMission & requirements\n—\nAEROMIND HUB\nHUB\nAirframe library\n102\nDigital Twin Explorer\nTWIN\nIDDS Studio\nCAD\nCentre Paramétrique\nPAR\nCentre Mécanique\nMEC\nOPERATE\nFleet & Maintenance Center\nFLEET\nGlobal Mission Control\nCTRL\nDESIGN\nBuild & equipment\n41\nOPERATE\nObservation & Instrumentation\nACC\nSIMULATE\nSimulation & analysis\nSIM-000\nAerodynamics & CFD\nCFD\nMission Planner\nMAP\nLabBench 01\nP1\nOPERATE\nFlight command deck\nOPS\nSatellite navigation\nGNSS\nSIMULATE\nTrials & scenarios\nTEST\nREVIEW\nReports & review\nDRAFT\nOPERATE\nSafe Commands & Governance\nSIM\nVirtual Parametric Factory\n3DP\nOuvrir les consoles avancées\n2\nMode brouillon local\nSign in requise pour la persistance\nCentre de protection\nSECURITY\nSession fermée\nConnexion indisponible · SSO Microsoft Entra non configuré.\nMicrosoft Entra\nConnexion MFA\nOuvrir Identity Gateway\nLP\nSSO à configurer\nSSO autonome non configuré · voir le guide de déploiement\nAucun projet sélectionné\nAerodynamics & CFD\nv18.27.0\n文\nInterface language\nFrench\nEnglish\nSIMULATION DÉSARMÉE\nAUCUN ACTIVE PROJECT\nEmpty workspace — no automatic creation.\nLes onglets restent accessibles en mode exploration. Créez un projet manuellement pour enregistrer vos modifications.\nCreate manually\nENGINEERING SYNCHRONIZATION · PARTIAL\nRévision workspace:—:human-selection-required\nN2 · simulation · parcours LABBENCH N1→N4\nARBORESCENCE ATELIER · PROJECT → AIRFRAME → DESIGN → VÉRIFICATION → PREUVES\nLocal workspace — no project\nWAITING\nCell / configuration\nWAITING\nRequirements & compliance\nWAITING\nDesign & prototype version\nWAITING\nVerification & evidence\nPARTIAL\nAudit & traceability\nWAITING\nConfiguration control\nRequirements\nBuild workbench\nInspector & equipment\nDrone library\nSimulation\nLabBench\nEssais / tableau visuel\nPoste de commandement de vol\nRapport\nCopilote IA\nOpérations sûres\nBibliothèque matériels\nAeronautical centre\nDesign studio\nConfiguration control · NO_PROJECT No active project: no business data can be published.\nSolution: Create ou sélectionner manuellement un projet.\nDrone library · HUMAN_SELECTION_REQUIRED No drone is selected automatically.\nSolution: Select explicitement une architecture ou créer une cellule personnalisée.\nRequirements · NO_REQUIREMENTS No requirements are synchronized.\nSolution: Ajouter et approuver les exigences avant simulation.\n0 blockage(s) · 3 warning(s) · no unverified data may be presented as validated.\nAUCUN ACTIVE PROJECT\nNo active project · navigation en mode exploration\nDRONE / ACTIVE DRAWING\nNo drone selected\narchitecture en attente · 0.00 m\nSELECTED MATERIAL / NOMENCLATURE\nAucun matériau sélectionné\n0 installed item(s) · 0.00 kg declared\nENTRIES / COMMANDS\n0 requirement(s) · 0 waypoint(s)\nSIMULATION LOGICIELLE · commandes liées au scénario\nINDEPENDENT SUBVIEW\nAerodynamics & CFD\n\nAEROMIND / AERODYNAMIC SIMULATION CENTER\n\nCentre aérodynamique\n\nAucun projet sélectionné · conception, préparation de calcul et analyses traçables\n\nCFD SOLVER NOT CONNECTED\nAUCUN RÉSULTAT CALCULÉ · PRÉPARATION LOCALE\nVérité scientifique : aucun solveur CFD réel n’est raccordé à ce module. Aucune estimation analytique, donnée de démonstration, animation de champ ou résultat artificiel n’est créé. Seuls la géométrie importée et les paramètres explicitement saisis sont présentés.\nWORKSPACE\nAerodynamic Dashboard\n3D Model Importer\nCFD Workspace\nSimulation Setup\nMesh Generator\nAirflow Visualization\nPressure Analysis\nRotor Flow Analysis\nPerformance Comparison\nDesign Optimization\nSimulation History\nTechnical Reports\nSolver Management\nSettings\nLocal · navigateur\nAucune transmission distante\n\nAERODYNAMIC DASHBOARD / 01\n\nSynthèse aérodynamique\n\nConfiguration locale, statut du solveur et résultats disponibles pour le projet active.\n\nVider le formulaire\nArchitecture\nNon renseignée\nChoix utilisateur\nVitesse de référence\n— m/s\nEntrée de scénario\nPression saisie\n— Pa\nEntrée utilisateur\nRésultats CFD\nIndisponibles\nAucun solveur raccordé\n\nGÉOMÉTRIE / VIEWPORT\n\nGÉOMÉTRIE ABSENTE\nAucune géométrie inspectée\nImportez un fichier STL, OBJ ou 3MF pour ouvrir un viewport 3D interactive.\nGlisser : orbite · molette : zoom · clic droit : pan · double-clic : sélectionner une face\nReset view\nImporter / inspecter\nAucun maillage chargé\n\nSOLVER MANAGEMENT\n\nOpenFOAM\nINDISPONIBLE\nRUNTIME NON RACCORDÉ\n\nAucun binaire de solveur ni service CFD n’est raccordé à ce module. Les fonctions de cas résolu, maillage volumique, convergence et cartes de champs restent bloquées.\n\nGestion du solveur\n\nRÉSULTATS\n\nNo result aérodynamique disponible\nSOLVEUR NON RACCORDÉ\nTraînée\n— N\nPortance\n— N\nL / D\n—\n\nAucun coefficient supposé ni modèle simplifié ne produit de résultat dans ce module.\n\nCalcul indisponible\nSaisir les conditions\n\nCENTRES AEROMIND\n\nÉchanges et validations\nPARAMETRIC\nRevue manuelle · non transmise\nOuvrir le centre\nMECANIC / ELECTRONICS\nContraintes à raccorder\nOuvrir le centre mécanique\nVIRTUAL FACTORY / INTELLIGENCE\nNon connectés à cette vue\nPas de partage automatique\nLes exports documentent uniquement vos entrées non validées. Aucun rapport de résultats n’est disponible.\nAeromind / Aerodynamic Dashboard\nAucune commande matérielle · aucun calcul CFD déclaré\nAEROMIND\nIntelligence · Ingénierie · Aéronautique\nAEROMIND AI / ENGINEERING COPILOT\nv18.27.0\nCONNEXION\nSSO à configurer\nFournisseur d’identité non configuré\nENVIRONMENT\nAeroMind / Engineering OS\nInterface virtuelle · commandes matérielles désactivées\nREVUE TECHNIQUE\nPreliminary calculations — human review required\nNe constitue ni certification ni autorisation de fabrication.",
+  "buttons": [
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "Overview\n01",
+      "disabled": false
+    },
+    {
+      "text": "Centre Intelligence IA\nAI",
+      "disabled": false
+    },
+    {
+      "text": "Mission & requirements\n—",
+      "disabled": false
+    },
+    {
+      "text": "AEROMIND HUB\nHUB",
+      "disabled": false
+    },
+    {
+      "text": "Airframe library\n102",
+      "disabled": false
+    },
+    {
+      "text": "Digital Twin Explorer\nTWIN",
+      "disabled": false
+    },
+    {
+      "text": "IDDS Studio\nCAD",
+      "disabled": false
+    },
+    {
+      "text": "Centre Paramétrique\nPAR",
+      "disabled": false
+    },
+    {
+      "text": "Centre Mécanique\nMEC",
+      "disabled": false
+    },
+    {
+      "text": "Fleet & Maintenance Center\nFLEET",
+      "disabled": false
+    },
+    {
+      "text": "Global Mission Control\nCTRL",
+      "disabled": false
+    },
+    {
+      "text": "Build & equipment\n41",
+      "disabled": false
+    },
+    {
+      "text": "Observation & Instrumentation\nACC",
+      "disabled": false
+    },
+    {
+      "text": "Simulation & analysis\nSIM-000",
+      "disabled": false
+    },
+    {
+      "text": "Aerodynamics & CFD\nCFD",
+      "disabled": false
+    },
+    {
+      "text": "Mission Planner\nMAP",
+      "disabled": false
+    },
+    {
+      "text": "LabBench 01\nP1",
+      "disabled": false
+    },
+    {
+      "text": "Flight command deck\nOPS",
+      "disabled": false
+    },
+    {
+      "text": "Satellite navigation\nGNSS",
+      "disabled": false
+    },
+    {
+      "text": "Trials & scenarios\nTEST",
+      "disabled": false
+    },
+    {
+      "text": "Reports & review\nDRAFT",
+      "disabled": false
+    },
+    {
+      "text": "Safe Commands & Governance\nSIM",
+      "disabled": false
+    },
+    {
+      "text": "Virtual Parametric Factory\n3DP",
+      "disabled": false
+    },
+    {
+      "text": "Ouvrir les consoles avancées\n2",
+      "disabled": false
+    },
+    {
+      "text": "Centre de protection\nSECURITY",
+      "disabled": false
+    },
+    {
+      "text": "Microsoft Entra",
+      "disabled": false
+    },
+    {
+      "text": "Connexion MFA",
+      "disabled": false
+    },
+    {
+      "text": "Ouvrir Identity Gateway",
+      "disabled": false
+    },
+    {
+      "text": "LP\nSSO à configurer\nSSO autonome non configuré · voir le guide de déploiement",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "Create manually",
+      "disabled": false
+    },
+    {
+      "text": "INDEPENDENT SUBVIEW\nAerodynamics & CFD",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "disabled": false
+    },
+    {
+      "text": "Aerodynamic Dashboard",
+      "disabled": false
+    },
+    {
+      "text": "3D Model Importer",
+      "disabled": false
+    },
+    {
+      "text": "CFD Workspace",
+      "disabled": false
+    },
+    {
+      "text": "Simulation Setup",
+      "disabled": false
+    },
+    {
+      "text": "Mesh Generator",
+      "disabled": false
+    },
+    {
+      "text": "Airflow Visualization",
+      "disabled": false
+    },
+    {
+      "text": "Pressure Analysis",
+      "disabled": false
+    },
+    {
+      "text": "Rotor Flow Analysis",
+      "disabled": false
+    },
+    {
+      "text": "Performance Comparison",
+      "disabled": false
+    },
+    {
+      "text": "Design Optimization",
+      "disabled": false
+    },
+    {
+      "text": "Simulation History",
+      "disabled": false
+    },
+    {
+      "text": "Technical Reports",
+      "disabled": false
+    },
+    {
+      "text": "Solver Management",
+      "disabled": false
+    },
+    {
+      "text": "Settings",
+      "disabled": false
+    },
+    {
+      "text": "Vider le formulaire",
+      "disabled": false
+    },
+    {
+      "text": "Reset view",
+      "disabled": false
+    },
+    {
+      "text": "Importer / inspecter",
+      "disabled": false
+    },
+    {
+      "text": "Gestion du solveur",
+      "disabled": false
+    },
+    {
+      "text": "Calcul indisponible",
+      "disabled": true
+    },
+    {
+      "text": "Saisir les conditions",
+      "disabled": false
+    },
+    {
+      "text": "Ouvrir le centre",
+      "disabled": false
+    },
+    {
+      "text": "Ouvrir le centre mécanique",
+      "disabled": false
+    }
+  ],
+  "canvases": [
+    {
+      "renderer": "webgl2",
+      "frames": "10",
+      "width": 444,
+      "height": 430
+    }
+  ],
+  "pageErrors": [],
+  "url": "https://3000-itqa2inl2sumlcwhw8ka5-739f279a.us5.manus.computer/?view=aero-cfd",
+  "engine": "Chromium headless, ANGLE SwiftShader (software WebGL2)"
+}

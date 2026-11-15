@@ -72,32 +72,42 @@ export default function AdminConsole() {
   const [llmResult, setLlmResult] = useState<{ text: string; ok: boolean } | null>(null);
   const [sessionActionBusy, setSessionActionBusy] = useState(false);
   const activityRequestSequence = useRef(0);
+  const consoleRequestSequence = useRef(0);
 
   const loadConsole = useCallback(async (quiet = false) => {
+    const requestSequence = ++consoleRequestSequence.current;
     if (quiet) setRefreshing(true); else setLoading(true);
     setError("");
     try {
       const overviewResponse = await fetch("/api/admin-console/overview", { credentials: "include" });
       const overviewBody = await overviewResponse.json().catch(() => ({}));
       if (!overviewResponse.ok) throw new Error(overviewResponse.status === 401 ? t("Connectez-vous explicitement pour ouvrir la console.") : overviewBody.detail || t("Accès réservé aux rôles administrateur."));
+      if (requestSequence !== consoleRequestSequence.current) return;
       setData(overviewBody as Overview);
       try {
         const recordsResponse = await fetch("/api/admin-console/workspace/records", { credentials: "include" });
         const recordsBody = await recordsResponse.json().catch(() => ({}));
         if (!recordsResponse.ok) throw new Error(recordsBody.detail || t("Les registres du workspace sont indisponibles."));
+        if (requestSequence !== consoleRequestSequence.current) return;
         setRecords(recordsBody as Records);
         setRecordsError("");
       } catch (reason) {
-        setRecordsError(reason instanceof Error ? reason.message : t("Les registres du workspace sont indisponibles."));
-        setRecords(null);
+        if (requestSequence === consoleRequestSequence.current) {
+          setRecordsError(reason instanceof Error ? reason.message : t("Les registres du workspace sont indisponibles."));
+          setRecords(null);
+        }
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("Console indisponible."));
-      setData(null);
-      setRecords(null);
+      if (requestSequence === consoleRequestSequence.current) {
+        setError(reason instanceof Error ? reason.message : t("Console indisponible."));
+        setData(null);
+        setRecords(null);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestSequence === consoleRequestSequence.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [t]);
 
@@ -164,22 +174,29 @@ export default function AdminConsole() {
   };
 
   const endConsoleSession = async (sleep = false) => {
+    consoleRequestSequence.current += 1;
+    activityRequestSequence.current += 1;
     setSessionActionBusy(true);
+    let failure = "";
     try {
       const response = await fetch("/api/admin-console/logout", { method: "POST", credentials: "include" });
       if (!response.ok) throw new Error(t("Le serveur n’a pas confirmé la fermeture de la session."));
+    } catch (reason) {
+      failure = reason instanceof Error ? reason.message : t("Impossible de fermer la session de console.");
+    } finally {
       setData(null);
       setRecords(null);
       setQualificationActivity(null);
       setMechanicalPreview(null);
-      setError(sleep
-        ? t("Console en veille sécurisée : session révoquée. Une reconnexion explicite est requise pour la reprendre.")
-        : t("Session de console terminée. Le cockpit AeroMind n’a pas été connecté."));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("Impossible de fermer la session de console."));
-    } finally {
+      activityRequestSequence.current += 1;
+      setError(failure
+        ? `${sleep ? t("Console mise en veille localement") : t("Interface de console fermée")}; ${t("révocation serveur non confirmée")}: ${failure}`
+        : sleep
+          ? t("Console en veille sécurisée : session révoquée. Une reconnexion explicite est requise pour la reprendre.")
+          : t("Session de console terminée. Le cockpit AeroMind n’a pas été connecté."));
       setSessionActionBusy(false);
     }
+    // Intentionally no login redirect or reload: only a new user action may sign in.
   };
 
   const validateLlm = async () => {

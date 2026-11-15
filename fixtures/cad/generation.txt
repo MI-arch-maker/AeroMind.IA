@@ -1,0 +1,74 @@
+{
+  "evidence": "/home/ubuntu/aeromind/fixtures/cad/cad_evidence.json",
+  "analytical_checks": [
+    {
+      "name": "cube_10_mm",
+      "expected_volume_mm3": 1000.0,
+      "actual_volume_mm3": 999.9999999999998,
+      "relative_error": 2.2737367544323206e-16,
+      "properties": {
+        "volume_mm3": 999.9999999999998,
+        "mass_kg": 0.004429999999999999,
+        "center_of_gravity_mm": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "center_of_volume_mm": [
+          5.0,
+          5.0,
+          5.0
+        ]
+      },
+      "integral_error_estimate": 0.0
+    },
+    {
+      "name": "sphere_r10_mm",
+      "expected_volume_mm3": 4188.790204786391,
+      "actual_volume_mm3": 4188.790204786392,
+      "relative_error": 2.1712586625457608e-16,
+      "properties": {
+        "volume_mm3": 4188.790204786392,
+        "mass_kg": 0.018556340607203715,
+        "center_of_gravity_mm": [
+          -7.41260512049314e-16,
+          -6.181721801112872e-16,
+          -4.2099657093785924e-16
+        ],
+        "center_of_volume_mm": [
+          -7.41260512049314e-16,
+          -6.181721801112872e-16,
+          -4.209965709378593e-16
+        ]
+      },
+      "integral_error_estimate": 0.0
+    },
+    {
+      "name": "tube_r10_r4_h20",
+      "expected_volume_mm3": 5277.875658030853,
+      "actual_volume_mm3": 5277.875658030853,
+      "relative_error": 0.0,
+      "properties": {
+        "volume_mm3": 5277.875658030853,
+        "mass_kg": 0.02338098916507668,
+        "center_of_gravity_mm": [
+          -9.116797789825527e-15,
+          -5.833078821748473e-16,
+          9.999999999999998
+        ],
+        "center_of_volume_mm": [
+          -9.116797789825527e-15,
+          -5.833078821748473e-16,
+          9.999999999999998
+        ]
+      },
+      "integral_error_estimate": 1.3570366640911e-16
+    }
+  ],
+  "section_timings_ms": [
+    979.2118870000195,
+    1139.9900669998715,
+    1595.4408529999,
+    1073.5713600001873
+  ]
+}

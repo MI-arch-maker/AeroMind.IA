@@ -223,11 +223,14 @@ def logout(
         revoke_primary_session(token)
     response = JSONResponse({'logged_out': True})
     response.delete_cookie('aeromind_session', path='/')
+    response.delete_cookie('aeromind_session', path='/api/auth/oidc')
     response.delete_cookie('aeromind_oidc_state', path='/')
+    response.delete_cookie('aeromind_oidc_state', path='/api/auth/oidc')
     # P-LOGOUT-4 fix: also clear the LABBENCH CSRF cookie so the next session
     # starts clean (otherwise stale CSRF tokens cause 403 on first POST).
     response.delete_cookie('aeromind_lab_csrf', path='/')
     response.delete_cookie('lab_csrf_token', path='/')
+    response.headers['Cache-Control'] = 'no-store'
     return response
 
 

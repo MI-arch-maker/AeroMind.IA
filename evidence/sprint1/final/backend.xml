@@ -1,0 +1,625 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="37" skipped="11" tests="391" time="33.920" timestamp="2026-11-15T14:22:56.486160+00:00" hostname="d895d8305aa0"><testcase classname="tests.test_admin_account_registry.AdminAccountRegistryTest" name="test_create_and_authorize_only_a_preexisting_allowlisted_identity" time="0.387" /><testcase classname="tests.test_admin_account_registry.AdminAccountRegistryTest" name="test_imports_legacy_json_once_then_archives_it" time="0.008" /><testcase classname="tests.test_admin_account_registry.AdminAccountRegistryTest" name="test_labbench_step_up_totp_is_consumed_once" time="0.014" /><testcase classname="tests.test_admin_account_registry.AdminAccountRegistryTest" name="test_local_enrollment_requires_admin_invite_and_totp_then_sets_session" time="0.251" /><testcase classname="tests.test_admin_account_registry.AdminAccountRegistryTest" name="test_superadmin_can_issue_a_daily_labbench_code_without_persisting_plaintext" time="0.010" /><testcase classname="tests.test_admin_account_registry.AdminAccountRegistryTest" name="test_superadmin_can_issue_local_invite_from_existing_entra_session_and_reset_revokes_session" time="0.001"><failure message="AssertionError: unexpectedly None">self = &lt;test_admin_account_registry.AdminAccountRegistryTest testMethod=test_superadmin_can_issue_local_invite_from_existing_entra_session_and_reset_revokes_session&gt;
+
+    def test_superadmin_can_issue_local_invite_from_existing_entra_session_and_reset_revokes_session(self):
+        from http.cookies import SimpleCookie
+        from fastapi import HTTPException
+        from web.admin import _primary_account
+        from web.local_auth import Confirmation, Enrollment, _b64, _totp, confirm_enrollment, enroll, issue_superadmin_invite
+        from web.oidc import me
+        from starlette.requests import Request
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"}, "http_version": "1.1", "method": "POST", "scheme": "http", "path": "/api/auth/local/enroll", "raw_path": b"/api/auth/local/enroll", "query_string": b"", "root_path": "", "headers": [], "client": ("127.0.0.1", 1234), "server": ("testserver", 80)}
+        request = Request(scope)
+        primary = _primary_account()
+&gt;       self.assertIsNotNone(primary)
+E       AssertionError: unexpectedly None
+
+tests/test_admin_account_registry.py:130: AssertionError</failure></testcase><testcase classname="tests.test_admin_session_isolation" name="test_admin_console_mfa_issues_only_scoped_admin_cookie" time="0.001" /><testcase classname="tests.test_admin_session_isolation" name="test_admin_console_mfa_rejects_non_admin_role" time="0.000" /><testcase classname="tests.test_admin_session_isolation" name="test_admin_console_logout_revokes_session_and_clears_current_and_legacy_cookie_paths" time="0.000" /><testcase classname="tests.test_admin_session_isolation" name="test_oidc_logout_revokes_session_and_clears_main_session_cookie" time="0.001" /><testcase classname="tests.test_admin_session_isolation" name="test_explicit_session_registration_reactivates_a_revoked_token" time="0.000" /><testcase classname="tests.test_alerts" name="test_raise_alert_persists" time="0.046" /><testcase classname="tests.test_alerts" name="test_list_recent_alerts_returns_newest_first" time="0.051" /><testcase classname="tests.test_alerts" name="test_list_recent_alerts_filters_by_project" time="0.046" /><testcase classname="tests.test_alerts" name="test_acknowledge_alert" time="0.048" /><testcase classname="tests.test_alerts" name="test_acknowledge_unknown_alert_returns_error" time="0.042" /><testcase classname="tests.test_cad_body_limit" name="test_content_length_rejected_before_multipart_handler" time="0.004" /><testcase classname="tests.test_cad_body_limit" name="test_receive_stream_stops_before_oversized_chunk_is_delivered" time="0.001" /><testcase classname="tests.test_cad_body_limit" name="test_fastapi_chunked_multipart_limit_returns_413_not_400" time="0.004" /><testcase classname="tests.test_cad_body_limit" name="test_small_mutations_and_unrelated_routes_preserved" time="0.007" /><testcase classname="tests.test_cad_capability" name="test_cad_reference_is_public_but_upload_is_never_public" time="0.000" /><testcase classname="tests.test_cad_capability" name="test_anonymous_cad_import_rejected_before_handler" time="0.003" /><testcase classname="tests.test_cad_capability" name="test_l1_cannot_import_or_mutate_cad" time="0.005" /><testcase classname="tests.test_cad_external_references" name="test_external_step_profile_rejected_before_native_reader[#123=DOCUMENT_FILE('private','/etc/passwd',$,$);]" time="0.002" /><testcase classname="tests.test_cad_external_references" name="test_external_step_profile_rejected_before_native_reader[REFERENCE; #123='file:///etc/passwd'; ENDSEC;]" time="0.001" /><testcase classname="tests.test_cad_external_references" name="test_external_step_profile_rejected_before_native_reader[#123=EXTERNAL_SOURCE('/etc/passwd');]" time="0.001" /><testcase classname="tests.test_cad_external_references" name="test_external_step_profile_rejected_before_native_reader[#123=DOC/*split*/UMENT_FILE('test','/etc/passwd',$,$);]" time="0.004" /><testcase classname="tests.test_cad_external_references" name="test_quoted_label_and_comment_are_not_external_resolvers" time="0.020" /><testcase classname="tests.test_cad_kernel" name="test_analytical_brep_volume_centroid_mass[shape0-1000.0-center0]" time="0.008" /><testcase classname="tests.test_cad_kernel" name="test_analytical_brep_volume_centroid_mass[shape1-4188.790204786391-center1]" time="0.205" /><testcase classname="tests.test_cad_kernel" name="test_analytical_brep_volume_centroid_mass[shape2-3540.5749205956968-center2]" time="0.010" /><testcase classname="tests.test_cad_kernel" name="test_mesh_does_not_determine_properties" time="0.025" /><testcase classname="tests.test_cad_kernel" name="test_unknown_material_has_no_invented_mass" time="0.014" /><testcase classname="tests.test_cad_kernel" name="test_multimaterial_mass_weighted_cog" time="0.030" /><testcase classname="tests.test_cad_kernel" name="test_cube_halfspace_is_solid_and_source_not_mutated" time="0.048" /><testcase classname="tests.test_cad_kernel" name="test_cap_contains_real_annular_hole" time="0.051" /><testcase classname="tests.test_cad_kernel" name="test_fully_removed_and_tangent_parts_are_empty" time="0.037" /><testcase classname="tests.test_cad_kernel" name="test_invalid_planes_rejected[normal0-0]" time="0.001" /><testcase classname="tests.test_cad_kernel" name="test_invalid_planes_rejected[normal1-0]" time="0.001" /><testcase classname="tests.test_cad_kernel" name="test_invalid_planes_rejected[normal2-0]" time="0.001" /><testcase classname="tests.test_cad_kernel" name="test_invalid_planes_rejected[normal3-inf]" time="0.001" /><testcase classname="tests.test_cad_kernel" name="test_invalid_planes_rejected[normal4-0]" time="0.001" /><testcase classname="tests.test_cad_kernel" name="test_invalid_planes_rejected[normal5-10000000000.0]" time="0.001" /><testcase classname="tests.test_cad_kernel" name="test_reject_face_shell_loose_geometry_and_invalid_solid" time="0.011" /><testcase classname="tests.test_cad_kernel" name="test_xde_assembly_nested_occurrences_positions_names_world_normals" time="0.046" /><testcase classname="tests.test_cad_kernel" name="test_inch_step_units_converted_to_mm" time="0.024" /><testcase classname="tests.test_cad_kernel" name="test_genuine_ap242_header_roundtrip_demo" time="1.717" /><testcase classname="tests.test_cad_kernel" name="test_semantic_xde_pmi_dimension_tolerance_datum_face_anchors" time="0.029" /><testcase classname="tests.test_cad_kernel" name="test_user_pmi_validation_and_hole_safe_anchor" time="0.028" /><testcase classname="tests.test_cad_kernel" name="test_pmi_not_silently_reanchored_by_section" time="0.049" /><testcase classname="tests.test_cad_kernel" name="test_restart_persistence_face_identity_material_and_pmi" time="0.026" /><testcase classname="tests.test_cad_kernel" name="test_store_rejects_traversal_symlinks_and_source_tampering" time="0.010" /><testcase classname="tests.test_cad_kernel" name="test_api_public_routes_fixed_demo_and_no_public_upload" time="2.125" /><testcase classname="tests.test_cad_kernel" name="test_api_owner_isolation_material_pmi_and_restart" time="0.074" /><testcase classname="tests.test_cad_kernel" name="test_api_cookie_csrf_and_visitor_defense" time="0.037" /><testcase classname="tests.test_cad_kernel" name="test_api_size_invalid_and_unsupported_uploads_no_persistence" time="0.026" /><testcase classname="tests.test_cad_review_fixes" name="test_native_external_reference_guard_prevents_transfer" time="0.006" /><testcase classname="tests.test_cad_review_fixes" name="test_split_source_face_all_fragments_derived_and_pmi_hidden" time="0.132" /><testcase classname="tests.test_cad_review_fixes" name="test_single_source_fragment_preserves_identity_and_pmi" time="0.051" /><testcase classname="tests.test_cad_review_fixes" name="test_ap242_roundtrip_preserves_exact_unicode_names" time="0.023" /><testcase classname="tests.test_capability_policy" name="test_l1_l2_l3_capability_thresholds_are_enforced_in_asgi_middleware" time="0.009" /><testcase classname="tests.test_capability_policy" name="test_unknown_engineering_route_fails_closed_for_l1_l3" time="0.008" /><testcase classname="tests.test_capability_policy" name="test_physical_routes_remain_outside_l1_l3" time="0.008" /><testcase classname="tests.test_capability_policy" name="test_trpc_mutations_cannot_be_called_with_get" time="0.000" /><testcase classname="tests.test_capability_policy" name="test_superadmin_monitor_and_mechanical_preview_are_l5_read_only_queries" time="0.000" /><testcase classname="tests.test_capability_policy" name="test_unclassified_api_and_trpc_routes_fail_closed_but_health_is_explicitly_public" time="0.000" /><testcase classname="tests.test_capability_policy" name="test_tier_matrix_maps_expected_domains_and_default_denials" time="0.000" /><testcase classname="tests.test_capability_policy" name="test_internal_llm_uses_only_its_dedicated_credential_and_model" time="0.002" /><testcase classname="tests.test_capability_policy" name="test_system_wide_observability_is_reserved_for_admin_levels" time="0.020" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_changed_parameters_invalidate_approval_before_simulation" time="2.750" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_expired_request_cannot_be_approved" time="0.085" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_hardware_control_endpoint_remains_closed" time="0.137" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_other_user_cannot_read_or_approve_request" time="0.091" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_physical_commands_and_parameters_are_rejected" time="0.048" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_reject_and_cancel_are_terminal" time="0.101" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_request_cannot_be_approved_before_it_is_presented" time="0.056" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_requires_authentication" time="0.033" /><testcase classname="tests.test_command_center.HumanCommandCenterTest" name="test_two_distinct_human_approvals_required_before_simulation" time="0.195" /><testcase classname="tests.test_copilot_gateway" name="test_copilot_gateway_rejects_system_role_injection_and_keeps_safety_policy" time="0.000" /><testcase classname="tests.test_copilot_gateway" name="test_copilot_gateway_bounds_history_and_requires_user_turn" time="0.000" /><testcase classname="tests.test_copilot_gateway" name="test_governance_levels_are_role_bounded" time="0.000" /><testcase classname="tests.test_copilot_gateway" name="test_aeromind_llm_deployment_requires_non_public_gateway" time="0.007" /><testcase classname="tests.test_demo_email_config" name="test_demo_email_can_be_configured" time="0.002" /><testcase classname="tests.test_demo_email_config" name="test_demo_email_can_be_cleared" time="0.002" /><testcase classname="tests.test_demo_email_config" name="test_invalid_demo_email_is_rejected" time="0.002" /><testcase classname="tests.test_e2e_hardware_http" name="test_hardware_command_endpoint_rejects_without_auth" time="0.007" /><testcase classname="tests.test_e2e_hardware_http" name="test_hardware_command_endpoint_rejects_without_lab_session" time="0.004" /><testcase classname="tests.test_e2e_hardware_http" name="test_hardware_emergency_stop_rejects_without_auth" time="0.004" /><testcase classname="tests.test_e2e_hardware_http" name="test_hardware_issue_token_rejects_without_auth" time="0.004" /><testcase classname="tests.test_e2e_hardware_http" name="test_lab_sessions_step_up_requires_csrf" time="0.004" /><testcase classname="tests.test_e2e_hardware_http" name="test_lab_gates_approve_requires_csrf_and_session" time="0.004" /><testcase classname="tests.test_e2e_reception_flow" name="test_e2e_01_library_drawing_labbench_trial_recording_reconnection" time="0.426" /><testcase classname="tests.test_e2e_reception_flow" name="test_e2e_02_step_up_session_multi_worker_rotation" time="0.333" /><testcase classname="tests.test_e2e_reception_flow" name="test_e2e_03_drone_version_immutability_past_runs_preserved" time="0.367" /><testcase classname="tests.test_e2e_reception_flow" name="test_e2e_04_anonymous_workspace_isolation_via_api" time="0.001" /><testcase classname="tests.test_e2e_reception_flow" name="test_e2e_05_mission_upload_protocol_rejects_no_ack" time="0.000" /><testcase classname="tests.test_engineering_api_flow.EngineeringApiFlowTests" name="test_cell_from_another_project_is_rejected" time="0.156" /><testcase classname="tests.test_engineering_api_flow.EngineeringApiFlowTests" name="test_csv_dry_run_commit_export_and_download" time="0.464" /><testcase classname="tests.test_engineering_api_flow.EngineeringApiFlowTests" name="test_idempotent_internal_simulation_and_external_sitl_not_run" time="0.132" /><testcase classname="tests.test_engineering_api_flow.EngineeringApiFlowTests" name="test_unowned_project_is_rejected_before_file_persistence" time="0.108" /><testcase classname="tests.test_engineering_file_adapter.EngineeringFileAdapterTests" name="test_bom_csv_dry_run_normalizes_data_without_executing_formula_like_text" time="0.002" /><testcase classname="tests.test_engineering_file_adapter.EngineeringFileAdapterTests" name="test_bom_dialect_mismatch_is_rejected" time="0.001" /><testcase classname="tests.test_engineering_file_adapter.EngineeringFileAdapterTests" name="test_bom_rejects_invalid_rows_and_preserves_partial_report" time="0.001" /><testcase classname="tests.test_engineering_file_adapter.EngineeringFileAdapterTests" name="test_catalog_reports_exactly_13_families_without_false_connected_state" time="0.003" /><testcase classname="tests.test_engineering_file_adapter.EngineeringFileAdapterTests" name="test_semicolon_dialect_is_explicit_and_round_trips" time="0.001" /><testcase classname="tests.test_engineering_file_adapter.EngineeringFileAdapterTests" name="test_simulation_results_require_valid_units_and_utc_timestamps" time="0.001" /><testcase classname="tests.test_engineering_file_adapter.EngineeringFileAdapterTests" name="test_step_duplicate_entity_ids_are_rejected" time="0.001" /><testcase classname="tests.test_engineering_file_adapter.EngineeringFileAdapterTests" name="test_step_part21_reports_structure_only_not_geometry" time="0.001" /><testcase classname="tests.test_engineering_migration_contract.EngineeringMigrationContractTests" name="test_migration_runners_include_the_matching_engineering_schema" time="0.001" /><testcase classname="tests.test_engineering_migration_contract.EngineeringMigrationContractTests" name="test_postgres_migration_is_additive_and_rollback_is_manual_comment" time="0.001" /><testcase classname="tests.test_engineering_migration_contract.EngineeringMigrationContractTests" name="test_tidb_migration_is_additive_and_rollback_is_manual_comment" time="0.001" /><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_empty_pool" time="0.000" /><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_returns_drone_positions" time="0.001"><failure message="assert 0 == 1">def test_snapshot_returns_drone_positions():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=12.5, armed=True)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+&gt;       assert snap["poolSize"] == 1
+E       assert 0 == 1
+
+tests/test_fleet_telemetry.py:104: AssertionError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_only_exposes_drones_for_authenticated_owner" time="0.001"><failure message="AssertionError: assert [] == ['owned-drone']&#10;  &#10;  Right contains one more item: 'owned-drone'&#10;  Use -v to get more diff">def test_snapshot_only_exposes_drones_for_authenticated_owner():
+        pool = pool_mod.get_pool()
+        _register_drone_with_observer(
+            pool, "owned-drone", "Owned", _make_observer(True, 38.0, -122.0, 10.0)
+        )
+        pool.register(
+            "foreign-drone", "Foreign", "udpout:127.0.0.1:14550",
+            owner_id="other-user", project_id="p1",
+        )
+        pool.entry(
+            "foreign-drone", owner_id="other-user", project_id="p1"
+        ).observer = _make_observer(True, 38.0, -122.0, 10.0)
+    
+        own_snapshot = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+        foreign_snapshot = ft.fleet_snapshot_sync(user_id="other-user", project_id="p1")
+        with pytest.raises(ValueError, match="authenticated owner and explicit project_id"):
+            ft.fleet_snapshot_sync(user_id="", project_id="p1")
+    
+&gt;       assert [drone["droneId"] for drone in own_snapshot["drones"]] == ["owned-drone"]
+E       AssertionError: assert [] == ['owned-drone']
+E         
+E         Right contains one more item: 'owned-drone'
+E         Use -v to get more diff
+
+tests/test_fleet_telemetry.py:134: AssertionError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_computes_xy_when_geofence_home_set" time="0.001"><failure message="IndexError: list index out of range">def test_snapshot_computes_xy_when_geofence_home_set():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=5.0)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        # Geofence with home at (38.0, -122.0)
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
+            max_altitude_m=100,
+            max_distance_m=500,
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+&gt;       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:154: IndexError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_flags_drone_outside_geofence_polygon" time="0.001"><failure message="IndexError: list index out of range">def test_snapshot_flags_drone_outside_geofence_polygon():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.5, lon=-122.5, alt=5.0)  # far outside
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+&gt;       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:178: IndexError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_flags_drone_above_max_altitude" time="0.001"><failure message="IndexError: list index out of range">def test_snapshot_flags_drone_above_max_altitude():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=200.0)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
+            max_altitude_m=100,
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+&gt;       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:196: IndexError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_handles_disconnected_observer" time="0.001"><failure message="IndexError: list index out of range">def test_snapshot_handles_disconnected_observer():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=False, lat=None, lon=None, alt=None)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+&gt;       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:206: IndexError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_handles_multiple_drones" time="0.001"><failure message="assert 0 == 2">def test_snapshot_handles_multiple_drones():
+        pool = pool_mod.get_pool()
+        obs1 = _make_observer(connected=True, lat=38.001, lon=-122.001, alt=5.0)
+        obs2 = _make_observer(connected=True, lat=38.002, lon=-122.002, alt=10.0, armed=True)
+        _register_drone_with_observer(pool, "drone-1", "Alpha", obs1)
+        _register_drone_with_observer(pool, "drone-2", "Bravo", obs2)
+    
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.05, -122.01), (38.05, -121.99), (37.99, -121.99)],
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+&gt;       assert snap["poolSize"] == 2
+E       assert 0 == 2
+
+tests/test_fleet_telemetry.py:228: AssertionError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_includes_geofence_metadata" time="0.001"><failure message="assert False is True">def test_snapshot_includes_geofence_metadata():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.0, lon=-122.0, alt=10.0)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+    
+        geo.set_geofence_for_testing(geo.Geofence(
+            project_id="p1",
+            polygon=[(37.99, -122.01), (38.01, -122.01), (38.01, -121.99), (37.99, -121.99)],
+            max_altitude_m=120,
+            home_lat=38.0,
+            home_lon=-122.0,
+        ), owner_id="test-user")
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+&gt;       assert snap["geofenceConfigured"] is True
+E       assert False is True
+
+tests/test_fleet_telemetry.py:250: AssertionError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_snapshot_no_geofence_returns_null_home" time="0.001"><failure message="IndexError: list index out of range">def test_snapshot_no_geofence_returns_null_home():
+        pool = pool_mod.get_pool()
+        obs = _make_observer(connected=True, lat=38.0, lon=-122.0, alt=10.0)
+        _register_drone_with_observer(pool, "drone-1", "Drone 1", obs)
+        # No geofence set
+    
+        snap = ft.fleet_snapshot_sync(user_id="test-user", project_id="p1")
+        assert snap["geofenceConfigured"] is False
+        assert snap["homeLat"] is None
+&gt;       drone = snap["drones"][0]
+                ^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_fleet_telemetry.py:265: IndexError</failure></testcase><testcase classname="tests.test_fleet_telemetry" name="test_haversine_xy_m_north_east" time="0.001" /><testcase classname="tests.test_fleet_telemetry" name="test_haversine_xy_m_south_west" time="0.000" /><testcase classname="tests.test_fleet_telemetry" name="test_point_in_polygon_simple_square" time="0.000" /><testcase classname="tests.test_fleet_telemetry" name="test_history_endpoints_filter_samples_by_project_owner" time="0.206" /><testcase classname="tests.test_fleet_telemetry" name="test_app_flight_history_and_csv_are_owner_scoped" time="0.204" /><testcase classname="tests.test_fleet_telemetry" name="test_virtual_only_snapshot_never_accesses_mavlink_pool" time="0.001" /><testcase classname="tests.test_frontend_cache_headers" name="test_html_and_service_worker_are_not_sticky" time="0.023" /><testcase classname="tests.test_frontend_cache_headers" name="test_fingerprinted_assets_remain_immutable" time="0.007" /><testcase classname="tests.test_frontend_cache_headers" name="test_missing_hashed_asset_is_not_replaced_by_spa_html" time="0.008" /><testcase classname="tests.test_frontend_cache_headers" name="test_service_worker_retires_old_cache_first_strategy" time="0.001" /><testcase classname="tests.test_frontend_cache_headers" name="test_client_unregisters_legacy_worker_without_registering_a_new_one" time="0.001" /><testcase classname="tests.test_functional_regressions" name="test_project_creation_end_to_end" time="0.261" /><testcase classname="tests.test_functional_regressions" name="test_project_read_modify_persist" time="0.267" /><testcase classname="tests.test_functional_regressions" name="test_project_isolation_two_users" time="0.000"><skipped type="pytest.skip" message="Le harness TestClient historique ne résout pas l’identité utilisateur B dans ce test multi-client.">/home/ubuntu/aeromind/tests/test_functional_regressions.py:184: Le harness TestClient historique ne résout pas l’identité utilisateur B dans ce test multi-client.</skipped></testcase><testcase classname="tests.test_functional_regressions" name="test_no_default_project_at_startup" time="0.243" /><testcase classname="tests.test_functional_regressions" name="test_admin_console_is_role_gated_and_workspace_scoped" time="0.387" /><testcase classname="tests.test_functional_regressions" name="test_admin_qualification_activity_is_server_filtered_and_payload_free" time="0.370" /><testcase classname="tests.test_functional_regressions" name="test_superadmin_monitor_and_project_preview_remain_l5_gated" time="0.354" /><testcase classname="tests.test_functional_regressions" name="test_ai_chat_tRPC_is_authenticated_and_uses_gateway" time="0.201" /><testcase classname="tests.test_functional_regressions" name="test_workspace_visit_restore_and_sync_never_create_project" time="0.228" /><testcase classname="tests.test_functional_regressions" name="test_development_superadmin_login_is_disabled_unless_explicitly_opted_in" time="0.201" /><testcase classname="tests.test_functional_regressions" name="test_custom_material_catalog_is_owner_scoped" time="0.253" /><testcase classname="tests.test_functional_regressions" name="test_preflight_pass_uses_server_stored_required_items" time="0.222" /><testcase classname="tests.test_functional_regressions" name="test_labbench_session_requires_step_up" time="0.209" /><testcase classname="tests.test_functional_regressions" name="test_labbench_session_step_up_and_access" time="0.214" /><testcase classname="tests.test_functional_regressions" name="test_labbench_session_revocation" time="0.223" /><testcase classname="tests.test_global_regression_fixes" name="test_old_heartbeat_past_offline_threshold_is_offline" time="0.001" /><testcase classname="tests.test_global_regression_fixes" name="test_heartbeat_between_stale_and_offline_threshold_is_stale" time="0.000" /><testcase classname="tests.test_global_regression_fixes" name="test_hardware_mode_requires_explicit_project_id" time="0.001"><failure message="AssertionError: assert 409 == 412&#10; +  where 409 = HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.').status_code&#10;[+1 more line; full report in element text]">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffff656a3b30&gt;
+
+    def test_hardware_mode_requires_explicit_project_id(monkeypatch):
+        monkeypatch.setattr(ops_api, "current_user_or_401", lambda _request: {"role": "super_admin"})
+        monkeypatch.setenv("HARDWARE_CONTROL", "false")
+        with pytest.raises(HTTPException) as exc:
+            ops_api.set_operation_mode(ops_api.ModeChangeRequest(mode="HARDWARE"), object())
+&gt;       assert exc.value.status_code == 412
+E       AssertionError: assert 409 == 412
+E        +  where 409 = HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.').status_code
+E        +    where HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.') = &lt;ExceptionInfo HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.') tblen=2&gt;.value
+
+tests/test_global_regression_fixes.py:37: AssertionError</failure></testcase><testcase classname="tests.test_global_regression_fixes" name="test_unavailable_gate_store_fails_closed" time="0.001"><failure message="AssertionError: assert 409 == 503&#10; +  where 409 = HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.').status_code&#10;[+1 more line; full report in element text]">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffff65749bb0&gt;
+
+    def test_unavailable_gate_store_fails_closed(monkeypatch):
+        monkeypatch.setattr(ops_api, "current_user_or_401", lambda _request: {"role": "super_admin"})
+    
+        class _BrokenSession:
+            def __enter__(self):
+                raise RuntimeError("database unavailable")
+    
+            def __exit__(self, *_args):
+                return False
+    
+        monkeypatch.setattr(ops_api, "SessionLocal", _BrokenSession)
+        monkeypatch.setenv("HARDWARE_CONTROL", "false")
+        body = ops_api.ModeChangeRequest(mode="HARDWARE", project_id="project-a")
+        with pytest.raises(HTTPException) as exc:
+            ops_api.set_operation_mode(body, object())
+&gt;       assert exc.value.status_code == 503
+E       AssertionError: assert 409 == 503
+E        +  where 409 = HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.').status_code
+E        +    where HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.') = &lt;ExceptionInfo HTTPException(status_code=409, detail='Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.') tblen=2&gt;.value
+
+tests/test_global_regression_fixes.py:57: AssertionError</failure></testcase><testcase classname="tests.test_global_regression_fixes" name="test_switching_to_sitl_always_disables_hardware_flag" time="0.001"><failure message="fastapi.exceptions.HTTPException: 409: Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffff65713560&gt;
+
+    def test_switching_to_sitl_always_disables_hardware_flag(monkeypatch):
+        monkeypatch.setattr(ops_api, "current_user_or_401", lambda _request: {"role": "super_admin", "email": "test"})
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+&gt;       ops_api.set_operation_mode(ops_api.ModeChangeRequest(mode="SITL"), object())
+
+tests/test_global_regression_fixes.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+body = ModeChangeRequest(mode='SITL', reason='', project_id=None)
+request = &lt;object object at 0xffff65c372b0&gt;
+
+    @router.post("/mode")
+    def set_operation_mode(body: ModeChangeRequest, request: Request):
+        """Set the operation mode (super-admin only).
+    
+        This sets environment variables that control the mode. In production
+        with multiple workers, this requires a shared state store (Redis);
+        for now, it works in single-worker mode and logs the intent.
+        """
+        user = current_user_or_401(request)
+        if user.get("role") != "super_admin":
+            raise HTTPException(403, "Réservé au super-admin.")
+        if body.mode not in VALID_MODES:
+            raise HTTPException(400, f"Mode invalide. Valides: {sorted(VALID_MODES)}")
+        if virtual_only_mode() and body.mode in {"SITL", "HIL", "HARDWARE"}:
+&gt;           raise HTTPException(409, "Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.")
+E           fastapi.exceptions.HTTPException: 409: Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.
+
+web/ops_control_api.py:120: HTTPException</failure></testcase><testcase classname="tests.test_global_regression_fixes" name="test_virtual_only_mavlink_status_refuses_before_session_or_observer" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_pilot_refuses_command_when_hardware_disabled_v31" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_hardware_control_true_alone_does_not_authorize_transport" time="0.001"><failure message="assert 'HARDWARE_DISABLED' in {'CONFIRMATION_TOKEN_INVALID', 'TOKEN_INVALID'}&#10; +  where 'HARDWARE_DISABLED' = HardwareCommandError(&quot;HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).&quot;).code&#10; +    where HardwareCommandError(&quot;HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).&quot;) = &lt;ExceptionInfo HardwareCommandError(&quot;HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).&quot;) tblen=3&gt;.value">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffff65769220&gt;
+
+    def test_hardware_control_true_alone_does_not_authorize_transport(monkeypatch):
+        """V3.1 #1 — the EXIGENCE test. HARDWARE_CONTROL=true alone MUST NEVER
+        authorize a physical transport. Even with the env var set, the pilot
+        refuses the command if the confirmation token has not been issued by
+        hardware_gate (i.e. the G0–G5 gate state was never satisfied).
+    
+        This test injects a FAKE token ("x"*64) that was NOT registered in the
+        hardware_gate._tokens store. The pilot MUST refuse with TOKEN_INVALID.
+        """
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF",
+                parameters=cmd.build_takeoff_params(30),
+                confirmation_token="x" * 64,  # valid shape, but NOT in _tokens
+                geofence_validation=_ok_geofence,
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+            )
+&gt;       assert exc_info.value.code in {"TOKEN_INVALID", "CONFIRMATION_TOKEN_INVALID"}
+E       assert 'HARDWARE_DISABLED' in {'CONFIRMATION_TOKEN_INVALID', 'TOKEN_INVALID'}
+E        +  where 'HARDWARE_DISABLED' = HardwareCommandError("HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).").code
+E        +    where HardwareCommandError("HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).") = &lt;ExceptionInfo HardwareCommandError("HARDWARE_CONTROL n'est pas 'true'; transport matériel refusé (SEC-01).") tblen=3&gt;.value
+
+tests/test_hardware_phases.py:224: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_mission_protocol_messages_are_not_command_long_commands" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_hardware_control_true_alone_no_geofence_refused" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'&#10;  &#10;  - TOKEN_INVALID&#10;  + HARDWARE_DISABLED">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffff57b319d0&gt;
+
+    def test_hardware_control_true_alone_no_geofence_refused(monkeypatch):
+        """V3.1 #1 — even with HARDWARE_CONTROL=true + valid token, navigation
+        commands WITHOUT a geofence_validator are refused (fail-closed)."""
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        token = _inject_real_token("p1", "d1")
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF",
+                parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token,
+                geofence_validation=None,  # MISSING — fail-closed
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+            )
+&gt;       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:259: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_token_project_drone_mismatch_refused" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'&#10;  &#10;  - TOKEN_INVALID&#10;  + HARDWARE_DISABLED">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffff57b30530&gt;
+
+    def test_token_project_drone_mismatch_refused(monkeypatch):
+        """V3.1 #1 — a valid token issued for (p1, d1) MUST NOT be usable for
+        a command targeting (p2, d2). SEC-02 isolation."""
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        token = _inject_real_token("p1", "d1")  # bound to (p1, d1)
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF",
+                parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token,
+                geofence_validation=_ok_geofence,
+                project_id="p2",  # WRONG project — token is for p1
+                drone_id="d2",  # WRONG drone
+                actor_id="u1",
+            )
+&gt;       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:278: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_token_replay_refused" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'&#10;  &#10;  - TOKEN_INVALID&#10;  + HARDWARE_DISABLED">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0xffff6576b7a0&gt;
+
+    def test_token_replay_refused(monkeypatch):
+        """V3.1 #1 — single-use tokens cannot be replayed. The second call MUST
+        fail with TOKEN_ALREADY_USED."""
+        monkeypatch.setenv("HARDWARE_CONTROL", "true")
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        token = _inject_real_token("p1", "d1")
+        # In-memory confirmations are not a DB-backed authorization and must never
+        # reach the mocked transport, even on the first attempt.
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token, geofence_validation=_ok_geofence,
+                project_id="p1", drone_id="d1", actor_id="u1",
+            )
+&gt;       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:295: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_pilot_refuses_command_not_on_allowlist" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'COMMAND_NOT_ALLOWED'&#10;  &#10;  - COMMAND_NOT_ALLOWED&#10;  + HARDWARE_DISABLED">hardware_enabled = None
+
+    def test_pilot_refuses_command_not_on_allowlist(hardware_enabled):
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "MAV_CMD_DO_SOMETHING_WEIRD",
+                parameters={},
+                confirmation_token="x" * 32,
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+            )
+&gt;       assert exc_info.value.code == "COMMAND_NOT_ALLOWED"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'COMMAND_NOT_ALLOWED'
+E         
+E         - COMMAND_NOT_ALLOWED
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:310: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_pilot_refuses_short_confirmation_token" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'CONFIRMATION_TOKEN_INVALID'&#10;  &#10;  - CONFIRMATION_TOKEN_INVALID&#10;  + HARDWARE_DISABLED">hardware_enabled = None
+
+    def test_pilot_refuses_short_confirmation_token(hardware_enabled):
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF",
+                parameters={"p7": 30},
+                confirmation_token="short",
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+                # No geofence_validation — Gate 3a (token length) rejects first.
+            )
+&gt;       assert exc_info.value.code == "CONFIRMATION_TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'CONFIRMATION_TOKEN_INVALID'
+E         
+E         - CONFIRMATION_TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:325: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_pilot_refuses_mode_not_on_allowlist" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'&#10;  &#10;  - TOKEN_INVALID&#10;  + HARDWARE_DISABLED">hardware_enabled = None
+
+    def test_pilot_refuses_mode_not_on_allowlist(hardware_enabled):
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: FakeConnection())
+        token = _inject_real_token("p1", "d1")
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "DO_SET_MODE",
+                parameters={"mode": 999},
+                confirmation_token=token,
+                project_id="p1",
+                drone_id="d1",
+                actor_id="u1",
+            )
+&gt;       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:340: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_pilot_rejects_legacy_memory_token_without_transport" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'&#10;  &#10;  - TOKEN_INVALID&#10;  + HARDWARE_DISABLED">hardware_enabled = None
+
+    def test_pilot_rejects_legacy_memory_token_without_transport(hardware_enabled):
+        fake = FakeConnection()
+        pilot = cmd.MavlinkCommandPilot("udpout:127.0.0.1:14550", connection_factory=lambda url: fake)
+        token = _inject_real_token("p1", "d1")
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token, geofence_validation=_ok_geofence,
+                project_id="p1", drone_id="d1", actor_id="u1",
+            )
+&gt;       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:353: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_pilot_does_not_open_connection_for_legacy_token" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'&#10;  &#10;  - TOKEN_INVALID&#10;  + HARDWARE_DISABLED">hardware_enabled = None
+
+    def test_pilot_does_not_open_connection_for_legacy_token(hardware_enabled):
+        opened = []
+        pilot = cmd.MavlinkCommandPilot(
+            "udpout:127.0.0.1:14550",
+            connection_factory=lambda url: opened.append(url) or FakeConnection(),
+        )
+        token = _inject_real_token("p1", "d1")
+        with pytest.raises(cmd.HardwareCommandError) as exc_info:
+            pilot.send_command(
+                "NAV_TAKEOFF", parameters=cmd.build_takeoff_params(30),
+                confirmation_token=token, geofence_validation=_ok_geofence,
+                project_id="p1", drone_id="d1", actor_id="u1",
+            )
+&gt;       assert exc_info.value.code == "TOKEN_INVALID"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'TOKEN_INVALID'
+E         
+E         - TOKEN_INVALID
+E         + HARDWARE_DISABLED
+
+tests/test_hardware_phases.py:370: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_takeoff_altitude_bounds" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_pool_register_and_list" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_pool_idempotent_register" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_pool_caps_at_max" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_pool_unregister" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_pool_pilot_for_unknown_drone_raises" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_geofence_fails_closed_when_no_geofence" time="0.001"><failure message="assert 'fail-closed' in &quot;HARDWARE_CONTROL n'est pas 'true'&quot;">hardware_enabled = None
+
+    def test_geofence_fails_closed_when_no_geofence(hardware_enabled):
+        result = geo.validate_command_geofence({"p7": 30}, geofence=None)
+        assert result["inside_geofence"] is False
+&gt;       assert "fail-closed" in result["reason"]
+E       assert 'fail-closed' in "HARDWARE_CONTROL n'est pas 'true'"
+
+tests/test_hardware_phases.py:456: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_geofence_rejects_altitude_above_max" time="0.001"><failure message="assert 'Altitude' in &quot;HARDWARE_CONTROL n'est pas 'true'&quot;">hardware_enabled = None
+
+    def test_geofence_rejects_altitude_above_max(hardware_enabled):
+        gf = geo.Geofence(project_id="p1", max_altitude_m=100)
+        result = geo.validate_command_geofence({"p7": 150}, gf)
+        assert result["inside_geofence"] is False
+&gt;       assert "Altitude" in result["reason"]
+E       assert 'Altitude' in "HARDWARE_CONTROL n'est pas 'true'"
+
+tests/test_hardware_phases.py:463: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_geofence_rejects_outside_polygon" time="0.001"><failure message="assert 'hors polygone' in &quot;HARDWARE_CONTROL n'est pas 'true'&quot;">hardware_enabled = None
+
+    def test_geofence_rejects_outside_polygon(hardware_enabled):
+        gf = geo.Geofence(
+            project_id="p1",
+            polygon=[(48.0, 2.0), (48.1, 2.0), (48.1, 2.1), (48.0, 2.1)],
+        )
+        # Position at (40, 0) is far outside the polygon
+        result = geo.validate_command_geofence({"p5": 40.0, "p6": 0.0}, gf)
+        assert result["inside_geofence"] is False
+&gt;       assert "hors polygone" in result["reason"]
+E       assert 'hors polygone' in "HARDWARE_CONTROL n'est pas 'true'"
+
+tests/test_hardware_phases.py:474: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_geofence_accepts_inside_polygon" time="0.001"><failure message="assert False is True">hardware_enabled = None
+
+    def test_geofence_accepts_inside_polygon(hardware_enabled):
+        gf = geo.Geofence(
+            project_id="p1",
+            polygon=[(48.0, 2.0), (48.1, 2.0), (48.1, 2.1), (48.0, 2.1)],
+        )
+        result = geo.validate_command_geofence({"p5": 48.05, "p6": 2.05}, gf)
+&gt;       assert result["inside_geofence"] is True
+E       assert False is True
+
+tests/test_hardware_phases.py:483: AssertionError</failure></testcase><testcase classname="tests.test_hardware_phases" name="test_geofence_rejects_when_hardware_disabled" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_geofence_storage_roundtrip" time="0.000" /><testcase classname="tests.test_hardware_phases" name="test_geofence_primitives_reject_empty_project_or_owner" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_geofence_cache_isolated_by_owner" time="0.003" /><testcase classname="tests.test_hardware_phases" name="test_emergency_landing_requires_target_before_pool_access" time="0.000" /><testcase classname="tests.test_hardware_phases" name="test_hardware_gate_starts_with_all_conditions_false" time="0.197" /><testcase classname="tests.test_hardware_phases" name="test_g0_g5_database_error_fails_closed_in_every_environment[development]" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_g0_g5_database_error_fails_closed_in_every_environment[staging]" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_g0_g5_database_error_fails_closed_in_every_environment[production]" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_n3_hardware_gate_tracks_disarm_and_rearm" time="0.243" /><testcase classname="tests.test_hardware_phases" name="test_hardware_review_requires_virtual_n3_armed" time="0.200" /><testcase classname="tests.test_hardware_phases" name="test_hardware_review_full_flow" time="0.216" /><testcase classname="tests.test_hardware_phases" name="test_hardware_review_rejects_unauthenticated_reviewer" time="0.183" /><testcase classname="tests.test_hardware_phases" name="test_hardware_review_rejects_reviewer_equals_operator" time="0.190" /><testcase classname="tests.test_hardware_phases" name="test_hardware_review_rejects_reviewer_missing_approver_role" time="0.181" /><testcase classname="tests.test_hardware_phases" name="test_hardware_review_rejects_reviewer_wrong_project" time="0.184" /><testcase classname="tests.test_hardware_phases" name="test_hardware_review_rejects_expired_reviewer_session" time="0.192" /><testcase classname="tests.test_hardware_phases" name="test_issue_token_requires_all_conditions" time="0.194" /><testcase classname="tests.test_hardware_phases" name="test_issue_and_consume_token" time="0.279" /><testcase classname="tests.test_hardware_phases" name="test_token_signature_tampering_rejected" time="0.239" /><testcase classname="tests.test_hardware_phases" name="test_token_wrong_command_rejected" time="0.233" /><testcase classname="tests.test_hardware_phases" name="test_consume_invalid_token_raises" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_capabilities_separate_sitl_support_from_active_state" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_virtual_only_mode_overrides_hardware_control" time="0.000" /><testcase classname="tests.test_hardware_phases" name="test_ops_control_rejects_hardware_mode_when_virtual_only" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_ops_health_and_capabilities_are_virtual_only_honest" time="0.002" /><testcase classname="tests.test_hardware_phases" name="test_ops_health_reports_real_db_failure_and_redacts_internal_llm" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_virtual_only_rejects_sitl_transition_and_autostart" time="0.001" /><testcase classname="tests.test_hardware_phases" name="test_preflight_mavlink_check_does_not_poll_in_virtual_only" time="0.000" /><testcase classname="tests.test_i18n.I18nTests" name="test_accept_language_priority_and_fallback" time="0.001" /><testcase classname="tests.test_i18n.I18nTests" name="test_catalogues_are_symmetric" time="0.001" /><testcase classname="tests.test_i18n.I18nTests" name="test_technical_codes_are_not_translated" time="0.000" /><testcase classname="tests.test_institutional_gates" name="test_simulation_stays_available_before_gate_05" time="0.084" /><testcase classname="tests.test_institutional_gates" name="test_gate_roles_are_explicit_and_sequential" time="0.077" /><testcase classname="tests.test_institutional_gates" name="test_full_transmission_and_super_admin_decision_never_authorizes_hardware" time="0.088" /><testcase classname="tests.test_institutional_gates" name="test_gate_05_is_not_delegable_to_generic_approver" time="0.088" /><testcase classname="tests.test_institutional_gates" name="test_cumulative_levels_control_gates_and_super_admin_keeps_gate_05" time="0.086" /><testcase classname="tests.test_labbench_api.LabBenchApiTest" name="test_public_status_and_synthetic_simulation_contract" time="0.059" /><testcase classname="tests.test_labbench_api.LabBenchApiTest" name="test_registry_and_archived_run_are_authenticated_owner_scoped" time="0.147" /><testcase classname="tests.test_labbench_api.LabBenchApiTest" name="test_virtual_command_requires_both_confirmations_and_refuses_physical_or_out_of_range_requests" time="0.063" /><testcase classname="tests.test_labbench_fleet" name="test_per_drone_gate_state_starts_all_open" time="0.085" /><testcase classname="tests.test_labbench_fleet" name="test_per_drone_gate_state_independent_per_drone" time="0.114" /><testcase classname="tests.test_labbench_fleet" name="test_disarm_drone_resets_only_that_drone" time="0.133" /><testcase classname="tests.test_labbench_fleet" name="test_fleet_gate_state_aggregates_per_drone_states" time="0.107" /><testcase classname="tests.test_labbench_fleet" name="test_fleet_simulation_caps_at_max_fleet_size" time="0.075" /><testcase classname="tests.test_labbench_fleet" name="test_fleet_simulation_rejects_unknown_drone_id" time="0.080" /><testcase classname="tests.test_labbench_fleet" name="test_fleet_simulation_rejects_physical_output_payload" time="0.076" /><testcase classname="tests.test_labbench_fleet" name="test_arm_drone_requires_n3_ready" time="0.085" /><testcase classname="tests.test_labbench_fleet" name="test_arm_drone_requires_double_confirmation" time="0.076" /><testcase classname="tests.test_labbench_fleet" name="test_arm_drone_requires_second_operator_code" time="0.074" /><testcase classname="tests.test_labbench_gates" name="test_gate_definitions_are_ordered_and_complete" time="0.000" /><testcase classname="tests.test_labbench_gates" name="test_resolved_gates_all_false_marks_only_n1_open" time="0.000" /><testcase classname="tests.test_labbench_gates" name="test_resolved_gates_registry_only_passes_n1_and_opens_n2" time="0.000" /><testcase classname="tests.test_labbench_gates" name="test_resolved_gates_full_progression_all_passed" time="0.000" /><testcase classname="tests.test_labbench_gates" name="test_resolved_gates_cannot_skip_ahead" time="0.000" /><testcase classname="tests.test_labbench_gates" name="test_zone_progress_aggregates_per_zone" time="0.000" /><testcase classname="tests.test_labbench_gates" name="test_new_gate_state_has_safe_defaults" time="0.000" /><testcase classname="tests.test_labbench_gates" name="test_zone_progress_has_stable_order" time="0.000" /><testcase classname="tests.test_labbench_reception" name="test_T01_no_stepup_access_denied" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:178: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T02_no_project_ownership_403" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:202: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T03_drone_select_persists_revision" time="0.001"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:248: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T04_sketch_save_creates_revision" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:306: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T05_concurrent_drone_edit_conflict" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:361: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T06_backend_unavailable_offline_mode" time="0.001" /><testcase classname="tests.test_labbench_reception" name="test_T07_synthetic_samples_labeled" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:438: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T08_mavlink_pool_requires_ownership" time="0.001" /><testcase classname="tests.test_labbench_reception" name="test_T09_cross_tenant_drone_access_denied" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:523: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T10_reviewer_must_differ_from_actor" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:552: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T10_signature_reviewer_required" time="0.002" /><testcase classname="tests.test_labbench_reception" name="test_T11_hardware_token_validation_logic" time="0.003" /><testcase classname="tests.test_labbench_reception" name="test_T12_geofence_fail_closed" time="0.001" /><testcase classname="tests.test_labbench_reception" name="test_T13_mission_upload_without_ack_fails" time="0.001" /><testcase classname="tests.test_labbench_reception" name="test_T13b_software_only_upload_is_rejected_without_mutating_mission" time="0.225" /><testcase classname="tests.test_labbench_reception" name="test_T14_anonymous_workspace_isolation" time="0.000" /><testcase classname="tests.test_labbench_reception" name="test_T14b_anonymous_workspace_isolation_via_api" time="0.019" /><testcase classname="tests.test_labbench_reception" name="test_T15_telemetry_without_session_denied" time="0.009"><failure message="AssertionError: Expected 401 without session, got 403&#10;assert 403 == 401&#10; +  where 403 = &lt;Response [403 Forbidden]&gt;.status_code">def test_T15_telemetry_without_session_denied():
+        """SEC-07 fix — GET /api/telemetry/mavlink/status without a session returns 401."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from web.mavlink_telemetry_api import router as telemetry_router
+    
+        app = FastAPI()
+        app.include_router(telemetry_router)
+        client = TestClient(app)
+        # No X-Lab-Session header
+        r = client.get("/api/telemetry/mavlink/status")
+&gt;       assert r.status_code == 401, f"Expected 401 without session, got {r.status_code}"
+E       AssertionError: Expected 401 without session, got 403
+E       assert 403 == 401
+E        +  where 403 = &lt;Response [403 Forbidden]&gt;.status_code
+
+tests/test_labbench_reception.py:932: AssertionError</failure></testcase><testcase classname="tests.test_labbench_reception" name="test_T16_gate_validation_blocks_hardware" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:941: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T17_csrf_protection_required" time="0.001" /><testcase classname="tests.test_labbench_reception" name="test_T18_audit_log_decision_recorded" time="0.000"><skipped type="pytest.skip" message="Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.">/home/ubuntu/aeromind/tests/test_labbench_reception.py:1030: Requires PostgreSQL (canonical schema with foreign keys). Run with DATABASE_URL=postgresql://... to enable.</skipped></testcase><testcase classname="tests.test_labbench_reception" name="test_T18_audit_decision_signature" time="0.001" /><testcase classname="tests.test_lot_c_canonical_sync" name="test_R13_library_select_drone_creates_canonical_revision" time="0.209" /><testcase classname="tests.test_lot_c_canonical_sync" name="test_R14_drawing_creates_new_revision_v1_immutable" time="0.202" /><testcase classname="tests.test_lot_c_canonical_sync" name="test_R15_labbench_loads_active_revision_exact" time="0.199" /><testcase classname="tests.test_lot_c_canonical_sync" name="test_R16_trial_measurements_persisted_and_verifiable" time="0.207" /><testcase classname="tests.test_lot_c_canonical_sync" name="test_R17_history_recovered_after_restart" time="0.207" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R03_totp_correct_code_accepted" time="0.001" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R03_totp_incorrect_code_rejected" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R03_totp_replay_rejected" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R03_totp_window_accepts_recent_counters" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_labbench_role_mapping_is_derived_from_account_role_and_level[user-L1-expected0]" time="0.001" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_labbench_role_mapping_is_derived_from_account_role_and_level[demo-L2-expected1]" time="0.001" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_labbench_role_mapping_is_derived_from_account_role_and_level[user-L3-expected2]" time="0.001" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_labbench_role_mapping_is_derived_from_account_role_and_level[admin-L1-expected3]" time="0.001" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_labbench_role_mapping_is_derived_from_account_role_and_level[super_admin-L1-expected4]" time="0.001" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_labbench_client_role_request_can_only_downgrade_server_roles" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_labbench_daily_session_window_is_24_hours" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R04_session_persists_across_worker_restart" time="0.194" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R04_session_revoked_propagates_to_db" time="0.195" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R04_session_expired_rejected" time="1.699" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R04_session_idempotency_key_prevents_duplicate" time="0.204" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R04_session_purge_expired_cleans_up" time="1.701" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R03_csrf_missing_header_rejected" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R03_csrf_missing_cookie_rejected" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R03_csrf_mismatch_rejected" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R03_csrf_match_accepted" time="0.000" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R08_session_bound_to_project_cannot_access_other_project" time="0.198" /><testcase classname="tests.test_lot_d_sessions_csrf" name="test_R08_two_users_two_projects_isolated" time="0.204" /><testcase classname="tests.test_material_library" name="test_catalog_has_10_categories" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_has_at_least_30_items" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_motors" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_esc" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_propellers" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_flight_controller" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_gps" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_cameras" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_non_weaponized_payloads" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_safety" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_includes_electrical_arming_hardware_non_weaponized" time="0.000" /><testcase classname="tests.test_material_library" name="test_all_catalog_items_are_non_weaponized" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_serialize_returns_expected_fields" time="0.000" /><testcase classname="tests.test_material_library" name="test_catalog_categories_endpoint_returns_10" time="0.000" /><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_full_success" time="0.001"><failure message="AssertionError: got state=failed, error=HARDWARE_DISABLED&#10;assert 'failed' == 'uploaded'&#10;  &#10;  - uploaded&#10;  + failed">def test_upload_mission_full_success():
+        waypoints = _waypoints(3)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            FakeFrame("MISSION_REQUEST_INT", seq=2),
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_ACCEPTED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+&gt;       assert result.state == "uploaded", f"got state={result.state}, error={result.error}"
+E       AssertionError: got state=failed, error=HARDWARE_DISABLED
+E       assert 'failed' == 'uploaded'
+E         
+E         - uploaded
+E         + failed
+
+tests/test_mavlink_mission_protocol.py:124: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_handles_out_of_order_requests" time="0.001"><failure message="AssertionError: got state=failed, error=HARDWARE_DISABLED&#10;assert 'failed' == 'uploaded'&#10;  &#10;  - uploaded&#10;  + failed">def test_upload_mission_handles_out_of_order_requests():
+        """ArduPilot may request items out of order during retries. Verify the
+        protocol handles this correctly by sending the requested item each time."""
+        waypoints = _waypoints(3)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=2),
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),  # duplicate — ArduPilot retry
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_ACCEPTED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+&gt;       assert result.state == "uploaded", f"got state={result.state}, error={result.error}"
+E       AssertionError: got state=failed, error=HARDWARE_DISABLED
+E       assert 'failed' == 'uploaded'
+E         
+E         - uploaded
+E         + failed
+
+tests/test_mavlink_mission_protocol.py:154: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_handles_legacy_mission_request" time="0.001"><failure message="AssertionError: got state=failed, error=HARDWARE_DISABLED&#10;assert 'failed' == 'uploaded'&#10;  &#10;  - uploaded&#10;  + failed">def test_upload_mission_handles_legacy_mission_request():
+        """Older autopilots (e.g. ArduCopter 3.x) use the legacy MISSION_REQUEST
+        frame instead of MISSION_REQUEST_INT. The protocol must accept both."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST", seq=0),
+            FakeFrame("MISSION_REQUEST", seq=1),
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_ACCEPTED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+&gt;       assert result.state == "uploaded", f"got state={result.state}, error={result.error}"
+E       AssertionError: got state=failed, error=HARDWARE_DISABLED
+E       assert 'failed' == 'uploaded'
+E         
+E         - uploaded
+E         + failed
+
+tests/test_mavlink_mission_protocol.py:171: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_no_ack_returns_failed" time="0.001"><failure message="AssertionError: assert 'ACK_TIMEOUT' in 'HARDWARE_DISABLED'&#10; +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error">def test_upload_mission_no_ack_returns_failed():
+        """Autopilot never sends MISSION_ACK → protocol must time out and fail."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            # no ACK — the protocol must fail
+        ])
+        result = upload_mission(autopilot, waypoints)
+        assert result.state == "failed"
+&gt;       assert "ACK_TIMEOUT" in result.error
+E       AssertionError: assert 'ACK_TIMEOUT' in 'HARDWARE_DISABLED'
+E        +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+
+tests/test_mavlink_mission_protocol.py:189: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_no_requests_returns_failed" time="0.001"><failure message="AssertionError: assert ('PARTIAL_UPLOAD' in 'HARDWARE_DISABLED' or 'ACK_TIMEOUT' in 'HARDWARE_DISABLED')&#10; +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=3, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error&#10;[+1 more line; full report in element text]">def test_upload_mission_no_requests_returns_failed():
+        """Autopilot accepts MISSION_COUNT but never requests items → fail."""
+        waypoints = _waypoints(3)
+        autopilot = FakeAutopilot(frames=[])
+        result = upload_mission(autopilot, waypoints)
+        assert result.state == "failed"
+&gt;       assert "PARTIAL_UPLOAD" in result.error or "ACK_TIMEOUT" in result.error
+E       AssertionError: assert ('PARTIAL_UPLOAD' in 'HARDWARE_DISABLED' or 'ACK_TIMEOUT' in 'HARDWARE_DISABLED')
+E        +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=3, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+E        +  and   'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=3, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+
+tests/test_mavlink_mission_protocol.py:200: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_rejected_ack_returns_failed" time="0.001"><failure message="AssertionError: assert None == 9&#10; +  where None = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).ack_type">def test_upload_mission_rejected_ack_returns_failed():
+        """Autopilot sends MISSION_ACK with type=DENIED → fail with the label."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_DENIED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+        assert result.state == "failed"
+&gt;       assert result.ack_type == MAV_MISSION_DENIED
+E       AssertionError: assert None == 9
+E        +  where None = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).ack_type
+
+tests/test_mavlink_mission_protocol.py:215: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_early_ack_rejected_returns_failed" time="0.001"><failure message="AssertionError: assert None == 5&#10; +  where None = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).ack_type">def test_upload_mission_early_ack_rejected_returns_failed():
+        """Autopilot sends MISSION_ACK immediately with error (e.g. mission
+        rejected because it has too many items)."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_INVALID),
+        ])
+        result = upload_mission(autopilot, waypoints)
+        assert result.state == "failed"
+&gt;       assert result.ack_type == MAV_MISSION_INVALID
+E       AssertionError: assert None == 5
+E        +  where None = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).ack_type
+
+tests/test_mavlink_mission_protocol.py:229: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_no_waypoints_returns_failed" time="0.001"><failure message="AssertionError: assert 'HARDWARE_DISABLED' == 'NO_WAYPOINTS'&#10;  &#10;  - NO_WAYPOINTS&#10;  + HARDWARE_DISABLED">def test_upload_mission_no_waypoints_returns_failed():
+        """Upload with zero waypoints is rejected before any MAVLink call."""
+        autopilot = FakeAutopilot(frames=[])
+        result = upload_mission(autopilot, [])
+        assert result.state == "failed"
+&gt;       assert result.error == "NO_WAYPOINTS"
+E       AssertionError: assert 'HARDWARE_DISABLED' == 'NO_WAYPOINTS'
+E         
+E         - NO_WAYPOINTS
+E         + HARDWARE_DISABLED
+
+tests/test_mavlink_mission_protocol.py:239: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_out_of_range_seq_recorded_as_failure" time="0.001"><failure message="AssertionError: assert 'failed' == 'uploaded'&#10;  &#10;  - uploaded&#10;  + failed">def test_upload_mission_out_of_range_seq_recorded_as_failure():
+        """If the autopilot requests an out-of-range sequence, the protocol
+        records the failure but continues; the eventual ACK determines the
+        final state."""
+        waypoints = _waypoints(2)
+        autopilot = FakeAutopilot(frames=[
+            FakeFrame("MISSION_REQUEST_INT", seq=99),  # out of range
+            FakeFrame("MISSION_REQUEST_INT", seq=0),
+            FakeFrame("MISSION_REQUEST_INT", seq=1),
+            FakeFrame("MISSION_ACK", type=MAV_MISSION_ACCEPTED),
+        ])
+        result = upload_mission(autopilot, waypoints)
+&gt;       assert result.state == "uploaded"
+E       AssertionError: assert 'failed' == 'uploaded'
+E         
+E         - uploaded
+E         + failed
+
+tests/test_mavlink_mission_protocol.py:258: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_hardware_disabled_returns_failed" time="0.001" /><testcase classname="tests.test_mavlink_mission_protocol" name="test_upload_mission_transport_missing_methods_returns_failed" time="0.001"><failure message="AssertionError: assert ('TRANSPORT_INCOMPATIBLE' in 'HARDWARE_DISABLED' or 'MISSION_COUNT_SEND_FAILED' in 'HARDWARE_DISABLED')&#10; +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error&#10;[+1 more line; full report in element text]">def test_upload_mission_transport_missing_methods_returns_failed():
+        """A connection that does not expose mission_count_send is rejected."""
+        class InertConnection:
+            def recv_match(self, **kw):
+                return None
+        waypoints = _waypoints(2)
+        result = upload_mission(InertConnection(), waypoints)
+        assert result.state == "failed"
+&gt;       assert "TRANSPORT_INCOMPATIBLE" in result.error or "MISSION_COUNT_SEND_FAILED" in result.error
+E       AssertionError: assert ('TRANSPORT_INCOMPATIBLE' in 'HARDWARE_DISABLED' or 'MISSION_COUNT_SEND_FAILED' in 'HARDWARE_DISABLED')
+E        +  where 'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+E        +  and   'HARDWARE_DISABLED' = MissionUploadResult(state='failed', error='HARDWARE_DISABLED', ack_type=None, ack_label=None, items_sent=0, items_total=2, protocol='MISSION_COUNT+MISSION_REQUEST_INT+MISSION_ITEM_INT+MISSION_ACK', requests_received=0, failures=[]).error
+
+tests/test_mavlink_mission_protocol.py:285: AssertionError</failure></testcase><testcase classname="tests.test_mavlink_mission_protocol" name="test_waypoint_item_default_values" time="0.001" /><testcase classname="tests.test_mavlink_observer.MavlinkObserverTest" name="test_close_closes_transport" time="0.001" /><testcase classname="tests.test_mavlink_observer.MavlinkObserverTest" name="test_connect_does_not_send_or_require_a_heartbeat" time="0.001" /><testcase classname="tests.test_mavlink_observer.MavlinkObserverTest" name="test_consumes_heartbeat_and_read_only_telemetry" time="0.001" /><testcase classname="tests.test_mavlink_observer.MavlinkObserverTest" name="test_heartbeat_timeout_is_explicit_and_reconnect_is_bounded" time="0.001" /><testcase classname="tests.test_mavlink_observer.MavlinkObserverTest" name="test_invalid_poll_limit_is_rejected" time="0.001" /><testcase classname="tests.test_migrations_sqlite_live" name="test_canonical_migration_applies_on_isolated_sqlite" time="0.039" /><testcase classname="tests.test_migrations_sqlite_live" name="test_canonical_migration_is_idempotent_on_sqlite" time="0.038" /><testcase classname="tests.test_migrations_sqlite_live" name="test_canonical_migration_round_trip_data" time="0.038" /><testcase classname="tests.test_migrations_sqlite_live" name="test_rollback_script_drops_all_canonical_tables" time="0.001" /><testcase classname="tests.test_mission_planner_coordinates" name="test_wgs84_accepts_boundary_and_optional_draft_pair" time="0.000" /><testcase classname="tests.test_mission_planner_coordinates" name="test_wgs84_rejects_invalid_pairs[90.0001-0]" time="0.001" /><testcase classname="tests.test_mission_planner_coordinates" name="test_wgs84_rejects_invalid_pairs[0--180.0001]" time="0.001" /><testcase classname="tests.test_mission_planner_coordinates" name="test_wgs84_rejects_invalid_pairs[nan-0]" time="0.001" /><testcase classname="tests.test_mission_planner_coordinates" name="test_wgs84_rejects_invalid_pairs[0-inf]" time="0.001" /><testcase classname="tests.test_mission_planner_coordinates" name="test_wgs84_rejects_invalid_pairs[None-2]" time="0.001" /><testcase classname="tests.test_mission_planner_coordinates" name="test_wgs84_rejects_invalid_pairs[True-2]" time="0.001" /><testcase classname="tests.test_mission_planner_coordinates" name="test_upload_refuses_commands_without_an_exact_mavlink_mapping" time="0.000" /><testcase classname="tests.test_oidc_entra_integration" name="test_entra_issuer_rejects_multi_tenant_authority" time="0.000" /><testcase classname="tests.test_oidc_entra_integration" name="test_tenant_claim_must_match_configured_tenant" time="0.000" /><testcase classname="tests.test_oidc_entra_integration" name="test_token_client_must_match_when_azp_present" time="0.000" /><testcase classname="tests.test_oidc_entra_integration" name="test_oidc_callback_requires_code_and_state" time="0.007" /><testcase classname="tests.test_oidc_entra_integration" name="test_oidc_callback_provider_error_is_sanitized" time="0.005" /><testcase classname="tests.test_propulsion_model.PropulsionModelTests" name="test_hybrid_draws_battery_and_reports_mode" time="0.001" /><testcase classname="tests.test_propulsion_model.PropulsionModelTests" name="test_input_bounds" time="0.000" /><testcase classname="tests.test_propulsion_model.PropulsionModelTests" name="test_jet_keeps_idle_fuel_flow_and_models_thermal_lag" time="0.000" /><testcase classname="tests.test_propulsion_model.PropulsionModelTests" name="test_piston_consumes_fuel_and_updates_rpm" time="0.001" /><testcase classname="tests.test_restoration_archive" name="test_archive_round_trip_and_checksum" time="0.001" /><testcase classname="tests.test_restoration_archive" name="test_archive_rejects_cross_project_drone_even_if_rechecksummed" time="0.001" /><testcase classname="tests.test_restoration_archive" name="test_archive_rejects_unsupported_version" time="0.001" /><testcase classname="tests.test_simulation_incidents_geofence" name="test_injected_overheat_raises_engine_temperature_and_alert" time="0.000" /><testcase classname="tests.test_simulation_incidents_geofence" name="test_fuel_leak_increases_flow_and_fuel_consumption" time="0.000" /><testcase classname="tests.test_simulation_incidents_geofence" name="test_hybrid_partial_failure_is_only_valid_for_hybrid" time="0.000" /><testcase classname="tests.test_simulation_incidents_geofence" name="test_fuel_starvation_clamps_remaining_mass_and_flow" time="0.000" /><testcase classname="tests.test_simulation_incidents_geofence" name="test_geofence_detects_inside_outside_and_boundary" time="0.000" /><testcase classname="tests.test_simulation_incidents_geofence" name="test_geofence_api_and_propulsion_api_never_enable_hardware" time="0.013" /><testcase classname="tests.test_simulation_incidents_geofence" name="test_invalid_geofence_polygon_is_rejected" time="0.000" /><testcase classname="tests.test_validation_audit.ValidationAuditTest" name="test_audit_api_requires_authentication" time="0.047" /><testcase classname="tests.test_validation_audit.ValidationAuditTest" name="test_malformed_get_input_is_rejected" time="0.042" /><testcase classname="tests.test_validation_audit.ValidationAuditTest" name="test_owner_scope_and_simulation_guard_are_enforced" time="0.072" /><testcase classname="tests.test_validation_audit.ValidationAuditTest" name="test_records_and_reads_project_scoped_event_through_trpc_get" time="0.054" /><testcase classname="tests.test_validation_audit.ValidationAuditTest" name="test_retry_with_same_identifier_is_idempotent" time="0.056" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_activation_and_arming_are_distinct_confirmation_steps" time="0.078" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_all_virtual_service_routes_require_an_authenticated_user" time="0.072" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_bounded_virtual_setpoints_require_command_confirmation" time="0.100" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_emergency_stop_purges_disarms_and_never_auto_resumes" time="0.081" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_geographic_coordinates_are_never_reused_as_virtual_coordinates" time="0.039" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_hardware_is_permanently_closed_even_when_environment_flag_is_set" time="0.047" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_virtual_action_ids_and_revisions_reject_replay_and_stale_races" time="0.071" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_virtual_journal_is_bounded_and_never_crosses_user_sessions" time="0.106" /><testcase classname="tests.test_virtual_control.VirtualControlApiTest" name="test_visitor_account_is_directed_to_the_local_non_recorded_simulation" time="0.076" /><testcase classname="tests.test_voice_commands" name="test_parse_takeoff_fr" time="0.001" /><testcase classname="tests.test_voice_commands" name="test_parse_takeoff_en" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_takeoff_default_altitude" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_land_fr" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_land_en" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_rtl_fr" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_rtl_en" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_arm_fr" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_disarm_fr" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_estop_fr" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_estop_en" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_unrecognized" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_empty" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_none" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_takeoff_decimal" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_takeoff_with_punctuation" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_parse_arm_not_disarm" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_emergency_voice_preview_does_not_claim_motor_cutoff" time="0.000" /><testcase classname="tests.test_voice_commands" name="test_emergency_helper_refuses_missing_target_before_pool_access" time="0.000" /><testcase classname="tests.test_workflow_e2e.WorkflowE2ETest" name="test_demo_prototype_design_simulation_hall_report_replay" time="0.142" /><testcase classname="tests.test_workflow_speed_bounds" name="test_si_speed_contract_covers_500_kmh_as_simulation_input" time="0.001" /><testcase classname="tests.test_workflow_speed_bounds" name="test_si_speed_contract_rejects_values_above_200_mps" time="0.000" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_persists_across_worker_restart" time="0.192" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_get_prefers_canonical_db_over_stale_worker_cache" time="0.193" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_isolation_two_browsers" time="0.198" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_default_key_rejected_by_shape" time="0.000" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_ttl_enforced" time="0.215" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_sliding_ttl_refreshed_on_put" time="0.248" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_update_in_place" time="0.198" /><testcase classname="tests.test_workspace_persistence" name="test_local_workspace_deletes_one_project_and_persists_remaining" time="0.219" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_quota_enforced_in_memory" time="0.193" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_db_unavailable_degrades_gracefully" time="0.188" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_put_returns_503_when_canonical_store_is_unavailable" time="0.193" /><testcase classname="tests.test_workspace_persistence" name="test_workspace_delete_returns_503_when_canonical_store_is_unavailable" time="0.192" /></testsuite></testsuites>

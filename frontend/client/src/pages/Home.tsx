@@ -296,20 +296,25 @@ function SessionControls() {
   const [busy, setBusy] = useState(false);
   const [loginMethod, setLoginMethod] = useState<"entra" | "mfa">("entra");
   const [ssoDrawerOpen, setSsoDrawerOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  const sessionRequestId = useRef(0);
   // P-LOGOUT-1 fix: access the React Query cache so logout can invalidate
   // the trpc.auth.me query. Without this, the stale user record wins at
   // line ~12511 (authenticatedUser = authQuery.data ?? sessionUser) and the
   // session appears to "reject" the logout.
   const queryClient = useQueryClient();
+  const authUtils = trpc.useUtils();
 
   const refresh = async () => {
+    const requestId = ++sessionRequestId.current;
     try {
       const response = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
-      setUser(response.ok ? ((await response.json()) as SessionUser) : null);
+      const nextUser = response.ok ? ((await response.json()) as SessionUser) : null;
+      if (requestId === sessionRequestId.current) setUser(nextUser);
     } catch {
-      setUser(null);
+      if (requestId === sessionRequestId.current) setUser(null);
     } finally {
-      setLoading(false);
+      if (requestId === sessionRequestId.current) setLoading(false);
     }
   };
 
@@ -320,24 +325,30 @@ function SessionControls() {
     return () => window.removeEventListener("aeromind-auth-changed", onSessionChanged);
   }, []);
 
-  const login = () => startLogin();
+  const login = () => { setLogoutError(""); startLogin(); };
   const logout = async () => {
+    sessionRequestId.current += 1;
     setBusy(true);
+    setLogoutError("");
+    let serverConfirmed = false;
     try {
-      await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
+      const response = await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
+      if (!response.ok) throw new Error("Le serveur n’a pas confirmé la révocation de la session.");
+      serverConfirmed = true;
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : "La révocation serveur n’a pas pu être confirmée.");
+    } finally {
       clearSessionToken();
       setUser(null);
-      // P-LOGOUT-1 fix: invalidate the trpc.auth.me cache so the Home page's
-      // authenticatedUser (line ~12511) returns null instead of the stale
-      // user record. This was the root cause of the "rejection" — the cache
-      // held the old user and ?? fell through to it.
-      await queryClient.invalidateQueries({ queryKey: ["auth.me"] });
-      queryClient.setQueryData(["auth.me"], null);
-      // Also clear any other auth-derived queries so the UI fully resets.
+      // Set the actual tRPC procedure cache, not the unrelated ["auth.me"] key.
+      await queryClient.cancelQueries({ queryKey: authUtils.auth.me.queryKey() });
+      authUtils.auth.me.setData(undefined, null);
       await queryClient.invalidateQueries({ queryKey: ["superAdmin"] });
-      window.dispatchEvent(new Event("aeromind-auth-changed"));
-    } finally {
       setBusy(false);
+      window.dispatchEvent(new Event("aeromind-auth-logout"));
+      // Do not broadcast a refresh after an unconfirmed server logout: that
+      // could immediately repopulate the UI from a still-valid HttpOnly cookie.
+      if (serverConfirmed) window.dispatchEvent(new Event("aeromind-auth-changed"));
     }
   };
 
@@ -346,6 +357,7 @@ function SessionControls() {
     return (
       <div className="session-controls">
         <div className="session-copy"><strong>Session fermée</strong><small>{window.__MANUS_CONFIG__?.externalOidcEnabled ? "Un compte Microsoft Entra autorisé est requis." : "Connexion indisponible · SSO Microsoft Entra non configuré."}</small></div>
+        {logoutError && <p role="alert" className="session-error">Interface fermée localement; révocation serveur non confirmée. {logoutError} Réessayez lorsque le serveur est disponible.</p>}
         <div className="session-login-tabs" role="tablist" aria-label="Méthode de connexion AeroMind">
           <button type="button" role="tab" aria-selected={loginMethod === "entra"} className={loginMethod === "entra" ? "is-active" : ""} onClick={() => setLoginMethod("entra")}><LogIn size={13}/> Microsoft Entra</button>
           <button type="button" role="tab" aria-selected={loginMethod === "mfa"} className={loginMethod === "mfa" ? "is-active" : ""} onClick={() => setLoginMethod("mfa")}><ShieldCheck size={13}/> Connexion MFA</button>
@@ -765,33 +777,6 @@ const normalizeConcept = (config: ConceptConfig): ConceptConfig => ({
   motorCount: config.motorCount,
   designName: config.designName ?? "Projet vierge — saisie humaine requise",
 });
-const demoProjectId = "project-aeromind-inspection-demo";
-const demoProject: ProjectRecord = {
-  id: demoProjectId,
-  project: {
-    ...defaultProject,
-    name: "Inspection ligne électrique · démonstration",
-    mission: DEFAULT_MISSION_BRIEF,
-    status: "Scénario local prêt",
-    owner: "AeroMind IA · local",
-    lastUpdated: "Initialisé automatiquement",
-  },
-  requirements: defaultRequirements.map(item => ({
-    ...item,
-    visible: true,
-    pinned: item.id === "endurance" || item.id === "payload",
-    approved: item.status === "ok",
-  })),
-  config: normalizeConcept({
-    ...defaultConcept,
-    missionBrief: DEFAULT_MISSION_BRIEF,
-    aeronauticalRole: "observation",
-    integratedEquipmentIds: ["eo-gimbal", "rtk", "parachute"],
-    flightControls: { ...defaultFlightControls },
-    missionPlan: { ...emptyLocalMissionPlan },
-  }),
-  runId: "SIM-000",
-};
 const emptyWorkspace: PersistedState = {
   id: "workspace-empty",
   project: emptyProject,
@@ -13127,18 +13112,27 @@ export default function Home() {
   const [cellIntegratedThisSession, setCellIntegratedThisSession] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    let logoutVersion = 0;
     const verifySession = async () => {
+      const requestVersion = logoutVersion;
       try {
         const response = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
-        if (!cancelled) setSessionUser(response.ok ? (await response.json() as SessionUser) : null);
+        const nextUser = response.ok ? (await response.json() as SessionUser) : null;
+        if (!cancelled && requestVersion === logoutVersion) setSessionUser(nextUser);
       } catch {
-        if (!cancelled) setSessionUser(null);
+        if (!cancelled && requestVersion === logoutVersion) setSessionUser(null);
       }
     };
     void verifySession();
     const onSessionChanged = () => void verifySession();
+    const onSessionLogout = () => { logoutVersion += 1; setSessionUser(null); };
     window.addEventListener("aeromind-auth-changed", onSessionChanged);
-    return () => { cancelled = true; window.removeEventListener("aeromind-auth-changed", onSessionChanged); };
+    window.addEventListener("aeromind-auth-logout", onSessionLogout);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("aeromind-auth-changed", onSessionChanged);
+      window.removeEventListener("aeromind-auth-logout", onSessionLogout);
+    };
   }, []);
   const authQuery = trpc.auth.me.useQuery(undefined, { retry: false });
   const authenticatedUser = authQuery.data ?? sessionUser;

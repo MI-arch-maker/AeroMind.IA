@@ -18,17 +18,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     AEROMIND_ENV=production \
     AEROMIND_VIRTUAL_ONLY=true \
-    HARDWARE_CONTROL=false \
-    AEROMIND_SITL_AUTOSTART=false \
-    PORT=3000 \
-    PIP_NO_CACHE_DIR=1 \
+    HARDWARE_CONTROL=false 
+    AEROMIND_SITL_AUTOSTART=false 
+    AEROMIND_CAD_STORAGE_DIR=/app/data/cad 
+    PORT=3000 
+    PIP_NO_CACHE_DIR=1 
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
 
 # Utilisateur non-root pour Render.
 RUN addgroup --system aeromind && adduser --system --ingroup aeromind aeromind
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends clamav \
+RUN apt-get update 
+  && apt-get install -y --no-install-recommends clamav libgl1 libglu1-mesa libgomp1 libxrender1 libxext6 
   && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
@@ -37,12 +38,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY web ./web
 COPY sitl_modules ./sitl_modules
 COPY scripts ./scripts
+COPY fixtures/cad ./fixtures/cad
 COPY main.py ./
 COPY .env.example ./.env.example
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
 # Dossiers runtime + permissions.
-RUN mkdir -p data/engineering_files logs && chown -R aeromind:aeromind /app
+RUN mkdir -p data/engineering_files data/cad logs && chown -R aeromind:aeromind /app
 USER aeromind
 EXPOSE 3000
 

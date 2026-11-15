@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="7" failures="0" skipped="0" tests="7" time="3.670" timestamp="2026-11-15T14:03:54.089789+00:00" hostname="d895d8305aa0"><testcase classname="" name="tests.test_command_center" time="0.000"><error message="collection failure">tests/test_command_center.py:14: in &lt;module&gt;
+    from web.app import app
+web/app.py:220: in &lt;module&gt;
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error</error></testcase><testcase classname="" name="tests.test_frontend_cache_headers" time="0.000"><error message="collection failure">tests/test_frontend_cache_headers.py:7: in &lt;module&gt;
+    from web import app as web_app
+web/app.py:220: in &lt;module&gt;
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error</error></testcase><testcase classname="" name="tests.test_labbench_api" time="0.000"><error message="collection failure">tests/test_labbench_api.py:15: in &lt;module&gt;
+    from web.app import app
+web/app.py:220: in &lt;module&gt;
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error</error></testcase><testcase classname="" name="tests.test_validation_audit" time="0.000"><error message="collection failure">tests/test_validation_audit.py:12: in &lt;module&gt;
+    from web.app import app
+web/app.py:220: in &lt;module&gt;
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error</error></testcase><testcase classname="" name="tests.test_virtual_control" time="0.000"><error message="collection failure">tests/test_virtual_control.py:12: in &lt;module&gt;
+    from web.app import app
+web/app.py:220: in &lt;module&gt;
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error</error></testcase><testcase classname="" name="tests.test_workflow_e2e" time="0.000"><error message="collection failure">tests/test_workflow_e2e.py:14: in &lt;module&gt;
+    from web.app import app
+web/app.py:220: in &lt;module&gt;
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error</error></testcase><testcase classname="" name="tests.test_workspace_persistence" time="0.000"><error message="collection failure">tests/test_workspace_persistence.py:29: in &lt;module&gt;
+    import web.app as app_mod
+web/app.py:220: in &lt;module&gt;
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error</error></testcase></testsuite></testsuites>

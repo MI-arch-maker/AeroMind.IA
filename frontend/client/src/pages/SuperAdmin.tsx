@@ -54,6 +54,7 @@ export default function SuperAdmin() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [refreshingAll, setRefreshingAll] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const sessionRequestId = useRef(0);
   const utils = trpc.useUtils();
 
   const roleLabel: Record<string, string> = {
@@ -81,13 +82,20 @@ export default function SuperAdmin() {
   ];
 
   const refreshSession = async () => {
+    const requestId = ++sessionRequestId.current;
     setAuthLoading(true);
     try {
       const response = await fetch("/api/auth/oidc/me", { credentials: "include", headers: bearerHeaders() });
       const authenticatedUser = response.ok ? (await response.json() as AuthUser) : null;
-      setUser(authenticatedUser);
-      if (authenticatedUser) setSleeping(false);
-    } catch { setUser(null); } finally { setAuthLoading(false); }
+      if (requestId === sessionRequestId.current) {
+        setUser(authenticatedUser);
+        if (authenticatedUser) setSleeping(false);
+      }
+    } catch {
+      if (requestId === sessionRequestId.current) setUser(null);
+    } finally {
+      if (requestId === sessionRequestId.current) setAuthLoading(false);
+    }
   };
   useEffect(() => {
     void refreshSession();
@@ -303,43 +311,61 @@ export default function SuperAdmin() {
   });
 
   const logout = async () => {
+    sessionRequestId.current += 1;
     setLogoutBusy(true);
+    let serverConfirmed = false;
+    let failure = "";
     try {
       const response = await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
       if (!response.ok) throw new Error(t("Le serveur n’a pas confirmé la révocation de la session."));
+      serverConfirmed = true;
+    } catch (error) {
+      failure = error instanceof Error ? error.message : t("Échec de fermeture de la session.");
+    } finally {
       clearSessionToken();
       setUser(null);
+      setAuthLoading(false);
       setMechanicalProjectId("");
       setQualificationLevel("all");
       setActiveSection("overview");
       setPendingRegs([]);
       await utils.reset();
-      // P-LOGOUT-2 fix: dispatch the auth-changed event so other mounted
-      // tabs/components (e.g. an open Home tab) refresh their session state.
-      window.dispatchEvent(new Event("aeromind-auth-changed"));
-      toast.success(t("Session fermée"));
-    } catch (error) {
-      toast.error(t("Déconnexion impossible"), { description: error instanceof Error ? error.message : t("Échec de fermeture de la session.") });
-    } finally { setLogoutBusy(false); }
+      utils.auth.me.setData(undefined, null);
+      window.dispatchEvent(new Event("aeromind-auth-logout"));
+      if (serverConfirmed) window.dispatchEvent(new Event("aeromind-auth-changed"));
+      setLogoutBusy(false);
+    }
+    if (failure) toast.error(t("Session fermée dans cette interface; révocation serveur non confirmée"), { description: failure });
+    else toast.success(t("Session fermée"));
   };
   const sleepConsole = async () => {
+    sessionRequestId.current += 1;
     setLogoutBusy(true);
+    let serverConfirmed = false;
+    let failure = "";
     try {
       const response = await fetch("/api/auth/oidc/logout", { method: "POST", credentials: "include", headers: bearerHeaders() });
       if (!response.ok) throw new Error("Le serveur n’a pas confirmé la révocation de la session.");
+      serverConfirmed = true;
+    } catch (error) {
+      failure = error instanceof Error ? error.message : "Échec de fermeture de la session.";
+    } finally {
       clearSessionToken();
       setUser(null);
+      setAuthLoading(false);
       setMechanicalProjectId("");
       setQualificationLevel("all");
       setActiveSection("overview");
       setPendingRegs([]);
       await utils.reset();
-      window.dispatchEvent(new Event("aeromind-auth-changed"));
+      utils.auth.me.setData(undefined, null);
+      window.dispatchEvent(new Event("aeromind-auth-logout"));
+      if (serverConfirmed) window.dispatchEvent(new Event("aeromind-auth-changed"));
       setSleeping(true);
-      toast.info(t("Console en veille sécurisée"), { description: t("La session a été révoquée. Une reconnexion explicite est requise pour reprendre.") });
-    } catch (error) {
-      toast.error(t("Mise en veille impossible"), { description: error instanceof Error ? error.message : "Échec de fermeture de la session." });
-    } finally { setLogoutBusy(false); }
+      setLogoutBusy(false);
+    }
+    if (failure) toast.error(t("Console mise en veille localement; révocation serveur non confirmée"), { description: failure });
+    else toast.info(t("Console en veille sécurisée"), { description: t("La session a été révoquée. Une reconnexion explicite est requise pour reprendre.") });
   };
   const issueLocalInvite = async () => {
     if (!window.confirm(t("Cette action révoquera les identifiants locaux actuels, le cas échéant, et émettra une nouvelle invitation. L'accès Entra reste inchangé. Continuer ?"))) return;

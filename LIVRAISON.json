@@ -1,0 +1,7 @@
+{
+  "commit": "695bd55ef91212fcee71f067c9b2ca92746da7da",
+  "publication": false,
+  "scope": "Sprint 1 software integration; not full industrial/metrological certification",
+  "excluded": "runtime data, secrets, dependencies, compiled bundles",
+  "source_files": 938
+}

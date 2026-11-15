@@ -182,6 +182,11 @@ def logout(
         from .primary_session_store import revoke_primary_session
         revoke_primary_session(admin_session)
     response.delete_cookie("aeromind_admin_session", path="/api/admin-console")
+    # Also remove a legacy root-scoped cookie with the same name. Cookies are
+    # scoped by both name and path, so expiring only the current path can leave
+    # an older console session available to the browser on the next visit.
+    response.delete_cookie("aeromind_admin_session", path="/")
+    response.headers["Cache-Control"] = "no-store"
     return {"logged_out": True}
 
 

@@ -1,0 +1,26 @@
+{
+  "engine": "Chromium headless / ANGLE SwiftShader; software WebGL2",
+  "url": "http://127.0.0.1:3000/?view=aero-cfd",
+  "checks": [
+    "No demonstration banner or fabricated aerodynamic result",
+    "All initial aerodynamic numeric inputs empty",
+    "Supplied OBJ decoded and rendered by an actual WebGL 2 context",
+    "Settings unit change updates imported dimensions and their provenance",
+    "All twelve supported material/projection presets selectable",
+    "Orbit and wheel zoom execute without JavaScript error",
+    "Automatic recovery after forced GPU context loss",
+    "Eight viewport remounts without context-budget exhaustion",
+    "Viewport remains valid after resize to 1024 pixels",
+    "Injected partial initialization failure cleaned up; retry renders without a leaked slot",
+    "Explicit unavailable-WebGL2 error and retry; no false 2D fallback"
+  ],
+  "geometry": "01-aile-delta-noire.obj",
+  "webgl": {
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "WebKit WebGL",
+    "frames": 4,
+    "lost": false
+  },
+  "pageErrors": [],
+  "shaderErrors": []
+}

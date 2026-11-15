@@ -1,0 +1,135 @@
+/home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:306: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session". Set it to "fixture-scope" to keep the current behavior.
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+
+==================================== ERRORS ====================================
+________________ ERROR collecting tests/test_command_center.py _________________
+tests/test_command_center.py:14: in <module>
+    from web.app import app
+web/app.py:220: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error
+____________ ERROR collecting tests/test_frontend_cache_headers.py _____________
+tests/test_frontend_cache_headers.py:7: in <module>
+    from web import app as web_app
+web/app.py:220: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error
+_________________ ERROR collecting tests/test_labbench_api.py __________________
+tests/test_labbench_api.py:15: in <module>
+    from web.app import app
+web/app.py:220: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error
+_______________ ERROR collecting tests/test_validation_audit.py ________________
+tests/test_validation_audit.py:12: in <module>
+    from web.app import app
+web/app.py:220: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error
+________________ ERROR collecting tests/test_virtual_control.py ________________
+tests/test_virtual_control.py:12: in <module>
+    from web.app import app
+web/app.py:220: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error
+_________________ ERROR collecting tests/test_workflow_e2e.py __________________
+tests/test_workflow_e2e.py:14: in <module>
+    from web.app import app
+web/app.py:220: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error
+_____________ ERROR collecting tests/test_workspace_persistence.py _____________
+tests/test_workspace_persistence.py:29: in <module>
+    import web.app as app_mod
+web/app.py:220: in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+web/config.py:204: in get_settings
+    return Settings()
+           ^^^^^^^^^^
+../../aeromind/.venv/lib/python3.12/site-packages/pydantic_settings/main.py:193: in __init__
+    super().__init__(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+E   AEROMIND_ENV
+E     Input should be 'development', 'staging' or 'production' [type=literal_error, input_value='test', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/literal_error
+=============================== warnings summary ===============================
+../../aeromind/.venv/lib/python3.12/site-packages/starlette/testclient.py:45
+  /home/ubuntu/aeromind/.venv/lib/python3.12/site-packages/starlette/testclient.py:45: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+web/canonical_models.py:138
+  /home/ubuntu/aeromind-work/Aeromind.IA/web/canonical_models.py:138: PytestCollectionWarning: cannot collect test class 'TestRun' because it has a __init__ constructor (from: tests/test_e2e_reception_flow.py)
+    class TestRun(Base):
+
+web/canonical_models.py:138
+  /home/ubuntu/aeromind-work/Aeromind.IA/web/canonical_models.py:138: PytestCollectionWarning: cannot collect test class 'TestRun' because it has a __init__ constructor (from: tests/test_lot_c_canonical_sync.py)
+    class TestRun(Base):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/test_command_center.py - pydantic_core._pydantic_core.ValidationE...
+ERROR tests/test_frontend_cache_headers.py - pydantic_core._pydantic_core.Val...
+ERROR tests/test_labbench_api.py - pydantic_core._pydantic_core.ValidationErr...
+ERROR tests/test_validation_audit.py - pydantic_core._pydantic_core.Validatio...
+ERROR tests/test_virtual_control.py - pydantic_core._pydantic_core.Validation...
+ERROR tests/test_workflow_e2e.py - pydantic_core._pydantic_core.ValidationErr...
+ERROR tests/test_workspace_persistence.py - pydantic_core._pydantic_core.Vali...
+!!!!!!!!!!!!!!!!!!! Interrupted: 7 errors during collection !!!!!!!!!!!!!!!!!!!!
+3 warnings, 7 errors in 3.66s

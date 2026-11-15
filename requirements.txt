@@ -18,3 +18,6 @@ structlog==24.4.0
 slowapi==0.1.9
 prometheus-fastapi-instrumentator==7.0.0
 pyserial==3.5  # required by pymavlink for SITL UDP observer
+# Sprint 1 — native OCCT B-Rep / STEP AP242 kernel (ARM64 and x86_64 wheels).
+cadquery==2.8.0
+cadquery-ocp==7.9.3.1.1

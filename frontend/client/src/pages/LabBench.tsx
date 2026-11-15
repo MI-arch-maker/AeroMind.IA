@@ -1,5 +1,4 @@
 import { trpc } from "@/lib/trpc";
-import { useQueryClient } from "@tanstack/react-query";
 import { LabBenchPersistencePanel } from "@/components/LabBenchPersistencePanel";
 import { LabBenchHardwareConfig } from "@/components/LabBenchHardwareConfig";
 import { HardwareControlPanel } from "@/components/HardwareControlPanel";
@@ -288,7 +287,7 @@ export default function LabBench({
   userIntegratedThisSession = false,
 }: LabBenchIntegratedProps = {}) {
   const { tKey } = useLanguage();
-  const queryClient = useQueryClient();
+  const authUtils = trpc.useUtils();
   const [view, setView] = useState<ViewId>("overview");
   const [mode, setMode] = useState<ModeId>("simulation");
   const [scenario, setScenario] = useState(readLabBenchScenario);
@@ -378,6 +377,7 @@ export default function LabBench({
   const logoutEnterpriseSession = async () => {
     setEnterpriseLogoutBusy(true);
     setEnterpriseLogoutError(null);
+    let serverConfirmed = false;
     try {
       const response = await fetch("/api/auth/oidc/logout", {
         method: "POST",
@@ -385,16 +385,22 @@ export default function LabBench({
         headers: bearerHeaders(),
       });
       if (!response.ok) throw new Error(`Déconnexion refusée (${response.status})`);
+      serverConfirmed = true;
+    } catch (error) {
+      setEnterpriseLogoutError(`Interface fermée localement; révocation serveur non confirmée. ${error instanceof Error ? error.message : "Réessayez lorsque le serveur est disponible."}`);
+    } finally {
       clearSessionToken();
       setLabSessionInfo(null);
       setLabMfaCode("");
       setActiveDroneSync(null);
-      queryClient.setQueryData(["auth.me"], null);
-      await queryClient.invalidateQueries({ queryKey: ["auth.me"] });
-      window.dispatchEvent(new Event("aeromind-auth-changed"));
-    } catch {
-      setEnterpriseLogoutError("La déconnexion n’a pas abouti. Vérifiez la liaison puis réessayez.");
-    } finally {
+      await authUtils.auth.me.cancel();
+      authUtils.auth.me.setData(undefined, null);
+      window.dispatchEvent(new Event("aeromind-auth-logout"));
+      if (serverConfirmed) {
+        setEnterpriseLogoutError(null);
+        await authUtils.auth.me.invalidate();
+        window.dispatchEvent(new Event("aeromind-auth-changed"));
+      }
       setEnterpriseLogoutBusy(false);
     }
   };

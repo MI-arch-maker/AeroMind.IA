@@ -1,6 +1,5 @@
 import {
   calculateFixedWingAerodynamics,
-  standardAtmospherePressurePa,
   type FixedWingResult,
 } from "./fixedWingAerodynamics";
 
@@ -13,7 +12,7 @@ export type AerodynamicParameters = {
   altitudeM: number;
   temperatureC: number;
   pressurePa: number;
-  pressureMode: "isa" | "manual";
+  pressureMode: "" | "isa" | "manual";
   massKg: number;
   wingspanM: number;
   chordM: number;
@@ -24,12 +23,12 @@ export type AerodynamicParameters = {
   oswaldEfficiency: number;
   clMax: number;
   viscosityPaS: number;
-  turbulenceModel: TurbulenceModel;
-  calculationType: CalculationType;
+  turbulenceModel: TurbulenceModel | "";
+  calculationType: CalculationType | "";
   rotorCount: number;
   rotorDiameterM: number;
   meshCellSizeMm: number;
-  meshRefinement: "coarse" | "standard" | "fine";
+  meshRefinement: "" | "coarse" | "standard" | "fine";
   inletBoundary: string;
   outletBoundary: string;
 };
@@ -54,10 +53,11 @@ export type PerformanceEstimate = {
 export type LocalScenario = {
   id: string;
   name: string;
-  airframe: AirframeKind;
+  airframe: AirframeKind | "";
   parameters: AerodynamicParameters;
   createdAt: string;
-  provenance: "local-user-scenario";
+  schemaVersion: 2;
+  provenance: "aeromind-aerodynamics-explicit-user-input";
 };
 
 export type LocalRun = {
@@ -80,57 +80,25 @@ const AIR_GAS_CONSTANT = 287.05287;
 const GRAVITY = 9.80665;
 const finite = (value: number) => Number.isFinite(value);
 
-export function defaultAerodynamicParameters(config: {
-  cruiseSpeedKmh?: number;
-  altitudeM?: number;
-  wingspan?: number;
-  chord?: number;
-  maxTakeoffKg?: number;
-  airframe?: string;
-  motorCount?: number;
-  propDiameter?: number;
-}): { airframe: AirframeKind; parameters: AerodynamicParameters; isDemonstration: boolean } {
-  const speed = Number(config.cruiseSpeedKmh) > 0 ? Number(config.cruiseSpeedKmh) / 3.6 : 22;
-  const span = Number(config.wingspan) > 0 ? Number(config.wingspan) : 2.4;
-  const chord = Number(config.chord) > 0 ? Number(config.chord) : 0.34;
-  const mass = Number(config.maxTakeoffKg) > 0 ? Number(config.maxTakeoffKg) : 8.4;
-  const altitude = Number(config.altitudeM) || 0;
-  const airframe: AirframeKind = config.airframe === "fixed-wing"
-    ? "fixed-wing"
-    : config.airframe === "vtol"
-      ? "vtol"
-      : config.airframe === "quadcopter"
-        ? "multirotor"
-        : "fixed-wing";
-  const isDemonstration = !(Number(config.cruiseSpeedKmh) > 0 && Number(config.wingspan) > 0 && Number(config.chord) > 0 && Number(config.maxTakeoffKg) > 0 && Boolean(config.airframe));
+/** Empty preparation form. A cockpit profile has no verifiable input provenance here.
+ * The argument is retained for API compatibility, but is deliberately never copied.
+ */
+export function defaultAerodynamicParameters(_config: {
+  cruiseSpeedKmh?: number; altitudeM?: number; wingspan?: number; chord?: number;
+  maxTakeoffKg?: number; airframe?: string; motorCount?: number; propDiameter?: number;
+} = {}): { airframe: AirframeKind | ""; parameters: AerodynamicParameters; isDemonstration: false } {
   return {
-    airframe,
-    isDemonstration,
+    airframe: "",
+    isDemonstration: false,
     parameters: {
-      speedMps: speed,
-      flowDirectionDeg: 0,
-      altitudeM: altitude,
-      temperatureC: 15,
-      pressurePa: standardAtmospherePressurePa(altitude) ?? 101325,
-      pressureMode: "isa",
-      massKg: mass,
-      wingspanM: span,
-      chordM: chord,
-      taperRatio: 0.65,
-      angleOfAttackDeg: 3,
-      bankDeg: 0,
-      cd0: 0.04,
-      oswaldEfficiency: 0.8,
-      clMax: 1.2,
-      viscosityPaS: 1.81e-5,
-      turbulenceModel: "k-omega-sst",
-      calculationType: "steady-incompressible",
-      rotorCount: Math.max(1, Math.round(Number(config.motorCount) || 4)),
-      rotorDiameterM: Number(config.propDiameter) > 0 ? Number(config.propDiameter) : 0.36,
-      meshCellSizeMm: 12,
-      meshRefinement: "standard",
-      inletBoundary: "Vitesse uniforme — profil incompressible",
-      outletBoundary: "Pression statique de référence",
+      speedMps: Number.NaN, flowDirectionDeg: Number.NaN, altitudeM: Number.NaN,
+      temperatureC: Number.NaN, pressurePa: Number.NaN, pressureMode: "",
+      massKg: Number.NaN, wingspanM: Number.NaN, chordM: Number.NaN,
+      taperRatio: Number.NaN, angleOfAttackDeg: Number.NaN, bankDeg: Number.NaN,
+      cd0: Number.NaN, oswaldEfficiency: Number.NaN, clMax: Number.NaN,
+      viscosityPaS: Number.NaN, turbulenceModel: "", calculationType: "",
+      rotorCount: Number.NaN, rotorDiameterM: Number.NaN, meshCellSizeMm: Number.NaN,
+      meshRefinement: "", inletBoundary: "", outletBoundary: "",
     },
   };
 }
@@ -283,13 +251,14 @@ export function makeOpenFoamHandoff(input: {
   geometryFileName?: string;
   geometrySha256?: string;
   geometryDecoded?: boolean;
-  airframe: AirframeKind;
+  airframe: AirframeKind | "";
   parameters: AerodynamicParameters;
   preparedAt?: string;
 }) {
   return {
     documentType: "AEROMIND_OPENFOAM_HANDOFF_MANIFEST",
-    schemaVersion: 1,
+    schemaVersion: 2,
+    provenance: "explicit-user-preparation-not-solver-output",
     preparedAt: input.preparedAt ?? new Date().toISOString(),
     state: "PREPARATION_ONLY_SOLVER_NOT_CONNECTED",
     model: { name: input.modelName, version: input.modelVersion },
@@ -300,19 +269,18 @@ export function makeOpenFoamHandoff(input: {
     },
     solver: { expected: "OpenFOAM", executableDetected: false, externalService: null },
     requestedCase: {
-      airframe: input.airframe,
-      altitudeM: input.parameters.altitudeM,
-      pressureMode: input.parameters.pressureMode,
-      calculationType: input.parameters.calculationType,
-      turbulenceModel: input.parameters.turbulenceModel,
-      inlet: input.parameters.inletBoundary,
-      outlet: input.parameters.outletBoundary,
-      speedMps: input.parameters.speedMps,
-      flowDirectionDeg: input.parameters.flowDirectionDeg,
-      temperatureC: input.parameters.temperatureC,
-      pressurePa: input.parameters.pressurePa,
-      densityKgM3: calculateAirDensity(input.parameters.pressurePa, input.parameters.temperatureC),
-      viscosityPaS: input.parameters.viscosityPaS,
+      airframe: input.airframe || null,
+      altitudeM: Number.isFinite(input.parameters.altitudeM) ? input.parameters.altitudeM : null,
+      pressureMode: input.parameters.pressureMode || null,
+      calculationType: input.parameters.calculationType || null,
+      turbulenceModel: input.parameters.turbulenceModel || null,
+      inlet: input.parameters.inletBoundary || null,
+      outlet: input.parameters.outletBoundary || null,
+      speedMps: Number.isFinite(input.parameters.speedMps) ? input.parameters.speedMps : null,
+      flowDirectionDeg: Number.isFinite(input.parameters.flowDirectionDeg) ? input.parameters.flowDirectionDeg : null,
+      temperatureC: Number.isFinite(input.parameters.temperatureC) ? input.parameters.temperatureC : null,
+      pressurePa: Number.isFinite(input.parameters.pressurePa) ? input.parameters.pressurePa : null,
+      viscosityPaS: Number.isFinite(input.parameters.viscosityPaS) ? input.parameters.viscosityPaS : null,
     },
     result: null,
     mesh: null,

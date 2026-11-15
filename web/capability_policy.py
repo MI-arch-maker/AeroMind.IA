@@ -142,6 +142,46 @@ def capability_for(path: str, method: str) -> Capability | None:
             return _cap(1 if method in {"GET", "HEAD"} else 2, "project_lab_session")
         return _cap(1 if method in {"GET", "HEAD"} else 2, "project_read_or_edit")
 
+    if _prefix(path, "/api/cad"):
+        if path in {"/api/cad/capabilities", "/api/cad/materials", "/api/cad/demo", "/api/cad/demo/step"} and method in {"GET", "HEAD"}:
+            return _cap(1, "public_cad_reference", public=True)
+        if path == "/api/cad/demo/section" and method == "POST":
+            return _cap(1, "fixed_cad_reference_section", public=True)
+        if path == "/api/cad/imports" and method == "POST":
+            return _cap(3, "native_cad_import")
+        if _prefix(path, "/api/cad/models"):
+            return _cap(1 if method in {"GET", "HEAD"} else 2, "owner_scoped_cad_model")
+        return _cap(4, "unclassified_cad_route")
+
+    if _prefix(path, "/api/inspection"):
+        if path == "/api/inspection/capabilities" and method in {"GET", "HEAD"}:
+            return _cap(1, "public_inspection_capabilities", public=True)
+        if path == "/api/inspection/volume/import":
+            return _cap(3, "ct_volume_inspection")
+        if path == "/api/inspection/metrology/compare":
+            return _cap(3, "scan_to_cad_metrology")
+        return _cap(4, "unclassified_inspection_route")
+
+    if _prefix(path, "/api/factory"):
+        if path == "/api/factory/capabilities" and method in {"GET", "HEAD"}:
+            return _cap(1, "public_factory_capabilities", public=True)
+        if path == "/api/factory/lidar/import":
+            return _cap(3, "factory_lidar_import")
+        if path == "/api/factory/assembly/simulate":
+            return _cap(3, "factory_assembly_collision_simulation")
+        if path == "/api/factory/export":
+            return _cap(3, "factory_scale_export")
+        return _cap(4, "unclassified_factory_route")
+
+    if _prefix(path, "/api/gcs"):
+        if path == "/api/gcs/capabilities" and method in {"GET", "HEAD"}:
+            return _cap(1, "public_gcs_simulation_capabilities", public=True)
+        if path in {"/api/gcs/state", "/api/gcs/telemetry/ingest"}:
+            return _cap(1 if method in {"GET", "HEAD"} else 2, "gcs_virtual_telemetry")
+        if path in {"/api/gcs/command/validate", "/api/gcs/emergency-stop", "/api/gcs/emergency-stop/reset"}:
+            return _cap(3, "gcs_governance_dry_run")
+        return _cap(4, "unclassified_gcs_route")
+
     if _prefix(path, "/api/engineering"):
         if path.endswith(("/status", "/connectors")) and method in {"GET", "HEAD"}:
             return _cap(1, "engineering_status_or_catalog")

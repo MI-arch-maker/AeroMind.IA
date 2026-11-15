@@ -1,0 +1,11 @@
+# Contrat CAO Sprint 1 — v1
+
+Base API `/api/cad`. GET `/capabilities` public. GET `/demo` public, retourne un assemblage fixe créé par le noyau. POST `/demo/section` public : coupe de cet assemblage fixe, corps `{normal:[nx,ny,nz],offset_mm:number}` ; conserver `dot(normal,p) <= offset_mm`. GET `/demo/step` source STEP AP242.
+
+POST `/imports` multipart champ `file` avec authentification AEROMIND existante, solide STEP ou BREP ; réponse document. GET `/models/{model_id}` et POST `/models/{model_id}/section` isolés par propriétaire. POST `/models/{model_id}/materials` corps `{assignments:{[part_id]:material_id}}`. POST `/models/{model_id}/pmi` corps `{part_id,face_id,kind,nominal_mm,tolerance_um,datum,text}` ; ancrage calculé côté noyau, et persistance liée au SHA de la source. Aucun upload public.
+
+Document JSON : `{model_id,name,source:{format,schema,sha256},units:'mm',kernel,parts,assembly,properties,pmi,warnings,section?}`. `parts`: `{id,name,material_id,properties,faces}`. `properties`: `{volume_mm3,mass_kg:number|null,center_of_gravity_mm:[x,y,z]|null}` ; si matériau inconnu pas de masse inventée. `faces` : `{id,positions:number[],normals:number[],indices:number[],anchor_mm:[x,y,z],surface_type:string,is_section_cap:boolean}` ; tableaux plats XYZ et indices de triangles, coordinates monde mm, orientation sortante. face IDs stables sur source B-Rep non modifiée ; les faces originales conservées par histoire booléenne si disponibles, sinon IDs de section spécifiques et ne pas réancrer silencieusement des PMI.
+
+`assembly`: nœuds `{id,name,parent_id,part_id?,transform?:number[]}` ; géométries déjà monde, ne pas appliquer la transformation une deuxième fois au frontend. `pmi`: `{id,part_id,face_id,anchor_mm:[x,y,z],kind,text,nominal_mm?,tolerance_um?,datum?,source:'xde'|'user'|'demo'}`. `section`: `{normal,offset_mm,elapsed_ms}`. Partie totalement exclue : faces vides, volume 0, centre null.
+
+GET `/materials` retourne `{materials:[{id,name,density_kg_m3,pbr:{color,metalness,roughness},source,calibration_status}]}`. IDs `ti6al4v`, `al7075`, `cfrp`. Densités nominales traçables, aucune certification de lot ni calibration BRDF mesurée. L’API peut ajouter des champs sans rupture, mais ce contrat ne doit pas être changé sans communication aux autres développeurs.

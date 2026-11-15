@@ -1,13 +1,17 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Cable, Check, CircleAlert, ClipboardCheck, Component, Plug, Plus, ShieldCheck, Wrench, X } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
 import { defaultMechanicalCenter, mergeMechanicalCenter, type MechanicalAssemblyConstraint, type MechanicalCenterConfig, type MechanicalCenterPart, type MechanicalCenterTab, type MechanicalFastener, type MechanicalLubricationPoint } from "../lib/mechanicalCenterModel";
 import "./mechanical-center.css";
+import "./solid-cad-workbench.css";
+
+const SolidCadWorkbench = lazy(() => import("./SolidCadWorkbench"));
 
 type Props = { config: ConceptConfig; setConfig: React.Dispatch<React.SetStateAction<ConceptConfig>>; activeDroneLabel: string };
 
 const tabs: Array<{ id: MechanicalCenterTab; label: string; icon: typeof Component }> = [
   { id: "overview", label: "Vue système", icon: ShieldCheck },
+  { id: "solid-cad", label: "CAO volumique / MBD", icon: Component },
   { id: "workshop", label: "Atelier manuel", icon: Component },
   { id: "assembly", label: "Assemblage", icon: Component },
   { id: "parts", label: "Pièces & installation", icon: Component },
@@ -51,8 +55,10 @@ export function MechanicalCenter({ config, setConfig, activeDroneLabel }: Props)
 
   return <section className="mechanical-center" aria-label="Centre Mécanique AeroMind">
     <header className="mc-header"><div><p className="mc-kicker"><Wrench size={13} /> CENTRE MÉCANIQUE / MEC-01</p><h2>Intégration mécanique & interfaces</h2><p className="mc-subtitle">{activeDroneLabel} · structure, installation, filerie, connecteurs et maintenance</p></div><div className="mc-header-status"><span className="mc-live-dot" /> VIRTUAL ONLY <small>Aucune liaison physique</small></div></header>
-    <div className="mc-guard"><ShieldCheck size={15} /><span>Poste documentaire et de simulation : les masses, longueurs, compatibilités et contrôles sont indicatifs jusqu’à rattachement d’une source vérifiée.</span><b>MATÉRIEL DÉSACTIVÉ</b></div>
+    <div className="mc-guard"><ShieldCheck size={15} /><span>Modules documentaires : données indicatives. Atelier CAO volumique / MBD : volumes et COG calculés sur les solides B-Rep du noyau, masses selon densités attribuées. Aucun pilotage matériel ni certification automatique.</span><b>MATÉRIEL DÉSACTIVÉ</b></div>
     <nav className="mc-tabs" aria-label="Modules du Centre Mécanique">{tabs.map(item => { const Icon = item.icon; return <button key={item.id} type="button" className={tab === item.id ? "is-active" : ""} onClick={() => activateTab(item.id)}><Icon size={14} /> {item.label}</button>; })}</nav>
+    {tab === "solid-cad" && <Suspense fallback={<div role="status" className="mc-empty">Chargement de l’atelier CAO native…</div>}><SolidCadWorkbench modelId={model.solidCadModelId} onModelIdChange={id => update({ solidCadModelId: id })} projectLabel={activeDroneLabel} /></Suspense>}
+    {tab === "overview" && <div className="mc-cad-entry"><div><strong>CAO volumique / MBD · STEP AP242</strong><p>Solides B-Rep, coupe pleine matière, masse et barycentre calculés, faces natives et tolérances micrométriques.</p></div><button type="button" onClick={() => activateTab("solid-cad")}>Ouvrir l’atelier natif →</button><a href="/cad-validation">Validation publique ↗</a></div>}
     {tab === "overview" && <div className="mc-overview">
       <div className="mc-hero-card"><div><span className="mc-label">ÉTAT D’INTÉGRATION</span><strong>{reviewCount ? "REVUE REQUISE" : "REVUE PRÊTE"}</strong><p>Un seul dossier relie pièces, interfaces mécaniques, chemins de câbles et opérations de maintenance.</p></div><div className="mc-system-orbit"><i /><i /><i /><span>MEC</span></div></div>
       <div className="mc-stat-grid"><article><span>PIÈCES</span><strong>{model.parts?.length ?? 0}</strong><small>{model.parts?.filter(part => part.installState === "inspected").length ?? 0} inspectée(s)</small></article><article><span>MASSE INSTALLÉE</span><strong>{installedMass.toFixed(2)} kg</strong><small>estimation documentaire</small></article><article><span>FILERIE</span><strong>{model.wires?.length ?? 0}</strong><small>{openWireIssues} point(s) à revoir</small></article><article><span>CONNECTEURS</span><strong>{model.connectors?.length ?? 0}</strong><small>{openConnectorIssues} compatibilité(s) ouverte(s)</small></article></div>

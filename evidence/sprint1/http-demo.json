@@ -1,0 +1,47 @@
+{
+  "status": 200,
+  "source": {
+    "format": "STEP",
+    "schema": "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF {1 0 10303 442 1 1 4 }",
+    "sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa",
+    "immutable": true,
+    "external_references_followed": false,
+    "xde_semantic_objects": 0,
+    "fixture": "aeromind-support-v1",
+    "material_attribution": "fixed demo bill of materials, nominal densities"
+  },
+  "parts": 15,
+  "properties": {
+    "volume_mm3": 177733.3339126524,
+    "mass_kg": 0.5195496872966529,
+    "center_of_gravity_mm": [
+      -8.227044976289778e-15,
+      1.1186313879655725,
+      12.284191236713163
+    ],
+    "center_of_volume_mm": [
+      -5.035311985901214e-15,
+      0.7381446480850374,
+      10.025810823842177
+    ]
+  },
+  "pmi_count": 3,
+  "names": [
+    "Support usiné — lumière et quatre perçages",
+    "Palier annulaire -34",
+    "Semelle percée -34",
+    "Palier annulaire +34",
+    "Semelle percée +34",
+    "Arbre titane creux",
+    "Collier annulaire -53",
+    "Collier annulaire +48",
+    "Boulon titane M8 (-45,-25)",
+    "Boulon titane M8 (-45,+25)",
+    "Boulon titane M8 (+45,-25)",
+    "Boulon titane M8 (+45,+25)",
+    "Plaque composite — quatre perçages",
+    "Entretoise creuse -20",
+    "Entretoise creuse +20"
+  ],
+  "download_sha256_matches_document": true
+}

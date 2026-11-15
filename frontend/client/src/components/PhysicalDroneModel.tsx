@@ -27,6 +27,26 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const MAX_ACTIVE_WEBGL_CANVASES = 1;
 let activeWebGLCanvases = 0;
 let webGLWaitQueue: Array<() => void> = [];
+let drainingWebGLWaitQueue = false;
+
+function drainWebGLWaitQueue() {
+  if (drainingWebGLWaitQueue) return;
+  drainingWebGLWaitQueue = true;
+  try {
+    while (activeWebGLCanvases < MAX_ACTIVE_WEBGL_CANVASES && webGLWaitQueue.length) {
+      const next = webGLWaitQueue.shift();
+      try {
+        next?.();
+      } catch (error) {
+        // A queued grant has no calling stack to report to. Do not interrupt
+        // the previous owner's cleanup or starve the remaining waiters.
+        console.warn("AeroMind WebGL queued reservation failed.", error);
+      }
+    }
+  } finally {
+    drainingWebGLWaitQueue = false;
+  }
+}
 
 /**
  * Check browser capability without creating a throwaway GPU context. Actual
@@ -51,15 +71,22 @@ export function reserveWebGLCanvas(onGranted: (release: SlotRelease) => void): (
       if (released) return;
       released = true;
       activeWebGLCanvases = Math.max(0, activeWebGLCanvases - 1);
-      while (activeWebGLCanvases < MAX_ACTIVE_WEBGL_CANVASES && webGLWaitQueue.length) {
-        const next = webGLWaitQueue.shift();
-        next?.();
-      }
+      drainWebGLWaitQueue();
     };
-    onGranted(release);
+    try {
+      onGranted(release);
+    } catch (error) {
+      // Roll back the reservation even when initialization throws. Renderer
+      // resources remain the consumer's responsibility.
+      release();
+      throw error;
+    }
   };
-  if (activeWebGLCanvases < MAX_ACTIVE_WEBGL_CANVASES) grant();
-  else webGLWaitQueue.push(grant);
+  if (activeWebGLCanvases < MAX_ACTIVE_WEBGL_CANVASES && !drainingWebGLWaitQueue && !webGLWaitQueue.length) grant();
+  else {
+    webGLWaitQueue.push(grant);
+    drainWebGLWaitQueue();
+  }
   return () => {
     cancelled = true;
     if (release) release();

@@ -1,0 +1,578 @@
+{
+  "generated_at_utc": "2026-11-15T14:22:38.818348+00:00",
+  "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+  "platform": "Linux-6.18.38+-aarch64-with-glibc2.39",
+  "ocp": "7.9.3.1",
+  "kernel": {
+    "name": "Open CASCADE / OCP",
+    "cadquery_version": "2.8.0",
+    "properties_method": "BRepGProp adaptive integration (not mesh)",
+    "integration_relative_tolerance": 1e-09,
+    "mesh_deflection_mm": 0.18,
+    "mesh_angular_deflection_rad": 0.22,
+    "certification": "not certified; software verification only"
+  },
+  "limits": {
+    "max_source_bytes": 26214400
+  },
+  "certification": "software checks only; not institutional/lot/metrology certification",
+  "pmi_export_limitation": "Demo export has geometry/names only. Separate semantic fixture exercises native XDE import; no complete AP242 claim.",
+  "analytical_checks": [
+    {
+      "name": "cube_10_mm",
+      "expected_volume_mm3": 1000.0,
+      "actual_volume_mm3": 999.9999999999998,
+      "relative_error": 2.2737367544323206e-16,
+      "properties": {
+        "volume_mm3": 999.9999999999998,
+        "mass_kg": 0.004429999999999999,
+        "center_of_gravity_mm": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "center_of_volume_mm": [
+          5.0,
+          5.0,
+          5.0
+        ]
+      },
+      "integral_error_estimate": 0.0
+    },
+    {
+      "name": "sphere_r10_mm",
+      "expected_volume_mm3": 4188.790204786391,
+      "actual_volume_mm3": 4188.790204786392,
+      "relative_error": 2.1712586625457608e-16,
+      "properties": {
+        "volume_mm3": 4188.790204786392,
+        "mass_kg": 0.018556340607203715,
+        "center_of_gravity_mm": [
+          -7.41260512049314e-16,
+          -6.181721801112872e-16,
+          -4.2099657093785924e-16
+        ],
+        "center_of_volume_mm": [
+          -7.41260512049314e-16,
+          -6.181721801112872e-16,
+          -4.209965709378593e-16
+        ]
+      },
+      "integral_error_estimate": 0.0
+    },
+    {
+      "name": "tube_r10_r4_h20",
+      "expected_volume_mm3": 5277.875658030853,
+      "actual_volume_mm3": 5277.875658030853,
+      "relative_error": 0.0,
+      "properties": {
+        "volume_mm3": 5277.875658030853,
+        "mass_kg": 0.02338098916507668,
+        "center_of_gravity_mm": [
+          -9.116797789825527e-15,
+          -5.833078821748473e-16,
+          9.999999999999998
+        ],
+        "center_of_volume_mm": [
+          -9.116797789825527e-15,
+          -5.833078821748473e-16,
+          9.999999999999998
+        ]
+      },
+      "integral_error_estimate": 1.3570366640911e-16
+    }
+  ],
+  "demo": {
+    "solids": 15,
+    "materials": [
+      "al7075",
+      "cfrp",
+      "ti6al4v"
+    ],
+    "properties": {
+      "volume_mm3": 177733.33391265327,
+      "mass_kg": 0.5195496872966567,
+      "center_of_gravity_mm": [
+        -4.808013297831652e-16,
+        1.1186313879653411,
+        12.284191236713188
+      ],
+      "center_of_volume_mm": [
+        -8.187499164066976e-17,
+        0.7381446480848867,
+        10.0258108238422
+      ]
+    },
+    "step_sha256": "d2c31b95fb091ce97169c7473683a2182af4713dabc1770816c318bc89e095fa"
+  },
+  "sections": [
+    {
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "offset_mm": 0,
+      "boolean_elapsed_ms": 824.5236789998671,
+      "boolean_plus_mesh_ms": 979.2118870000195,
+      "caps": 4,
+      "properties": {
+        "volume_mm3": 88866.66695632665,
+        "mass_kg": 0.25977484364832826,
+        "center_of_gravity_mm": [
+          -31.970494762741566,
+          1.118631387965342,
+          12.28419123671319
+        ],
+        "center_of_volume_mm": [
+          -31.660547910691413,
+          0.738144648084887,
+          10.0258108238422
+        ]
+      }
+    },
+    {
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "offset_mm": 0,
+      "boolean_elapsed_ms": 961.9440110000141,
+      "boolean_plus_mesh_ms": 1139.9900669998715,
+      "caps": 17,
+      "properties": {
+        "volume_mm3": 86604.72024574183,
+        "mass_kg": 0.24975441972043788,
+        "center_of_gravity_mm": [
+          -2.0494248402412274e-11,
+          -16.498693596615574,
+          11.93450333617349
+        ],
+        "center_of_volume_mm": [
+          -2.1032697343770976e-11,
+          -17.255245452617498,
+          9.739186364599004
+        ]
+      }
+    },
+    {
+      "normal": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "offset_mm": 25,
+      "boolean_elapsed_ms": 1343.4150199998385,
+      "boolean_plus_mesh_ms": 1595.4408529999,
+      "caps": 11,
+      "properties": {
+        "volume_mm3": 149230.1552609002,
+        "mass_kg": 0.4101617203935807,
+        "center_of_gravity_mm": [
+          -6.766983420343413e-17,
+          1.0233632337569585,
+          6.9888165506849145
+        ],
+        "center_of_volume_mm": [
+          6.338360287772708e-16,
+          0.6349282038211522,
+          5.721523713531335
+        ]
+      }
+    },
+    {
+      "normal": [
+        0.7001400420140049,
+        0.7001400420140049,
+        0.140028008402801
+      ],
+      "offset_mm": 5,
+      "boolean_elapsed_ms": 885.13460199988,
+      "boolean_plus_mesh_ms": 1073.5713600001873,
+      "caps": 6,
+      "properties": {
+        "volume_mm3": 92975.76908013408,
+        "mass_kg": 0.2663494628160873,
+        "center_of_gravity_mm": [
+          -27.476890844787746,
+          -5.694527193539049,
+          11.553806718363852
+        ],
+        "center_of_volume_mm": [
+          -26.465285275472144,
+          -6.283009607632087,
+          9.312728933534142
+        ]
+      }
+    }
+  ],
+  "nested_placements_ap242.step": {
+    "source": {
+      "format": "STEP",
+      "schema": "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF {1 0 10303 442 1 1 4 }",
+      "sha256": "6b3c8e81ee74a0b87ff3fa2d081f6f8a0f59d5be5a5a96d392f55559204940ae",
+      "immutable": true,
+      "external_references_followed": false,
+      "xde_semantic_objects": 0
+    },
+    "parts": [
+      {
+        "name": "Reusable cube 10 mm",
+        "properties": {
+          "volume_mm3": 999.9999999999998,
+          "mass_kg": null,
+          "center_of_gravity_mm": null,
+          "center_of_volume_mm": [
+            105.0,
+            25.0,
+            5.0
+          ],
+          "integration_relative_error_estimate": 0.0,
+          "max_topology_tolerance_mm": 1e-07
+        }
+      },
+      {
+        "name": "Reusable cube 10 mm",
+        "properties": {
+          "volume_mm3": 999.9999999999998,
+          "mass_kg": null,
+          "center_of_gravity_mm": null,
+          "center_of_volume_mm": [
+            105.0,
+            65.0,
+            5.0
+          ],
+          "integration_relative_error_estimate": 0.0,
+          "max_topology_tolerance_mm": 1e-07
+        }
+      }
+    ],
+    "assembly": [
+      {
+        "id": "node-0000",
+        "name": "Fixture root",
+        "parent_id": null,
+        "transform": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "id": "node-0001",
+        "name": "Module occurrence A",
+        "parent_id": "node-0000",
+        "transform": [
+          1.0,
+          0.0,
+          0.0,
+          100.0,
+          0.0,
+          1.0,
+          0.0,
+          20.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "id": "node-0002",
+        "name": "Rotated occurrence",
+        "parent_id": "node-0001",
+        "transform": [
+          1.110223024625e-16,
+          -1.0,
+          0.0,
+          110.0,
+          1.0,
+          1.110223024625e-16,
+          0.0,
+          20.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "part_id": "part-0000"
+      },
+      {
+        "id": "node-0003",
+        "name": "Module occurrence B",
+        "parent_id": "node-0000",
+        "transform": [
+          1.0,
+          0.0,
+          0.0,
+          100.0,
+          0.0,
+          1.0,
+          0.0,
+          60.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "id": "node-0004",
+        "name": "Rotated occurrence",
+        "parent_id": "node-0003",
+        "transform": [
+          1.110223024625e-16,
+          -1.0,
+          0.0,
+          110.0,
+          1.0,
+          1.110223024625e-16,
+          0.0,
+          60.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "part_id": "part-0001"
+      }
+    ],
+    "pmi": [],
+    "warnings": [
+      "PMI support is limited to face-referenced XDE dimensions/tolerances/datums; presentation-only and complex modifiers are not fully interpreted",
+      "STEP material labels are not a validated density: assign a documented material explicitly",
+      "Nominal densities and parameterized PBR; no lot certification or measured optical calibration"
+    ]
+  },
+  "semantic_pmi_ap242.step": {
+    "source": {
+      "format": "STEP",
+      "schema": "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF {1 0 10303 442 1 1 4 }",
+      "sha256": "5d7e6150c856d19e9aa6bb8129b81b0f7a2203b934c147b857b8769b7ee0a3a2",
+      "immutable": true,
+      "external_references_followed": false,
+      "xde_semantic_objects": 3
+    },
+    "parts": [
+      {
+        "name": "PMI calibration cube (software fixture)",
+        "properties": {
+          "volume_mm3": 999.9999999999998,
+          "mass_kg": null,
+          "center_of_gravity_mm": null,
+          "center_of_volume_mm": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "integration_relative_error_estimate": 0.0,
+          "max_topology_tolerance_mm": 1e-07
+        }
+      }
+    ],
+    "assembly": [
+      {
+        "id": "node-0000",
+        "name": "PMI calibration cube (software fixture)",
+        "parent_id": null,
+        "transform": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "part_id": "part-0000"
+      }
+    ],
+    "pmi": [
+      {
+        "id": "0ab21072f50e49fca26ffd1fe7069f25",
+        "part_id": "part-0000",
+        "face_id": "part-0000:face:0000",
+        "anchor_mm": [
+          0.0,
+          3.3333333333333335,
+          3.3333333333333335
+        ],
+        "kind": "dimension",
+        "text": "thickness",
+        "source": "xde",
+        "source_sha256": "5d7e6150c856d19e9aa6bb8129b81b0f7a2203b934c147b857b8769b7ee0a3a2",
+        "nominal_mm": 10.0,
+        "tolerance_um": 8.0,
+        "semantic_type": "XCAFDimTolObjects_DimensionType.XCAFDimTolObjects_DimensionType_Size_Thickness",
+        "upper_tolerance_um": 8.0,
+        "lower_tolerance_um": 5.0,
+        "tolerance_summary": "maximum absolute bound; use upper/lower fields for asymmetric limits",
+        "semantic_interpretation": "partial: OCCT type and numeric values preserved; complex modifiers/presentation not fully interpreted"
+      },
+      {
+        "id": "ab96f4caad2845d5b6d173164180d409",
+        "part_id": "part-0000",
+        "face_id": "part-0000:face:0000",
+        "anchor_mm": [
+          0.0,
+          3.3333333333333335,
+          3.3333333333333335
+        ],
+        "kind": "parallelism",
+        "text": "Parallelism",
+        "source": "xde",
+        "source_sha256": "5d7e6150c856d19e9aa6bb8129b81b0f7a2203b934c147b857b8769b7ee0a3a2",
+        "tolerance_um": 8.0,
+        "datum": "A",
+        "semantic_type": "XCAFDimTolObjects_GeomToleranceType.XCAFDimTolObjects_GeomToleranceType_Parallelism",
+        "datum_references": [
+          "A"
+        ],
+        "semantic_interpretation": "partial: OCCT type and numeric values preserved; complex modifiers/presentation not fully interpreted"
+      },
+      {
+        "id": "fa439d89cca54fc28a8e7a40f8b9e442",
+        "part_id": "part-0000",
+        "face_id": "part-0000:face:0000",
+        "anchor_mm": [
+          0.0,
+          3.3333333333333335,
+          3.3333333333333335
+        ],
+        "kind": "datum",
+        "text": "DGT:Datum",
+        "source": "xde",
+        "source_sha256": "5d7e6150c856d19e9aa6bb8129b81b0f7a2203b934c147b857b8769b7ee0a3a2",
+        "datum": "A",
+        "semantic_type": "datum",
+        "semantic_interpretation": "partial: OCCT type and numeric values preserved; complex modifiers/presentation not fully interpreted"
+      }
+    ],
+    "warnings": [
+      "PMI support is limited to face-referenced XDE dimensions/tolerances/datums; presentation-only and complex modifiers are not fully interpreted",
+      "STEP material labels are not a validated density: assign a documented material explicitly",
+      "Nominal densities and parameterized PBR; no lot certification or measured optical calibration"
+    ]
+  },
+  "inch_units_ap242.step": {
+    "source": {
+      "format": "STEP",
+      "schema": "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF {1 0 10303 442 1 1 4 }",
+      "sha256": "a7bd523f1a1a0019873625083cf669ffa9730d44ba4204693fb67f2844f039da",
+      "immutable": true,
+      "external_references_followed": false,
+      "xde_semantic_objects": 0
+    },
+    "parts": [
+      {
+        "name": "SOLID",
+        "properties": {
+          "volume_mm3": 16387.064,
+          "mass_kg": null,
+          "center_of_gravity_mm": null,
+          "center_of_volume_mm": [
+            12.699999999999998,
+            12.699999999999998,
+            12.699999999999998
+          ],
+          "integration_relative_error_estimate": 1.3216121317380506e-16,
+          "max_topology_tolerance_mm": 1e-07
+        }
+      }
+    ],
+    "assembly": [
+      {
+        "id": "node-0000",
+        "name": "=>[0:1:1:2]",
+        "parent_id": null,
+        "transform": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      {
+        "id": "node-0001",
+        "name": "=>[0:1:1:2]",
+        "parent_id": "node-0000",
+        "transform": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "part_id": "part-0000"
+      }
+    ],
+    "pmi": [],
+    "warnings": [
+      "PMI support is limited to face-referenced XDE dimensions/tolerances/datums; presentation-only and complex modifiers are not fully interpreted",
+      "STEP material labels are not a validated density: assign a documented material explicitly",
+      "Nominal densities and parameterized PBR; no lot certification or measured optical calibration"
+    ]
+  }
+}

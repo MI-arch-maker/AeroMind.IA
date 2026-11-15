@@ -157,3 +157,67 @@ describe("viewport aérodynamique", () => {
     expect(direction.y).toBeCloseTo(direction.z);
   });
 });
+
+// Data-boundary tests complement the independent viewport tests above.
+describe("centre aérodynamique sans données synthétiques", () => {
+  it("ouvre un tableau de bord vide malgré une configuration cockpit préremplie", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { AerodynamicSimulationCenter } = await import("./AerodynamicSimulationCenter");
+    vi.stubGlobal("window", { localStorage: { getItem: vi.fn(() => null) } });
+    try {
+      const html = renderToStaticMarkup(createElement(AerodynamicSimulationCenter, {
+        config: { airframe: "fixed-wing", cruiseSpeedKmh: 79.2, wingspan: 2.4,
+          chord: 0.34, maxTakeoffKg: 8.4, altitudeM: 0, designName: "Cockpit démo" } as any,
+        projectName: "Projet utilisateur", onNavigate: vi.fn(),
+      }));
+      expect(html).toContain("Non renseignée");
+      expect(html).toContain("Aucun résultat aérodynamique disponible");
+      expect(html).toContain("CFD SOLVER NOT CONNECTED");
+      expect(html).toContain("Calcul indisponible");
+      expect(html).toContain("disabled");
+      expect(html).not.toContain("Cockpit démo");
+      expect(html).not.toContain("22,0");
+      expect(html).not.toContain("1,225");
+      expect(html).not.toContain("9,56");
+      expect(html).not.toContain("82,38");
+      expect(html).not.toContain("Créer une estimation analytique");
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it("ne rend pas les historiques analytiques hérités ni les scénarios ambigus", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { AerodynamicSimulationCenter } = await import("./AerodynamicSimulationCenter");
+    vi.stubGlobal("window", { localStorage: { getItem: vi.fn(() => JSON.stringify([
+      { name: "Legacy fake record", status: "ANALYTIC ESTIMATE", provenance: "local-user-scenario" },
+    ])) } });
+    try {
+      const html = renderToStaticMarkup(createElement(AerodynamicSimulationCenter, {
+        config: {} as any, projectName: "Projet", onNavigate: vi.fn(),
+      }));
+      expect(html).not.toContain("Legacy fake record");
+      expect(html).not.toContain("ANALYTIC ESTIMATE");
+      expect(html).toContain("Aucun résultat aérodynamique disponible");
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it("conserve les 14 rubriques et les parseurs tout en supprimant tous les chemins de calcul/export artificiels", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(new URL("./AerodynamicSimulationCenter.tsx", import.meta.url), "utf8");
+    const sectionNames = ["dashboard", "importer", "setup", "mesh", "cfd", "airflow", "pressure", "rotor",
+      "comparison", "optimization", "history", "reports", "solver", "settings"];
+    for (const name of sectionNames) expect(source).toContain(`section === "${name}"`);
+    for (const parser of ["new STLLoader().parse", "new OBJLoader().parse", "new ThreeMFLoader().parse"]) expect(source).toContain(parser);
+    for (const removed of ["estimateAerodynamicPerformance", "createLocalRun", "estimateMeshWork", "reportMarkdown",
+      "calculateAirDensity", "standardAtmospherePressurePa", "runEstimate", "exportHistoryCsv", "setLatestRun", "demoValues"])
+      expect(source).not.toContain(removed);
+    expect(source).toContain('onNavigate("parametric-center")');
+    expect(source).toContain('onNavigate("mechanical-center")');
+    expect(source).toContain("createUserScenario");
+    expect(source).toContain("readUserScenarios");
+    expect(source).toContain("removeLegacyAnalyticHistory");
+    const dataActions = source.slice(source.indexOf("export function AerodynamicSimulationCenter("));
+    expect(dataActions).not.toContain("setTimeout(() => {");
+  });
+});

@@ -47,3 +47,15 @@
 - [~] Faire afficher le drone réellement sélectionné et sa géométrie disponible, avec indication explicite lorsque le modèle détaillé ne peut pas être récupéré. Les huit OBJ sont chargés dans IDDS ; les autres centres utilisent encore un modèle paramétrique.
 - [~] Corriger les modes de rendu pour que leur mécanisme visuel agisse effectivement sur le modèle actif, y compris les modes de projection, filaire, transparence, vue éclatée et styles applicables. Les modes de base sont raccordés ; les limitations des modes avancés et du repli SVG sont précisées dans le rapport.
 - [~] Vérifier la cohérence des sélections, paramètres, interactions et rendus, puis fournir une prévisualisation fonctionnelle et une archive source propre et complète. Les tests automatisés ne remplacent pas une recette visuelle complète de tous les centres et modèles.
+
+## Modernisation Aérodynamique — 14 novembre 2026
+
+- [x] Inspecter l’archive et l’interface AÉRODYNAMIQUE, ses flux de données et sa chaîne de rendu ; conserver l’architecture et l’apparence existantes.
+- [x] Supprimer toutes les données synthétiques du module Aérodynamique, y compris valeurs de démonstration, résultats synthétiques affichés, historiques synthétiques et scénarios hérités artificiels, sans introduire de remplacement artificiel ni supprimer les données utilisateur vérifiables.
+- [x] Rendre WebGL 2 opérationnel : initialisation robuste, gestion des ressources graphiques, erreurs explicites, reprise après perte de contexte, fonctionnement sur les navigateurs modernes compatibles.
+- [x] Préparer le déploiement et le chargement des ressources de production ; préserver les fonctionnalités des autres modules. Aucune régression acceptable : effectuer les contrôles disponibles et signaler toute limite de vérification.
+- [x] Livrer les sources complètes sous le nom Aeromind.IA, la prévisualisation fonctionnelle et les preuves d’inspection et de validation.
+
+### Preuves consolidées de cette modernisation
+
+TypeScript/i18n : réussi. Frontend : 508/508 tests (97 fichiers). Backend ciblé : 43 réussis, 1 ignoré. Build : réussi. Recette navigateur Chromium/ANGLE SwiftShader : 11 contrôles réussis, aucune erreur JavaScript/shader, import OBJ, presets, unités, récupération de contexte et d’initialisation partielle. Preview HTTPS + /api/ready + 38 routes : HTTP 200. Source comparée : 847 fichiers originaux identiques, aucun fichier original supprimé. La compatibilité GPU universelle n’est pas certifiée ; limites dans le rapport consolidé.

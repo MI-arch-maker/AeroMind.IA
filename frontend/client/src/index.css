@@ -358,6 +358,12 @@ button:disabled {
   font-size: 9px;
   line-height: 1.35;
 }
+.session-error {
+  margin: 0;
+  color: #ffb3a8;
+  font-size: 9px;
+  line-height: 1.45;
+}
 .session-button {
   width: 100%;
   min-height: 32px;
