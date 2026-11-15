@@ -26,12 +26,13 @@ def _all_false_conditions() -> dict:
         "arm_double_confirmed": False,
         "n3_armed": False,
         "independent_review_signed": False,
+        "n5_release_confirmed": False,
     }
 
 
 def test_gate_definitions_are_ordered_and_complete():
     codes = [g["code"] for g in GATE_DEFINITIONS]
-    assert codes == ["N1", "N2", "N3-READY", "N3-ARMED", "N4"]
+    assert codes == ["N1", "N2", "N3-READY", "N3-ARMED", "N4", "N5"]
     zones = {g["zone"] for g in GATE_DEFINITIONS}
     assert zones == {"governance", "simulation", "hardware", "bench", "audit"}
 

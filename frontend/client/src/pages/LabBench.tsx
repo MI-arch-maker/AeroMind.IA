@@ -592,12 +592,12 @@ export default function LabBench({
 
   // Local sandbox actions — these simulate the server-side gate operations
   // in-memory. They don't persist, but they let the operator test the full
-  // N1→N4 flow without needing an OIDC-authenticated server.
+  // N1→N5 flow without needing an OIDC-authenticated server.
   const localSeedRegistry = () => {
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, registry_initialized: true };
       const gates = resolveGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N5" }).code };
     });
     toast.success("Registre initialisé (mode local)");
   };
@@ -616,7 +616,7 @@ export default function LabBench({
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, n2_run_archived: true };
       const gates = resolveGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N5" }).code };
     });
     setAudit((entries) => [
       { time: new Date().toLocaleTimeString("fr-FR"), type: "simulation.local.completed", message: `${result.runId} calculé localement ; preuve N2 locale.`, status: "info" },
@@ -629,7 +629,7 @@ export default function LabBench({
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, hardware_checklist_complete: true };
       const gates = resolveGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N5" }).code };
     });
     toast.success("Checklist hardware simulée (mode local)");
   };
@@ -642,7 +642,7 @@ export default function LabBench({
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, arm_double_confirmed: true, n3_armed: true };
       const gates = resolveGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N5" }).code };
     });
     setHumanConfirmed(false);
     setSafetyConfirmed(false);
@@ -654,7 +654,7 @@ export default function LabBench({
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, arm_double_confirmed: false, n3_armed: false };
       const gates = resolveGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N5" }).code };
     });
     setMode("simulation");
     toast.info("N3 désarmé (mode local)");
@@ -668,7 +668,7 @@ export default function LabBench({
     setLocalGateState((prev) => {
       const conditions = { ...prev.conditions, independent_review_signed: true };
       const gates = resolveGates(conditions);
-      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N5" }).code };
     });
     setSignOffDialogOpen(false);
     setReviewer("");
@@ -1560,7 +1560,7 @@ export default function LabBench({
       setLocalGateState((prev) => {
         const conditions = { ...prev.conditions, n2_run_archived: true };
         const gates = resolveGates(conditions);
-        return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N4" }).code };
+        return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: (gates.find((g) => g.state !== "passed") ?? { code: "N5" }).code };
       });
       toast.success("Run N2 archivé (mode local)", { description: "Gate N2 validée. Vous pouvez maintenant compléter la checklist N3-READY." });
       return;
@@ -3079,7 +3079,7 @@ export default function LabBench({
             <SectionHeading
               eyebrow="MULTI-DRONES · FLOTTE PARALLÈLE"
               title="Pilotage multi-drones — LabBench 01 v3"
-              detail="Chaque drone a sa propre progression de gates (N1 → N4). N3 peut être armé indépendamment par drone. La simulation de flotte archive un run N2 par drone en parallèle."
+              detail="Chaque drone a sa propre progression de gates (N1 → N5). N3 peut être armé indépendamment par drone. La simulation de flotte archive un run N2 par drone en parallèle."
               actions={
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
@@ -3145,7 +3145,7 @@ export default function LabBench({
                         </span>
                       </div>
                       <div className="lb-fleet-gates">
-                        {["N1", "N2", "N3-READY", "N3-ARMED", "N4"].map((code) => (
+                        {["N1", "N2", "N3-READY", "N3-ARMED", "N4", "N5"].map((code) => (
                           <span key={code} className={`lb-fleet-gate lb-gate-${gateByCode[code] ?? "pending"}`}>
                             <span className="lb-fleet-gate-code">{code}</span>
                             <span className="lb-fleet-gate-state">

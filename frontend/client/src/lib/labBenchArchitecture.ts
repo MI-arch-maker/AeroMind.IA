@@ -57,6 +57,7 @@ export const GATE_DEFS: GateSpec[] = [
   { code: "N3-READY", label: "Conformité matérielle", description: "Pilote + identité appareil vérifiés ; calibration simulée exécutée.", level: "N3", zone: "hardware", requiredConditions: ["registry_initialized", "n2_run_archived", "hardware_checklist_complete"] },
   { code: "N3-ARMED", label: "Armement N3 supervisé", description: "Armement explicite après double confirmation humaine.", level: "N3", zone: "bench", requiredConditions: ["n3_ready", "arm_double_confirmed"] },
   { code: "N4", label: "Mise en service (revue indépendante)", description: "Revue indépendante signée après démonstration N3 supervisée.", level: "N4", zone: "audit", requiredConditions: ["n3_armed", "independent_review_signed"] },
+  { code: "N5", label: "Clôture & preuve", description: "Dossier de preuve clôturé et progression sauvegardée.", level: "N5", zone: "audit", requiredConditions: ["n5_release_confirmed"] },
 ];
 
 export function resolveGates(conditions: Record<string, boolean>): GateDefinition[] {
@@ -100,7 +101,7 @@ export const MODE_ITEMS: Array<{ id: ModeId; label: string; eyebrow: string; det
 
 export const initialLocalGateState: LocalGateState = {
   gates: resolveGates({}), zoneProgress: resolveZoneProgress(resolveGates({})), currentGate: "N1",
-  conditions: { registry_initialized: false, n2_run_archived: false, hardware_checklist_complete: false, n3_ready: false, arm_double_confirmed: false, n3_armed: false, independent_review_signed: false },
+  conditions: { registry_initialized: false, n2_run_archived: false, hardware_checklist_complete: false, n3_ready: false, arm_double_confirmed: false, n3_armed: false, independent_review_signed: false, n5_release_confirmed: false },
   hardwareChecklist: { deviceIdentified: false, driverValidated: false, calibrationSimulated: false, complete: false }, armEvents: [], reviewEvents: [], updatedAt: null,
 };
 

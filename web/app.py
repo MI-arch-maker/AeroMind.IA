@@ -28,9 +28,9 @@ from .factory_api import router as factory_router
 from .gcs_api import router as gcs_router
 from .cad_body_limit import CadBodyLimitMiddleware
 from .admin import activity as admin_activity, archive_project_for_superadmin, clear_audit_logs, create_account, delete_account, delete_project_dependents, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
-from .admin_console_api import router as admin_console_router
+from .admin_console_api import admin_api_router, router as admin_console_router
 from .app_auth_helpers import current_user as resolve_current_user
-from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, router as oidc_router
+from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, logout as oidc_logout, router as oidc_router
 from .local_auth import router as local_auth_router
 from .registration_api import router as registration_router
 from .ops_control_api import router as ops_control_router
@@ -279,8 +279,17 @@ def _frontend_file_response(path: Path, *, immutable: bool = False) -> FileRespo
 app.include_router(business_router)
 app.include_router(hardware_router)
 app.include_router(operational_state_router)
+@app.post('/api/auth/logout', include_in_schema=False)
+def auth_logout_compat(
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+):
+    """Canonical logout alias retained for clients outside the OIDC path."""
+    return oidc_logout(aeromind_session=aeromind_session, authorization=authorization)
+
 app.include_router(oidc_router)
 app.include_router(admin_console_router)
+app.include_router(admin_api_router)
 app.include_router(local_auth_router)
 # Phase 1 modernization: self-registration with super-admin approval
 app.include_router(registration_router)

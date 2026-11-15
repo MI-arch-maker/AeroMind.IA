@@ -652,6 +652,14 @@ GATE_DEFINITIONS: list[dict[str, Any]] = [
         "zone": "audit",
         "requiredConditions": ["n3_armed", "independent_review_signed"],
     },
+    {
+        "code": "N5",
+        "label": "Clôture & preuve",
+        "description": "Dossier de preuve clôturé et état de progression sauvegardé.",
+        "level": "N5",
+        "zone": "audit",
+        "requiredConditions": ["n5_release_confirmed"],
+    },
 ]
 
 
@@ -687,6 +695,7 @@ def _new_gate_state(project: Project, user: dict[str, Any]) -> dict[str, Any]:
             "arm_double_confirmed": False,
             "n3_armed": False,
             "independent_review_signed": False,
+            "n5_release_confirmed": False,
         },
         "armEvents": [],
         "reviewEvents": [],
@@ -776,7 +785,13 @@ def _evaluate_conditions(db: Session, project: Project, user: dict[str, Any], ga
 
 
 def _resolved_gates(conditions: dict[str, bool]) -> list[dict[str, Any]]:
-    """Project the boolean conditions onto the ordered gate definitions."""
+    """Project the boolean conditions onto the ordered gate definitions.
+
+    Older persisted sessions predate N5; an already signed N4 is therefore
+    treated as a completed closure when the new field is absent.
+    """
+    if conditions.get("independent_review_signed") and "n5_release_confirmed" not in conditions:
+        conditions["n5_release_confirmed"] = True
     resolved: list[dict[str, Any]] = []
     passed_so_far = True
     for definition in GATE_DEFINITIONS:
@@ -830,7 +845,7 @@ def gate_state(db: Session, user: dict[str, Any] | None, project_id: str) -> dic
         "updatedAt": data["updatedAt"],
         "conditions": conditions,
         "gates": gates,
-        "currentGate": next((g["code"] for g in gates if g["state"] != "passed"), "N4"),
+        "currentGate": next((g["code"] for g in gates if g["state"] != "passed"), "N5"),
         "armEvents": data.get("armEvents", []),
         "reviewEvents": data.get("reviewEvents", []),
         "hardwareChecklist": data.get("hardwareChecklist", {
@@ -1077,6 +1092,9 @@ def sign_off_n4_gate(db: Session, user: dict[str, Any] | None, project_id: str, 
     }
     data.setdefault("reviewEvents", []).append(event)
     data["conditions"]["independent_review_signed"] = True
+    # N5 is the persisted closure of the independent review. It is deliberately
+    # written in the same transaction so refreshes cannot lose the progression.
+    data["conditions"]["n5_release_confirmed"] = True
     data["updatedAt"] = datetime.now(UTC).isoformat()
     row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     db.add(
@@ -1302,7 +1320,7 @@ def per_drone_gate_state(
         "updatedAt": data["updatedAt"],
         "conditions": conditions,
         "gates": gates,
-        "currentGate": next((g["code"] for g in gates if g["state"] != "passed"), "N4"),
+        "currentGate": next((g["code"] for g in gates if g["state"] != "passed"), "N5"),
         "armEvents": data.get("armEvents", []),
         "reviewEvents": data.get("reviewEvents", []),
         "hardwareChecklist": data.get("hardwareChecklist", {

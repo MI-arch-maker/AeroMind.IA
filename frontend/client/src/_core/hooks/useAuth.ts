@@ -58,8 +58,27 @@ export function useAuth(options?: UseAuthOptions) {
         localStorage.removeItem("aeromind-workbench-capture");
         localStorage.removeItem(WORKSPACE_KEY_STORAGE_KEY);
         localStorage.removeItem("manus-runtime-user-info");
+        // Remove all app-owned browser state, including stale user identity
+        // values that could otherwise reappear after a refresh.
+        for (const key of Object.keys(localStorage)) {
+          if (/aeromind|manus-runtime|workspace|project|user|auth|trpc|query/i.test(key)) localStorage.removeItem(key);
+        }
+        sessionStorage.clear();
+        if (typeof indexedDB !== "undefined" && indexedDB.databases) {
+          const databases = await indexedDB.databases();
+          for (const database of databases) if (database.name) indexedDB.deleteDatabase(database.name);
+        }
+        if (typeof caches !== "undefined") {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map((name) => caches.delete(name)));
+        }
+        document.cookie.split(";").forEach((part) => {
+          const name = part.split("=")[0]?.trim();
+          if (name) document.cookie = `${name}=; Max-Age=0; path=/`;
+        });
       } catch {}
       await utils.auth.me.cancel();
+      await utils.invalidate();
       utils.auth.me.setData(undefined, null);
       if (serverConfirmed) {
         await utils.auth.me.invalidate();

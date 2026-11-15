@@ -290,6 +290,49 @@ def archive_project_for_superadmin(db: Session, project: Project, actor: dict[st
     return {"id": record.id, "projectId": project.id, "sha256": digest}
 
 
+def delete_project_archive(archive_id: str, actor: dict[str, Any]) -> dict[str, Any]:
+    """Permanently remove one Super-Admin archive and referenced files.
+
+    Archive snapshots are normally JSON-only; if a future snapshot contains
+    file/path entries, only files inside the configured archive roots are
+    removed, preventing path traversal or arbitrary deletion.
+    """
+    from .models import SuperAdminProjectArchive
+    from .database import SessionLocal
+    from pathlib import Path
+    import os
+    if actor.get("role") != "super_admin":
+        raise ValueError("Super-Admin permission required")
+    with SessionLocal() as db:
+        row = db.get(SuperAdminProjectArchive, str(archive_id))
+        if row is None:
+            raise LookupError("Archive not found")
+        try:
+            snapshot = json.loads(row.snapshot_json or "{}")
+        except (TypeError, json.JSONDecodeError):
+            snapshot = {}
+        candidates: list[str] = []
+        def collect(value: Any, key: str = "") -> None:
+            if isinstance(value, dict):
+                for k, v in value.items(): collect(v, str(k).lower())
+            elif isinstance(value, list):
+                for v in value: collect(v, key)
+            elif isinstance(value, str) and any(x in key for x in ("file", "path", "artifact")):
+                candidates.append(value)
+        collect(snapshot)
+        roots = [Path(os.getenv("AEROMIND_ARCHIVE_ROOT", "/tmp/aeromind-archives")).resolve()]
+        removed_files = 0
+        for candidate in candidates:
+            try:
+                path = Path(candidate).expanduser().resolve()
+                if any(path == root or root in path.parents for root in roots) and path.is_file():
+                    path.unlink(); removed_files += 1
+            except (OSError, RuntimeError):
+                continue
+        db.delete(row)
+        db.commit()
+        return {"deleted": True, "id": str(archive_id), "removedFiles": removed_files}
+
 def list_project_archives(limit: int = 250) -> list[dict[str, Any]]:
     from .models import SuperAdminProjectArchive
     limit = max(1, min(int(limit), 500))

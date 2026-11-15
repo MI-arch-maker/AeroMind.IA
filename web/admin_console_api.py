@@ -5,12 +5,13 @@ from fastapi import APIRouter, Body, Cookie, HTTPException, Response
 from sqlalchemy import func, or_, select
 from .database import SessionLocal
 from .models import AdminAccountEvent, AuditEvent, Project, Drone, Simulation, User
-from .admin import account_for_identity, list_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity
+from .admin import account_for_identity, delete_project_archive, list_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity
 from .config import get_settings
 from .oidc import _check_local_generation, _verified
 from .primary_session_store import is_primary_session_active
 
 router = APIRouter(prefix="/api/admin-console", tags=["admin-console"])
+admin_api_router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 def _require_admin(token: str | None) -> dict:
@@ -172,6 +173,36 @@ def project_archive_index(
     response.headers["Vary"] = "Cookie"
     return {"archives": list_project_archives(limit)}
 
+
+@router.delete("/archives/{archive_id}")
+def delete_archive(
+    archive_id: str,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    actor = _require_admin(admin_session)
+    if actor.get("role") != "super_admin":
+        raise HTTPException(403, "La suppression des archives est réservée au Super-Admin.")
+    try:
+        return delete_project_archive(archive_id, actor)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(403, str(exc)) from exc
+
+@admin_api_router.delete("/archives/{archive_id}")
+def delete_archive_canonical(
+    archive_id: str,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    actor = _require_admin(admin_session)
+    if actor.get("role") != "super_admin":
+        raise HTTPException(403, "La suppression des archives est réservée au Super-Admin.")
+    try:
+        return delete_project_archive(archive_id, actor)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(403, str(exc)) from exc
 
 @router.post("/logout")
 def logout(
