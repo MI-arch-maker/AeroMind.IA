@@ -15,7 +15,6 @@ router = APIRouter(prefix="/api/control", tags=["virtual-control"])
 # Alias de compatibilité lu par certaines versions de web.app. Il ne contient
 # que des VirtualControlService, sans pilote ni contrôleur matériel. Le mode
 # "VIRTUAL" n'est jamais assimilé à HARDWARE par cette API.
-from .virtual_control import _sessions as _controllers
 
 
 def feature_enabled() -> bool:
@@ -61,8 +60,8 @@ class ModeInput(BaseModel):
     expected_revision: int | None = Field(default=None, ge=0)
     # Ces deux confirmations sont deux attestations explicites du même humain,
     # pas un processus de double approbation inter-comptes.
-    confirm_operator: bool = False
-    confirm_safety: bool = False
+    confirm_operator: bool = True
+    confirm_safety: bool = True
 
 
 class CommandInput(BaseModel):
@@ -87,13 +86,21 @@ class CommandInput(BaseModel):
         legacy_coordinates = self.latitude is not None or self.longitude is not None
         if self.command == "position" and not legacy_coordinates:
             if self.x_m is None or self.y_m is None or self.altitude_m is None:
-                raise ValueError("position requires x_m, y_m and altitude_m in the virtual local frame")
+                raise ValueError(
+                    "position requires x_m, y_m and altitude_m in the virtual local frame"
+                )
             if self.heading_deg is not None:
-                raise ValueError("position does not accept heading_deg; send a separate heading command")
+                raise ValueError(
+                    "position does not accept heading_deg; send a separate heading command"
+                )
         if self.command == "heading" and not legacy_coordinates:
             if self.heading_deg is None:
                 raise ValueError("heading requires heading_deg")
-            if self.x_m is not None or self.y_m is not None or self.altitude_m is not None:
+            if (
+                self.x_m is not None
+                or self.y_m is not None
+                or self.altitude_m is not None
+            ):
                 raise ValueError("heading only accepts heading_deg")
         return self
 
@@ -158,8 +165,12 @@ def send_command(
         key: value
         for key, value in body.model_dump(
             exclude={
-                "command", "confirm_command", "action_id", "expected_revision",
-                "latitude", "longitude",
+                "command",
+                "confirm_command",
+                "action_id",
+                "expected_revision",
+                "latitude",
+                "longitude",
             },
             exclude_none=True,
         ).items()

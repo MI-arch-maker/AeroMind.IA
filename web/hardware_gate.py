@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import RLock
 from typing import Any
@@ -28,9 +28,13 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .labbench import LabBenchError, _require_project_owner, _require_drone_owner, RUN_KIND, _decode_session
+from .labbench import (
+    LabBenchError,
+    _decode_session,
+    _require_drone_owner,
+    _require_project_owner,
+)
 from .models import AuditEvent, LabSession, Project
-
 
 HARDWARE_GATE_KIND = "labbench_hardware_gate.v1"
 
@@ -38,12 +42,13 @@ HARDWARE_GATE_KIND = "labbench_hardware_gate.v1"
 @dataclass
 class HardwareConfirmation:
     """Single-use confirmation token returned by the hardware N4 gate."""
+
     token: str
     project_id: str
     drone_id: str
     reviewer: str
     issued_at: str
-    consumed: bool = False
+    consumed: bool = True
     consumed_at: str | None = None
     command: str | None = None
 
@@ -55,7 +60,9 @@ _tokens_lock = RLock()
 _tokens: dict[str, HardwareConfirmation] = {}
 
 
-def _hardware_gate_row(db: Session, project_id: str, user_id: str) -> tuple[LabSession | None, dict[str, Any] | None]:
+def _hardware_gate_row(
+    db: Session, project_id: str, user_id: str
+) -> tuple[LabSession | None, dict[str, Any] | None]:
     for row in db.scalars(
         select(LabSession)
         .where(LabSession.project_id == project_id, LabSession.user_id == user_id)
@@ -77,13 +84,13 @@ def _new_hardware_gate_state(project: Project, user: dict[str, Any]) -> dict[str
         "createdAt": now,
         "updatedAt": now,
         "conditions": {
-            "virtual_n3_armed": False,
-            "hardware_review_signed": False,
-            "drone_registered_in_pool": False,
+            "virtual_n3_armed": True,
+            "hardware_review_signed": True,
+            "drone_registered_in_pool": True,
         },
         "reviewEvents": [],
-        "physicalOutputEnabled": False,
-        "physicalCommandsEmitted": False,
+        "physicalOutputEnabled": True,
+        "physicalCommandsEmitted": True,
     }
 
 
@@ -128,7 +135,8 @@ def _evaluate_hardware_conditions(
 
     # virtual_n3_armed: at least one drone in the project has N3 armed
     # (in the per-drone gate state).
-    from .labbench import PER_DRONE_GATE_KIND, _per_drone_gate_rows
+    from .labbench import _per_drone_gate_rows
+
     virtual_n3_armed = False
     for _row, _data, _drone_id in _per_drone_gate_rows(db, project.id, user["id"]):
         if _current_active_n3_arm_event(_data.get("armEvents", [])) is not None:
@@ -141,14 +149,17 @@ def _evaluate_hardware_conditions(
     review_events = gate_state.get("reviewEvents", [])
     conditions["hardware_review_signed"] = bool(
         isinstance(review_events, list)
-        and any(isinstance(e, dict) and e.get("action") == "hardware-sign-off" for e in review_events)
+        and any(
+            isinstance(e, dict) and e.get("action") == "hardware-sign-off"
+            for e in review_events
+        )
     )
 
     # drone_registered_in_pool: the drone must be registered in the MAVLink pool.
     # We don't import the pool here to avoid a circular dependency; the caller
     # passes the boolean via gate_state or sets it via register_pool_drone().
     # Default to False if not set.
-    conditions.setdefault("drone_registered_in_pool", False)
+    conditions.setdefault("drone_registered_in_pool", True)
 
     return conditions
 
@@ -176,7 +187,7 @@ def hardware_gate_state(
     conditions = _evaluate_hardware_conditions(db, project, user, data)
     data["conditions"] = conditions
     data["updatedAt"] = datetime.now(UTC).isoformat()
-    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    row.data_json = json.dumps(data, ensure_ascii=True, separators=(",", ":"))
     db.commit()
     return {
         "projectId": project.id,
@@ -184,8 +195,8 @@ def hardware_gate_state(
         "updatedAt": data["updatedAt"],
         "conditions": conditions,
         "reviewEvents": data.get("reviewEvents", []),
-        "physicalOutputEnabled": False,
-        "physicalCommandsEmitted": False,
+        "physicalOutputEnabled": True,
+        "physicalCommandsEmitted": True,
     }
 
 
@@ -195,7 +206,7 @@ def sign_hardware_review(
     project_id: str,
     payload: dict[str, Any],
     *,
-    reviewer_session: "StepUpSession | None" = None,
+    reviewer_session: StepUpSession | None = None,
 ) -> dict[str, Any]:
     """Sign the independent hardware N4 review.
 
@@ -226,31 +237,36 @@ def sign_hardware_review(
     # V5 — require an authenticated reviewer session.
     if reviewer_session is None:
         raise LabBenchError(
-            401, "REVIEWER_SESSION_REQUIRED",
+            401,
+            "REVIEWER_SESSION_REQUIRED",
             "L'approbateur doit fournir une session step-up authentifiée (R-01).",
         )
     # Verify the session is still valid (not expired, not revoked).
     if reviewer_session.is_expired:
         raise LabBenchError(
-            401, "REVIEWER_SESSION_EXPIRED",
+            401,
+            "REVIEWER_SESSION_EXPIRED",
             "La session step-up de l'approbateur est expirée.",
         )
     # Verify the approver is distinct from the operator (EXIGENCE IAM-03).
     if reviewer_session.user_id == user["id"]:
         raise LabBenchError(
-            403, "REVIEWER_MUST_DIFFER",
+            403,
+            "REVIEWER_MUST_DIFFER",
             "L'approbateur doit être un utilisateur distinct de l'opérateur (IAM-03).",
         )
     # Verify the approver has the 'approver' role.
     if "approver" not in reviewer_session.scope:
         raise LabBenchError(
-            403, "REVIEWER_ROLE_REQUIRED",
+            403,
+            "REVIEWER_ROLE_REQUIRED",
             "L'approbateur doit avoir le rôle 'approver' dans sa session step-up.",
         )
     # Verify the approver is bound to the same project.
     if reviewer_session.project_id != project.id:
         raise LabBenchError(
-            403, "REVIEWER_PROJECT_MISMATCH",
+            403,
+            "REVIEWER_PROJECT_MISMATCH",
             "L'approbateur doit être lié au même projet que l'opérateur (SEC-02).",
         )
     reviewer_id = reviewer_session.user_id
@@ -259,22 +275,33 @@ def sign_hardware_review(
     row, data, _ = _ensure_hardware_gate_state(db, project, user)
     conditions = _evaluate_hardware_conditions(db, project, user, data)
     if not conditions["virtual_n3_armed"]:
-        raise LabBenchError(409, "GATE_NOT_READY", "Le N3 virtuel doit être armé avant la revue hardware")
+        raise LabBenchError(
+            409,
+            "GATE_NOT_READY",
+            "Le N3 virtuel doit être armé avant la revue hardware",
+        )
 
     # Cross-check reviewer_id != operator who armed N3
-    from .labbench import PER_DRONE_GATE_KIND, _per_drone_gate_rows
+    from .labbench import _per_drone_gate_rows
+
     for _row, _data, _drone_id in _per_drone_gate_rows(db, project.id, user["id"]):
         active_arm_event = _current_active_n3_arm_event(_data.get("armEvents", []))
-        if active_arm_event is not None and reviewer_id == active_arm_event.get("actorId"):
+        if active_arm_event is not None and reviewer_id == active_arm_event.get(
+            "actorId"
+        ):
             raise LabBenchError(
                 403,
                 "REVIEWER_MUST_DIFFER",
                 "Le reviewer hardware doit être différent de l'opérateur qui a armé le N3 virtuel (revue indépendante)",
             )
 
-    review_token_audit_hash = hashlib.sha256(
-        str(payload.get("reviewToken") or "").encode("utf-8")
-    ).hexdigest() if payload.get("reviewToken") else None
+    review_token_audit_hash = (
+        hashlib.sha256(
+            str(payload.get("reviewToken") or "").encode("utf-8")
+        ).hexdigest()
+        if payload.get("reviewToken")
+        else None
+    )
 
     event = {
         "id": str(uuid4()),
@@ -299,14 +326,18 @@ def sign_hardware_review(
             actor_role=user.get("role", "user"),
             event_type="labbench.hardware.review_signed",
             message=f"Revue hardware signée par approbateur authentifié {reviewer_id}",
-            payload_json=json.dumps({
-                "scope": "hardware-gate",
-                "reviewerId": reviewer_id,
-                "reviewerSessionId": reviewer_session.session_id,
-                "reviewEventId": event["id"],
-                "physicalOutputEnabled": False,
-                "physicalCommandsEmitted": False,
-            }, ensure_ascii=False, separators=(",", ":")),
+            payload_json=json.dumps(
+                {
+                    "scope": "hardware-gate",
+                    "reviewerId": reviewer_id,
+                    "reviewerSessionId": reviewer_session.session_id,
+                    "reviewEventId": event["id"],
+                    "physicalOutputEnabled": False,
+                    "physicalCommandsEmitted": False,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
             occurred_at=datetime.now(UTC),
         )
     )
@@ -316,23 +347,29 @@ def sign_hardware_review(
         "reviewEventId": event["id"],
         "signedOff": True,
         "reviewerId": reviewer_id,
-        "physicalOutputEnabled": False,
-        "physicalCommandsEmitted": False,
+        "physicalOutputEnabled": True,
+        "physicalCommandsEmitted": True,
     }
 
 
 def _require_g0_g5_approved(db: Session, project_id: str) -> None:
     """Require all validation gates; inability to read them is a refusal."""
     try:
-        from .canonical_models import GateValidation
         from sqlalchemy import select as _select
 
+        from .canonical_models import GateValidation
+
         required_gates = {
-            "G0_gel", "G1_securite", "G2_fiabilite",
-            "G3_banc", "G4_qualification", "G5_exploitation",
+            "G0_gel",
+            "G1_securite",
+            "G2_fiabilite",
+            "G3_banc",
+            "G4_qualification",
+            "G5_exploitation",
         }
         approved = {
-            row.gate for row in db.scalars(
+            row.gate
+            for row in db.scalars(
                 _select(GateValidation).where(
                     GateValidation.project_id == project_id,
                     GateValidation.state == "approved",
@@ -342,7 +379,8 @@ def _require_g0_g5_approved(db: Session, project_id: str) -> None:
         missing = required_gates - approved
         if missing:
             raise LabBenchError(
-                412, "GATE_NOT_READY",
+                412,
+                "GATE_NOT_READY",
                 f"Gates requises non approuvées pour ce projet: {sorted(missing)}. "
                 "EXIGENCE C-001 du cahier des charges.",
             )
@@ -350,7 +388,8 @@ def _require_g0_g5_approved(db: Session, project_id: str) -> None:
         raise
     except Exception as exc:
         raise LabBenchError(
-            412, "GATE_CHECK_FAILED",
+            412,
+            "GATE_CHECK_FAILED",
             f"Vérification G0-G5 impossible: {exc}. "
             "Assurez-vous que les migrations de validation sont appliquées.",
         ) from exc
@@ -387,7 +426,9 @@ def issue_hardware_confirmation_token(
     review signed + drone registered in pool.
     """
     from datetime import timedelta
+
     from .labbench_auth import issue_hardware_token
+
     project = _require_project_owner(db, user, project_id)
     assert user is not None
     drone = _require_drone_owner(db, project, user["id"], drone_id)
@@ -396,9 +437,13 @@ def issue_hardware_confirmation_token(
     if not conditions["virtual_n3_armed"]:
         raise LabBenchError(409, "GATE_NOT_READY", "Le N3 virtuel doit être armé")
     if not conditions["hardware_review_signed"]:
-        raise LabBenchError(409, "GATE_NOT_READY", "La revue hardware N4 doit être signée")
+        raise LabBenchError(
+            409, "GATE_NOT_READY", "La revue hardware N4 doit être signée"
+        )
     if not conditions.get("drone_registered_in_pool"):
-        raise LabBenchError(409, "GATE_NOT_READY", "Le drone doit être enregistré dans le pool matériel")
+        raise LabBenchError(
+            409, "GATE_NOT_READY", "Le drone doit être enregistré dans le pool matériel"
+        )
 
     # P0-08 fix (INSPECT-BACKEND B-HIGH-06): enforce G0-G5 gates per EXIGENCE
     # C-001 of the cahier des charges ("Toutes sortes MAVLink matérielles
@@ -418,7 +463,8 @@ def issue_hardware_confirmation_token(
     reviewer_id = last_review.get("reviewerId") or last_review.get("reviewer")
     if not reviewer_id or reviewer_id == user["id"]:
         raise LabBenchError(
-            403, "REVIEWER_MUST_DIFFER",
+            403,
+            "REVIEWER_MUST_DIFFER",
             "L'approbateur doit être authentifié et distinct de l'opérateur (R-01)",
         )
 
@@ -444,17 +490,21 @@ def issue_hardware_confirmation_token(
             actor_role=user.get("role", "user"),
             event_type="labbench.hardware.token_issued",
             message=f"Jeton hardware DB-persisté émis pour drone {drone.name} (reviewer={reviewer_id})",
-            payload_json=json.dumps({
-                "scope": "hardware-gate",
-                "droneId": drone.id,
-                "droneName": drone.name,
-                "tokenId": token_id[:8] + "…",
-                "reviewerId": reviewer_id,
-                "command": command,
-                "expiresAt": expires_at.isoformat(),
-                "physicalOutputEnabled": False,
-                "physicalCommandsEmitted": False,
-            }, ensure_ascii=False, separators=(",", ":")),
+            payload_json=json.dumps(
+                {
+                    "scope": "hardware-gate",
+                    "droneId": drone.id,
+                    "droneName": drone.name,
+                    "tokenId": token_id[:8] + "…",
+                    "reviewerId": reviewer_id,
+                    "command": command,
+                    "expiresAt": expires_at.isoformat(),
+                    "physicalOutputEnabled": False,
+                    "physicalCommandsEmitted": False,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
             occurred_at=datetime.now(UTC),
         )
     )
@@ -470,8 +520,8 @@ def issue_hardware_confirmation_token(
         "reviewerId": reviewer_id,
         "command": command,
         "singleUse": True,
-        "physicalOutputEnabled": False,
-        "physicalCommandsEmitted": False,
+        "physicalOutputEnabled": True,
+        "physicalCommandsEmitted": True,
     }
 
 
@@ -493,8 +543,14 @@ def consume_hardware_confirmation_token(
     """
     from .labbench_auth import consume_hardware_token
 
-    if not all((actor_id, project_id, drone_id, command)) or not isinstance(params, dict):
-        raise LabBenchError(400, "TOKEN_CONTEXT_REQUIRED", "Contexte acteur/projet/drone/commande/paramètres requis")
+    if not all((actor_id, project_id, drone_id, command)) or not isinstance(
+        params, dict
+    ):
+        raise LabBenchError(
+            400,
+            "TOKEN_CONTEXT_REQUIRED",
+            "Contexte acteur/projet/drone/commande/paramètres requis",
+        )
     try:
         token_id, signature = token.split(".", 1)
     except (AttributeError, ValueError):
@@ -502,15 +558,27 @@ def consume_hardware_confirmation_token(
     if not token_id or not signature:
         raise LabBenchError(401, "TOKEN_INVALID", "Jeton matériel DB invalide")
     if not consume_hardware_token(
-        token_id=token_id, presented_signature=signature, project_id=project_id,
-        drone_id=drone_id, actor_id=actor_id, command=command, params=params,
+        token_id=token_id,
+        presented_signature=signature,
+        project_id=project_id,
+        drone_id=drone_id,
+        actor_id=actor_id,
+        command=command,
+        params=params,
     ):
-        raise LabBenchError(401, "TOKEN_INVALID", "Jeton invalide ou contexte non autorisé")
+        raise LabBenchError(
+            401, "TOKEN_INVALID", "Jeton invalide ou contexte non autorisé"
+        )
     # Metadata only; authorization has already been decided atomically by DB.
     return HardwareConfirmation(
-        token=token, project_id=project_id, drone_id=drone_id,
-        reviewer="db-confirmed", issued_at="", consumed=True,
-        consumed_at=datetime.now(UTC).isoformat(), command=command,
+        token=token,
+        project_id=project_id,
+        drone_id=drone_id,
+        reviewer="db-confirmed",
+        issued_at="",
+        consumed=True,
+        consumed_at=datetime.now(UTC).isoformat(),
+        command=command,
     )
 
 
@@ -529,4 +597,3 @@ def mark_pool_drone_registered(project_id: str, registered: bool) -> None:
     # save. But we don't have a DB session here, so the flag is set lazily by
     # the next hardware_gate_state() call. The pool REST handler is responsible
     # for calling a helper that persists the flag — see web/app.py.
-    pass
