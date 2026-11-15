@@ -25,7 +25,7 @@ os.environ.setdefault("AEROMIND_ENV", "development")
 
 from web.database import Base
 from web import canonical_models  # noqa: F401 — register canonical tables
-from web.models import User, Project, Drone
+from web.models import User, Project, Drone, SuperAdminProjectArchive
 from web.app_auth_helpers import current_user as resolve_current_user
 from web.oidc import _signed, _b64
 
@@ -602,3 +602,72 @@ def test_labbench_session_revocation(app_client):
     resp2 = client.get(f"/api/lab/projects/{project_id}/drones/active",
                        headers={SESSION_HEADER_NAME: f"Lab {token}"})
     assert resp2.status_code == 401, "Revoked session should be rejected"
+
+
+
+from web.admin import delete_project_archive, restore_project_archive
+
+
+def _trpc_json(response):
+    body = response.json()
+    data = body.get("result", {}).get("data", {})
+    return data.get("json", data)
+
+
+def test_user_delete_archives_and_superadmin_can_restore_then_purge(app_client):
+    client, Session, user_id = app_client
+    project_name = f"Lifecycle Test {uuid4()}"
+    created = client.post(
+        "/api/trpc/projects.create",
+        json={"json": {"project": {"name": project_name}, "config": {}, "requirements": [], "runId": "SIM-LC"}},
+    )
+    assert created.status_code == 200, created.text
+    project_id = _trpc_json(created)["id"]
+
+    deleted = client.post("/api/trpc/projects.delete", json={"json": {"id": project_id}})
+    assert deleted.status_code == 200, deleted.text
+    assert _trpc_json(deleted)["status"] == "ARCHIVED"
+
+    with Session() as db:
+        project = db.get(Project, project_id)
+        archive = db.scalar(select(SuperAdminProjectArchive).where(
+            SuperAdminProjectArchive.original_project_id == project_id
+        ))
+        assert project is not None
+        assert project.status == "ARCHIVED"
+        assert project.deleted_at is not None
+        assert project.deleted_by == user_id
+        assert archive is not None
+        archive_id = archive.id
+
+    # Both ordinary read surfaces exclude the logical archive.
+    assert client.post("/api/trpc/projects.list", json={"json": {}}).json()["result"]["data"]["json"] == []
+    assert client.get("/api/projects").status_code == 200
+    assert client.get("/api/projects").json() == []
+
+    restored = restore_project_archive(
+        archive_id,
+        {"id": "super-admin-test", "role": "super_admin", "email": "sa@example.test"},
+    )
+    assert restored["status"] == "ACTIVE"
+    assert restored["targetUserId"] == user_id
+    with Session() as db:
+        assert db.get(Project, project_id).status == "ACTIVE"
+
+    # The retained archive is no longer an archive work-queue item.
+    from web.admin import list_project_archives
+    assert not any(item["id"] == archive_id for item in list_project_archives())
+
+    # Re-archive through the user API, then exercise definitive Super-Admin purge.
+    assert client.post("/api/trpc/projects.delete", json={"json": {"id": project_id}}).status_code == 200
+    with Session() as db:
+        archive_id = db.scalar(select(SuperAdminProjectArchive.id).where(
+            SuperAdminProjectArchive.original_project_id == project_id
+        ).order_by(SuperAdminProjectArchive.archived_at.desc()))
+    delete_project_archive(
+        archive_id,
+        {"id": "super-admin-test", "role": "super_admin", "email": "sa@example.test"},
+    )
+    with Session() as db:
+        assert db.get(Project, project_id) is None
+        assert db.get(SuperAdminProjectArchive, archive_id) is None

@@ -290,14 +290,67 @@ def archive_project_for_superadmin(db: Session, project: Project, actor: dict[st
     return {"id": record.id, "projectId": project.id, "sha256": digest}
 
 
-def delete_project_archive(archive_id: str, actor: dict[str, Any]) -> dict[str, Any]:
-    """Permanently remove one Super-Admin archive and referenced files.
+def archive_project_for_user(db: Session, project: Project, actor: dict[str, Any], owner_email: str | None = None) -> dict[str, Any]:
+    """Archive a project without deleting the user's durable Project row."""
+    from datetime import UTC, datetime
+    if str(getattr(project, "status", "ACTIVE")).upper() == "ARCHIVED":
+        return {"projectId": project.id, "status": "ARCHIVED", "alreadyArchived": True}
+    archived = archive_project_for_superadmin(db, project, actor, "user_project_archived", owner_email)
+    project.status = "ARCHIVED"
+    project.deleted_at = datetime.now(UTC)
+    project.deleted_by = str(actor.get("id") or project.user_id)
+    # Keep a small lifecycle marker in the snapshot payload for older readers.
+    try:
+        data = json.loads(project.data_json or "{}")
+        if isinstance(data, dict):
+            data["status"] = "ARCHIVED"
+            project.data_json = json.dumps(data, ensure_ascii=False)
+    except (TypeError, json.JSONDecodeError):
+        pass
+    return {"projectId": project.id, "status": "ARCHIVED", **archived}
 
-    Archive snapshots are normally JSON-only; if a future snapshot contains
-    file/path entries, only files inside the configured archive roots are
-    removed, preventing path traversal or arbitrary deletion.
-    """
-    from .models import SuperAdminProjectArchive
+def restore_project_archive(archive_id: str, actor: dict[str, Any], target_user_id: str | None = None) -> dict[str, Any]:
+    """Restore an archived project to its owner or an explicit target user."""
+    from .models import AdminAccountRecord, Project, User, SuperAdminProjectArchive
+    from .database import SessionLocal
+    from datetime import UTC, datetime
+    if actor.get("role") != "super_admin":
+        raise ValueError("Super-Admin permission required")
+    with SessionLocal() as db:
+        archive = db.get(SuperAdminProjectArchive, str(archive_id))
+        if archive is None:
+            raise LookupError("Archive not found")
+        target = str(target_user_id or archive.owner_id).strip()
+        if not target:
+            raise LookupError("Target user not found")
+        if db.get(User, target) is None:
+            account_row = db.get(AdminAccountRecord, target)
+            if account_row is None:
+                raise LookupError("Target user not found")
+            db.add(User(id=target, email=account_row.email))
+            db.flush()
+        project = db.get(Project, archive.original_project_id)
+        if project is None:
+            raise LookupError("Original project row is unavailable; restoration requires a retained project row")
+        if str(project.status).upper() != "ARCHIVED":
+            raise ValueError("Project is not archived")
+        project.user_id = target
+        project.status = "ACTIVE"
+        project.deleted_at = None
+        project.deleted_by = None
+        try:
+            data = json.loads(project.data_json or "{}")
+            if isinstance(data, dict):
+                data["status"] = "ACTIVE"
+                project.data_json = json.dumps(data, ensure_ascii=False)
+        except (TypeError, json.JSONDecodeError):
+            pass
+        db.commit()
+        return {"restored": True, "archiveId": archive.id, "projectId": project.id, "targetUserId": target, "status": "ACTIVE"}
+
+def delete_project_archive(archive_id: str, actor: dict[str, Any]) -> dict[str, Any]:
+    """Permanently remove archive, retained project and all project dependents."""
+    from .models import SuperAdminProjectArchive, Project
     from .database import SessionLocal
     from pathlib import Path
     import os
@@ -307,6 +360,8 @@ def delete_project_archive(archive_id: str, actor: dict[str, Any]) -> dict[str, 
         row = db.get(SuperAdminProjectArchive, str(archive_id))
         if row is None:
             raise LookupError("Archive not found")
+        project = db.get(Project, row.original_project_id)
+        removed_files = 0
         try:
             snapshot = json.loads(row.snapshot_json or "{}")
         except (TypeError, json.JSONDecodeError):
@@ -320,32 +375,42 @@ def delete_project_archive(archive_id: str, actor: dict[str, Any]) -> dict[str, 
             elif isinstance(value, str) and any(x in key for x in ("file", "path", "artifact")):
                 candidates.append(value)
         collect(snapshot)
-        roots = [Path(os.getenv("AEROMIND_ARCHIVE_ROOT", "/tmp/aeromind-archives")).resolve()]
-        removed_files = 0
+        root = Path(os.getenv("AEROMIND_ARCHIVE_ROOT", "/tmp/aeromind-archives")).resolve()
         for candidate in candidates:
             try:
                 path = Path(candidate).expanduser().resolve()
-                if any(path == root or root in path.parents for root in roots) and path.is_file():
+                if (path == root or root in path.parents) and path.is_file():
                     path.unlink(); removed_files += 1
             except (OSError, RuntimeError):
                 continue
+        if project is not None:
+            delete_project_dependents(db, project.id)
+            db.delete(project)
         db.delete(row)
         db.commit()
-        return {"deleted": True, "id": str(archive_id), "removedFiles": removed_files}
-
+        return {"deleted": True, "id": str(archive_id), "projectId": row.original_project_id, "removedFiles": removed_files}
 def list_project_archives(limit: int = 250) -> list[dict[str, Any]]:
-    from .models import SuperAdminProjectArchive
+    from .models import SuperAdminProjectArchive, Project
     limit = max(1, min(int(limit), 500))
     with SessionLocal() as db:
         rows = db.scalars(select(SuperAdminProjectArchive).order_by(
             SuperAdminProjectArchive.archived_at.desc()).limit(limit)).all()
-        return [{"id": row.id, "projectId": row.original_project_id, "ownerId": row.owner_id,
+        result = []
+        for row in rows:
+            project = db.get(Project, row.original_project_id)
+            # A restored retained project is no longer an ARCHIVED project and
+            # must disappear from the archive work queue. Legacy archives for
+            # already-purged rows remain visible for audit purposes.
+            if project is not None and str(project.status).upper() != "ARCHIVED":
+                continue
+            result.append({"id": row.id, "projectId": row.original_project_id, "ownerId": row.owner_id,
                  "ownerEmail": row.owner_email, "projectName": row.project_name,
                  "reason": row.archive_reason, "archivedBy": row.archived_by,
                  "archivedAt": row.archived_at.isoformat() if row.archived_at else None,
-                 "sha256": row.sha256} for row in rows]
-
-
+                 "deletedAt": project.deleted_at.isoformat() if project and project.deleted_at else (row.archived_at.isoformat() if row.archived_at else None),
+                 "deletedBy": project.deleted_by if project else row.archived_by,
+                 "status": "ARCHIVED", "sha256": row.sha256})
+        return result
 def delete_project_dependents(db: Session, project_id: str) -> None:
     """Delete project-scoped rows after their immutable archive is written."""
     from sqlalchemy import inspect
@@ -636,7 +701,7 @@ def delete_account(actor: dict[str, Any], account_id: str, permanent: bool = Fal
             if value:
                 owner_ids.add(value)
         archived_projects = []
-        for project in db.scalars(select(Project).where(Project.user_id.in_(owner_ids))).all():
+        for project in db.scalars(select(Project).where(Project.user_id.in_(owner_ids), Project.status == "ACTIVE")).all():
             archived_projects.append(archive_project_for_superadmin(
                 db, project, actor, "account_permanently_deleted", account.get("email")))
             delete_project_dependents(db, project.id)
@@ -797,7 +862,7 @@ def delete_superadmin_account(actor: dict[str, Any], account_id: str, permanent:
             if value:
                 owner_ids.add(value)
         archived_projects = []
-        for project in db.scalars(select(Project).where(Project.user_id.in_(owner_ids))).all():
+        for project in db.scalars(select(Project).where(Project.user_id.in_(owner_ids), Project.status == "ACTIVE")).all():
             archived_projects.append(archive_project_for_superadmin(
                 db, project, actor, "superadmin_permanently_deleted", target_email))
             delete_project_dependents(db, project.id)
@@ -1052,7 +1117,7 @@ def activity() -> dict[str, Any]:
                 deleted_accounts.append({**details, "id": details.get("id", event["targetUserId"]),
                                          "deletedBy": event["actorId"], "deletedAt": event["createdAt"]})
         projects = []
-        for p in db.scalars(select(Project).order_by(Project.created_at.desc()).limit(100)).all():
+        for p in db.scalars(select(Project).where(Project.status == "ACTIVE").order_by(Project.created_at.desc()).limit(100)).all():
             try:
                 project_body = json.loads(p.data_json or "{}")
             except (TypeError, json.JSONDecodeError):

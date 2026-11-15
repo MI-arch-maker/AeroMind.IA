@@ -1,6 +1,7 @@
 """Owner-scoped REST mutations for projects, simulations, reports and LabBench sessions."""
 
 import json
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
@@ -9,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .app_auth_helpers import current_user
-from .admin import archive_project_for_superadmin, delete_project_dependents
+from .admin import archive_project_for_superadmin, archive_project_for_user, delete_project_dependents
 from .database import get_db
 from .models import Drone, LabSession, Project, Report, Simulation, User, UserSetting
 
@@ -51,6 +52,7 @@ def dump(record, key="data"):
                 "active_drone_id": record.active_drone_id,
                 "created_at": record.created_at.isoformat() if record.created_at else None,
                 "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+                "status": record.status,
             }
         )
     elif isinstance(record, Drone):
@@ -61,7 +63,7 @@ def dump(record, key="data"):
 
 
 def get_project(db, user_id, project_id):
-    record = db.scalar(select(Project).where(Project.id == project_id, Project.user_id == user_id))
+    record = db.scalar(select(Project).where(Project.id == project_id, Project.user_id == user_id, Project.status == "ACTIVE"))
     if not record:
         raise HTTPException(404, "Project not found")
     return record
@@ -75,7 +77,7 @@ def list_projects(
     return [
         dump(p)
         for p in db.scalars(
-            select(Project).where(Project.user_id == user_id).order_by(Project.created_at.desc())
+            select(Project).where(Project.user_id == user_id, Project.status == "ACTIVE").order_by(Project.created_at.desc())
         )
     ]
 
@@ -126,6 +128,7 @@ def create_project(
 def read_project(
     project_id: str,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     return dump(get_project(db, owner(aeromind_session, db, authorization), project_id))
@@ -137,6 +140,7 @@ def update_project(
     project_id: str,
     body: RecordIn,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db, authorization)
@@ -168,13 +172,12 @@ def update_project(
 def delete_project(
     project_id: str,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    project = get_project(db, owner(aeromind_session, db, authorization), project_id)
     user = current_user(aeromind_session, authorization)
-    archive_project_for_superadmin(db, project, user or {"id": project.user_id}, "user_project_deleted", user.get("email") if user else None)
-    delete_project_dependents(db, project.id)
-    db.delete(project)
+    project = get_project(db, owner(aeromind_session, db, authorization), project_id)
+    archive_project_for_user(db, project, user or {"id": project.user_id}, user.get("email") if user else None)
     db.commit()
     return Response(status_code=204)
 
@@ -183,6 +186,7 @@ def delete_project(
 def active_drone(
     project_id: str,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db, authorization)
@@ -198,6 +202,7 @@ def set_drone(
     project_id: str,
     body: RecordIn,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db, authorization)
@@ -230,6 +235,7 @@ def set_drone(
 def list_drones(
     project_id: str,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """List all drones attached to a project (fleet view)."""
@@ -254,6 +260,7 @@ def create_drone(
     project_id: str,
     body: RecordIn,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Add a new drone to the project's fleet."""
@@ -287,6 +294,7 @@ def read_drone(
     project_id: str,
     drone_id: str,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db, authorization)
@@ -305,6 +313,7 @@ def update_drone(
     drone_id: str,
     body: RecordIn,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db, authorization)
@@ -328,6 +337,7 @@ def activate_drone(
     project_id: str,
     drone_id: str,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Mark a drone as the project's primary active drone."""
@@ -348,6 +358,7 @@ def delete_drone(
     project_id: str,
     drone_id: str,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     user_id = owner(aeromind_session, db, authorization)
@@ -381,6 +392,7 @@ for route, model in [
         def endpoint(
             project_id: str,
             aeromind_session: str | None = Cookie(default=None),
+            authorization: str | None = Header(default=None),
             db: Session = Depends(get_db),
         ):
             uid = owner(aeromind_session, db, authorization)
@@ -401,6 +413,7 @@ for route, model in [
             project_id: str,
             body: RecordIn,
             aeromind_session: str | None = Cookie(default=None),
+            authorization: str | None = Header(default=None),
             db: Session = Depends(get_db),
         ):
             uid = owner(aeromind_session, db, authorization)
@@ -430,6 +443,7 @@ for route, model in [
             project_id: str,
             item_id: str,
             aeromind_session: str | None = Cookie(default=None),
+            authorization: str | None = Header(default=None),
             db: Session = Depends(get_db),
         ):
             uid = owner(aeromind_session, db, authorization)
@@ -455,6 +469,7 @@ for route, model in [
             item_id: str,
             body: RecordIn | None = None,
             aeromind_session: str | None = Cookie(default=None),
+            authorization: str | None = Header(default=None),
             db: Session = Depends(get_db),
         ):
             uid = owner(aeromind_session, db, authorization)
@@ -503,6 +518,7 @@ def get_settings(
 def put_setting(
     body: SettingIn,
     aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     uid = owner(aeromind_session, db, authorization)

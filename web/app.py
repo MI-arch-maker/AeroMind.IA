@@ -27,7 +27,7 @@ from .inspection_api import router as inspection_router
 from .factory_api import router as factory_router
 from .gcs_api import router as gcs_router
 from .cad_body_limit import CadBodyLimitMiddleware
-from .admin import activity as admin_activity, archive_project_for_superadmin, clear_audit_logs, create_account, delete_account, delete_project_dependents, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
+from .admin import activity as admin_activity, archive_project_for_superadmin, archive_project_for_user, clear_audit_logs, create_account, delete_account, delete_project_dependents, delete_superadmin_account, issue_daily_totp_code, list_accounts, migrate_legacy_registry, reset_local_auth, reset_superadmin_local_auth, rotate_authorization_code, rotate_superadmin_authorization_code, update_account, update_project_control, update_superadmin_account, verify_authorization_code
 from .admin_console_api import admin_api_router, router as admin_console_router
 from .app_auth_helpers import current_user as resolve_current_user
 from .oidc import _is_microsoft_entra_issuer, _session_token, _verified, logout as oidc_logout, router as oidc_router
@@ -937,7 +937,7 @@ async def trpc_compat(
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
         with SessionLocal() as db:
             data = []
-            for record in db.scalars(select(Project).where(Project.user_id.in_({current_user['id'], current_user.get('subject')})).order_by(Project.created_at.desc())):
+            for record in db.scalars(select(Project).where(Project.user_id.in_({current_user['id'], current_user.get('subject')}), Project.status == 'ACTIVE').order_by(Project.created_at.desc())):
                 body = __import__('json').loads(record.data_json or '{}')
                 data.append({'id': record.id, 'project': body.get('project', {'name': record.name, 'status': 'active', 'version': '1.0'}), 'config': body.get('config', {}), 'requirements': body.get('requirements', []), 'runId': body.get('runId', 'SIM-000')})
     elif name.endswith('projects.create'):
@@ -953,7 +953,7 @@ async def trpc_compat(
             # V6.2 — use the app-level SessionLocal (patched in tests, the
             # correct engine in production) instead of a lazily imported one.
             with SessionLocal() as db:
-                if current_user.get('role') == 'demo' and db.scalar(select(Project).where(Project.user_id == current_user['id'])) is not None:
+                if current_user.get('role') == 'demo' and db.scalar(select(Project).where(Project.user_id == current_user['id'], Project.status == 'ACTIVE')) is not None:
                     return _trpc_error(403, 'DEMO_LIMIT_REACHED', 'Le compte Démo est limité à un projet')
                 # V6.2 — ensure the user row exists before creating the project
                 # (FK constraint: Project.user_id → users.id). The user might
@@ -989,7 +989,7 @@ async def trpc_compat(
         import json
         project_id = str(payload.get('id', ''))
         with SessionLocal() as db:
-            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')})))
+            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')}), Project.status == 'ACTIVE'))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
             result = payload.get('result', {})
             record = Simulation(id=str(uuid4()), user_id=current_user['id'], project_id=project_id, data_json=json.dumps({'runId': result.get('runId', 'SIM-001'), 'version': '1.0', 'result': result, 'config': payload.get('config', {})}))
@@ -999,18 +999,17 @@ async def trpc_compat(
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
         project_id = str(payload.get('id', payload) if isinstance(payload, dict) else payload)
         with SessionLocal() as db:
-            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')})))
+            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')}), Project.status == 'ACTIVE'))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
-            archive_project_for_superadmin(db, project, current_user, 'user_project_deleted', current_user.get('email'))
-            delete_project_dependents(db, project.id)
-            db.delete(project); db.commit(); data = {'deleted': True}
+            archive_project_for_user(db, project, current_user, current_user.get('email'))
+            db.commit(); data = {'deleted': True, 'status': 'ARCHIVED'}
     elif name.endswith('projects.saveSnapshot'):
         if not current_user:
             return _trpc_error(401, 'UNAUTHORIZED', 'OIDC authentication required')
         import json
         project_id = str(payload.get('id', ''))
         with SessionLocal() as db:
-            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')})))
+            project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')}), Project.status == 'ACTIVE'))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
             previous = json.loads(project.data_json or '{}')
             state = {'project': payload.get('project', {}), 'config': payload.get('config', {}), 'requirements': payload.get('requirements', []), 'runId': payload.get('runId', 'SIM-000')}
@@ -1032,7 +1031,7 @@ async def trpc_compat(
         import json
         project_id = str(payload.get('id', ''))
         with SessionLocal() as db:
-            if db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')}))) is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
+            if db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')}), Project.status == 'ACTIVE')) is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
             report_payload = {**payload, 'status': 'draft', 'workflow': {'submittedAt': None, 'reviewerId': None, 'approverId': None, 'reviewerComment': None, 'approverComment': None}}
             record = Report(id=str(uuid4()), user_id=current_user['id'], project_id=project_id, data_json=json.dumps(report_payload)); db.add(record); db.commit(); data = {'id': record.id, **report_payload}
     elif name.endswith('reports.submit'):

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Cookie, HTTPException, Response
 from sqlalchemy import func, or_, select
 from .database import SessionLocal
 from .models import AdminAccountEvent, AuditEvent, Project, Drone, Simulation, User
-from .admin import account_for_identity, delete_project_archive, list_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity
+from .admin import account_for_identity, delete_project_archive, list_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity, restore_project_archive
 from .config import get_settings
 from .oidc import _check_local_generation, _verified
 from .primary_session_store import is_primary_session_active
@@ -174,6 +174,23 @@ def project_archive_index(
     return {"archives": list_project_archives(limit)}
 
 
+@router.post("/archives/{archive_id}/restore")
+def restore_archive(
+    archive_id: str,
+    payload: dict = Body(default={}),
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    actor = _require_admin(admin_session)
+    if actor.get("role") != "super_admin":
+        raise HTTPException(403, "La restauration est réservée au Super-Admin.")
+    target = payload.get("target_user_id") if isinstance(payload, dict) else None
+    try:
+        return restore_project_archive(archive_id, actor, str(target).strip() if target else None)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
 @router.delete("/archives/{archive_id}")
 def delete_archive(
     archive_id: str,
@@ -188,6 +205,23 @@ def delete_archive(
         raise HTTPException(404, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(403, str(exc)) from exc
+
+@admin_api_router.post("/archives/{archive_id}/restore")
+def restore_archive_canonical(
+    archive_id: str,
+    payload: dict = Body(default={}),
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    actor = _require_admin(admin_session)
+    if actor.get("role") != "super_admin":
+        raise HTTPException(403, "La restauration est réservée au Super-Admin.")
+    target = payload.get("target_user_id") if isinstance(payload, dict) else None
+    try:
+        return restore_project_archive(archive_id, actor, str(target).strip() if target else None)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 @admin_api_router.delete("/archives/{archive_id}")
 def delete_archive_canonical(

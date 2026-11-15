@@ -13223,6 +13223,18 @@ export default function Home() {
     ),
     retry: false,
   });
+  // Le changement de projet réinitialise les pipelines dépendants. Les
+  // queries tRPC sont indexées par project_id ; refetch explicite pour que
+  // les centres déjà montés ne conservent jamais les données du projet
+  // précédent après une sélection ou un rechargement.
+  useEffect(() => {
+    if (!authenticatedUser || !activeProjectId || activeProjectId.startsWith("project-")) return;
+    void Promise.all([
+      serverRunsQuery.refetch(),
+      serverVersionsQuery.refetch(),
+      serverReportsQuery.refetch(),
+    ]);
+  }, [authenticatedUser, activeProjectId]);
   const [project, setProject] = useState<ProjectState>(initialState.project);
   const [requirements, setRequirements] = useState<Requirement[]>(
     initialState.requirements
@@ -13390,7 +13402,11 @@ export default function Home() {
     // projet initié à la connexion.
     const mergedProjects = remoteProjects;
     setProjects(mergedProjects);
-    const selected = mergedProjects.find(item => item.id === activeProjectId);
+    // Après F5, activeProjectId est volontairement vide pour éviter de
+    // réutiliser un état d’un autre compte. La liste serveur est la source
+    // de vérité : restaurer le projet le plus récent (l’API est triée par
+    // created_at DESC) au lieu de réafficher l’écran de création.
+    const selected = mergedProjects.find(item => item.id === activeProjectId) ?? mergedProjects[0];
     if (!selected) {
       setActiveProjectId("");
       setProject(emptyProject);
@@ -13401,9 +13417,10 @@ export default function Home() {
     }
     setActiveProjectId(selected.id);
     setProject(selected.project);
-    setRequirements(selected.requirements);
-    setConfig(normalizeConcept(selected.config));
-    setRunId(selected.runId);
+    setRequirements(selected.requirements ?? []);
+    setConfig(normalizeConcept(selected.config ?? blankConcept));
+    setRunId(selected.runId || "SIM-000");
+    setActiveView("overview");
   }, [
     authenticatedUser,
     serverProjectsQuery.data,
@@ -13753,6 +13770,12 @@ export default function Home() {
         !activeProjectId.startsWith("project-")
     );
     const deletedProjectId = activeProjectId;
+    // Purge immédiate de toute référence locale avant de basculer vers un
+    // éventuel projet restant; le serveur reste l’autorité sur la liste.
+    try {
+      window.localStorage.removeItem("aeromind-activeProjectId");
+      window.localStorage.removeItem("activeProjectId");
+    } catch {}
     const remaining = projects.filter(item => item.id !== deletedProjectId);
     const target = remaining[0];
     if (!authenticatedUser && !localServerHydrated.current) {

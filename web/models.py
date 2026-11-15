@@ -65,6 +65,11 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc
     )
+    # User deletion is a logical archive; only Super-Admin permanent deletion
+    # removes the row and its dependents.
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE", index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    deleted_by: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 
 
 class Drone(Base):
