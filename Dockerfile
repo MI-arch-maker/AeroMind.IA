@@ -17,19 +17,19 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     AEROMIND_ENV=production \
-    AEROMIND_VIRTUAL_ONLY=true \
-    HARDWARE_CONTROL=false 
-    AEROMIND_SITL_AUTOSTART=true 
-    AEROMIND_CAD_STORAGE_DIR=/app/data/cad 
-    PORT=3000 
-    PIP_NO_CACHE_DIR=1 
+    AEROMIND_VIRTUAL_ONLY=false \
+    HARDWARE_CONTROL=true \
+    AEROMIND_SITL_AUTOSTART=true \
+    AEROMIND_CAD_STORAGE_DIR=/app/data/cad \
+    PORT=3000 \
+    PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
 
 # Utilisateur non-root pour Render.
 RUN addgroup --system aeromind && adduser --system --ingroup aeromind aeromind
-RUN apt-get update 
-  && apt-get install -y --no-install-recommends clamav libgl1 libglu1-mesa libgomp1 libxrender1 libxext6 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends clamav libgl1 libglu1-mesa libgomp1 libxrender1 libxext6 \
   && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
@@ -49,12 +49,8 @@ USER aeromind
 EXPOSE 3000
 
 # Render utilise /api/ready comme health check ; le port est défini par PORT.
-# HEALTHCHECK explicite pour les déploiements hors-Render (docker-compose, k8s,
-# etc.) ; Render s'appuie sur healthCheckPath dans render.yaml.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["python", "-c", "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT','3000') + '/api/ready', timeout=3).status == 200 else 1)"]
 
-# CMD en forme exec (pas shell form) : permet à uvicorn de recevoir SIGTERM
-# directement pour un graceful shutdown. Workers/timings alignés avec les
-# recommandations Render starter (2 vCPU).
+# CMD en forme exec (pas shell form) : permet à uvicorn de recevoir SIGTERM directement.
 CMD ["sh", "-c", "exec uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-3000} --workers 2 --limit-concurrency 100 --timeout-keep-alive 30 --timeout-graceful-shutdown 5"]
