@@ -34,7 +34,10 @@ export default function GcsSimulation() {
   }, []);
 
   const connectWebSocket = useCallback(() => {
-    if (socketRef.current && (socketRef.current.readyState === WebSocket.OPEN || socketRef.current.readyState === WebSocket.CONNECTING)) {
+    if (
+      socketRef.current &&
+      (socketRef.current.readyState === WebSocket.OPEN || socketRef.current.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
@@ -64,13 +67,25 @@ export default function GcsSimulation() {
         try {
           const raw = JSON.parse(String(event.data));
           if (raw && Array.isArray(raw.position) && raw.position.length >= 3) {
+            const safePosition = [
+              Number(raw.position.at(0)) || 0,
+              Number(raw.position.at(1)) || 0,
+              Number(raw.position.at(2)) || 0,
+            ];
+            const safeVelocity =
+              Array.isArray(raw.velocity) && raw.velocity.length >= 3
+                ? [
+                    Number(raw.velocity.at(0)) || 0,
+                    Number(raw.velocity.at(1)) || 0,
+                    Number(raw.velocity.at(2)) || 0,
+                  ]
+                : new Array<number>(3).fill(0);
+
             const safeTelemetry: Telemetry = {
               protocol: String(raw.protocol || "MAVLink2"),
               vehicle_id: String(raw.vehicle_id || "AEROMIND-HIL-PHYS-01"),
-              position: [Number(raw.position[0]) || 0, Number(raw.position[1]) || 0, Number(raw.position[2]) || 0],
-              velocity: Array.isArray(raw.velocity) && raw.velocity.length >= 3
-                ? [Number(raw.velocity[0]) || 0, Number(raw.velocity[1]) || 0, Number(raw.velocity[2]) || 0]
-                :,
+              position: safePosition,
+              velocity: safeVelocity,
               heading_deg: Number(raw.heading_deg ?? raw.yaw ?? 0),
               link_quality: Number(raw.link_quality ?? 1),
               roll: Number(raw.roll ?? 0),
@@ -117,8 +132,8 @@ export default function GcsSimulation() {
     const testFrame: Telemetry = {
       protocol: "MAVLink2",
       vehicle_id: "AEROMIND-HIL-01",
-      position: [46.52, 6.63, 120.0],
-      velocity: [12.4, 0.4, -0.1],
+      position: new Array<number>(46.52, 6.63, 120.0),
+      velocity: new Array<number>(12.4, 0.4, -0.1),
       heading_deg: 87.2,
       roll: 4.5,
       pitch: -1.8,
@@ -148,7 +163,6 @@ export default function GcsSimulation() {
       setBusy(false);
     }
 
-    // Fallback local déterministe garantissant zéro blocage
     setState((s) => ({ ...s, telemetry: testFrame }));
     appendLog("Télémétrie MAVLink2 normalisée localement (Pipeline HIL actif)");
   };
@@ -254,8 +268,10 @@ export default function GcsSimulation() {
   };
 
   const t = state.telemetry;
-  const safePos = t && Array.isArray(t.position) && t.position.length >= 3 ? t.position :;
-  const safeVel = t && Array.isArray(t.velocity) && t.velocity.length >= 3 ? t.velocity :;
+  const safePos =
+    t && Array.isArray(t.position) && t.position.length >= 3 ? t.position : new Array<number>(3).fill(0);
+  const safeVel =
+    t && Array.isArray(t.velocity) && t.velocity.length >= 3 ? t.velocity : new Array<number>(3).fill(0);
   const safeLink = typeof t?.link_quality === "number" && Number.isFinite(t.link_quality) ? t.link_quality : 1;
 
   return (
@@ -281,11 +297,3 @@ export default function GcsSimulation() {
       <section className="gcs-grid">
         <div className="gcs-panel">
           <header>
-            <span>TÉLÉMÉTRIE WS · RÉCEPTION LOCALE</span>
-            {connection.startsWith("BRIDGE") ? <Wifi size={16} /> : <WifiOff size={16} />}
-          </header>
-          <div className="gcs-connection">{connection}</div>
-          <div className="gcs-protocols">
-            <i>
-              MAVLink v2
-              <br />
