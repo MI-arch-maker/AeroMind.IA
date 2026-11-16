@@ -507,231 +507,47 @@ const navItems: Array<{
   label: string;
   meta: string;
   icon: typeof LayoutDashboard;
-  group: "PILOTER" | "CONCEVOIR" | "SIMULER" | "REVOIR";
+  group:
+    | "COMMANDEMENT & SUPERVISION"
+    | "CONCEVOIR"
+    | "SIMULER & QUALIFIER"
+    | "PILOTER & OPÉRER"
+    | "GOUVERNER & CERTIFIER";
   primary?: boolean;
 }> = [
-  {
-    id: "overview",
-    label: "Vue générale",
-    meta: "01",
-    icon: LayoutDashboard,
-    group: "PILOTER",
-    primary: true,
-  },
-  {
-    id: "aero-center",
-    label: "Observation & instrumentation",
-    meta: "ACC",
-    icon: Navigation,
-    group: "PILOTER",
-    primary: true,
-  },
-  {
-    id: "mission-center",
-    label: "Poste de commande de vol",
-    meta: "OPS",
-    icon: Video,
-    group: "PILOTER",
-    primary: true,
-  },
-  {
-    id: "satellite-nav",
-    label: "Navigation satellite",
-    meta: "GNSS",
-    icon: Satellite,
-    group: "PILOTER",
-    primary: true,
-  },
-  {
-    id: "command-center",
-    label: "Commandes sûres & gouvernance",
-    meta: "SIM",
-    icon: ShieldCheck,
-    group: "PILOTER",
-    primary: true,
-  },
-  {
-    id: "requirements",
-    label: "Mission & exigences",
-    meta: "—",
-    icon: ClipboardCheck,
-    group: "CONCEVOIR",
-    primary: true,
-  },
-  {
-    id: "engineering-hub",
-    label: "AEROMIND HUB",
-    meta: "HUB",
-    icon: Orbit,
-    group: "CONCEVOIR",
-    primary: true,
-  },
-  {
-    id: "intelligence-center",
-    label: "Centre Intelligence IA",
-    meta: "AI",
-    icon: BrainCircuit,
-    group: "PILOTER",
-    primary: true,
-  },
-  {
-    id: "design-studio",
-    label: "Studio IDDS",
-    meta: "CAD",
-    icon: Rotate3d,
-    group: "CONCEVOIR",
-    primary: true,
-  },
-  {
-    id: "parametric-center",
-    label: "Centre Paramétrique",
-    meta: "PAR",
-    icon: Wrench,
-    group: "CONCEVOIR",
-    primary: true,
-  },
-  {
-    id: "mechanical-center",
-    label: "Centre Mécanique",
-    meta: "MEC",
-    icon: Wrench,
-    group: "CONCEVOIR",
-    primary: true,
-  },
-  {
-    id: "fleet-maintenance",
-    label: "Fleet & Maintenance Center",
-    meta: "FLEET",
-    icon: ClipboardCheck,
-    group: "PILOTER",
-    primary: true,
-  },
-  {
-    id: "control-center",
-    label: "Global Mission Control",
-    meta: "CTRL",
-    icon: Gauge,
-    group: "PILOTER",
-    primary: true,
-  },
-  {
-    id: "catalog",
-    label: "Bibliothèque de cellules",
-    meta: String(droneCatalog.length).padStart(2, "0"),
-    icon: Package,
-    group: "CONCEVOIR",
-    primary: true,
-  },
-  {
-    id: "digital-twin",
-    label: "Digital Twin Explorer",
-    meta: "TWIN",
-    icon: Rotate3d,
-    group: "CONCEVOIR",
-    primary: true,
-  },
-  {
-    id: "materials",
-    label: "Construction & équipements",
-    meta: String(materialLibrarySummary.total).padStart(2, "0"),
-    icon: Layers3,
-    group: "CONCEVOIR",
-    primary: true,
-  },
-  {
-    id: "simulation",
-    label: "Simulation & analyses",
-    meta: "SIM-000",
-    icon: Activity,
-    group: "SIMULER",
-    primary: true,
-  },
-  {
-    id: "aero-cfd",
-    label: "Aérodynamique & CFD",
-    meta: "CFD",
-    icon: Wind,
-    group: "SIMULER",
-    primary: true,
-  },
-  {
-    id: "mission-planner",
-    label: "Mission Planner",
-    meta: "MAP",
-    icon: MapIcon,
-    group: "SIMULER",
-    primary: true,
-  },
-  {
-    id: "labbench",
-    label: "LabBench 01",
-    meta: "P1",
-    icon: Cpu,
-    group: "SIMULER",
-    primary: true,
-  },
-  {
-    id: "live",
-    label: "Essais & scénarios",
-    meta: "TEST",
-    icon: Radio,
-    group: "SIMULER",
-    primary: true,
-  },
-  {
-    id: "copilot",
-    label: "Copilote IA / jumeau numérique",
-    meta: "AI",
-    icon: Sparkles,
-    group: "SIMULER",
-  },
-  {
-    id: "report",
-    label: "Rapports & revue",
-    meta: "DRAFT",
-    icon: FileText,
-    group: "REVOIR",
-    primary: true,
-  },
-  {
-    id: "operations",
-    label: "Journal de validation détaillé",
-    meta: "HUMAN",
-    icon: ShieldCheck,
-    group: "REVOIR",
-  },
+  { id: "overview", label: "Vue générale", meta: "01", icon: LayoutDashboard, group: "COMMANDEMENT & SUPERVISION", primary: true },
+  { id: "engineering-hub", label: "AEROMIND HUB", meta: "HUB", icon: Orbit, group: "COMMANDEMENT & SUPERVISION", primary: true },
+  { id: "intelligence-center", label: "Centre Intelligence IA", meta: "AI", icon: BrainCircuit, group: "COMMANDEMENT & SUPERVISION", primary: true },
+  { id: "requirements", label: "Mission & exigences", meta: "—", icon: ClipboardCheck, group: "CONCEVOIR", primary: true },
+  { id: "catalog", label: "Bibliothèque de cellules", meta: String(droneCatalog.length).padStart(2, "0"), icon: Package, group: "CONCEVOIR", primary: true },
+  { id: "design-studio", label: "Studio IDDS", meta: "CAD", icon: Rotate3d, group: "CONCEVOIR", primary: true },
+  { id: "parametric-center", label: "Centre Paramétrique", meta: "PAR", icon: Wrench, group: "CONCEVOIR", primary: true },
+  { id: "mechanical-center", label: "Centre Mécanique", meta: "MEC", icon: Wrench, group: "CONCEVOIR", primary: true },
+  { id: "materials", label: "Construction & équipements", meta: String(materialLibrarySummary.total).padStart(2, "0"), icon: Layers3, group: "CONCEVOIR", primary: true },
+  { id: "simulation", label: "Simulation & analyses", meta: "SIM-000", icon: Activity, group: "SIMULER & QUALIFIER", primary: true },
+  { id: "aero-cfd", label: "Aérodynamique & CFD", meta: "CFD", icon: Wind, group: "SIMULER & QUALIFIER", primary: true },
+  { id: "live", label: "Essais & scénarios", meta: "TEST", icon: Radio, group: "SIMULER & QUALIFIER", primary: true },
+  { id: "labbench", label: "LabBench 01", meta: "P1", icon: Cpu, group: "SIMULER & QUALIFIER", primary: true },
+  { id: "digital-twin", label: "Digital Twin Explorer", meta: "TWIN", icon: Rotate3d, group: "SIMULER & QUALIFIER", primary: true },
+  { id: "mission-planner", label: "Mission Planner", meta: "MAP", icon: MapIcon, group: "PILOTER & OPÉRER", primary: true },
+  { id: "mission-center", label: "Poste de commande de vol", meta: "OPS", icon: Video, group: "PILOTER & OPÉRER", primary: true },
+  { id: "satellite-nav", label: "Navigation satellite", meta: "GNSS", icon: Satellite, group: "PILOTER & OPÉRER", primary: true },
+  { id: "aero-center", label: "Observation & instrumentation", meta: "ACC", icon: Navigation, group: "PILOTER & OPÉRER", primary: true },
+  { id: "command-center", label: "Commandes & gouvernance ICX", meta: "SIM", icon: ShieldCheck, group: "PILOTER & OPÉRER", primary: true },
+  { id: "fleet-maintenance", label: "Fleet & Maintenance Center", meta: "FLEET", icon: ClipboardCheck, group: "GOUVERNER & CERTIFIER", primary: true },
+  { id: "control-center", label: "Global Mission Control", meta: "CTRL", icon: Gauge, group: "GOUVERNER & CERTIFIER", primary: true },
+  { id: "report", label: "Rapports & revue", meta: "DRAFT", icon: FileText, group: "GOUVERNER & CERTIFIER", primary: true },
+  { id: "copilot", label: "Copilote IA / jumeau numérique", meta: "AI", icon: Sparkles, group: "SIMULER & QUALIFIER" },
+  { id: "operations", label: "Journal de validation détaillé", meta: "HUMAN", icon: ShieldCheck, group: "GOUVERNER & CERTIFIER" },
 ];
 
-// Arborescence nominale : vue générale, mission, architecture, construction, observation, simulation, validation, commande sûre.
-// CAHIER DES CHARGES 2026-10-30 :
-//   - CENTRE PARAMETRIC doit se trouver juste après STUDIO IDDS (onglet design-studio).
-//   - MISSION PLANNER doit se trouver juste en dessous de SIMULATION & ANALYSES.
-//   - Les deux onglets étaient absents de l'ordre canonique et étaient donc triés en tête
-//     de nav (indexOf = -1), ce qui les détachait de leur groupe et empêchait l'affichage
-//     contextuel attendu. Ils sont désormais insérés à leur position canonique.
+// Arborescence nominale en cinq piliers, sans modification des identifiants de vue.
 const engineeringNavOrder: ViewId[] = [
-  "overview",
-  "intelligence-center",
-  "requirements",
-  "engineering-hub",
-  "catalog",
-  "digital-twin",
-  "design-studio",
-  "parametric-center", // ← après STUDIO IDDS
-  "mechanical-center",
-  "fleet-maintenance",
-  "control-center",
-  "materials",
-  "aero-center",
-  "simulation",
-  "aero-cfd",
-  "mission-planner", // ← en dessous de SIMULATION & ANALYSES
-  "labbench",
-  "mission-center",
-  "satellite-nav",
-  "live",
-  "report",
-  "command-center",
+  "overview", "engineering-hub", "intelligence-center",
+  "requirements", "catalog", "design-studio", "parametric-center", "mechanical-center", "materials",
+  "simulation", "aero-cfd", "live", "labbench", "digital-twin",
+  "mission-planner", "mission-center", "satellite-nav", "aero-center", "command-center",
+  "fleet-maintenance", "control-center", "report",
 ];
 const orderedNavItems = [
   ...navItems.filter(item => item.primary).sort((a, b) => engineeringNavOrder.indexOf(a.id) - engineeringNavOrder.indexOf(b.id)),
@@ -14548,18 +14364,20 @@ export default function Home() {
                   <span>{t(item.label)}</span>
                   <small>{item.meta}</small>
                 </button>
+                {item.id === "materials" && (
+                  <button
+                    type="button"
+                    className="nav-item factory-nav-item"
+                    onClick={() => window.location.assign("/virtual-factory")}
+                  >
+                    <Box size={17} strokeWidth={1.7} />
+                    <span>{t("Usine Paramétrique")}</span>
+                    <small>3DP</small>
+                  </button>
+                )}
               </div>
             );
           })}
-          <button
-            type="button"
-            className="nav-item factory-nav-item"
-            onClick={() => window.location.assign("/virtual-factory")}
-          >
-            <Box size={17} strokeWidth={1.7} />
-            <span>Virtual Parametric Factory</span>
-            <small>3DP</small>
-          </button>
           <button
             type="button"
             className={`nav-advanced-toggle ${showAdvancedNav ? "is-open" : ""}`}

@@ -1,4 +1,10 @@
 {
+  "COMMANDEMENT & SUPERVISION": "COMMAND & SUPERVISION",
+  "SIMULER & QUALIFIER": "SIMULATE & QUALIFY",
+  "PILOTER & OPÉRER": "OPERATE",
+  "GOUVERNER & CERTIFIER": "GOVERN & CERTIFY",
+  "Commandes & gouvernance ICX": "ICX Commands & Governance",
+  "Usine Paramétrique": "Parametric Factory",
   " entrée(s) supprimée(s)": " entry(ies) deleted",
   " · maillage paramétrique éditable": " · editable parametric mesh",
   " · transport physique invoqué : non": " · physical transport invoked: no",
