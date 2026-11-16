@@ -3,7 +3,7 @@
 import os
 import ssl
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
@@ -75,6 +75,50 @@ if _engine_url.startswith("sqlite"):
 
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+def ensure_project_lifecycle_columns() -> None:
+    """Add missing lifecycle columns to an already-provisioned project table."""
+    dialect = engine.dialect.name
+    if dialect == "sqlite":
+        existing = {column["name"] for column in inspect(engine).get_columns("projects")}
+        if not existing:
+            return
+    elif dialect == "mysql":
+        with engine.connect() as connection:
+            existing = {
+                row[0] for row in connection.execute(text(
+                    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects'"
+                ))
+            }
+        if not existing:
+            return
+    elif dialect == "postgresql":
+        with engine.connect() as connection:
+            existing = {
+                row[0] for row in connection.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = current_schema() AND table_name = 'projects'"
+                ))
+            }
+        if not existing:
+            return
+    else:
+        return
+
+    deleted_at_type = "TIMESTAMPTZ" if dialect == "postgresql" else "DATETIME"
+    statements = []
+    if "status" not in existing:
+        statements.append("ALTER TABLE projects ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'")
+    if "deleted_at" not in existing:
+        statements.append(f"ALTER TABLE projects ADD COLUMN deleted_at {deleted_at_type} NULL")
+    if "deleted_by" not in existing:
+        statements.append("ALTER TABLE projects ADD COLUMN deleted_by VARCHAR(120) NULL")
+    if statements:
+        with engine.begin() as connection:
+            for statement in statements:
+                connection.execute(text(statement))
 
 
 def get_db():

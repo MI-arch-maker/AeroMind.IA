@@ -64,7 +64,7 @@ from .realtime import router as realtime_router
 # so every /api/lab/* request 404'd.
 from .labbench_canonical_api import router as labbench_canonical_router
 from .institutional_gates_api import router as institutional_gates_router
-from .database import Base, engine, ping_database, SessionLocal
+from .database import Base, engine, ping_database, SessionLocal, ensure_project_lifecycle_columns
 from .models import User, Project, Drone, Simulation, Report, AuditEvent, LabSession
 # P0-07 audit_events_ext — ensure AuditEventExt is registered on Base.metadata
 # BEFORE lifespan runs Base.metadata.create_all(), so the table is auto-created
@@ -159,6 +159,14 @@ async def lifespan(_: FastAPI):
         print(
             'Database schema bootstrap disabled; expecting a pre-created '
             'schema (AEROMIND_AUTO_CREATE_SCHEMA=false).',
+            flush=True,
+        )
+    try:
+        ensure_project_lifecycle_columns()
+    except SQLAlchemyError as exc:
+        print(
+            'WARNING: project lifecycle column bootstrap failed; '
+            f'apply the lifecycle migration manually ({type(exc).__name__}: {exc}).',
             flush=True,
         )
     try:
@@ -744,6 +752,21 @@ def _trpc_error(status_code: int, code: str, message: str) -> JSONResponse:
         content={'error': {'json': {'code': code, 'message': message}}},
         headers={'Cache-Control': 'no-store', 'Vary': 'Cookie'},
     )
+
+
+@app.get('/api/trpc/designVersions.list', include_in_schema=False)
+async def design_versions_list_get(
+    request: Request,
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+):
+    """Compatibility query endpoint for clients issuing a GET tRPC call."""
+    current_user = _current_user(aeromind_session, authorization)
+    response = JSONResponse({'result': {'data': {'json': []}}})
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Vary'] = 'Cookie'
+    return response
 
 
 @app.api_route('/api/trpc/{procedure:path}', methods=['GET', 'POST'], include_in_schema=False)
