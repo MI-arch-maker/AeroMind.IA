@@ -17,7 +17,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import AuditEvent, LabSession, Project, Report
+from .models import AuditEvent, LabSession, Project, Report, Simulation
 
 
 ENGINE_VERSION = "labbench-thermal-v1.0.0"
@@ -371,6 +371,8 @@ def persist_simulation(db: Session, user: dict[str, Any] | None, project_id: str
     # preview cannot manufacture it because create_report reads this stored record.
     run["source"] = "server-archived"
     run["persisted"] = True
+    run["status"] = "COMPLETED"
+    run["projectId"] = project.id
     registry_row, registry_data, seeded = _ensure_registry(db, project, user)
     now = datetime.now(UTC)
     registry_data["updatedAt"] = now.isoformat()
@@ -392,6 +394,29 @@ def persist_simulation(db: Session, user: dict[str, Any] | None, project_id: str
         data_json=json.dumps({"kind": RUN_KIND, "run": run, "auditEventId": audit_id}, ensure_ascii=False, separators=(",", ":")),
     )
     db.add(record)
+    # Keep the general project simulation ledger in sync with the LabBench
+    # evidence session. The LabSession remains the gate evidence source, while
+    # this row makes the project_id and validated status queryable workspace-wide.
+    db.add(
+        Simulation(
+            id=str(uuid4()),
+            user_id=user["id"],
+            project_id=project.id,
+            status="COMPLETED",
+            data_json=json.dumps(
+                {
+                    "runId": run["runId"],
+                    "projectId": project.id,
+                    "status": run["status"],
+                    "source": run["source"],
+                    "result": run,
+                    "config": payload,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        )
+    )
     db.add(
         AuditEvent(
             id=audit_id,
@@ -815,6 +840,19 @@ def _resolved_gates(conditions: dict[str, bool]) -> list[dict[str, Any]]:
     return resolved
 
 
+def _compliance_summary(gates: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return an indicator derived only from the server-resolved gates."""
+    total = len(gates)
+    passed = sum(1 for gate in gates if gate.get("state") == "passed")
+    return {
+        "passed": passed,
+        "total": total,
+        "percentage": round((passed / total) * 100) if total else 0,
+        "status": "compliant" if total and passed == total else "in_progress",
+        "gateCodes": [gate["code"] for gate in gates if gate.get("state") == "passed"],
+    }
+
+
 def gate_state(db: Session, user: dict[str, Any] | None, project_id: str) -> dict[str, Any]:
     """Return the current gate progression for a project."""
     project = _require_project_owner(db, user, project_id)
@@ -845,6 +883,7 @@ def gate_state(db: Session, user: dict[str, Any] | None, project_id: str) -> dic
         "updatedAt": data["updatedAt"],
         "conditions": conditions,
         "gates": gates,
+        "compliance": _compliance_summary(gates),
         "currentGate": next((g["code"] for g in gates if g["state"] != "passed"), "N5"),
         "armEvents": data.get("armEvents", []),
         "reviewEvents": data.get("reviewEvents", []),
@@ -1092,9 +1131,6 @@ def sign_off_n4_gate(db: Session, user: dict[str, Any] | None, project_id: str, 
     }
     data.setdefault("reviewEvents", []).append(event)
     data["conditions"]["independent_review_signed"] = True
-    # N5 is the persisted closure of the independent review. It is deliberately
-    # written in the same transaction so refreshes cannot lose the progression.
-    data["conditions"]["n5_release_confirmed"] = True
     data["updatedAt"] = datetime.now(UTC).isoformat()
     row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     db.add(
@@ -1121,6 +1157,46 @@ def sign_off_n4_gate(db: Session, user: dict[str, Any] | None, project_id: str, 
         "gateStateId": row.id,
         "reviewEventId": event["id"],
         "signedOff": True,
+        "n5ReleaseConfirmed": False,
+        "physicalOutputEnabled": False,
+        "physicalCommandsEmitted": False,
+    }
+
+
+def close_n5_gate(db: Session, user: dict[str, Any] | None, project_id: str) -> dict[str, Any]:
+    """Persist final N5 release confirmation after the independent N4 review."""
+    project = _require_project_owner(db, user, project_id)
+    assert user is not None
+    _official_write_allowed(user)
+    row, data, _ = _ensure_gate_state(db, project, user)
+    conditions = _evaluate_conditions(db, project, user, data)
+    if not conditions.get("independent_review_signed"):
+        raise LabBenchError(409, "GATE_NOT_READY", "La revue indépendante N4 doit être signée avant la clôture N5")
+    data.setdefault("conditions", {})["n5_release_confirmed"] = True
+    data["updatedAt"] = datetime.now(UTC).isoformat()
+    row.data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    db.add(AuditEvent(
+        id=str(uuid4()),
+        project_id=project.id,
+        user_id=user["id"],
+        actor_role=user.get("role", "user"),
+        event_type="labbench.gate.close_n5",
+        message="Clôture N5 confirmée après revue indépendante N4.",
+        payload_json=json.dumps({
+            "scope": "labbench-gate",
+            "n5ReleaseConfirmed": True,
+            "physicalOutputEnabled": False,
+            "physicalCommandsEmitted": False,
+        }, ensure_ascii=False, separators=(",", ":")),
+        occurred_at=datetime.now(UTC),
+    ))
+    db.commit()
+    gates = _resolved_gates(_evaluate_conditions(db, project, user, data))
+    return {
+        "projectId": project.id,
+        "gateStateId": row.id,
+        "closed": True,
+        "compliance": _compliance_summary(gates),
         "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
@@ -1633,6 +1709,7 @@ def run_fleet_simulation(
             run = run_simulation(run_payload)
             run["source"] = "server-archived"
             run["persisted"] = True
+            run["status"] = "COMPLETED"
             run["droneId"] = drone.id
             run["droneName"] = drone.name
             registry_row, registry_data, seeded = _ensure_registry(db, project, user)
@@ -1674,6 +1751,7 @@ def run_fleet_simulation(
                 "droneId": drone.id,
                 "droneName": drone.name,
                 "runId": run["runId"],
+                "status": run["status"],
                 "predictedTemperatureC": run["predictedTemperatureC"],
                 "verdict": run["verdict"],
                 "contentSha256": run["contentSha256"],

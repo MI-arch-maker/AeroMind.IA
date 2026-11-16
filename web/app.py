@@ -64,7 +64,14 @@ from .realtime import router as realtime_router
 # so every /api/lab/* request 404'd.
 from .labbench_canonical_api import router as labbench_canonical_router
 from .institutional_gates_api import router as institutional_gates_router
-from .database import Base, engine, ping_database, SessionLocal, ensure_project_lifecycle_columns
+from .database import (
+    Base,
+    engine,
+    ping_database,
+    SessionLocal,
+    ensure_project_lifecycle_columns,
+    ensure_simulation_status_column,
+)
 from .models import User, Project, Drone, Simulation, Report, AuditEvent, LabSession
 # P0-07 audit_events_ext — ensure AuditEventExt is registered on Base.metadata
 # BEFORE lifespan runs Base.metadata.create_all(), so the table is auto-created
@@ -167,6 +174,14 @@ async def lifespan(_: FastAPI):
         print(
             'WARNING: project lifecycle column bootstrap failed; '
             f'apply the lifecycle migration manually ({type(exc).__name__}: {exc}).',
+            flush=True,
+        )
+    try:
+        ensure_simulation_status_column()
+    except SQLAlchemyError as exc:
+        print(
+            'WARNING: simulation status column bootstrap failed; '
+            f'apply the simulation migration manually ({type(exc).__name__}: {exc}).',
             flush=True,
         )
     try:
@@ -1015,7 +1030,8 @@ async def trpc_compat(
             project = db.scalar(select(Project).where(Project.id == project_id, Project.user_id.in_({current_user['id'], current_user.get('subject')}), Project.status == 'ACTIVE'))
             if project is None: return _trpc_error(404, 'NOT_FOUND', 'Project not found')
             result = payload.get('result', {})
-            record = Simulation(id=str(uuid4()), user_id=current_user['id'], project_id=project_id, data_json=json.dumps({'runId': result.get('runId', 'SIM-001'), 'version': '1.0', 'result': result, 'config': payload.get('config', {})}))
+            result = {**result, 'status': 'COMPLETED'} if isinstance(result, dict) else {'status': 'COMPLETED', 'value': result}
+            record = Simulation(id=str(uuid4()), user_id=current_user['id'], project_id=project_id, status='COMPLETED', data_json=json.dumps({'runId': result.get('runId', 'SIM-001'), 'version': '1.0', 'status': 'COMPLETED', 'result': result, 'config': payload.get('config', {})}))
             db.add(record); db.commit(); data = json.loads(record.data_json)
     elif name.endswith('projects.delete'):
         if not current_user:
@@ -1238,6 +1254,13 @@ async def trpc_compat(
             project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
             with SessionLocal() as db:
                 data = labbench_service.sign_off_n4_gate(db, current_user, str(project_id or ''), payload if isinstance(payload, dict) else {})
+        except labbench_service.LabBenchError as exc:
+            return _trpc_error(exc.status_code, exc.code, exc.message)
+    elif name.endswith('labBench.closeN5'):
+        try:
+            project_id = payload.get('projectId') or payload.get('id') if isinstance(payload, dict) else ''
+            with SessionLocal() as db:
+                data = labbench_service.close_n5_gate(db, current_user, str(project_id or ''))
         except labbench_service.LabBenchError as exc:
             return _trpc_error(exc.status_code, exc.code, exc.message)
     elif name.endswith('labBench.fleetGateState'):

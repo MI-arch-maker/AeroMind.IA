@@ -96,6 +96,7 @@ class Simulation(Base):
     project_id: Mapped[str] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="COMPLETED", index=True)
     data_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 

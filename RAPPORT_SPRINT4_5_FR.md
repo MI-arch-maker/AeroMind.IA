@@ -18,7 +18,7 @@ La page `/gcs-simulation` fournit :
 
 ## Contrat de sortie
 
-Même lorsqu’une intention est approuvée en GO4/GO5 avec approbation humaine, le serveur renvoie un `command_preview` JSON avec `dry_run=true`, `transmitted=false` et `outgoing_frame=null`. L’adaptateur ne transmet pas le certificat ni l’intention au WebSocket. Cette limite est volontaire : une connexion localhost peut être reliée à un bridge matériel et ne constitue donc pas un canal de commande autorisé par ce livrable.
+Même lorsqu’une intention est approuvée en GO4/GO5 avec approbation humaine, le serveur renvoie un `command_preview` JSON avec `dry_run=true`, `transmitted=true` et `outgoing_frame=null`. L’adaptateur ne transmet pas le certificat ni l’intention au WebSocket. Cette limite est volontaire : une connexion localhost peut être reliée à un bridge matériel et ne constitue donc pas un canal de commande autorisé par ce livrable.
 
 ## Vérifications
 

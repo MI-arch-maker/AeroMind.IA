@@ -319,6 +319,7 @@ export default function LabBench({
   const [audit, setAudit] = useState(initialAudit);
   const [serverGateState, setServerGateState] = useState<LocalGateState>(initialLocalGateState);
   const [localGateState, setLocalGateState] = useState<LocalGateState>(initialLocalGateState);
+  const stableDroneConfigRef = useRef<Record<string, unknown> | null>(null);
   const workspaceRecord =
     workspaceConfig && typeof workspaceConfig === "object"
       ? (workspaceConfig as Record<string, unknown>)
@@ -443,9 +444,12 @@ export default function LabBench({
     integratedSurface,
     integratedSurface ? hasUserIntegratedData : true,
   );
+  if (hasUserIntegratedData && explicitWorkspaceConfig) {
+    stableDroneConfigRef.current = explicitWorkspaceConfig as Record<string, unknown>;
+  }
   const activeDroneConfig = hasUserIntegratedData
     ? explicitWorkspaceConfig as Record<string, unknown>
-    : null;
+    : stableDroneConfigRef.current;
   const workspaceSelection = activeDroneConfig?.engineeringSelection && typeof activeDroneConfig.engineeringSelection === "object"
     ? activeDroneConfig.engineeringSelection as Record<string, unknown> : {};
   const workspaceDroneId = typeof workspaceSelection.droneId === "string" && workspaceSelection.droneId !== "unselected"
@@ -531,6 +535,7 @@ export default function LabBench({
     registrySeedAttemptedFor.current = null;
     projectEpoch.current += 1;
     simulationEpoch.current = null;
+    stableDroneConfigRef.current = null;
   }, [selectedProjectId]);
   useEffect(() => {
     if (!remoteProjectId) {
@@ -676,8 +681,30 @@ export default function LabBench({
     setReviewNote("");
     toast.success("Revue N4 signée (mode local)");
   };
+  const localCloseN5 = () => {
+    if (!gateState.conditions.independent_review_signed) {
+      toast.error("Revue N4 requise avant N5");
+      return;
+    }
+    setLocalGateState((prev) => {
+      const conditions = { ...prev.conditions, n5_release_confirmed: true };
+      const gates = resolveGates(conditions);
+      return { ...prev, conditions, gates, zoneProgress: resolveZoneProgress(gates), currentGate: "N5" };
+    });
+    toast.success("Dossier N5 clôturé (mode local)");
+  };
   // === End local sandbox ===
 
+  const persistSimulationMutation = trpc.labBench.persistSimulation.useMutation({
+    onSuccess: () => {
+      void registryQuery.refetch();
+      void gateStateQuery.refetch();
+      void remoteAuditQuery.refetch();
+      toast.success("Run N2 validé et archivé", {
+        description: "Le run est lié au projet actif et la gate N2 est mise à jour.",
+      });
+    },
+  });
   const simulationMutation = trpc.labBench.runSimulation.useMutation({
     onSuccess(rawResult, variables) {
       if (simulationEpoch.current !== projectEpoch.current) return;
@@ -707,6 +734,13 @@ export default function LabBench({
       toast.success(`Simulation ${result.runId} terminée`, {
         description: `Température synthétique : ${result.predictedTemperatureC} °C.`,
       });
+      if (remoteProjectId && !persistSimulationMutation.isPending) {
+        persistSimulationMutation.mutate({
+          mode: "simulation",
+          projectId: remoteProjectId,
+          ...inputs,
+        });
+      }
       void gateStateQuery.refetch();
     },
     onError(error, variables) {
@@ -727,13 +761,6 @@ export default function LabBench({
       toast.info("Simulation locale exécutée", {
         description: `Résultat synthétique ${result.runId} disponible; aucun matériel n’a été commandé.`,
       });
-    },
-  });
-  const persistSimulationMutation = trpc.labBench.persistSimulation.useMutation({
-    onSuccess: () => {
-      void registryQuery.refetch();
-      void gateStateQuery.refetch();
-      void remoteAuditQuery.refetch();
     },
   });
   const seedRegistryMutation = trpc.labBench.seedRegistry.useMutation({
@@ -850,6 +877,16 @@ export default function LabBench({
     },
     onError: (error: any) => {
       toast.error("Signature N4 refusée", { description: error?.message ?? "Erreur serveur" });
+    },
+  });
+  const closeN5Mutation = trpc.labBench.closeN5.useMutation({
+    onSuccess: () => {
+      toast.success("Dossier N5 clôturé", { description: "La progression complète est persistée et auditée." });
+      void gateStateQuery.refetch();
+      void remoteAuditQuery.refetch();
+    },
+    onError: (error: any) => {
+      toast.error("Clôture N5 refusée", { description: error?.message ?? "La revue N4 doit être signée." });
     },
   });
 
@@ -1506,6 +1543,11 @@ export default function LabBench({
   const auditEvents = Array.isArray(remoteAuditQuery.data)
     ? remoteAuditQuery.data
     : [];
+  const compliance = useMemo(() => {
+    const total = gateState.gates.length;
+    const passed = gateState.gates.filter((gate) => gate.state === "passed").length;
+    return { total, passed, percentage: total ? Math.round((passed / total) * 100) : 0 };
+  }, [gateState.gates]);
 
   const currentZone = zoneOfView(view);
 
@@ -1612,6 +1654,38 @@ export default function LabBench({
       description:
         "Le rapport conserve les entrées, la formule, l’incertitude et les limites.",
     });
+  };
+  const downloadAuditPackage = () => {
+    const exportedAt = new Date().toISOString();
+    const packageData = {
+      title: "AeroMind LabBench 01 — dossier d’audit ICX",
+      schemaVersion: 1,
+      exportedAt,
+      project: selectedProject ?? null,
+      projectId: remoteProjectId,
+      configuration: explicitWorkspaceConfig ?? null,
+      registry: registry ?? null,
+      runs: Array.isArray(registry?.runs) ? registry.runs : [],
+      gates: gateState.gates,
+      conditions: gateState.conditions,
+      compliance,
+      persistedAudit: auditEvents,
+      sessionAudit: audit,
+      report: [
+        `Dossier d’audit ICX — exporté le ${new Date(exportedAt).toLocaleString("fr-FR")}`,
+        `Projet : ${selectedProject?.project?.name ?? remoteProjectId ?? "—"}`,
+        `Conformité des gates : ${compliance.passed}/${compliance.total} (${compliance.percentage} %).`,
+        `Runs archivés : ${Array.isArray(registry?.runs) ? registry.runs.length : 0}.`,
+        "Les validations N3, N4 et N5 sont conservées côté serveur avec leur journal d’audit.",
+      ].join("\n"),
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(packageData, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aeromind-icx-audit-${exportedAt.replace(/[:.]/g, "-")}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success("Dossier d’audit ICX exporté", { description: "Projet, configuration, runs, gates et audit sont inclus." });
   };
   const inspectLink = () => {
     setConnectionChecked(true);
@@ -1750,6 +1824,18 @@ export default function LabBench({
       note: reviewNote.trim(),
       physicalOutputEnabled: false,
     });
+  };
+  const closeN5 = () => {
+    if (!gateState.conditions.independent_review_signed) {
+      toast.error("Revue N4 requise avant N5");
+      return;
+    }
+    if (isLocalMode) {
+      localCloseN5();
+      return;
+    }
+    if (!remoteProjectId) return;
+    closeN5Mutation.mutate({ projectId: remoteProjectId });
   };
   const prepareCommand = () => {
     if (
@@ -2321,6 +2407,14 @@ export default function LabBench({
                 </div>
               ))}
             </div>
+            <section className="lb-panel" aria-label="Indicateur de conformité LabBench">
+              <div className="lb-panel-title">
+                <ShieldCheck size={17} />
+                <span>Indicateur de conformité</span>
+                <small>{compliance.passed}/{compliance.total} GATES VALIDÉES</small>
+              </div>
+              <p>{compliance.percentage}% des portes séquentielles sont validées par les preuves actuellement résolues côté serveur.</p>
+            </section>
             <div className="lb-overview-grid">
               <section className="lb-panel lb-services">
                 <div className="lb-panel-title">
@@ -3774,7 +3868,8 @@ export default function LabBench({
             <SectionHeading
               eyebrow="DOSSIER DE PREUVE"
               title="Rapports et archivage"
-              detail="Un rapport affirme le niveau de preuve disponible, pas les capacités futures du système. La gate N4 conditionne la mise en service."
+              detail="Un rapport affirme le niveau de preuve disponible, pas les capacités futures du système. La clôture N5 exige la revue indépendante et sa confirmation finale."
+              actions={<button className="lb-primary" onClick={downloadAuditPackage} disabled={!remoteProjectId}><Archive size={14} /> Exporter le dossier d’audit ICX</button>}
             />
             <div className="lb-reports-grid">
               <section className="lb-panel">
@@ -3808,6 +3903,13 @@ export default function LabBench({
                   disabled={!latestResult}
                 >
                   Télécharger le rapport JSON du run
+                </button>
+                <button
+                  className="lb-primary"
+                  onClick={closeN5}
+                  disabled={!gateState.conditions.independent_review_signed || gateState.conditions.n5_release_confirmed || closeN5Mutation.isPending}
+                >
+                  <FileCheck2 size={14} /> {closeN5Mutation.isPending ? "Clôture…" : gateState.conditions.n5_release_confirmed ? "N5 clôturée" : "Clôturer le dossier N5"}
                 </button>
               </section>
               <section className="lb-panel">
@@ -3858,12 +3960,21 @@ export default function LabBench({
                   : "Mode aperçu : le journal affiché est local à cette session et ne constitue pas une preuve serveur."
               }
               actions={
-                gateState.conditions.n3_armed && !gateState.conditions.independent_review_signed ? (
-                  <button className="lb-primary" onClick={openSignOffDialog}>
-                    <KeyRound size={15} />
-                    Signer la revue N4
+                <div style={{ display: "flex", gap: 8 }}>
+                  {gateState.conditions.n3_armed && !gateState.conditions.independent_review_signed && (
+                    <button className="lb-primary" onClick={openSignOffDialog}>
+                      <KeyRound size={15} /> Signer la revue N4
+                    </button>
+                  )}
+                  {gateState.conditions.independent_review_signed && (
+                    <button className="lb-primary" onClick={closeN5} disabled={gateState.conditions.n5_release_confirmed || closeN5Mutation.isPending}>
+                      <FileCheck2 size={15} /> {gateState.conditions.n5_release_confirmed ? "N5 clôturée" : "Clôturer N5"}
+                    </button>
+                  )}
+                  <button className="lb-secondary" onClick={downloadAuditPackage} disabled={!remoteProjectId}>
+                    <Archive size={15} /> Exporter le dossier ICX
                   </button>
-                ) : undefined
+                </div>
               }
             />
             {gateState.reviewEvents.length > 0 && (

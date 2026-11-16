@@ -121,6 +121,23 @@ def ensure_project_lifecycle_columns() -> None:
                 connection.execute(text(statement))
 
 
+def ensure_simulation_status_column() -> None:
+    """Add the durable simulation status column without replacing existing data."""
+    inspector = inspect(engine)
+    if "simulations" not in inspector.get_table_names():
+        return
+    existing = {column["name"] for column in inspector.get_columns("simulations")}
+    if "status" in existing:
+        return
+    # This ADD COLUMN form is accepted by SQLite, PostgreSQL and MySQL/TiDB;
+    # the constant default backfills legacy rows without a destructive rewrite.
+    with engine.begin() as connection:
+        connection.execute(text(
+            "ALTER TABLE simulations ADD COLUMN status VARCHAR(32) "
+            "NOT NULL DEFAULT 'COMPLETED'"
+        ))
+
+
 def get_db():
     db = SessionLocal()
     try:

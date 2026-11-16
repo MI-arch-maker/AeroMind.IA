@@ -202,7 +202,7 @@ export default function GcsSimulation() {
         requested_by: "icx-operator-01",
         reviewed: true,
       },
-      dry_run: false,
+      mode HIL actif: false,
       transmitted: true,
     };
 
