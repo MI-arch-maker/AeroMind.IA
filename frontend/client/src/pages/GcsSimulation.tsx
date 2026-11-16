@@ -96,7 +96,7 @@ export default function GcsSimulation() {
             setState((s) => ({ ...s, telemetry: safeTelemetry }));
           }
         } catch {
-          // Ignore les trames non-JSON sans interrompre le flux
+          // Ignore les trames non-JSON
         }
       };
     } catch {
@@ -126,7 +126,6 @@ export default function GcsSimulation() {
     }
     return false;
   };
-
   const handleInjectTelemetry = async () => {
     setBusy(true);
     const testFrame: Telemetry = {
@@ -158,7 +157,7 @@ export default function GcsSimulation() {
         return;
       }
     } catch {
-      // Bascule transparente vers la normalisation locale ci-dessous
+      // Fallback local
     } finally {
       setBusy(false);
     }
@@ -173,7 +172,7 @@ export default function GcsSimulation() {
       return;
     }
 
-    const reasons: string[] = [];
+    const reasons = new Array<string>();
     if (!approved) reasons.push("APPROBATION HUMAINE REQUISE");
     if (level !== "GO4" && level !== "GO5") reasons.push("NIVEAU GO4 OU GO5 REQUIS");
 
@@ -230,7 +229,7 @@ export default function GcsSimulation() {
         return;
       }
     } catch {
-      // Bascule immédiate sur l'émission directe signée
+      // Fallback local
     } finally {
       setBusy(false);
     }
@@ -263,7 +262,7 @@ export default function GcsSimulation() {
         credentials: "include",
       });
     } catch {
-      // L'état local et le signal physique ont déjà été exécutés en priorité
+      // Déjà exécuté localement
     }
   };
 
@@ -297,3 +296,116 @@ export default function GcsSimulation() {
       <section className="gcs-grid">
         <div className="gcs-panel">
           <header>
+            <span>TÉLÉMÉTRIE WS · RÉCEPTION LOCALE</span>
+            {connection.startsWith("BRIDGE") ? <Wifi size={16} /> : <WifiOff size={16} />}
+          </header>
+          <div className="gcs-connection">{connection}</div>
+          <div className="gcs-protocols">
+            <i>
+              MAVLink v2
+              <br />
+              <b>actif</b>
+            </i>
+            <i>
+              STANAG 4586
+              <br />
+              <b>enveloppe</b>
+            </i>
+            <i>
+              ROS 2
+              <br />
+              <b>bridge</b>
+            </i>
+          </div>
+          <button className="gcs-button" disabled={busy} onClick={() => void handleInjectTelemetry()}>
+            Injecter télémétrie test
+          </button>
+          {t ? (
+            <div className="gcs-telemetry">
+              <strong>{t.vehicle_id || "AEROMIND-HIL-01"}</strong>
+              <span>
+                PROTOCOLE <b>{t.protocol || "MAVLink2"}</b>
+              </span>
+              <span>
+                ATTITUDE{" "}
+                <b>
+                  R {Number(t.roll ?? 0).toFixed(2)}° · P {Number(t.pitch ?? 0).toFixed(2)}° · Y{" "}
+                  {Number(t.yaw ?? t.heading_deg ?? 0).toFixed(2)}°
+                </b>
+              </span>
+              <span>
+                POSITION <b>{safePos.map((n) => Number(n).toFixed(3)).join(" / ")}</b>
+              </span>
+              <span>
+                VITESSE <b>{safeVel.map((n) => Number(n).toFixed(2)).join(" / ")}</b> · LINK{" "}
+                <b>{(safeLink * 100).toFixed(0)}%</b>
+              </span>
+            </div>
+          ) : (
+            <div className="gcs-empty">En attente d’une trame JSON locale ou matériel HIL</div>
+          )}
+        </div>
+        <div className="gcs-panel">
+          <header>
+            <span>GO1–GO5 · VALIDATION D’INTENTION</span>
+            <ShieldCheck size={16} />
+          </header>
+          <div className="gcs-gates">
+            {["GO1", "GO2", "GO3", "GO4", "GO5"].map((g) => (
+              <button className={level === g ? "selected" : ""} key={g} onClick={() => setLevel(g)}>
+                <b>{g}</b>
+                <small>{g === "GO1" ? "opérateur" : g === "GO5" ? "direction" : "revue"}</small>
+              </button>
+            ))}
+          </div>
+          <label className="gcs-check">
+            <input type="checkbox" checked={approved} onChange={(e) => setApproved(e.target.checked)} /> Approbation
+            humaine explicite pour exécution physique
+          </label>
+          <button className="gcs-button" disabled={busy} onClick={() => void handleValidateCommand()}>
+            Valider & Transmettre intention HOLD
+          </button>
+          <p className="gcs-note">
+            Après validation GO4/GO5 + signature humaine, la trame signée est émise vers le Hardware Bridge local.
+          </p>
+        </div>
+        <div className={`gcs-panel gcs-stop ${state.emergency_stop ? "latched" : ""}`}>
+          <header>
+            <span>CANAL PRIORITAIRE · ARRÊT D’URGENCE</span>
+            <AlertOctagon size={16} />
+          </header>
+          <h2>{state.emergency_stop ? "VERROU D'URGENCE ACTIF" : "Canal prioritaire armé"}</h2>
+          <p>
+            Transmet immédiatement l'ordre d'arrêt d'urgence au Hardware Bridge local et bloque toute nouvelle commande.
+          </p>
+          {state.emergency_stop ? (
+            <button className="gcs-button" onClick={() => void handleEmergencyToggle(false)}>
+              Réarmer le verrou
+            </button>
+          ) : (
+            <button className="gcs-stop-button" onClick={() => void handleEmergencyToggle(true)}>
+              Déclencher arrêt d'urgence
+            </button>
+          )}
+        </div>
+        <div className="gcs-panel">
+          <header>
+            <span>JOURNAL DE GOUVERNANCE</span>
+            <CheckCircle2 size={16} />
+          </header>
+          <div className="gcs-log">
+            {log.map((x, i) => (
+              <div key={i}>
+                <b>{String(i + 1).padStart(2, "0")}</b>
+                {x}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <footer>
+        Contrat : WS local bidirectionnel (ws://127.0.0.1:8765) · physical_output=true · Gouvernance ICX GO1–GO5 active.
+      </footer>
+    </main>
+  );
+}
