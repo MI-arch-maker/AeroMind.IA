@@ -21,7 +21,7 @@ export function AeromindMultiViewViewport({ design, status = "idle", compact = f
   }, [design, construction]);
   const bom = useMemo(() => {
     const installed = Array.isArray(parts) && parts.length > 0 ? parts : [];
-    if (installed.length > 0) return installed.slice(0, 6).map((item, idx) => ({ code: `PRT-${String(idx + 1).padStart(2, "0")}`, sub: item.name || item.category || "Sous-ensemble", mat: item.material || "Carbone / Alliage Al-7075", spec: `${Number(item.massKg || 0.25).toFixed(2)} kg · Qualifié MBD`, wire: "Faisceau blindé MIL-DTL-27500" }));
+    if (installed.length > 0) return installed.slice(0, 6).map((item, idx) => { const r = item as Record<string, unknown>; return { code: `PRT-${String(idx + 1).padStart(2, "0")}`, sub: String(r.name || r.label || r.category || "Sous-ensemble"), mat: String(r.material || r.materialId || "Carbone / Alliage Al-7075"), spec: `${Number(r.massKg || 0.25).toFixed(2)} kg · Qualifié MBD`, wire: "Faisceau blindé MIL-DTL-27500" }; });
     return [
       { code: "STR-01", sub: "Cellule & Longerons", mat: "Carbone T700S / Époxy", spec: `Env. ${specs.wingspanMm} mm · Long. ${specs.lengthMm} mm`, wire: "Masse structurelle · Blindage EMI" },
       { code: "PRP-02", sub: "Motopropulseur & Hélices", mat: "Alliage Al 7075-T6 / Carbone", spec: `Rotor ${specs.propMm} mm · ISO 1940`, wire: "3x Phase 14 AWG + DShot600" },
