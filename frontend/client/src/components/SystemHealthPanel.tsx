@@ -9,7 +9,7 @@ type Health = {
   database_latency_ms?: number;
   mode: string;
   environment: string;
-  AEROMIND HIL BRIDGE: boolean;
+  virtual_only: boolean;
   physical_output_enabled: boolean;
   database_url_configured: boolean;
   oidc_configured: boolean;

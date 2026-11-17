@@ -1082,11 +1082,11 @@ export default function LabBench({
   };
 
   // === Hardware status and compatibility panels ===
-  // This build is AEROMIND HIL BRIDGE: the server refuses MAVLink registration,
+  // This build is virtual_only: the server refuses MAVLink registration,
   // physical commands, confirmation tokens and N4 hardware sign-off.
   type HardwareStatus = {
     hardwareControlEnabled: boolean;
-    AEROMIND HIL BRIDGE: boolean;
+    virtual_only: boolean;
     allowedCommands: string[];
     allowedModes: number[];
     maxFleetSize: number;

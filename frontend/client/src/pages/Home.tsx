@@ -10886,7 +10886,7 @@ function MissionOperationsView({
           </div>
           {AEROMIND HIL BRIDGE && (
             <p className="mission-inline-error" role="status">
-              {t("Mode AEROMIND HIL BRIDGE : MAVLink et WSS externes restent verrouillés. Vous pouvez remplir l’URL et cocher les éléments du protocole; les boutons de connexion afficheront ce verrou sans ouvrir de liaison ni envoyer de requête.")}
+              {t("Mode virtual_only: MAVLink et WSS externes restent verrouillés. Vous pouvez remplir l’URL et cocher les éléments du protocole; les boutons de connexion afficheront ce verrou sans ouvrir de liaison ni envoyer de requête.")}
             </p>
           )}
           <label className="mission-input-label">

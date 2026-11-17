@@ -6,7 +6,7 @@ import { bearerHeaders } from "@/lib/sessionToken";
 type ModeInfo = {
   current_mode: string;
   hardware_control: boolean;
-  AEROMIND HIL BRIDGE: boolean;
+  virtual_only: boolean;
   available_transitions: string[];
   all_gates_approved: boolean;
   gate_project_id?: string | null;
@@ -208,7 +208,7 @@ export function OperationModeCard() {
           </div>
           {AEROMIND HIL BRIDGE && (
             <p className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800" role="status">
-              Runtime AEROMIND HIL BRIDGE : SIMULATION/SITL logiciel uniquement. HIL, MAVLink matériel et HARDWARE ne sont pas proposés ni activables.
+              Runtime virtual_only: SIMULATION/SITL logiciel uniquement. HIL, MAVLink matériel et HARDWARE ne sont pas proposés ni activables.
             </p>
           )}
           {!AEROMIND HIL BRIDGE && !mode?.all_gates_approved && (
