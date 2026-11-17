@@ -2418,15 +2418,15 @@ export default function LabBench({
                       <button
                         type="button"
                         className="lb-primary"
-                        disabled={runSimulationMutation.isPending}
+                        disabled={simulationMutation.isPending}
                         onClick={() => {
                           if (!gate.conditions.registry_initialized) {
                             seedRegistryMutation.mutate({ projectId: remoteProjectId });
                           }
-                          runSimulationMutation.mutate({ projectId: remoteProjectId, scenario });
+                          simulationMutation.mutate({ projectId: remoteProjectId, scenario });
                         }}
                       >
-                        {runSimulationMutation.isPending ? "Exécution N2…" : "Exécuter & Archiver Run N2"}
+                        {simulationMutation.isPending ? "Exécution N2…" : "Exécuter & Archiver Run N2"}
                       </button>
                     )}
                     {gate.code === "N3-READY" && gate.conditions.n2_run_archived && !gate.conditions.hardware_checklist_complete && remoteProjectId && (

@@ -16,6 +16,10 @@ type Props = {
   flightState?: { pitchDeg?: number; rollDeg?: number; yawDeg?: number; throttlePct?: number };
   interactive?: boolean;
   showGrid?: boolean;
+  zoom?: number;
+  cameraZoom?: number;
+  exploded?: boolean;
+  autoMotion?: boolean;
   defaultMode?: AeromindViewportMode;
 };
 
@@ -30,6 +34,10 @@ export function AeromindMultiViewViewport({
   flightState,
   interactive = true,
   showGrid = true,
+  zoom,
+  cameraZoom,
+  exploded,
+  autoMotion,
   defaultMode = "3d-solid",
 }: Props) {
   const [mode, setMode] = useState<AeromindViewportMode>(() => {
@@ -148,8 +156,8 @@ export function AeromindMultiViewViewport({
       </div>
 
       <div className="aeromind-viewport-canvas" style={{ width: "100%", minHeight: compact ? "190px" : "270px" }}>
-        {mode === "2d-vector" ? (
-          <ParametricDronePreview design={design} />
+        {mode === "2d-vector" && design ? (
+          <ParametricDronePreview design={design} zoom={zoom} />
         ) : (
           <PhysicalDroneModel
             design={design}
@@ -160,8 +168,9 @@ export function AeromindMultiViewViewport({
             flightState={flightState}
             interactive={interactive}
             showGrid={mode === "3d-wireframe" ? true : showGrid}
-            exploded={mode === "3d-exploded"}
-            cameraZoom={mode === "3d-wireframe" ? 1.15 : 1}
+            exploded={exploded ?? mode === "3d-exploded"}
+            autoMotion={autoMotion}
+            cameraZoom={cameraZoom ?? zoom ?? (mode === "3d-wireframe" ? 1.15 : 1)}
           />
         )}
       </div>
