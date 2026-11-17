@@ -314,7 +314,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
     }
   };
 
-  // ── Local deterministic route advice (environnement HIL & bridge; never sends vehicle commands) ──
+  // ── Local deterministic route advice (simulation_only; never sends vehicle commands) ──
   const runAiOptimization = useCallback(() => {
     if (mapPoints.length < 2) {
       setAiOptimized(false);

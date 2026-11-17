@@ -127,8 +127,8 @@ export function OperationModeCard() {
   };
 
   const currentMode = mode?.current_mode?.toUpperCase() ?? "—";
-  const AEROMIND HIL BRIDGE = mode?.AEROMIND HIL BRIDGE !== false;
-  const selectableModes = AEROMIND HIL BRIDGE
+  const virtual_only = mode?.virtual_only !== false;
+  const selectableModes = virtual_only
     ? ["DEMO", "SIMULATION", "SITL"]
     : ["DEMO", "SIMULATION", "SITL", "HIL"];
 
@@ -166,7 +166,7 @@ export function OperationModeCard() {
           </div>
         </div>
 
-        {!AEROMIND HIL BRIDGE && (
+        {!virtual_only && (
           <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <label className="grid gap-1 text-xs font-semibold text-slate-600">
               Projet à vérifier pour HARDWARE
@@ -194,7 +194,7 @@ export function OperationModeCard() {
                 {modeLabels[m] || m}
               </button>
             ))}
-            {!AEROMIND HIL BRIDGE && (
+            {!virtual_only && (
               <button
                 onClick={() => void changeMode("HARDWARE")}
                 disabled={changing || currentMode === "HARDWARE" || !gateProjectId.trim() || mode?.gate_project_id !== gateProjectId.trim() || !mode?.all_gates_approved}
@@ -206,12 +206,12 @@ export function OperationModeCard() {
               </button>
             )}
           </div>
-          {AEROMIND HIL BRIDGE && (
+          {virtual_only && (
             <p className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800" role="status">
               Runtime virtual_only: SIMULATION/SITL logiciel uniquement. HIL, MAVLink matériel et HARDWARE ne sont pas proposés ni activables.
             </p>
           )}
-          {!AEROMIND HIL BRIDGE && !mode?.all_gates_approved && (
+          {!virtual_only && !mode?.all_gates_approved && (
             <p className="mt-2 text-xs text-amber-600">
               ⚠ Saisissez un identifiant de projet et vérifiez ses 6 gates G0-G5; les validations d’autres projets ne sont pas prises en compte.
             </p>

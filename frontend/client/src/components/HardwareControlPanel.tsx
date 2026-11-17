@@ -30,7 +30,7 @@ function isVirtualReceipt(value: unknown): value is VirtualReceipt {
     && typeof value.revision === "number"
     && typeof value.event === "string"
     && typeof value.status === "string"
-    && value.scope === "AEROMIND HIL BRIDGE"
+    && value.scope === "virtual_only"
     && value.physical_output === false
     && isRecord(value.payload);
 }

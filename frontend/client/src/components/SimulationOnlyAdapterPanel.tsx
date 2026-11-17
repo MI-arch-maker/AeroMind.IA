@@ -1,16 +1,16 @@
 import { useRef, useState } from "react";
 import {
   SIMULATION_ADAPTER_CHECKLIST,
-  environnement HIL & bridgeAdapter,
+  SimulationOnlyAdapter,
   type SimulationAuditEvent,
   type SimulationChecklistItem,
   type SimulationOutput,
-} from "../lib/environnement HIL & bridgeAdapter";
+} from "../lib/simulationOnlyAdapter";
 import { InstitutionalGateWorkflowPanel } from "./InstitutionalGateWorkflowPanel";
 
 const checklistLabels: Record<SimulationChecklistItem, string> = {
   purpose: "Objectif civil ou défensif uniquement; aucun usage offensif.",
-  "environnement HIL & bridge": "Je confirme que toutes les commandes restent dans la simulation locale.",
+  "simulation-only": "Je confirme que toutes les commandes restent dans la simulation locale.",
   "preflight-reviewed": "J’ai relu le scénario et ses avertissements avant ce test.",
   "local-stop-reviewed": "Je comprends que l’arrêt simulé n’est pas un arrêt physique.",
 };
@@ -34,13 +34,13 @@ function matchesFilter(event: SimulationAuditEvent, filter: AuditFilter) {
   return event.physicalTransportRequested || event.kind.toLowerCase().includes("physical");
 }
 
-export function environnement HIL & bridgeAdapterPanel() {
-  const adapterRef = useRef<environnement HIL & bridgeAdapter | null>(null);
-  if (!adapterRef.current) adapterRef.current = new environnement HIL & bridgeAdapter();
+export function SimulationOnlyAdapterPanel() {
+  const adapterRef = useRef<SimulationOnlyAdapter | null>(null);
+  if (!adapterRef.current) adapterRef.current = new SimulationOnlyAdapter();
   const adapter = adapterRef.current;
   const [checks, setChecks] = useState<Record<SimulationChecklistItem, boolean>>({
     purpose: false,
-    "environnement HIL & bridge": false,
+    "simulation-only": false,
     "preflight-reviewed": false,
     "local-stop-reviewed": false,
   });
@@ -95,7 +95,7 @@ export function environnement HIL & bridgeAdapterPanel() {
   ];
 
   return (
-    <section className="fom-sim-adapter" aria-label="Banc local de commandes environnement HIL & bridge">
+    <section className="fom-sim-adapter" aria-label="Banc local de commandes simulation-only">
       <div className="fom-panel-title">
         <strong>Adaptateur local · simulation uniquement</strong>
         <span className="fom-sim-adapter-badge">AUCUN TRANSPORT EXTERNE</span>

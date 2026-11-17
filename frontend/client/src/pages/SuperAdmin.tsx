@@ -665,7 +665,7 @@ export default function SuperAdmin() {
         {activeSection === "operations" && <div className="mb-7 space-y-5">
           <GovernanceCycleMap onOpenLevels={() => { setActiveSection("levels"); window.scrollTo({ top: 0, behavior: "smooth" }); }} t={t} />
           <SystemHealthPanel />
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-600">{t("SUPERVISION ET CONDUITE")}</p><h2 className="mt-1 text-lg font-bold text-slate-800">{t("État réel du runtime et modes autorisés")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("Les changements de mode passent par le backend, les gates applicables et les limites AEROMIND HIL BRIDGE. Les commandes matérielles ne sont pas lancées depuis ce catalogue.")}</p></div><OperationModeCard /></section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-blue-600">{t("SUPERVISION ET CONDUITE")}</p><h2 className="mt-1 text-lg font-bold text-slate-800">{t("État réel du runtime et modes autorisés")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("Les changements de mode passent par le backend, les gates applicables et les limites virtual_only. Les commandes matérielles ne sont pas lancées depuis ce catalogue.")}</p></div><OperationModeCard /></section>
           <OperationalCapabilitiesPanel />
         </div>}
 
