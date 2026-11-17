@@ -13798,12 +13798,27 @@ export default function Home() {
           serverProjectsQuery.isSuccess &&
           !activeProjectId.startsWith("project-")
         ) {
+          const safeResult = simulationResult && typeof simulationResult === "object"
+            ? Object.fromEntries(
+                Object.entries(simulationResult as Record<string, unknown>).filter(
+                  ([, v]) => !Array.isArray(v) || v.length <= 200
+                )
+              )
+            : { status: "COMPLETED" };
+          const safeConfig = simulationConfig && typeof simulationConfig === "object"
+            ? Object.fromEntries(
+                Object.entries(simulationConfig as Record<string, unknown>).filter(
+                  ([, v]) => !Array.isArray(v) || v.length <= 200
+                )
+              )
+            : {};
           const persisted = await createSimulationMutation.mutateAsync({
             id: activeProjectId,
-            project,
-            config: simulationConfig,
-            requirements,
-            result: simulationResult,
+            projectId: activeProjectId,
+            runId: localRunId,
+            project: { id: project.id, name: project.name, version: APP_VERSION },
+            config: safeConfig,
+            result: { ...safeResult, runId: localRunId, status: "COMPLETED" },
             engineVersion: APP_VERSION,
           });
           setRunId(persisted.runId);
@@ -13832,10 +13847,11 @@ export default function Home() {
           try {
             const persisted = await createSimulationMutation.mutateAsync({
               id: activeProjectId,
-              project,
-              config: simulationConfig,
-              requirements,
-              result: simulationResult,
+              projectId: activeProjectId,
+              runId: localRunId,
+              project: { id: project.id, name: project.name, version: APP_VERSION },
+              config: {},
+              result: { runId: localRunId, status: "COMPLETED" },
               engineVersion: APP_VERSION,
             });
             setRunId(persisted.runId);
