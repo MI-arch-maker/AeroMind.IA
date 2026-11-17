@@ -1,3 +1,4 @@
+import { AeromindMultiViewViewport } from "./AeromindMultiViewViewport";
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import {
   Activity,
@@ -153,11 +154,11 @@ export function StudioCommandDeck({
           </div>
           <div className="studio-deck-model-frame">
             {activeProfile ? (
-              <ParametricDronePreview
+              <AeromindMultiViewViewport
                 design={displayProfile ?? activeProfile}
                 construction={{ parts: partsCount, massKg: totalMassKg }}
                 zoom={1.12}
-              />
+               />
             ) : config.customSketch?.strokes.length ? (
               <div className="studio-deck-custom-sketch" role="status">
                 <Layers3 size={24} />

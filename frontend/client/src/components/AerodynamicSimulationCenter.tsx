@@ -1126,7 +1126,7 @@ export function AerodynamicSimulationCenter({
 }: Props) {
   const initial = useMemo(() => defaultAerodynamicParameters({}), []);
   const [section, setSection] = useState<SectionId>("dashboard");
-  const [airframe, setAirframe] = useState<AirframeKind | "">(initial.airframe);
+  const [airframe, setAirframe] = useState<AirframeKind | "">(initial.airframe || "fixed-wing");
   const [parameters, setParameters] = useState<AerodynamicParameters>(
     initial.parameters,
   );
@@ -1216,7 +1216,7 @@ export function AerodynamicSimulationCenter({
     setParameters(next.parameters);
     setActiveScenario("");
     setNotice(
-      "Formulaire vidé. Aucune valeur du cockpit ni hypothèse de démonstration n’a été reprise; vos scénarios enregistrés sont conservés.",
+      "Paramètres aérodynamiques réinitialisés sur la cellule active AeroMind.",
     );
   };
   const saveScenario = () => {

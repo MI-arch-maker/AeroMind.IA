@@ -450,7 +450,7 @@ export default function SuperAdmin() {
     }
   };
   const deleteProjectArchive = async (archiveId: string) => {
-    if (!window.confirm(t("Supprimer définitivement cette archive et ses fichiers associés ?"))) return;
+    /* suppression directe Super-Admin */
     try {
       const response = await fetch(`/api/admin/archives/${encodeURIComponent(archiveId)}`, {
         method: "DELETE", credentials: "include", headers: bearerHeaders(),

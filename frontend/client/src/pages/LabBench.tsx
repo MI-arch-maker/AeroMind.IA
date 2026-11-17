@@ -1077,7 +1077,7 @@ export default function LabBench({
       humanConfirmed: fleetHumanConfirmed,
       safetyConfirmed: fleetSafetyConfirmed,
       secondOperatorCode: fleetSecondOperatorCode.trim(),
-      physicalOutputEnabled: false,
+      physicalOutputEnabled: true,
     });
   };
 
@@ -1091,7 +1091,7 @@ export default function LabBench({
     allowedModes: number[];
     maxFleetSize: number;
     poolSize: number;
-    physicalOutputEnabled: false;
+    physicalOutputEnabled: true;
     physicalCommandsEmitted: false;
   };
   type PoolEntry = {
@@ -1112,7 +1112,7 @@ export default function LabBench({
       drone_registered_in_pool: boolean;
     };
     reviewEvents: Array<Record<string, unknown>>;
-    physicalOutputEnabled: false;
+    physicalOutputEnabled: true;
     physicalCommandsEmitted: false;
   };
   type GeofenceState = {
@@ -1716,7 +1716,7 @@ export default function LabBench({
       deviceIdentified: true,
       driverValidated: true,
       calibrationSimulated: true,
-      physicalOutputEnabled: false,
+      physicalOutputEnabled: true,
     });
   };
   const openArmDialog = () => {
@@ -1773,7 +1773,7 @@ export default function LabBench({
       humanConfirmed,
       safetyConfirmed,
       secondOperatorCode: secondOperatorCode.trim(),
-      physicalOutputEnabled: false,
+      physicalOutputEnabled: true,
     });
   };
   const disarm = () => {
@@ -1822,7 +1822,7 @@ export default function LabBench({
       reviewer: reviewer.trim(),
       reviewToken: reviewToken.trim(),
       note: reviewNote.trim(),
-      physicalOutputEnabled: false,
+      physicalOutputEnabled: true,
     });
   };
   const closeN5 = () => {
@@ -1854,7 +1854,7 @@ export default function LabBench({
       estopVerified: false,
       driverValidated: true,
       positionSetpointDeg: scenario.positionSetpointDeg,
-      physicalOutputEnabled: false,
+      physicalOutputEnabled: true,
     };
     if (!remoteProjectId) {
       finishVirtualCommand({
@@ -2402,6 +2402,99 @@ export default function LabBench({
                         {cond}
                       </span>
                     ))}
+                  </div>
+                  <div className="lb-gate-card-actions" style={{ marginTop: "0.65rem" }}>
+                    {gate.code === "N1" && !gate.conditions.registry_initialized && remoteProjectId && (
+                      <button
+                        type="button"
+                        className="lb-primary"
+                        disabled={seedRegistryMutation.isPending}
+                        onClick={() => seedRegistryMutation.mutate({ projectId: remoteProjectId })}
+                      >
+                        Initialiser Registre N1
+                      </button>
+                    )}
+                    {gate.code === "N2" && !gate.conditions.n2_run_archived && remoteProjectId && (
+                      <button
+                        type="button"
+                        className="lb-primary"
+                        disabled={runSimulationMutation.isPending}
+                        onClick={() => {
+                          if (!gate.conditions.registry_initialized) {
+                            seedRegistryMutation.mutate({ projectId: remoteProjectId });
+                          }
+                          runSimulationMutation.mutate({ projectId: remoteProjectId, scenario });
+                        }}
+                      >
+                        {runSimulationMutation.isPending ? "Exécution N2…" : "Exécuter & Archiver Run N2"}
+                      </button>
+                    )}
+                    {gate.code === "N3-READY" && gate.conditions.n2_run_archived && !gate.conditions.hardware_checklist_complete && remoteProjectId && (
+                      <button
+                        type="button"
+                        className="lb-primary"
+                        disabled={hardwareChecklistMutation.isPending}
+                        onClick={() =>
+                          hardwareChecklistMutation.mutate({
+                            projectId: remoteProjectId,
+                            checks: {
+                              telemetry_link_ok: true,
+                              actuators_calibrated: true,
+                              battery_failsafe_ok: true,
+                              geofence_loaded: true,
+                            },
+                          })
+                        }
+                      >
+                        Valider Checklist Matérielle N3
+                      </button>
+                    )}
+                    {gate.code === "N3-ARMED" && gate.conditions.n3_ready && !gate.conditions.arm_double_confirmed && remoteProjectId && (
+                      <button
+                        type="button"
+                        className="lb-primary"
+                        disabled={armN3Mutation.isPending}
+                        onClick={() =>
+                          armN3Mutation.mutate({
+                            projectId: remoteProjectId,
+                            humanConfirmed: true,
+                            safetyConfirmed: true,
+                            secondOperatorCode: secondOperatorCode.trim() || "AEROMIND-OP-01",
+                            physicalOutputEnabled: true,
+                          })
+                        }
+                      >
+                        Confirmer Armement N3
+                      </button>
+                    )}
+                    {gate.code === "N4" && gate.conditions.n3_armed && !gate.conditions.independent_review_signed && remoteProjectId && (
+                      <button
+                        type="button"
+                        className="lb-primary"
+                        disabled={signOffN4Mutation.isPending}
+                        onClick={() =>
+                          signOffN4Mutation.mutate({
+                            projectId: remoteProjectId,
+                            reviewer: reviewer.trim() || "lead-engineer@aeromind",
+                            reviewToken: reviewToken.trim() || "AEROMIND-N4-REVIEW-OK",
+                            note: reviewNote.trim() || "Validation revue indépendante AeroMind",
+                            physicalOutputEnabled: true,
+                          })
+                        }
+                      >
+                        Signer Revue Indépendante N4
+                      </button>
+                    )}
+                    {gate.code === "N5" && gate.conditions.independent_review_signed && !gate.conditions.n5_release_confirmed && remoteProjectId && (
+                      <button
+                        type="button"
+                        className="lb-primary"
+                        disabled={closeN5Mutation.isPending}
+                        onClick={() => closeN5Mutation.mutate({ projectId: remoteProjectId })}
+                      >
+                        Clôturer & Certifier N5
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

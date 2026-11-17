@@ -1,3 +1,4 @@
+import { AeromindMultiViewViewport } from "./AeromindMultiViewViewport";
 import {
   Activity,
   AlertTriangle,
@@ -128,7 +129,7 @@ export function FlightCommandDeck({
       <div className="flight-deck-grid">
         <div className="flight-drone-preview">
           <div className="flight-deck-section-title"><span><Navigation size={15} /> Aéronef suivi</span><small>visuel canonique de la bibliothèque</small></div>
-          {design ? <ParametricDronePreview design={design} /> : <div className="drone-selection-required" role="status"><span>NO ACTIVE AIRFRAME</span><b>Sélection humaine requise</b><small>Aucun profil de bibliothèque n’est chargé.</small></div>}
+          {design ? <AeromindMultiViewViewport design={design}  /> : <div className="drone-selection-required" role="status"><span>NO ACTIVE AIRFRAME</span><b>Sélection humaine requise</b><small>Aucun profil de bibliothèque n’est chargé.</small></div>}
           <div className="flight-drone-readout"><span>CONFIGURATION ACTIVE</span><strong>{design?.label ?? "Profil local non sélectionné"}</strong><small>Cellule synchronisée avec le bus matériel AeroMind (Roll {stream.rollDeg.toFixed(1)}° · Pitch {stream.pitchDeg.toFixed(1)}°).</small></div>
         </div>
         <div className="flight-deck-command-surface">

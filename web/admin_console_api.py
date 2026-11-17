@@ -29,7 +29,9 @@ def _safe_json(value: str | None) -> dict:
         return {}
 
 
-def _admin_actor(token: str | None) -> dict:
+def _admin_actor(token: str | None, auth_header: str | None = None) -> dict:
+    if not token and auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
     if not token:
         raise HTTPException(401, "Authentification console requise.")
     try:
