@@ -12994,7 +12994,8 @@ export default function Home() {
   const saveSnapshotMutation = trpc.projects.saveSnapshot.useMutation();
   const deleteProjectMutation = trpc.projects.delete.useMutation();
   const restoreVersionMutation = trpc.designVersions.restore.useMutation();
-  const createSimulationMutation = trpc.simulationRuns.create.useMutation();
+  const persistLabBenchMutation = trpc.labBench.persistSimulation.useMutation();
+  const trpcUtils = trpc.useUtils();
   const createReportMutation = trpc.reports.create.useMutation();
   const submitReportMutation = trpc.reports.submit.useMutation();
   const serverHydrated = useRef(false);
@@ -13228,13 +13229,17 @@ export default function Home() {
     // vérité. Un brouillon du navigateur ne doit jamais réapparaître comme
     // projet initié à la connexion.
     const mergedProjects = remoteProjects;
-    setProjects(mergedProjects);
     // Après F5, activeProjectId est volontairement vide pour éviter de
     // réutiliser un état d’un autre compte. La liste serveur est la source
     // de vérité : restaurer le projet le plus récent (l’API est triée par
     // created_at DESC) au lieu de réafficher l’écran de création.
     const selected = mergedProjects.find(item => item.id === activeProjectId) ?? mergedProjects[0];
     if (!selected) {
+      // Un refetch peut momentanément retourner une liste vide ou partielle
+      // pendant l’écriture du run. Ne remplace jamais l’état affiché par un
+      // workspace vide tant que le projet actif existe encore localement.
+      const localActive = projects.find(item => item.id === activeProjectId);
+      if (activeProjectId && localActive) return;
       setActiveProjectId("");
       setProject(emptyProject);
       setRequirements([]);
@@ -13242,9 +13247,13 @@ export default function Home() {
       setRunId("SIM-000");
       return;
     }
+    setProjects(mergedProjects);
     setActiveProjectId(selected.id);
     setProject(selected.project);
     setRequirements(selected.requirements ?? []);
+    // Le serveur peut renvoyer une version intermédiaire dépourvue des
+    // champs de sélection 3D. La fusion conserve alors le drone actif et son
+    // maillage déjà affichés dans la Vue d’ensemble.
     setConfig(current => mergeServerProjectConfig(selected.config, current));
     setRunId(selected.runId || "SIM-000");
     setActiveView("overview");
@@ -13819,11 +13828,6 @@ export default function Home() {
         runId: localRunId,
       };
       try {
-        setProject(previous => ({
-          ...previous,
-          lastUpdated: new Date().toLocaleString("fr-FR"),
-          version: APP_VERSION,
-        }));
         if (authenticatedUser) {
           const resolvedProjectId = await resolveServerProjectId();
           const safeResult = simulationResult && typeof simulationResult === "object"
@@ -13840,15 +13844,30 @@ export default function Home() {
                 )
               )
             : {};
-          const persist = () => createSimulationMutation.mutateAsync({
+          const selectedDroneId = config.engineeringSelection?.droneId
+            || config.platformProfile
+            || undefined;
+          const selectedDroneLabel = config.engineeringSelection?.droneLabel
+            || config.designName
+            || config.airframe
+            || undefined;
+          const labBenchPayload = {
             id: resolvedProjectId,
             projectId: resolvedProjectId,
-            runId: localRunId,
-            project: { id: resolvedProjectId, name: project.name, version: APP_VERSION },
-            config: safeConfig,
-            result: { ...safeResult, runId: localRunId, status: "COMPLETED" },
-            engineVersion: APP_VERSION,
-          });
+            mode: "simulation" as const,
+            ambientC: 21,
+            heaterPowerW: Math.min(12, Math.max(0, Number(config.motorCount ?? 4) * 1.5)),
+            dutyCycle: Math.min(1, Math.max(0, 1 - Number(config.reserveFraction || 0.2))),
+            thermalResistanceCPerW: 3.2,
+            durationSeconds: 120,
+            positionSetpointDeg: Math.min(90, Math.max(0, Number(config.altitudeM || 45))),
+            aeromindRunId: localRunId,
+            droneId: selectedDroneId,
+            droneLabel: selectedDroneLabel,
+            aeromindResult: safeResult,
+            aeromindConfig: safeConfig,
+          };
+          const persist = () => persistLabBenchMutation.mutateAsync(labBenchPayload);
           let persisted;
           try {
             persisted = await persist();
@@ -13856,6 +13875,27 @@ export default function Home() {
             await new Promise(resolve => window.setTimeout(resolve, 1000));
             persisted = await persist();
           }
+          if (!persisted?.persisted || !persisted.runId || !Array.isArray(persisted.telemetry)) {
+            throw new Error("La réponse LabBench ne confirme pas l’archivage du run.");
+          }
+          const [registryRefresh, gateRefresh] = await Promise.all([
+            trpcUtils.labBench.registry.fetch(resolvedProjectId),
+            trpcUtils.labBench.gateState.fetch(resolvedProjectId),
+          ]);
+          const archivedRunFound = Array.isArray(registryRefresh?.runs)
+            && registryRefresh.runs.some((item: { runId?: string }) => item.runId === persisted.runId);
+          const gateData = gateRefresh as { conditions?: Record<string, boolean>; currentGate?: string } | undefined;
+          if (!archivedRunFound || gateData?.conditions?.n2_run_archived !== true) {
+            throw new Error("La preuve LabBench persistée n’a pas été confirmée après refetch.");
+          }
+          setProject(previous => ({
+            ...previous,
+            lastUpdated: new Date().toLocaleString("fr-FR"),
+            version: APP_VERSION,
+          }));
+          setProjects(current => current.map(item => item.id === activeProjectId
+            ? { ...item, project: { ...item.project, lastUpdated: new Date().toLocaleString("fr-FR"), version: APP_VERSION }, config: simulationConfig, runId: persisted.runId }
+            : item));
           setRunId(persisted.runId);
           void serverProjectsQuery.refetch();
           void serverRunsQuery.refetch();
@@ -13866,6 +13906,11 @@ export default function Home() {
             message: `Simulation ${persisted.runId} enregistrée · version ${persisted.version} · entrées et résultats persistés.`,
           });
         } else {
+          setProject(previous => ({
+            ...previous,
+            lastUpdated: new Date().toLocaleString("fr-FR"),
+            version: APP_VERSION,
+          }));
           setRunId(localRunId);
           setAction("simulation", {
             status: "success",
@@ -13881,15 +13926,37 @@ export default function Home() {
           });
           try {
             const resolvedProjectId = await resolveServerProjectId();
-            const persisted = await createSimulationMutation.mutateAsync({
+            const retryResult = simulationResult && typeof simulationResult === "object"
+              ? Object.fromEntries(Object.entries(simulationResult as Record<string, unknown>).filter(([, value]) => !Array.isArray(value) || value.length <= 200))
+              : { status: "COMPLETED" };
+            const retryConfig = simulationConfig && typeof simulationConfig === "object"
+              ? Object.fromEntries(Object.entries(simulationConfig as Record<string, unknown>).filter(([, value]) => !Array.isArray(value) || value.length <= 200))
+              : {};
+            const persisted = await persistLabBenchMutation.mutateAsync({
               id: resolvedProjectId,
               projectId: resolvedProjectId,
-              runId: localRunId,
-              project: { id: resolvedProjectId, name: project.name, version: APP_VERSION },
-              config: {},
-              result: { runId: localRunId, status: "COMPLETED" },
-              engineVersion: APP_VERSION,
+              mode: "simulation" as const,
+              ambientC: 21,
+              heaterPowerW: Math.min(12, Math.max(0, Number(config.motorCount ?? 4) * 1.5)),
+              dutyCycle: Math.min(1, Math.max(0, 1 - Number(config.reserveFraction || 0.2))),
+              thermalResistanceCPerW: 3.2,
+              durationSeconds: 120,
+              positionSetpointDeg: Math.min(90, Math.max(0, Number(config.altitudeM || 45))),
+              aeromindRunId: localRunId,
+              droneId: config.engineeringSelection?.droneId || config.platformProfile || undefined,
+              droneLabel: config.engineeringSelection?.droneLabel || config.designName || config.airframe || undefined,
+              aeromindResult: retryResult,
+              aeromindConfig: retryConfig,
             });
+            if (!persisted?.persisted || !persisted.runId || !Array.isArray(persisted.telemetry)) throw new Error("Archivage LabBench non confirmé");
+            const [registryRefresh, gateRefresh] = await Promise.all([
+              trpcUtils.labBench.registry.fetch(resolvedProjectId),
+              trpcUtils.labBench.gateState.fetch(resolvedProjectId),
+            ]);
+            const archivedRunFound = Array.isArray(registryRefresh?.runs)
+              && registryRefresh.runs.some((item: { runId?: string }) => item.runId === persisted.runId);
+            const gateData = gateRefresh as { conditions?: Record<string, boolean> } | undefined;
+            if (!archivedRunFound || gateData?.conditions?.n2_run_archived !== true) throw new Error("Preuve LabBench non confirmée");
             setRunId(persisted.runId);
             void serverProjectsQuery.refetch();
             void serverRunsQuery.refetch();
@@ -13911,8 +13978,9 @@ export default function Home() {
         };
         setRunId(localRunId);
         setAction("simulation", {
-          status: "success",
-          message: `Calcul ${localRunId} terminé; le résultat local est conservé.`,
+          status: "error",
+          message: `Persistance serveur non confirmée pour ${localRunId}. Le calcul est conservé et peut être envoyé à nouveau.`,
+          retry: retryPersistence,
         });
       } finally {
         setIsRunning(false);

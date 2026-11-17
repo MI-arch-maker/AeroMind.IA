@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from web.app import app
 from web.database import SessionLocal
-from web.models import AdminAccountRecord, AuditEvent, LabSession, Project, Report, User
+from web.models import AdminAccountRecord, AuditEvent, LabSession, Project, Report, Simulation, User
 from web.oidc import _b64, _signed
 
 
@@ -140,7 +140,18 @@ class LabBenchApiTest(unittest.TestCase):
         self.assertIn("simulate.servo.setpoint", registry["drivers"][0]["allowlistJson"])
         self.assertEqual(registry["runs"], [])
 
-        persisted_response = self.post("labBench.persistSimulation", {"id": self.project_id, **SCENARIO})
+        persisted_response = self.post(
+            "labBench.persistSimulation",
+            {
+                "id": self.project_id,
+                **SCENARIO,
+                "aeromindRunId": "SIM-001",
+                "droneId": "catalog-drone-001",
+                "droneLabel": "AeroMind Testframe",
+                "aeromindResult": {"status": "COMPLETED", "score": 0.91},
+                "aeromindConfig": {"engineeringSelection": {"droneId": "catalog-drone-001"}},
+            },
+        )
         self.assertEqual(persisted_response.status_code, 200, persisted_response.text)
         persisted = self.trpc_data(persisted_response)
         self.assertEqual(persisted["projectId"], self.project_id)
@@ -149,15 +160,37 @@ class LabBenchApiTest(unittest.TestCase):
         self.assertEqual(len(persisted["telemetry"]), 12)
         self.assertTrue(persisted["auditEventId"])
         self.assertFalse(persisted["physicalOutputEnabled"])
+        self.assertEqual(persisted["aeromindRunId"], "SIM-001")
+        self.assertEqual(persisted["droneId"], "catalog-drone-001")
+        self.assertEqual(persisted["droneLabel"], "AeroMind Testframe")
+        self.assertEqual(len(persisted["aeromindResultSha256"]), 64)
+        self.assertEqual(len(persisted["aeromindConfigSha256"]), 64)
 
         reread = self.trpc_data(self.client.get(self.query_url("labBench.registry", self.project_id)))
         self.assertEqual(len(reread["runs"]), 1)
         self.assertEqual(reread["runs"][0]["runId"], persisted["runId"])
         with SessionLocal() as db:
             self.assertEqual(len(db.scalars(select(LabSession).where(LabSession.project_id == self.project_id)).all()), 2)
+            project = db.get(Project, self.project_id)
+            self.assertIsNotNone(project)
+            project_data = json.loads(project.data_json)
+            self.assertEqual(project_data["config"]["engineeringSelection"]["droneId"], "catalog-drone-001")
+            self.assertEqual(project_data["lastAeroMindRun"]["runId"], "SIM-001")
+            self.assertEqual(project_data["lastAeroMindRun"]["droneId"], "catalog-drone-001")
+            self.assertEqual(len(db.scalars(select(Simulation).where(Simulation.project_id == self.project_id)).all()), 1)
             audit = db.get(AuditEvent, persisted["auditEventId"])
             self.assertIsNotNone(audit)
             self.assertEqual(json.loads(audit.payload_json)["scope"], "local-simulation-only")
+
+        gate = self.trpc_data(self.client.get(self.query_url("labBench.gateState", self.project_id)))
+        self.assertTrue(gate["conditions"]["registry_initialized"])
+        self.assertTrue(gate["conditions"]["n2_run_archived"])
+        self.assertFalse(gate["conditions"]["hardware_checklist_complete"])
+        self.assertFalse(gate["conditions"]["n3_ready"])
+        self.assertFalse(gate["conditions"]["n3_armed"])
+        self.assertFalse(gate["conditions"]["independent_review_signed"])
+        self.assertFalse(gate["conditions"]["n5_release_confirmed"])
+        self.assertEqual(gate["currentGate"], "N3-READY")
 
         anonymous = TestClient(app, headers={"host": "localhost"})
         try:

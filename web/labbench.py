@@ -373,6 +373,42 @@ def persist_simulation(db: Session, user: dict[str, Any] | None, project_id: str
     run["persisted"] = True
     run["status"] = "COMPLETED"
     run["projectId"] = project.id
+    # Preserve the originating AeroMind run and the selected drone in the
+    # immutable LabBench evidence.  The thermal scenario remains the LabBench
+    # execution contract, while these hashes bind it to the cockpit result
+    # that initiated the N2 archive.
+    aeromind_run_id = str(payload.get("aeromindRunId") or "").strip()
+    selected_drone_id = str(payload.get("droneId") or "").strip()
+    selected_drone_label = str(payload.get("droneLabel") or "").strip()
+    if aeromind_run_id:
+        run["aeromindRunId"] = aeromind_run_id
+    if selected_drone_id:
+        run["droneId"] = selected_drone_id
+    if selected_drone_label:
+        run["droneLabel"] = selected_drone_label
+    aeromind_result = payload.get("aeromindResult")
+    aeromind_config = payload.get("aeromindConfig")
+    if isinstance(aeromind_result, dict):
+        run["aeromindResultSha256"] = _canonical_sha256(aeromind_result)
+    if isinstance(aeromind_config, dict):
+        run["aeromindConfigSha256"] = _canonical_sha256(aeromind_config)
+        try:
+            project_data = json.loads(project.data_json or "{}")
+        except (TypeError, json.JSONDecodeError):
+            project_data = {}
+        if not isinstance(project_data, dict):
+            project_data = {}
+        # Keep the existing project envelope and update only the configuration
+        # and the durable provenance of this first cockpit run.
+        project_data["config"] = aeromind_config
+        project_data["lastAeroMindRun"] = {
+            "runId": aeromind_run_id or None,
+            "droneId": selected_drone_id or None,
+            "droneLabel": selected_drone_label or None,
+            "resultSha256": run.get("aeromindResultSha256"),
+            "configSha256": run["aeromindConfigSha256"],
+        }
+        project.data_json = json.dumps(project_data, ensure_ascii=False, separators=(",", ":"))
     registry_row, registry_data, seeded = _ensure_registry(db, project, user)
     now = datetime.now(UTC)
     registry_data["updatedAt"] = now.isoformat()

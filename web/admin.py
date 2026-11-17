@@ -417,7 +417,7 @@ def delete_project_dependents(db: Session, project_id: str) -> None:
     from .canonical_models import (AuditEventExt, DroneRevision, EventOutbox,
                                    GateValidation, GeofenceRecord, HardwareToken,
                                    Measurement, TestRun)
-    from .models import (AlertEvent, AuditEvent, BatteryCycle, Drone,
+    from .models import (AlertEvent, AuditEvent, BatteryCycle, Drone, Waypoint,
                          EngineeringArtifact, EngineeringDocumentRecord,
                          EngineeringJob, EngineeringSimulationRun,
                          FleetTelemetrySample, InstitutionalCommandRequest,
@@ -427,6 +427,15 @@ def delete_project_dependents(db: Session, project_id: str) -> None:
     # Delete children before their project parent.  This explicit order is
     # important on SQLite deployments without reliable FK cascade settings,
     # and keeps the operation deterministic on MySQL/TiDB/PostgreSQL too.
+    # Waypoint is keyed by mission_id rather than project_id. Delete it
+    # explicitly before Mission so SQLite deployments do not depend on FK
+    # cascade settings.
+    if inspector.has_table(Waypoint.__table__.name) and inspector.has_table(Mission.__table__.name):
+        mission_ids = [row.id for row in db.scalars(select(Mission.id).where(Mission.project_id == project_id)).all()]
+        if mission_ids:
+            for row in db.scalars(select(Waypoint).where(Waypoint.mission_id.in_(mission_ids))).all():
+                db.delete(row)
+
     models = (Measurement, TestRun, DroneRevision, GateValidation, HardwareToken,
               GeofenceRecord, EventOutbox, AuditEventExt, InstitutionalGateEvent,
               EngineeringJob, EngineeringDocumentRecord, WorkflowRun,
