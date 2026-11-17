@@ -59,7 +59,7 @@ class Project(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    data_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    data_json: Mapped[str] = mapped_column(Text(length=4294967295), default="{}", nullable=False)
     active_drone_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
@@ -97,7 +97,7 @@ class Simulation(Base):
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="COMPLETED", index=True)
-    data_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    data_json: Mapped[str] = mapped_column(Text(length=4294967295), default="{}", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
@@ -108,7 +108,7 @@ class Report(Base):
     project_id: Mapped[str] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
-    data_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    data_json: Mapped[str] = mapped_column(Text(length=4294967295), default="{}", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
@@ -141,7 +141,7 @@ class LabSession(Base):
     project_id: Mapped[str] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
-    data_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    data_json: Mapped[str] = mapped_column(Text(length=4294967295), default="{}", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
