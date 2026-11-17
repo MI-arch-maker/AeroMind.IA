@@ -424,6 +424,7 @@ def delete_project_dependents(db: Session, project_id: str) -> None:
                          InstitutionalGateEvent, LabSession, MaintenanceRecord,
                          Mission, PreflightChecklist, PrototypeVersion, Report,
                          Simulation, WorkflowRun)
+    inspector = inspect(db.bind)
     # Delete children before their project parent.  This explicit order is
     # important on SQLite deployments without reliable FK cascade settings,
     # and keeps the operation deterministic on MySQL/TiDB/PostgreSQL too.
@@ -444,7 +445,6 @@ def delete_project_dependents(db: Session, project_id: str) -> None:
               Simulation, LabSession, AuditEvent, AlertEvent,
               FleetTelemetrySample, PreflightChecklist, MaintenanceRecord,
               BatteryCycle, Mission, Drone)
-    inspector = inspect(db.bind)
     for model in models:
         if not inspector.has_table(model.__table__.name):
             continue

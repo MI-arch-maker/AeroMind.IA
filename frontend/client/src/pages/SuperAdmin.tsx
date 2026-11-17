@@ -457,6 +457,9 @@ export default function SuperAdmin() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.detail || t("Suppression de l’archive refusée"));
+      if (body?.deleted !== true || String(body?.id || "") !== String(archiveId)) {
+        throw new Error(t("Le serveur n’a pas confirmé la suppression définitive de cette archive."));
+      }
       utils.superAdmin.activity.setData(undefined, (current: any) => current
         ? { ...current, projectArchives: (current.projectArchives || []).filter((item: any) => String(item.id) !== archiveId) }
         : current);
