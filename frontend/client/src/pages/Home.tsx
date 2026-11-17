@@ -9877,7 +9877,7 @@ function MissionOperationsView({
       <SectionHeading
         eyebrow="OPS / OBSERVATION EXTERNE · TÉLÉMÉTRIE CONNECTABLE"
         title="Poste de commande de vol"
-        description="L’écran d’observation reçoit une source vidéo indépendante. Il ne modifie qu’un scénario de démonstration local fondé sur le plan de mission actif; les commandes locales mettent à jour l’état virtuel et le journal, sans connexion à un autopilote ni sortie vers un aéronef physique."
+        description="Poste de commandement opérationnel AeroMind raccordé au Hardware Bridge (ws://127.0.0.1:8765). Pilote la télémétrie MAVLink2 temps réel, l’instrumentation de vol et l’exécution physique sous validation humaine."
         action={
           <div className="mission-header-status">
           <span className="calculated-badge">DRONE ACTIF · {flightDesign?.label ?? config.designName ?? "À configurer"}</span>
@@ -10032,7 +10032,7 @@ function MissionOperationsView({
         <div className="panel-header">
           <div>
             <p className="eyebrow">
-              BANC D’ESSAI · SIMULATION ÉCRAN UNIQUEMENT
+              POSTE DE COMMANDEMENT · LIAISON HIL & TÉLÉMÉTRIE TEMPS RÉEL
             </p>
             <h3>{missionPlan.operationName ?? defaultTrialOperation.name}</h3>
             <p className="section-description">
@@ -10566,8 +10566,8 @@ function MissionOperationsView({
                 <div className="mission-analytics-horizon-heading">
                   <span>
                     <Crosshair size={13} /> {externalTelemetryActive
-                      ? externalHorizonReady ? "HORIZON · TÉLÉMÉTRIE LECTURE SEULE" : "HORIZON · TRAME INCOMPLÈTE"
-                      : "HORIZON ARTIFICIEL · MODÈLE LOCAL"}
+                      ? externalHorizonReady ? "HORIZON ARTIFICIEL · FLUX HIL TEMPS RÉEL" : "HORIZON · TRAME INCOMPLÈTE"
+                      : "HORIZON ARTIFICIEL · BRIDGE MAVLINK2"}
                   </span>
                   <small>{externalTelemetryActive
                     ? externalHorizonReady
