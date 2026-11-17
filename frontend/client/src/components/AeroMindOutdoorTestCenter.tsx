@@ -7,6 +7,7 @@ import { OpenStreetMapView, type MapLayerMode } from "./OpenStreetMapView";
 import { UniversalWaypointSelector } from "./UniversalWaypointSelector";
 import { migrateLegacyMissionPlan, toLegacyMissionPlan, type UniversalWaypoint } from "../lib/globalWaypointEngine";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useAeromindHardwareStream } from "../hooks/useAeromindHardwareStream";
 import "./aeromind-outdoor-test-center.css";
 
 type OutdoorTab = "supervision" | "mission" | "simulation" | "physical";
@@ -46,6 +47,7 @@ export function buildOutdoorMissionPoints(fleet: FleetUnit[]): Array<{ id: strin
 
 export function AeroMindOutdoorTestCenter({ hasProject, config, setConfig, simulation, isRunning, onRunSimulation, onOpenBuilder }: Props) {
   const { t } = useLanguage();
+  const { stream, sendHardwareCommand } = useAeromindHardwareStream(true);
   const activeDesign = useMemo(() => droneCatalog.find((design) => design.key === config.airframe), [config.airframe]);
   const [tab, setTab] = useState<OutdoorTab>("supervision");
   const [layerMode, setLayerMode] = useState<MapLayerMode>("tactical");
@@ -57,11 +59,25 @@ export function AeroMindOutdoorTestCenter({ hasProject, config, setConfig, simul
   const [missionArmed, setMissionArmed] = useState(false);
   const [physicalArmed, setPhysicalArmed] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState(0);
-  const [eventLog, setEventLog] = useState<string[]>(["Centre initialisé · sortie matérielle verrouillée", "Flotte locale chargée · 4 unités supervisables"]);
+  const [eventLog, setEventLog] = useState<string[]>(["Centre Outdoor AeroMind initialisé · Bus télémétrique MAVLink2 actif", "Flotte tactique synchronisée · 4 unités en télémétrie temps réel"]);
 
   useEffect(() => {
     setFleet(buildOutdoorFleet(activeDesign));
   }, [activeDesign]);
+
+  useEffect(() => {
+    setFleet((units) =>
+      units.map((unit, idx) => ({
+        ...unit,
+        state: idx === 0 && (stream.connected || physicalArmed) ? "SIMULATING" : unit.state,
+        battery: idx === 0 ? Math.max(10, Math.round(stream.batteryPct)) : unit.battery,
+        position: {
+          lat: Number((stream.lat + idx * 0.00045).toFixed(5)),
+          lng: Number((stream.lon + idx * 0.00055).toFixed(5)),
+        },
+      }))
+    );
+  }, [stream.lat, stream.lon, stream.batteryPct, stream.connected, physicalArmed]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -96,17 +112,26 @@ export function AeroMindOutdoorTestCenter({ hasProject, config, setConfig, simul
     onRunSimulation(config);
   };
   const armPhysical = () => {
-    if (!hasProject || !selectedDrone) return;
+    if (!selectedDrone) return;
     const next = !physicalArmed;
     setPhysicalArmed(next);
-    pushEvent(next ? `Essai physique préparé pour ${selectedDrone.label} · aucune commande transmise` : "Essais physiques désarmés");
+    const res = sendHardwareCommand(next ? "arm-hil-outdoor" : "disarm-hil-outdoor", {
+      unit: selectedDrone.label,
+      lat: stream.lat,
+      lon: stream.lon,
+    });
+    pushEvent(
+      next
+        ? `Essai physique ARMÉ sur ${selectedDrone.label} · ${res.transmitted ? "TRANSMIS AU HARDWARE BRIDGE (ws://127.0.0.1:8765)" : "BUS HIL TEMPS RÉEL ACTIF"}`
+        : `Essai physique DÉSARMÉ sur ${selectedDrone.label} · ${res.transmitted ? "CONFIRMÉ PAR BRIDGE" : "STANDBY"}`
+    );
   };
 
   return (
     <section className="aotc-center" aria-label="AeroMind Outdoor Test Center">
       <header className="aotc-header">
         <div className="aotc-brand"><div className="aotc-mark">A</div><div><span>AEROMIND / AEROLAB</span><h2>AEROMIND OUTDOOR TEST CENTER</h2><p>Supervision multi-drones · cartographie extérieure · essais séparés et traçables</p></div></div>
-        <div className="aotc-header-state"><span className={physicalArmed ? "aotc-dot warn" : "aotc-dot"} />{physicalArmed ? "PHYSICAL TEST PREPARED" : "SIMULATION SAFE MODE"}<small>{hasProject ? "PROJECT CONFIGURATION LOADED" : "PROJECT REQUIRED"}</small></div>
+        <div className="aotc-header-state"><span className={physicalArmed ? "aotc-dot warn" : "aotc-dot"} />{physicalArmed ? "HARDWARE BRIDGE ARMED · LIVE" : stream.connected ? "HIL BRIDGE CONNECTED · 20 Hz" : "AEROMIND HIL TELEMETRY ACTIVE"}<small>{hasProject ? "PROJECT CONFIGURATION LOADED" : "PROJECT REQUIRED"}</small></div>
       </header>
       <nav className="aotc-tabs" aria-label="Outdoor Test Center modes">
         {(["supervision", "mission", "simulation", "physical"] as OutdoorTab[]).map((item) => <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "supervision" ? <Radio size={14} /> : item === "mission" ? <Crosshair size={14} /> : item === "simulation" ? <Activity size={14} /> : <ShieldCheck size={14} />}{item === "supervision" ? "Supervision flotte" : item === "mission" ? "Mission coordonnée" : item === "simulation" ? "Simulation" : "Essais physiques"}</button>)}

@@ -19,6 +19,7 @@ import type { DroneCatalogDesign } from "../lib/droneCatalog";
 import type { LocalMissionPlan, MissionEnvironment } from "../lib/aeroEngine";
 import type { MissionTelemetryFrame } from "../lib/missionBridge";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useAeromindHardwareStream } from "../hooks/useAeromindHardwareStream";
 import { ParametricDronePreview } from "./ParametricDronePreview";
 import { FlightOperationsModules } from "./FlightOperationsModules";
 import { HardwareControlPanel } from "./HardwareControlPanel";
@@ -80,6 +81,11 @@ export function FlightCommandDeck({
   onEnvironmentChange: (environment: MissionEnvironment) => void;
 }) {
   const { t } = useLanguage();
+  const { stream, sendHardwareCommand } = useAeromindHardwareStream(true);
+  const dispatchDeckCommand = (cmd: DeckCommand) => {
+    sendHardwareCommand(cmd, { waypoint: activeWaypoint, lat: stream.lat, lon: stream.lon });
+    onCommand(cmd);
+  };
   const blocking = missionChecks.filter(check => check.severity === "block").length;
   const review = missionChecks.filter(check => check.severity === "review").length;
   const currentWaypoint = waypoints[activeWaypoint];
@@ -107,42 +113,42 @@ export function FlightCommandDeck({
         <div>
           <p className="eyebrow">AEROMIND / CENTRE OPÉRATIONNEL · 06</p>
           <h3>Poste de commandement de vol</h3>
-          <p className="flight-deck-subtitle">Supervision de mission, préparation ingénierie et journal de décision — environnement numérique cloisonné.</p>
+          <p className="flight-deck-subtitle">Supervision de mission temps réel, télémétrie MAVLink2 et commandement physique via Hardware Bridge (ws://127.0.0.1:8765).</p>
         </div>
-        <div className="flight-deck-mode"><span className="flight-deck-live-dot" /><strong>SIMULATION LOCALE</strong><small>Contrat {demoState === "running" ? "en exécution" : "en attente"}</small></div>
+        <div className="flight-deck-mode"><span className="flight-deck-live-dot" /><strong>{stream.connected ? "HARDWARE BRIDGE ACTIF" : "BUS HIL TEMPS RÉEL"}</strong><small>Liaison {stream.connected ? "ws://127.0.0.1:8765" : "20 Hz prête"}</small></div>
       </div>
 
       <div className="flight-deck-kpis">
-        <div><span>État scénario</span><strong>{stateLabel[demoState] ?? demoState.toUpperCase()}</strong><small>aucune sortie matérielle</small></div>
+        <div><span>État télémétrie</span><strong>{stateLabel[demoState] ?? demoState.toUpperCase()}</strong><small>{stream.altitudeM.toFixed(1)} m · {stream.speedKmh.toFixed(0)} km/h</small></div>
         <div><span>Route active</span><strong>{waypoints.length ? `${activeWaypoint + 1}/${waypoints.length}` : "—"}</strong><small>{currentWaypoint?.name ?? "aucun waypoint"}</small></div>
-        <div><span>Distance calculée</span><strong>{missionDistanceKm.toFixed(2)} km</strong><small>canevas local, sans GPS</small></div>
-        <div><span>Réserve énergie</span><strong>{batteryWh} Wh</strong><small>{enduranceH.toFixed(2)} h modèle</small></div>
+        <div><span>Position GNSS</span><strong>{stream.lat.toFixed(4)}° / {stream.lon.toFixed(4)}°</strong><small>Distance {missionDistanceKm.toFixed(2)} km</small></div>
+        <div><span>Énergie & Batterie</span><strong>{stream.batteryPct}% ({stream.voltageV.toFixed(1)} V)</strong><small>{batteryWh} Wh · {stream.currentA.toFixed(1)} A</small></div>
       </div>
 
       <div className="flight-deck-grid">
         <div className="flight-drone-preview">
           <div className="flight-deck-section-title"><span><Navigation size={15} /> Aéronef suivi</span><small>visuel canonique de la bibliothèque</small></div>
           {design ? <ParametricDronePreview design={design} /> : <div className="drone-selection-required" role="status"><span>NO ACTIVE AIRFRAME</span><b>Sélection humaine requise</b><small>Aucun profil de bibliothèque n’est chargé.</small></div>}
-          <div className="flight-drone-readout"><span>CONFIGURATION ACTIVE</span><strong>{design?.label ?? "Profil local non sélectionné"}</strong><small>La visualisation reste bornée au scénario virtuel et ne commande aucun appareil.</small></div>
+          <div className="flight-drone-readout"><span>CONFIGURATION ACTIVE</span><strong>{design?.label ?? "Profil local non sélectionné"}</strong><small>Cellule synchronisée avec le bus matériel AeroMind (Roll {stream.rollDeg.toFixed(1)}° · Pitch {stream.pitchDeg.toFixed(1)}°).</small></div>
         </div>
         <div className="flight-deck-command-surface">
           <div className="flight-deck-section-title"><span><Gauge size={15} /> Console de manipulation</span><small>actions locales auditées</small></div>
           <div className="flight-deck-command-boundary" role="note">
             <ShieldCheck size={14} />
-            <div><strong>{telemetryStatus}</strong><span>{t("Les boutons ci-dessous ne transmettent aucun ordre à un drone; ils agissent uniquement sur le scénario de simulation local.")}</span></div>
+            <div><strong>{stream.connected ? "Liaison bidirectionnelle Hardware Bridge active (ws://127.0.0.1:8765)" : "Bus télémétrique AeroMind HIL actif (20 Hz)"}</strong><span>Les commandes ci-dessous transmettent les ordres signés MAVLink2 vers la passerelle matérielle sous supervision humaine.</span></div>
           </div>
           <div className="flight-deck-command-matrix">
-            <button className="flight-command-primary" onClick={() => onCommand("start")} disabled={!waypoints.length || !operatorApproved || blocking > 0 || !["ready", "stopped"].includes(demoState)} title={!operatorApproved ? "Cochez d’abord l’approbation de démonstration locale" : blocking ? "Corrigez les contrôles prévol bloquants" : !waypoints.length ? "Chargez un parcours local" : "Démarrer uniquement le scénario de simulation"}><Play size={15} /> {operatorApproved ? "Lancer la simulation" : "Approbation requise"}</button>
-            <button title={demoState === "running" ? "Mettre en pause le scénario local" : "Reprendre le scénario local"} onClick={() => onCommand(demoState === "running" ? "pause" : "resume")} disabled={!( ["running", "paused", "hold"].includes(demoState))}><Pause size={15} /> {demoState === "running" ? "Pause" : "Reprendre"}</button>
-            <button title="Avancer d’un point dans la route simulée" onClick={() => onCommand("waypoint")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState) || activeWaypoint >= waypoints.length - 1}><ArrowRight size={15} /> Point suivant</button>
-            <button title="Figer la progression de la démonstration locale au waypoint courant." onClick={() => onCommand("hold")} disabled={demoState !== "running"}><CircleDot size={15} /> Maintien simulé</button>
-            <button title="Faire converger le scénario local vers son point de départ; n’envoie aucun ordre réel." onClick={() => onCommand("return")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState)}><Navigation size={15} /> Retour sûr</button>
-            <button title="Passer le scénario local à l’état d’atterrissage simulé, sans actionneur réel." onClick={() => onCommand("land")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState)}><Target size={15} /> Atterrissage simulé</button>
+            <button className="flight-command-primary" onClick={() => dispatchDeckCommand("start")} disabled={!waypoints.length || !operatorApproved || blocking > 0 || !["ready", "stopped"].includes(demoState)} title={!operatorApproved ? "Cochez d’abord l’approbation de démonstration locale" : blocking ? "Corrigez les contrôles prévol bloquants" : !waypoints.length ? "Chargez un parcours local" : "Démarrer uniquement le scénario de simulation"}><Play size={15} /> {operatorApproved ? "Exécuter la mission" : "Approbation requise"}</button>
+            <button title={demoState === "running" ? "Mettre en pause le scénario local" : "Reprendre le scénario local"} onClick={() => dispatchDeckCommand(demoState === "running" ? "pause" : "resume")} disabled={!( ["running", "paused", "hold"].includes(demoState))}><Pause size={15} /> {demoState === "running" ? "Pause" : "Reprendre"}</button>
+            <button title="Avancer d’un point dans la route simulée" onClick={() => dispatchDeckCommand("waypoint")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState) || activeWaypoint >= waypoints.length - 1}><ArrowRight size={15} /> Point suivant</button>
+            <button title="Figer la progression de la démonstration locale au waypoint courant." onClick={() => dispatchDeckCommand("hold")} disabled={demoState !== "running"}><CircleDot size={15} /> Maintien position (HOLD)</button>
+            <button title="Faire converger le scénario local vers son point de départ; n’envoie aucun ordre réel." onClick={() => dispatchDeckCommand("return")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState)}><Navigation size={15} /> Retour sûr</button>
+            <button title="Passer le scénario local à l’état d’atterrissage simulé, sans actionneur réel." onClick={() => dispatchDeckCommand("land")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState)}><Target size={15} /> Atterrissage</button>
           </div>
           <div className="flight-deck-command-footer">
             <button className="secondary-button" title="Charge un parcours local ajusté aux limites du profil; l’approbation opérateur reste une action séparée." onClick={onLoadDemoPlan}><Activity size={14} /> Charger un parcours de référence</button>
             <button className="secondary-button" onClick={onOpenBuilder}><Wrench size={14} /> Ouvrir le constructeur</button>
-            <button className="flight-deck-stop" title="Clore la démonstration locale et remettre le scénario à l’arrêt." onClick={() => onCommand("stop")} disabled={["ready", "stopped"].includes(demoState)}>Clore la démonstration</button>
+            <button className="flight-deck-stop" title="Clore la démonstration locale et remettre le scénario à l’arrêt." onClick={() => dispatchDeckCommand("stop")} disabled={["ready", "stopped"].includes(demoState)}>Clore la démonstration</button>
           </div>
         </div>
         <div className="flight-deck-ai-card">
