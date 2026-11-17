@@ -40,7 +40,7 @@ const INITIAL_STREAM: AeromindTelemetryStream = {
   batteryPct: 96,
   voltageV: 24.8,
   currentA: 14.2,
-  motorRpm:,
+  motorRpm: new Array<number>(4).fill(4850),
   escTempC: 41.5,
   linkQuality: 0.99,
   timestampMs: Date.now(),
@@ -72,7 +72,7 @@ export function useAeromindHardwareStream(active = true) {
             const raw = JSON.parse(String(ev.data));
             if (raw && (typeof raw.roll === "number" || Array.isArray(raw.position))) {
               const pos = Array.isArray(raw.position) ? raw.position : [46.52, 6.63, 120];
-              const vel = Array.isArray(raw.velocity) ? raw.velocity :;
+              const vel = Array.isArray(raw.velocity) ? raw.velocity : new Array<number>(3).fill(0);
               const speedMs = Math.hypot(Number(vel.at(0) ?? 0), Number(vel.at(1) ?? 0));
               setStream((prev) => ({
                 ...prev,
