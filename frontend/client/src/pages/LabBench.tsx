@@ -426,7 +426,7 @@ export default function LabBench({
     (activeProjectId &&
     projects.some((project) => project.id === activeProjectId)
       ? activeProjectId
-      : null);
+      : (projects[0]?.id ?? null));
   const selectedRemoteProjectId =
     selectedProjectId &&
     remoteProjects.some((project) => project.id === selectedProjectId)
@@ -435,7 +435,7 @@ export default function LabBench({
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId,
   );
-  const explicitWorkspaceConfig = workspaceRecord ?? (!integratedSurface ? selectedProject?.config ?? null : null);
+  const explicitWorkspaceConfig = workspaceRecord ?? selectedProject?.config ?? null;
   const hasUserIntegratedData = integratedSurface
     ? hasSessionIntegratedDrone(explicitWorkspaceConfig, userIntegratedThisSession)
     : hasUserIntegratedDrone(explicitWorkspaceConfig);
@@ -2065,18 +2065,17 @@ export default function LabBench({
             <span className="lb-chip">
               <CircleDot size={14} /> Gate courant : {gateState.currentGate}
             </span>
-            <span className="lb-lock">
-              <LockKeyhole size={14} /> Mode logiciel sécurisé
+            <span className="lb-chip">
+              <Radio size={14} /> AEROMIND · BANC HIL COUPLÉ
             </span>
           </div>
         </header>
         <div className="lb-safety-banner">
           <ShieldCheck size={19} />
           <div>
-            <strong>Poste d’ingénierie · environnement de validation</strong>
+            <strong>AEROMIND · Banc de Qualification & Métrologie Hardware-in-the-Loop (HIL)</strong>
             <span>
-              Ce runtime de démonstration exécute le scénario logiciel; aucune donnée de cet écran ne pilote un appareil réel.
-              HARDWARE_CONTROL ne peut pas lever ce verrou. La checklist EASA est un aide-mémoire de laboratoire, pas une approbation ni une autorisation de vol.
+              Poste unifié de qualification séquentielle (N1–N5), télémétrie MAVLink2 temps réel et validation des commandes physiques sous supervision humaine.
             </span>
           </div>
         </div>
