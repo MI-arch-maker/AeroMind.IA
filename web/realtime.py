@@ -9,7 +9,7 @@ other's actions in real-time:
   - Operator presence (who's online)
 
 Implementation: a single WebSocket endpoint /api/realtime/ws per project.
-The server maintains an in-memory set of connected clients per project_id;
+The server maintains an in-memory list of connected clients per project_id;
 when an event is published (via publish_event), it's broadcast to all
 clients on that project.
 
@@ -32,31 +32,44 @@ from fastapi.responses import JSONResponse
 from starlette.websockets import WebSocketState
 
 from .app_auth_helpers import current_user
-from .mavlink_command_api import hardware_commands_enabled
-
 
 router = APIRouter(prefix="/api/realtime", tags=["realtime"])
 
 
-# In-memory connection registry: project_id → set of WebSocket connections
-# Each connection is a dict { ws, user_id, user_email, connected_at }
-_connections: dict[str, set[dict[str, Any]]] = {}
+# In-memory connection registry: project_id -> list of WebSocket connection dicts
+# Using list instead of set because dict objects are unhashable in Python.
+_connections: dict[str, list[dict[str, Any]]] = {}
 
 
-def _register(project_id: str, ws: WebSocket, user_id: str, user_email: str) -> dict[str, Any]:
-    conn = {"ws": ws, "user_id": user_id, "user_email": user_email, "connected_at": datetime.now(UTC)}
-    _connections.setdefault(project_id, set()).add(conn)
+def _register(
+    project_id: str, ws: WebSocket, user_id: str, user_email: str
+) -> dict[str, Any]:
+    conn = {
+        "ws": ws,
+        "user_id": user_id,
+        "user_email": user_email,
+        "connected_at": datetime.now(UTC),
+    }
+    _connections.setdefault(project_id, []).append(conn)
     return conn
 
 
 def _unregister(project_id: str, conn: dict[str, Any]) -> None:
     if project_id in _connections:
-        _connections[project_id].discard(conn)
+        _connections[project_id] = [
+            c for c in _connections[project_id] if c is not conn
+        ]
         if not _connections[project_id]:
             del _connections[project_id]
 
 
-def publish_event(project_id: str | None, event_type: str, payload: dict[str, Any], actor_id: str, actor_email: str | None = None) -> None:
+def publish_event(
+    project_id: str | None,
+    event_type: str,
+    payload: dict[str, Any],
+    actor_id: str,
+    actor_email: str | None = None,
+) -> None:
     """Broadcast an event to all connected operators on the project.
 
     Called by other modules (mission_planner, hardware_gate, alerts, etc.)
@@ -71,41 +84,53 @@ def publish_event(project_id: str | None, event_type: str, payload: dict[str, An
         "timestamp": datetime.now(UTC).isoformat(),
     }
     msg = json.dumps(event, ensure_ascii=False)
-    # Broadcast to project-specific connections
-    targets = []
+
+    targets: list[dict[str, Any]] = []
     if project_id and project_id in _connections:
         targets.extend(_connections[project_id])
-    # Also broadcast to connections with no project (dashboard view)
-    if None in _connections:
-        targets.extend(_connections[None])
+    if "__global__" in _connections and project_id != "__global__":
+        targets.extend(_connections["__global__"])
+
+    if not targets:
+        return
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
     for conn in targets:
         ws = conn["ws"]
-        if ws.client_state == WebSocketState.CONNECTED:
+        if ws.client_state == WebSocketState.CONNECTED and loop is not None:
             try:
-                asyncio.create_task(ws.send_text(msg))
+                loop.create_task(ws.send_text(msg))
             except Exception:
                 pass
 
 
 def get_online_operators(project_id: str | None = None) -> list[dict[str, Any]]:
     """Return the list of currently connected operators (for the UI presence indicator)."""
-    result = []
+    result: list[dict[str, Any]] = []
     if project_id and project_id in _connections:
         for conn in _connections[project_id]:
-            result.append({
-                "userId": conn["user_id"],
-                "userEmail": conn["user_email"],
-                "connectedAt": conn["connected_at"].astimezone(UTC).isoformat(),
-            })
+            result.append(
+                {
+                    "userId": conn["user_id"],
+                    "userEmail": conn["user_email"],
+                    "connectedAt": conn["connected_at"].astimezone(UTC).isoformat(),
+                }
+            )
     elif project_id is None:
         for pid, conns in _connections.items():
             for conn in conns:
-                result.append({
-                    "userId": conn["user_id"],
-                    "userEmail": conn["user_email"],
-                    "projectId": pid,
-                    "connectedAt": conn["connected_at"].astimezone(UTC).isoformat(),
-                })
+                result.append(
+                    {
+                        "userId": conn["user_id"],
+                        "userEmail": conn["user_email"],
+                        "projectId": pid,
+                        "connectedAt": conn["connected_at"].astimezone(UTC).isoformat(),
+                    }
+                )
     return result
 
 
@@ -119,8 +144,19 @@ def online_endpoint(
     """REST endpoint to list currently connected operators."""
     user = current_user(aeromind_session, authorization)
     if not user:
-        return JSONResponse(status_code=401, content={"error": {"code": "UNAUTHORIZED", "message": "OIDC authentication required"}})
-    return JSONResponse({"operators": get_online_operators(project_id)}, headers={"Cache-Control": "no-store"})
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "OIDC authentication required",
+                }
+            },
+        )
+    return JSONResponse(
+        {"operators": get_online_operators(project_id)},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.websocket("/ws")
@@ -135,15 +171,15 @@ async def websocket_endpoint(
     Receives: broadcast events from other operators (arm, disarm, command, alert, etc.)
     Sends: nothing (server-push only); the client can send ping messages.
     """
-    # Authenticate via cookie
     user = current_user(aeromind_session, None)
     if not user:
         await ws.close(code=4401, reason="OIDC authentication required")
         return
-    await ws.accept()
-    conn = _register(project_id or "__global__", ws, user["id"], user.get("email", "unknown"))
 
-    # Send initial presence
+    await ws.accept()
+    key = project_id or "__global__"
+    conn = _register(key, ws, user["id"], user.get("email", "unknown"))
+
     presence = {
         "type": "presence",
         "projectId": project_id,
@@ -155,14 +191,17 @@ async def websocket_endpoint(
     except Exception:
         pass
 
-    # Notify others that a new operator joined
-    publish_event(project_id, "operator_joined", {"operatorEmail": user.get("email")}, user["id"], user.get("email"))
+    publish_event(
+        project_id,
+        "operator_joined",
+        {"operatorEmail": user.get("email")},
+        user["id"],
+        user.get("email"),
+    )
 
     try:
         while True:
-            # Listen for client messages (ping / heartbeat)
             data = await ws.receive_text()
-            # Echo ping back
             if data == "ping":
                 await ws.send_text("pong")
     except WebSocketDisconnect:
@@ -170,5 +209,11 @@ async def websocket_endpoint(
     except Exception:
         pass
     finally:
-        _unregister(project_id or "__global__", conn)
-        publish_event(project_id, "operator_left", {"operatorEmail": user.get("email")}, user["id"], user.get("email"))
+        _unregister(key, conn)
+        publish_event(
+            project_id,
+            "operator_left",
+            {"operatorEmail": user.get("email")},
+            user["id"],
+            user.get("email"),
+        )
