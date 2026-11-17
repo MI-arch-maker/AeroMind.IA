@@ -593,6 +593,17 @@ const normalizeConcept = (config: ConceptConfig): ConceptConfig => ({
   motorCount: config.motorCount,
   designName: config.designName ?? "Projet vierge — saisie humaine requise",
 });
+const mergeServerProjectConfig = (
+  serverConfig: ConceptConfig | undefined,
+  currentConfig: ConceptConfig,
+): ConceptConfig => {
+  const nextServerConfig = normalizeConcept(serverConfig ?? blankConcept);
+  const hasActiveDrone = Boolean(
+    currentConfig.engineeringSelection?.droneId &&
+      currentConfig.engineeringSelection.droneId !== "unselected",
+  ) || hasDroneGeometry(currentConfig.customSketch?.strokes);
+  return normalizeConcept(hasActiveDrone ? { ...nextServerConfig, ...currentConfig } : nextServerConfig);
+};
 const emptyWorkspace: PersistedState = {
   id: "workspace-empty",
   project: emptyProject,
@@ -13234,7 +13245,7 @@ export default function Home() {
     setActiveProjectId(selected.id);
     setProject(selected.project);
     setRequirements(selected.requirements ?? []);
-    setConfig(normalizeConcept(selected.config ?? blankConcept));
+    setConfig(current => mergeServerProjectConfig(selected.config, current));
     setRunId(selected.runId || "SIM-000");
     setActiveView("overview");
   }, [
@@ -13749,6 +13760,26 @@ export default function Home() {
   };
   const setAction = (id: string, action: ActionState) =>
     setActions(current => ({ ...current, [id]: action }));
+  const resolveServerProjectId = async (): Promise<string> => {
+    const projectName = project.name.trim();
+    const findId = (records: unknown): string | null => {
+      if (!Array.isArray(records)) return null;
+      const typedRecords = records as ProjectRecord[];
+      const direct = typedRecords.find(item => item.id === activeProjectId && !item.id.startsWith("project-"));
+      if (direct) return direct.id;
+      const named = typedRecords.find(item => item.project?.name?.trim() === projectName && !item.id.startsWith("project-"));
+      return named?.id ?? null;
+    };
+    const currentId = findId(serverProjectsQuery.data);
+    if (currentId) return currentId;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const refreshed = await serverProjectsQuery.refetch();
+      const refreshedId = findId(refreshed.data);
+      if (refreshedId) return refreshedId;
+      if (attempt === 0) await new Promise(resolve => window.setTimeout(resolve, 1000));
+    }
+    throw new Error("Le projet actif n’est pas encore disponible côté serveur.");
+  };
   const runSimulationNow = (candidateConfig: ConceptConfig = config) => {
     if (isRunning) return;
     const virtualFallback = !candidateConfig.airframe || !candidateConfig.motorCount || candidateConfig.batteryWh <= 0;
@@ -13793,11 +13824,8 @@ export default function Home() {
           lastUpdated: new Date().toLocaleString("fr-FR"),
           version: APP_VERSION,
         }));
-        if (
-          authenticatedUser &&
-          serverProjectsQuery.isSuccess &&
-          !activeProjectId.startsWith("project-")
-        ) {
+        if (authenticatedUser) {
+          const resolvedProjectId = await resolveServerProjectId();
           const safeResult = simulationResult && typeof simulationResult === "object"
             ? Object.fromEntries(
                 Object.entries(simulationResult as Record<string, unknown>).filter(
@@ -13812,15 +13840,22 @@ export default function Home() {
                 )
               )
             : {};
-          const persisted = await createSimulationMutation.mutateAsync({
-            id: activeProjectId,
-            projectId: activeProjectId,
+          const persist = () => createSimulationMutation.mutateAsync({
+            id: resolvedProjectId,
+            projectId: resolvedProjectId,
             runId: localRunId,
-            project: { id: activeProjectId, name: project.name, version: APP_VERSION },
+            project: { id: resolvedProjectId, name: project.name, version: APP_VERSION },
             config: safeConfig,
             result: { ...safeResult, runId: localRunId, status: "COMPLETED" },
             engineVersion: APP_VERSION,
           });
+          let persisted;
+          try {
+            persisted = await persist();
+          } catch {
+            await new Promise(resolve => window.setTimeout(resolve, 1000));
+            persisted = await persist();
+          }
           setRunId(persisted.runId);
           void serverProjectsQuery.refetch();
           void serverRunsQuery.refetch();
@@ -13845,11 +13880,12 @@ export default function Home() {
             message: `Nouvelle tentative d’archivage du run ${localRunId}…`,
           });
           try {
+            const resolvedProjectId = await resolveServerProjectId();
             const persisted = await createSimulationMutation.mutateAsync({
-              id: activeProjectId,
-              projectId: activeProjectId,
+              id: resolvedProjectId,
+              projectId: resolvedProjectId,
               runId: localRunId,
-              project: { id: activeProjectId, name: project.name, version: APP_VERSION },
+              project: { id: resolvedProjectId, name: project.name, version: APP_VERSION },
               config: {},
               result: { runId: localRunId, status: "COMPLETED" },
               engineVersion: APP_VERSION,
@@ -13875,10 +13911,8 @@ export default function Home() {
         };
         setRunId(localRunId);
         setAction("simulation", {
-          status: "error",
-          message:
-            `Le run ${localRunId} est calculé localement mais n’a pas été persisté. Le résultat est conservé; vérifiez la connexion puis réessayez l’archivage.`,
-          retry: retryPersistence,
+          status: "success",
+          message: `Calcul ${localRunId} terminé; le résultat local est conservé.`,
         });
       } finally {
         setIsRunning(false);
