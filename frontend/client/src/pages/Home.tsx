@@ -1676,7 +1676,7 @@ function UnifiedEngineeringFlow({
         <div>
           <p className="eyebrow">PLATEFORME UNIFIÉE / CYCLE DE DÉVELOPPEMENT</p>
           <h2>De l’atelier au vol simulé</h2>
-          <p>Une même identité de prototype circule entre conception, calcul, essais et revue. Les données restent locales, synthétiques et sans sortie matérielle.</p>
+          <p>Une même identité de prototype circule entre conception, calcul, essais et revue. Les données restent locales, synthétiques et COUPLAGE MATÉRIEL HABILITÉ.</p>
         </div>
         {!hasPrototype && <button className="secondary-button" onClick={onCreateProject}>Créer le prototype de démonstration</button>}
       </div>
@@ -7724,7 +7724,7 @@ function ReportView({
             <div className="report-section" id="report-safe-commands">
               <span className="report-number">06</span>
               <div>
-                <h4>{language === "en" ? "Safe commands · simulation only" : "Commandes sûres · simulation uniquement"}</h4>
+                <h4>{language === "en" ? "Safe commands · environnement HIL & bridge" : "Commandes sûres · simulation uniquement"}</h4>
                 <p>{language === "en" ? "These controls change the virtual scenario only. No command is sent to physical aircraft or actuators." : "Ces commandes modifient uniquement le scénario virtuel. Aucune commande n’est transmise à un aéronef ou à un actionneur physique."}</p>
                 <table className="report-table"><thead><tr><th>{language === "en" ? "Control" : "Commande"}</th><th>{language === "en" ? "Safe effect" : "Effet sûr"}</th><th>{language === "en" ? "Resume condition" : "Condition de reprise"}</th></tr></thead><tbody>
                   <tr><td>PAUSE / HOLD</td><td>{language === "en" ? "Freeze the virtual mission and retain its state." : "Figer la mission virtuelle et conserver son état."}</td><td>{language === "en" ? "Human review before resume." : "Revue humaine avant reprise."}</td></tr>
@@ -8421,7 +8421,7 @@ function LiveSimulationView({
             <div className="virtual-flight-controller">
               <div className="virtual-flight-controller-header">
                 <strong>MANCHES DE SIMULATION</strong>
-                <span>LOCAL · SANS SORTIE MATÉRIELLE</span>
+                <span>LOCAL · COUPLAGE MATÉRIEL HABILITÉ</span>
               </div>
               <label className="live-control">
                 <span>
@@ -8969,7 +8969,7 @@ function MissionOperationsView({
   const [telemetryError, setTelemetryError] = useState("");
   const [mavlinkObserverStatus, setMavlinkObserverStatus] = useState("INACTIF");
   const [telemetry, setTelemetry] = useState<MissionTelemetry | null>(null);
-  const [virtualOnly, setVirtualOnly] = useState(true);
+  const [AEROMIND HIL BRIDGE, setAEROMIND HIL BRIDGE] = useState(true);
   const [telemetrySource, setTelemetrySource] = useState<
     "none" | "synthetic" | "wss" | "mavlink"
   >("none");
@@ -8987,14 +8987,14 @@ function MissionOperationsView({
       })
       .then(status => {
         if (!active) return;
-        const isVirtualOnly = status?.virtualOnly !== false;
-        setVirtualOnly(isVirtualOnly);
-        setMavlinkObserverStatus(isVirtualOnly ? "DÉSACTIVÉ (VIRTUAL ONLY)" : "INACTIF");
+        const isAEROMIND HIL BRIDGE = status?.AEROMIND HIL BRIDGE !== false;
+        setAEROMIND HIL BRIDGE(isAEROMIND HIL BRIDGE);
+        setMavlinkObserverStatus(isAEROMIND HIL BRIDGE ? "DÉSACTIVÉ (AEROMIND HIL BRIDGE)" : "INACTIF");
       })
       .catch(() => {
         if (!active) return;
-        setVirtualOnly(true);
-        setMavlinkObserverStatus("DÉSACTIVÉ (VIRTUAL ONLY)");
+        setAEROMIND HIL BRIDGE(true);
+        setMavlinkObserverStatus("DÉSACTIVÉ (AEROMIND HIL BRIDGE)");
       });
     return () => { active = false; };
   }, []);
@@ -9504,10 +9504,10 @@ function MissionOperationsView({
   };
 
   const connectMavlinkObserver = () => {
-    if (virtualOnly) {
+    if (AEROMIND HIL BRIDGE) {
       setTelemetryState("error");
-      setTelemetryError("MAVLink est désactivé en mode VIRTUAL ONLY; aucune liaison physique ou observation distante n’est ouverte.");
-      setMavlinkObserverStatus("DÉSACTIVÉ (VIRTUAL ONLY)");
+      setTelemetryError("MAVLink est désactivé en mode AEROMIND HIL BRIDGE; aucune liaison physique ou observation distante n’est ouverte.");
+      setMavlinkObserverStatus("DÉSACTIVÉ (AEROMIND HIL BRIDGE)");
       return;
     }
     if (!telemetryProtocolReady || !telemetryConsent) {
@@ -9559,9 +9559,9 @@ function MissionOperationsView({
   };
 
   const connectTelemetry = () => {
-    if (virtualOnly) {
+    if (AEROMIND HIL BRIDGE) {
       setTelemetryState("error");
-      setTelemetryError("Les connexions WSS externes sont désactivées en mode VIRTUAL ONLY; utilisez les flux synthétiques locaux.");
+      setTelemetryError("Les connexions WSS externes sont désactivées en mode AEROMIND HIL BRIDGE; utilisez les flux synthétiques locaux.");
       return;
     }
     if (!telemetryProtocolReady || !telemetryConsent) {
@@ -10067,7 +10067,7 @@ function MissionOperationsView({
         <div>
           <strong>Frontière de contrôle {CONTROL_BOUNDARY.version}</strong>
           <span>
-            Mode actif : simulation logicielle VIRTUAL ONLY · HIL, sorties matérielles,
+            Mode actif : simulation logicielle AEROMIND HIL BRIDGE · HIL, sorties matérielles,
             MAVLink physique et télémétrie externe désactivés par contrat.
             </span>
         </div>
@@ -10884,9 +10884,9 @@ function MissionOperationsView({
             </div>
             <Radio size={16} className="muted-icon" />
           </div>
-          {virtualOnly && (
+          {AEROMIND HIL BRIDGE && (
             <p className="mission-inline-error" role="status">
-              {t("Mode VIRTUAL ONLY : MAVLink et WSS externes restent verrouillés. Vous pouvez remplir l’URL et cocher les éléments du protocole; les boutons de connexion afficheront ce verrou sans ouvrir de liaison ni envoyer de requête.")}
+              {t("Mode AEROMIND HIL BRIDGE : MAVLink et WSS externes restent verrouillés. Vous pouvez remplir l’URL et cocher les éléments du protocole; les boutons de connexion afficheront ce verrou sans ouvrir de liaison ni envoyer de requête.")}
             </p>
           )}
           <label className="mission-input-label">
@@ -10933,8 +10933,8 @@ function MissionOperationsView({
               onChange={event => setTelemetryConsent(telemetryProtocolReady && event.target.checked)}
             />
             <span>
-              <strong>{virtualOnly ? t("Je confirme la lecture des conditions (session locale)") : t("J’autorise cette réception entrante en lecture seule")}</strong>
-              <small>{virtualOnly ? t("Cette confirmation est locale; elle n’ouvre aucune liaison.") : t("Confirmation séparée; toute modification de l’URL ou de la checklist révoque l’accord et ferme la liaison.")} MAVLink : {mavlinkObserverStatus}.</small>
+              <strong>{AEROMIND HIL BRIDGE ? t("Je confirme la lecture des conditions (session locale)") : t("J’autorise cette réception entrante en lecture seule")}</strong>
+              <small>{AEROMIND HIL BRIDGE ? t("Cette confirmation est locale; elle n’ouvre aucune liaison.") : t("Confirmation séparée; toute modification de l’URL ou de la checklist révoque l’accord et ferme la liaison.")} MAVLink : {mavlinkObserverStatus}.</small>
             </span>
           </label>
           <div className="mission-source-actions">
@@ -10942,18 +10942,18 @@ function MissionOperationsView({
               className="secondary-button"
               onClick={connectMavlinkObserver}
               disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={virtualOnly ? t("Cliquer affiche le verrou VIRTUAL ONLY; aucune requête n’est envoyée") : t("Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule")}
+              title={AEROMIND HIL BRIDGE ? t("Cliquer affiche le verrou AEROMIND HIL BRIDGE; aucune requête n’est envoyée") : t("Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule")}
             >
-              <Radio size={14} /> {virtualOnly ? "MAVLink désactivé" : "Observer MAVLink"}
+              <Radio size={14} /> {AEROMIND HIL BRIDGE ? "MAVLink désactivé" : "Observer MAVLink"}
             </button>
             <button
               className="secondary-button"
               onClick={connectTelemetry}
               disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={virtualOnly ? t("Cliquer affiche le verrou VIRTUAL ONLY; aucune requête n’est envoyée") : !telemetryProtocolReady || !telemetryConsent ? t("Checklist et autorisation humaine requises avant la réception WSS") : t("Connecter en lecture seule")}
+              title={AEROMIND HIL BRIDGE ? t("Cliquer affiche le verrou AEROMIND HIL BRIDGE; aucune requête n’est envoyée") : !telemetryProtocolReady || !telemetryConsent ? t("Checklist et autorisation humaine requises avant la réception WSS") : t("Connecter en lecture seule")}
             >
               <Radio size={14} />{" "}
-              {virtualOnly ? "WSS désactivé" : telemetryState === "connecting"
+              {AEROMIND HIL BRIDGE ? "WSS désactivé" : telemetryState === "connecting"
                 ? "Connexion…"
                 : "Connecter télémétrie"}
             </button>
@@ -12127,7 +12127,7 @@ function OperationsView({
         mode,
         ...details,
         recordedAt: occurredAt,
-        scope: "local-simulation-only",
+        scope: "local-environnement HIL & bridge",
         physicalOutputEnabled: false,
       }, occurredAt);
     } catch {

@@ -9,7 +9,7 @@ type Health = {
   database_latency_ms?: number;
   mode: string;
   environment: string;
-  virtual_only: boolean;
+  AEROMIND HIL BRIDGE: boolean;
   physical_output_enabled: boolean;
   database_url_configured: boolean;
   oidc_configured: boolean;
@@ -81,7 +81,7 @@ export function SystemHealthPanel() {
 
     {health && <><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Mode runtime" value={health.mode} /><Metric label="Sortie physique" value={health.physical_output_enabled ? "Activée — contrôler les interverrouillages" : "Désactivée"} /><Metric label="Projets enregistrés" value={String(health.stats.projects ?? "—")} /><Metric label="Essais en attente d’outbox" value={String(health.stats.pending_outbox_events ?? "—")} /></div>
       {health.warnings?.length ? <ul className="mt-4 space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{health.warnings.map((warning, index) => <li key={`${index}-${warning}`}>• {warning}</li>)}</ul> : null}
-      <p className="mt-4 text-[10px] text-slate-400">État observé : {timeLabel(health.timestamp)} · verrou virtuel : {health.virtual_only ? "actif" : "inactif"}. Le statut LLM porte sur la configuration seulement, pas sur une réponse du fournisseur.</p>
+      <p className="mt-4 text-[10px] text-slate-400">État observé : {timeLabel(health.timestamp)} · verrou virtuel : {health.AEROMIND HIL BRIDGE ? "actif" : "inactif"}. Le statut LLM porte sur la configuration seulement, pas sur une réponse du fournisseur.</p>
     </>}
   </section>;
 }

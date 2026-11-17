@@ -317,7 +317,7 @@ export default function AdminConsole() {
         <div className="admin-console-context">
           <span className="admin-console-context-label">{t("WORKSPACE D’INGÉNIERIE")}</span>
           {data && <span className="admin-console-role-chip">{data.role === "super_admin" ? "L5 · SUPER-ADMIN" : "L4 · ADMIN"}</span>}
-          {data && <span className="admin-console-virtual-chip">{data.physicalOutput.enabled ? t("SORTIE PHYSIQUE SOUMISE AUX CONTRÔLES") : t("VIRTUAL ONLY · SORTIES INACTIVES")}</span>}
+          {data && <span className="admin-console-virtual-chip">{data.physicalOutput.enabled ? t("SORTIE PHYSIQUE SOUMISE AUX CONTRÔLES") : t("AEROMIND HIL BRIDGE · SORTIES INACTIVES")}</span>}
         </div>
         <div className="admin-console-top-actions">
           {!loading && !data && <button type="button" onClick={login} className="admin-console-button admin-console-button-primary"><ShieldCheck size={14} />{t("Connexion")}</button>}

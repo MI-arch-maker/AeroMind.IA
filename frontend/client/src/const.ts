@@ -7,5 +7,5 @@ export const startLogin = () => {
   // Le backend reste l’autorité de configuration et retournera une erreur
   // explicite si Render n’a pas encore chargé les variables Entra.
   const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  window.location.assign(`/api/auth/oidc/login?return_to=${encodeURIComponent(returnTo || "/")}`);
+  window.location.assign(`/api/auth/oidc/login?prompt=select_account?return_to=${encodeURIComponent(returnTo || "/")}`);
 };

@@ -92,7 +92,7 @@ export function PayloadMissionWorkbench({ installed, profiles = {}, onInstall, o
           <h3>Atelier équipements &amp; calibration</h3>
           <small>Essais logiciels reproductibles; aucun capteur physique n’est interrogé.</small>
         </div>
-        <span><ShieldCheck size={13} /> SIMULATION LOCALE · SANS SORTIE MATÉRIELLE</span>
+        <span><ShieldCheck size={13} /> SIMULATION LOCALE · COUPLAGE MATÉRIEL HABILITÉ</span>
       </div>
       <div className="payload-workbench-grid">
         <div className="payload-module-picker" aria-label="Choisir un équipement">

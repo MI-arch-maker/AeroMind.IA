@@ -39,7 +39,7 @@ export type VirtualReceipt = {
   payload: Record<string, unknown>;
   status: string;
   created_at?: string;
-  scope: "virtual-only";
+  scope: "AEROMIND HIL BRIDGE";
   physical_output: false;
 };
 
@@ -126,7 +126,7 @@ function localReceipt(
     event,
     payload,
     status,
-    scope: "virtual-only",
+    scope: "AEROMIND HIL BRIDGE",
     physical_output: false,
   };
   return {

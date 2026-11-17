@@ -1,6 +1,6 @@
 export const SIMULATION_ADAPTER_CHECKLIST = [
   "purpose",
-  "simulation-only",
+  "environnement HIL & bridge",
   "preflight-reviewed",
   "local-stop-reviewed",
 ] as const;
@@ -21,7 +21,7 @@ export type SimulationAuditEvent = {
   kind: string;
   source: string;
   accepted: boolean;
-  mode: "simulation-only";
+  mode: "environnement HIL & bridge";
   reason: string;
   physicalTransportRequested: boolean;
   physicalTransportInvoked: false;
@@ -58,7 +58,7 @@ const AXES = new Set<SimulationAxis>(["roll", "pitch", "yaw", "throttle"]);
  * transport, or hardware API import. Accepted records are kept in an in-memory
  * simulation queue only. It is a test harness, not a flight-control system.
  */
-export class SimulationOnlyAdapter {
+export class environnement HIL & bridgeAdapter {
   private checklist = new Map<SimulationChecklistItem, boolean>(
     SIMULATION_ADAPTER_CHECKLIST.map(item => [item, false])
   );
@@ -205,7 +205,7 @@ export class SimulationOnlyAdapter {
         createdAt: intent.createdAt,
       };
     } else {
-      return this.reject(intent, now, "Entrée refusée : type abstrait inconnu ou non autorisé par le contrat simulation-only.", physicalTransportRequested);
+      return this.reject(intent, now, "Entrée refusée : type abstrait inconnu ou non autorisé par le contrat environnement HIL & bridge.", physicalTransportRequested);
     }
 
     const maxQueued = this.options.maxQueuedOutputs ?? 100;
@@ -293,7 +293,7 @@ export class SimulationOnlyAdapter {
       kind: input.kind,
       source: input.source,
       accepted: input.accepted,
-      mode: "simulation-only",
+      mode: "environnement HIL & bridge",
       reason: input.reason,
       physicalTransportRequested: input.physicalTransportRequested ?? false,
       physicalTransportInvoked: false,

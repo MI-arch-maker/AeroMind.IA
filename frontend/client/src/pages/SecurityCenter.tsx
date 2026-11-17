@@ -8,7 +8,7 @@ type Probe = { id: string; label: string; detail: string; status: ProbeStatus; v
 type SecurityAlert = { id: string; time: string; severity: "INFO" | "WATCH" | "BLOCKED"; title: string; detail: string };
 
 const initialAlerts: SecurityAlert[] = [
-  { id: "a-001", time: "15:22:41", severity: "INFO", title: "Contrôle d’intégrité terminé", detail: "Empreintes runtime et configuration simulation-only cohérentes." },
+  { id: "a-001", time: "15:22:41", severity: "INFO", title: "Contrôle d’intégrité terminé", detail: "Empreintes runtime et configuration environnement HIL & bridge cohérentes." },
   { id: "a-002", time: "15:18:09", severity: "WATCH", title: "Sonde réseau silencieuse", detail: "Aucun brouillage détecté; la disponibilité API reste à confirmer périodiquement." },
   { id: "a-003", time: "14:57:33", severity: "INFO", title: "Chaîne organisationnelle intacte", detail: "Le module ne modifie ni les rôles ni les validations humaines G01–G05." },
 ];
@@ -50,13 +50,13 @@ export default function SecurityCenter() {
   ], [apiState]);
 
   const exportReport = () => {
-    const report = { product: "AeroMind.IA", module: "Centre de protection", generatedAt: new Date().toISOString(), lastScan, simulationOnly: true, hardwareControl: false, organizationBoundary: "ICX POWER SOLUTIONS SRL / AeroMind", probes: probes.map(({ icon: _icon, ...probe }) => probe), alerts, limitations: ["Ce module est une couche de sécurité applicative et ne remplace pas un antivirus hôte, un EDR, un WAF ou une revue humaine.", "Les décisions opérationnelles et les validations G01–G05 restent sous l’autorité AeroMind/ICX."] };
+    const report = { product: "AeroMind.IA", module: "Centre de protection", generatedAt: new Date().toISOString(), lastScan, environnement HIL & bridge: true, hardwareControl: false, organizationBoundary: "ICX POWER SOLUTIONS SRL / AeroMind", probes: probes.map(({ icon: _icon, ...probe }) => probe), alerts, limitations: ["Ce module est une couche de sécurité applicative et ne remplace pas un antivirus hôte, un EDR, un WAF ou une revue humaine.", "Les décisions opérationnelles et les validations G01–G05 restent sous l’autorité AeroMind/ICX."] };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "aeromind-rapport-protection.json"; anchor.click(); URL.revokeObjectURL(url);
   };
 
   return <main className="security-page">
-    <header className="security-top"><Link href="/" className="security-back"><ArrowLeft size={16} /> AeroMind</Link><span className="security-tag">SECURITY OPERATIONS · LOCAL MONITOR</span><span className="security-live"><i /> SIMULATION-ONLY</span></header>
+    <header className="security-top"><Link href="/" className="security-back"><ArrowLeft size={16} /> AeroMind</Link><span className="security-tag">SECURITY OPERATIONS · LOCAL MONITOR</span><span className="security-live"><i /> environnement HIL & bridge</span></header>
     <section className="security-hero"><div><p className="security-kicker">MODERNISATION · PROTECTION NON INTRUSIVE</p><h1>Centre de protection</h1><p>Une couche de surveillance lisible pour repérer les anomalies, protéger l’intégrité applicative et alerter sans remplacer l’organisation indépendante d’AeroMind.</p></div><div className="security-score"><ShieldCheck size={28} /><strong>{probes.filter(probe => probe.status === "ok").length}/{probes.length}</strong><span>sondes nominales</span></div></section>
     <div className="security-boundary"><Shield size={18} /><div><strong>Frontière d’autorité préservée</strong><p>Ce module n’active aucun matériel, ne contourne aucune validation et ne substitue pas les contrôles humains ni la chaîne G01–G05. Toute alerte est un signal à examiner par AeroMind.</p></div></div>
     <section className="security-actions"><div><span className="security-kicker">DERNIÈRE VÉRIFICATION</span><strong>{lastScan}</strong><small>Les sondes sont locales et non destructives.</small></div><div className="security-action-row"><button type="button" onClick={() => void runScan()} disabled={scanning}><RefreshCw size={15} className={scanning ? "spin" : ""} /> {scanning ? "Analyse…" : "Relancer les sondes"}</button><button type="button" className="secondary" onClick={exportReport}><Download size={15} /> Exporter le rapport</button></div></section>

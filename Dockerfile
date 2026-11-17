@@ -54,4 +54,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["python", "-c", "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT','10000') + '/api/ready', timeout=3).status == 200 else 1)"]
 
 # CMD en forme exec avec 1 seul worker pour éviter la saturation RAM au démarrage.
+ENV XDG_CACHE_HOME=/tmp/.cache MPLCONFIGDIR=/tmp/.matplotlib
 CMD ["sh", "-c", "exec uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --limit-concurrency 100 --timeout-keep-alive 30 --timeout-graceful-shutdown 5"]

@@ -2974,7 +2974,7 @@ export function AerodynamicSimulationCenter({
                 </div>
                 <div>
                   <span>Protection physique</span>
-                  <strong>VIRTUAL ONLY · contrôle matériel désactivé</strong>
+                  <strong>AEROMIND HIL BRIDGE · contrôle matériel désactivé</strong>
                   <small>
                     Ce module n’émet aucune commande vers drone, rotor ou banc
                     matériel.
