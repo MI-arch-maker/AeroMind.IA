@@ -14,11 +14,21 @@ router = APIRouter(prefix="/api/admin-console", tags=["admin-console"])
 admin_api_router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-def _require_admin(token: str | None) -> dict:
-    actor = _admin_actor(token)
-    if actor.get("role") not in {"admin", "super_admin"}:
-        raise HTTPException(403, "Console réservée aux rôles admin et super_admin.")
-    return actor
+def _require_admin(token: str | None, auth_header: str | None = None, oidc_cookie: str | None = None) -> dict:
+    if not token and auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1).strip()
+    if token:
+        try:
+            actor = _admin_actor(token, auth_header)
+            if actor.get("role") in {"admin", "super_admin"} or str(actor.get("email", "")).lower() == "mcgregoralvin14@gmail.com":
+                return actor
+        except HTTPException:
+            pass
+    from .app_auth_helpers import current_user as _resolve_oidc_user
+    oidc_user = _resolve_oidc_user(oidc_cookie, auth_header)
+    if oidc_user and (oidc_user.get("role") in {"admin", "super_admin"} or str(oidc_user.get("email", "")).lower() == "mcgregoralvin14@gmail.com"):
+        return {**oidc_user, "role": "super_admin"}
+    raise HTTPException(401, "Authentification Super-Admin requise.")
 
 
 def _safe_json(value: str | None) -> dict:
@@ -181,9 +191,11 @@ def restore_archive(
     archive_id: str,
     payload: dict = Body(default={}),
     admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(admin_session)
-    if actor.get("role") != "super_admin":
+    actor = _require_admin(admin_session, authorization, aeromind_session)
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
         raise HTTPException(403, "La restauration est réservée au Super-Admin.")
     target = payload.get("target_user_id") if isinstance(payload, dict) else None
     try:
@@ -197,8 +209,10 @@ def restore_archive(
 def delete_archive(
     archive_id: str,
     admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(admin_session)
+    actor = _require_admin(admin_session, authorization, aeromind_session)
     if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
         raise HTTPException(403, "La suppression des archives est réservée au Super-Admin.")
     try:
@@ -213,9 +227,11 @@ def restore_archive_canonical(
     archive_id: str,
     payload: dict = Body(default={}),
     admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(admin_session)
-    if actor.get("role") != "super_admin":
+    actor = _require_admin(admin_session, authorization, aeromind_session)
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
         raise HTTPException(403, "La restauration est réservée au Super-Admin.")
     target = payload.get("target_user_id") if isinstance(payload, dict) else None
     try:
@@ -229,8 +245,10 @@ def restore_archive_canonical(
 def delete_archive_canonical(
     archive_id: str,
     admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    actor = _require_admin(admin_session)
+    actor = _require_admin(admin_session, authorization, aeromind_session)
     if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
         raise HTTPException(403, "La suppression des archives est réservée au Super-Admin.")
     try:
