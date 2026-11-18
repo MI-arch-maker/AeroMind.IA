@@ -1,4 +1,3 @@
-import { AeromindMultiViewViewport } from "./AeromindMultiViewViewport";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from "react";
 import { Activity, Box, Boxes, Crosshair, Eye, EyeOff, FileDown, Grid2X2, Layers3, Maximize2, MousePointer2, Move, Plus, RotateCcw, Ruler, ScanLine, Scissors, Settings2, ShieldCheck, Square, Trash2, ZoomIn, ZoomOut } from "lucide-react";
 import type { ConceptConfig, DroneSketchStroke, InstalledMaterial } from "../lib/aeroEngine";
@@ -37,7 +36,16 @@ type ProjectedPart = { part: MechanicalPart; material?: InstalledMaterial; wireP
 type CadProjection = { parts: ProjectedPart[]; pixelsPerMeter: number };
 
 /** Base orthonormée : X envergure, Y vertical et Z longueur du jumeau. */
-function projectPoint(x: number, y: number, z: number, view: ViewMode): ProjectedPoint {
+function projectPoint(x: number, y: number, z: number, view: ViewMode, orbit?: { yaw: number; pitch: number }): ProjectedPoint {
+  if (orbit) {
+    const yr = (orbit.yaw * Math.PI) / 180, pr = (orbit.pitch * Math.PI) / 180;
+    const cy = Math.cos(yr), sy = Math.sin(yr), cp = Math.cos(pr), sp = Math.sin(pr);
+    const rx = cy * x + sy * z;
+    const rz = -sy * x + cy * z;
+    const ry = cp * y - sp * rz;
+    const fz = sp * y + cp * rz;
+    return { x: rx, y: -ry, depth: fz };
+  }
   if (view === "front") return { x, y: -y, depth: z };
   if (view === "side") return { x: -z, y: -y, depth: x };
   const dx = 1, dy = 1, dz = 1;
@@ -50,12 +58,12 @@ function projectPoint(x: number, y: number, z: number, view: ViewMode): Projecte
 }
 
 /** Projection des sommets transformés et des triangles, sans modifier le modèle. */
-export function projectCadModel(model: MechanicalModel, view: ViewMode, exploded: boolean, materials: InstalledMaterial[], visibleLayers: Record<string, boolean>): CadProjection {
+export function projectCadModel(model: MechanicalModel, view: ViewMode, exploded: boolean, materials: InstalledMaterial[], visibleLayers: Record<string, boolean>, orbit?: { yaw: number; pitch: number }): CadProjection {
   const byId = new Map(materials.map(material => [material.id, material]));
   const meshes = model.parts.filter(part => !part.hidden).map(part => {
     const world = transformedPartVertices(part, exploded ? 0.85 : 0);
     const points: ProjectedPoint[] = [];
-    for (let i = 0; i < world.length; i += 3) points.push(projectPoint(world[i], world[i + 1], world[i + 2], view));
+    for (let i = 0; i < world.length; i += 3) points.push(projectPoint(world[i], world[i + 1], world[i + 2], view, orbit));
     return { part, world, points, material: part.id.startsWith("installed:") ? byId.get(part.id.slice("installed:".length)) : undefined };
   });
   // Le cadrage ne saute pas lorsqu'un calque est masqué ; les mesures restent calibrées.
@@ -133,7 +141,12 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
   const [annotations, setAnnotations] = useState<Array<{ id: string; point: CanvasPoint; text: string }>>([]);
   const [visibleLayers, setVisibleLayers] = useState<Record<string, boolean>>(() => Object.fromEntries((config.studioLayers ?? []).map(label => [label, config.studioLayerSettings?.[label]?.visible ?? true])));
   const [notice, setNotice] = useState("");
+  const [customOrbit, setCustomOrbit] = useState<{ yaw: number; pitch: number } | null>(null);
+  const [magneticCam, setMagneticCam] = useState(false);
+  const [magneticSnap, setMagneticSnap] = useState(true);
   const panOrigin = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
+  const orbitOrigin = useRef<{ x: number; y: number; yaw: number; pitch: number } | null>(null);
+  const partDragOrigin = useRef<{ id: string; x: number; y: number; ox: number; oy: number } | null>(null);
   const materials = useMemo(() => config.installedMaterials ?? [], [config.installedMaterials]);
   const customStrokes = useMemo(() => config.customSketch?.strokes ?? [], [config.customSketch?.strokes]);
   const customSource = hasDroneGeometry(customStrokes) && (config.engineeringSelection?.source === "custom" || !activeProfile);
@@ -143,7 +156,7 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
   const title = selectedProfile?.label ?? (isSketch ? config.engineeringSelection?.droneLabel ?? config.designName ?? "Drone dessiné" : "");
   const shapeConfig = useMemo<ConceptConfig>(() => ({ ...(selectedProfile?.configuration ?? {}), ...config }), [selectedProfile, config]);
   const mechanicalModel = useMemo(() => selectedProfile ? buildMechanicalModel(selectedProfile, shapeConfig) : null, [selectedProfile, shapeConfig]);
-  const projection = useMemo(() => mechanicalModel ? projectCadModel(mechanicalModel, view, exploded, materials, visibleLayers) : null, [mechanicalModel, view, exploded, materials, visibleLayers]);
+  const projection = useMemo(() => mechanicalModel ? projectCadModel(mechanicalModel, view, exploded, materials, visibleLayers, customOrbit ?? undefined) : null, [mechanicalModel, view, exploded, materials, visibleLayers]);
   const layers = useMemo<Layer[]>(() => (config.studioLayers ?? []).map((label, index) => ({ id: label, label, count: materials.filter(part => part.layer === label).reduce((sum, part) => sum + (part.quantity ?? 1), 0) + customStrokes.filter(stroke => stroke.layer === label).length })), [config.studioLayers, materials, customStrokes]);
   const selectedPart = materials.find(part => part.id === selectedId);
   const stageLabel = isSketch ? "DESSIN UTILISATEUR" : "MAQUETTE PARAMÉTRIQUE · NON EXACTE";
@@ -155,7 +168,14 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
     setVisibleLayers(current => Object.fromEntries((config.studioLayers ?? []).map(label => [label, config.studioLayerSettings?.[label]?.visible ?? current[label] ?? true])));
   }, [config.studioLayers, config.studioLayerSettings]);
   useEffect(() => { if (selectedId && !materials.some(part => part.id === selectedId)) setSelectedId(null); }, [materials, selectedId]);
-  useEffect(() => { setView("iso"); setPanOffset({ x: 0, y: 0 }); }, [isSketch, selectedProfile?.id]);
+  useEffect(() => { setView("iso"); setCustomOrbit(null); setMagneticCam(false); setPanOffset({ x: 0, y: 0 }); }, [isSketch, selectedProfile?.id]);
+  useEffect(() => {
+    if (!magneticCam) return;
+    const timer = window.setInterval(() => {
+      setCustomOrbit(prev => ({ yaw: ((prev?.yaw ?? 45) + 1.5) % 360, pitch: prev?.pitch ?? 28 }));
+    }, 30);
+    return () => window.clearInterval(timer);
+  }, [magneticCam]);
   useEffect(() => { setMeasurement(null); setMeasureStart(null); }, [isSketch, selectedProfile?.id, view, exploded, projection?.pixelsPerMeter]);
   const toggleLayer = (id: string) => {
     const visible = !(visibleLayers[id] ?? true);
@@ -201,7 +221,19 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
       return;
     }
     const point = canvasPoint(event);
-    if (tool === "select" && !(event.target as Element).closest(".cad-component-marker")) setSelectedId(null);
+    if (tool === "select") {
+      if (selectedPart && (event.target as Element).closest(".cad-component-marker")) {
+        partDragOrigin.current = { id: selectedPart.id, x: event.clientX, y: event.clientY, ox: selectedPart.offsetX ?? 0, oy: selectedPart.offsetY ?? 0 };
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
+        return;
+      }
+      if (!(event.target as Element).closest(".cad-component-marker")) {
+        setSelectedId(null);
+        setMagneticCam(false);
+        orbitOrigin.current = { x: event.clientX, y: event.clientY, yaw: customOrbit?.yaw ?? 45, pitch: customOrbit?.pitch ?? 28 };
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
+      }
+    }
     if (tool === "measure") {
       if (!measureStart) { setMeasureStart(point); setMeasurement(null); }
       else { setMeasurement({ from: measureStart, to: point, units: Math.hypot(point.x - measureStart.x, point.y - measureStart.y) }); setMeasureStart(null); }
@@ -213,9 +245,36 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
     if (tool === "cut") setNotice(isSketch ? "Les traits du croquis se modifient dans l’atelier Dessiner le drone." : "La découpe s’applique aux pièces de nomenclature; le contour source reste intact.");
   };
   const onCanvasPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (partDragOrigin.current) {
+      const dx = (event.clientX - partDragOrigin.current.x) * 0.25;
+      const dy = (event.clientY - partDragOrigin.current.y) * 0.25;
+      const rawX = clamp(partDragOrigin.current.ox + dx, -100, 100);
+      const rawY = clamp(partDragOrigin.current.oy + dy, -100, 100);
+      const nx = magneticSnap ? Math.round(rawX / 5) * 5 : Math.round(rawX);
+      const ny = magneticSnap ? Math.round(rawY / 5) * 5 : Math.round(rawY);
+      const pid = partDragOrigin.current.id;
+      setConfig(current => ({ ...current, installedMaterials: (current.installedMaterials ?? []).map(part => part.id === pid ? { ...part, offsetX: nx, offsetY: ny } : part) }));
+      return;
+    }
+    if (orbitOrigin.current) {
+      const rawYaw = (orbitOrigin.current.yaw + (event.clientX - orbitOrigin.current.x) * 0.65 + 360) % 360;
+      const rawPitch = clamp(orbitOrigin.current.pitch + (event.clientY - orbitOrigin.current.y) * 0.55, -85, 85);
+      setCustomOrbit({
+        yaw: magneticSnap ? Math.round(rawYaw / 15) * 15 : rawYaw,
+        pitch: magneticSnap ? Math.round(rawPitch / 15) * 15 : rawPitch,
+      });
+      return;
+    }
     if (panOrigin.current) setPanOffset({ x: panOrigin.current.offsetX + event.clientX - panOrigin.current.x, y: panOrigin.current.offsetY + event.clientY - panOrigin.current.y });
   };
-  const onCanvasPointerUp = () => { panOrigin.current = null; };
+  const onCanvasPointerUp = (event?: ReactPointerEvent<SVGSVGElement>) => {
+    panOrigin.current = null;
+    orbitOrigin.current = null;
+    partDragOrigin.current = null;
+    if (event && event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+    }
+  };
   const openSection = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   const exportBill = () => {
     if (!materials.length) { setNotice("Aucune pièce sélectionnée à exporter."); return; }
@@ -228,29 +287,12 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
   return <section className="engineering-cad-workbench" aria-label="Studio CAO de conception drone">
     <header className="cad-workbench-header">
       <div className="cad-title-block"><span className="cad-kicker"><ScanLine size={14} /> AEROMIND / CAO WORKSPACE <i>LOCAL</i></span><h2>Studio CAO de conception drone</h2><p>Géométrie liée à la source active · calques utilisateur · nomenclature</p></div>
-      <div style={{ margin: "0.75rem 0", padding: "0.5rem", background: "#050b16", border: "1px solid #1e293b", borderRadius: "0.5rem" }}>
-        <AeromindMultiViewViewport
-          design={activeProfile ? {
-            ...activeProfile,
-            label: config.designName || activeProfile.label,
-            key: config.airframe || activeProfile.key,
-            configuration: {
-              ...activeProfile.configuration,
-              wingspan: config.wingspan ?? activeProfile.configuration.wingspan,
-              fuselageLength: config.fuselageLength ?? activeProfile.configuration.fuselageLength,
-              propDiameter: config.propDiameter ?? activeProfile.configuration.propDiameter,
-              motorCount: config.motorCount ?? activeProfile.configuration.motorCount,
-            },
-          } : undefined}
-          parts={config.installedMaterials ?? []}
-        />
-      </div>
       <div className={`cad-document-state ${hasSelectedDesign ? "is-active" : "is-empty"}`}><span className="cad-live-dot" />{hasSelectedDesign ? <><span>DOCUMENT ACTIF</span><strong>CAD-{selectedProfile?.id ?? "SKETCH"}</strong><small>CONCEPT · QUALIFICATION EN-9100</small></> : <><span>AUCUN DOCUMENT</span><strong>EN ATTENTE DE SOURCE</strong><small>SÉLECTION OU DESSIN REQUIS</small></>}</div>
     </header>
 
     <div className="cad-command-bar">
       <div className="cad-command-group cad-command-tools"><span className="cad-group-label">OUTILS</span>{toolItems.map(({ id, label, Icon }) => <button key={id} type="button" title={label} aria-label={label} disabled={emptyState} className={tool === id ? "is-active" : ""} onClick={() => { setTool(id); setNotice(`${label} activé.`); }}><Icon size={15} /><span>{label}</span></button>)}</div>
-      <div className="cad-command-group cad-command-actions"><button type="button" disabled={emptyState} className={showGrid ? "is-active" : ""} onClick={() => setShowGrid(value => !value)} title="Afficher/masquer la grille"><Grid2X2 size={15}/><span>Grille</span></button><button type="button" disabled={emptyState} className={showDimensions ? "is-active" : ""} onClick={() => setShowDimensions(value => !value)} title="Afficher/masquer les cotations"><Ruler size={15}/><span>Cotations</span></button><button type="button" disabled={emptyState || isSketch} className={!isSketch && wireframe ? "is-active" : ""} onClick={() => setWireframe(value => !value)} title={isSketch ? "Filaire / solide indisponible pour ce croquis 2D" : "Basculer filaire / solide"}><Box size={15}/><span>{isSketch ? "Filaire / solide indisponible" : wireframe ? "Filaire" : "Solide"}</span></button><button type="button" disabled={emptyState || isSketch} className={!isSketch && exploded ? "is-active" : ""} onClick={() => setExploded(value => !value)} title={isSketch ? "Vue éclatée indisponible pour ce croquis 2D" : "Vue éclatée"}><Maximize2 size={15}/><span>{isSketch ? "Éclatée indisponible" : "Éclatée"}</span></button><button type="button" disabled={!materials.length} onClick={exportBill} title="Exporter la nomenclature"><FileDown size={15}/><span>Export BOM</span></button></div>
+      <div className="cad-command-group cad-command-actions"><button type="button" disabled={emptyState} className={showGrid ? "is-active" : ""} onClick={() => setShowGrid(value => !value)} title="Afficher/masquer la grille"><Grid2X2 size={15}/><span>Grille</span></button><button type="button" disabled={emptyState} className={showDimensions ? "is-active" : ""} onClick={() => setShowDimensions(value => !value)} title="Afficher/masquer les cotations"><Ruler size={15}/><span>Cotations</span></button><button type="button" disabled={emptyState || isSketch} className={!isSketch && wireframe ? "is-active" : ""} onClick={() => setWireframe(value => !value)} title={isSketch ? "Filaire / solide indisponible pour ce croquis 2D" : "Basculer filaire / solide"}><Box size={15}/><span>{isSketch ? "Filaire / solide indisponible" : wireframe ? "Filaire" : "Solide"}</span></button><button type="button" disabled={emptyState || isSketch} className={!isSketch && exploded ? "is-active" : ""} onClick={() => setExploded(value => !value)} title={isSketch ? "Vue éclatée indisponible pour ce croquis 2D" : "Vue éclatée"}><Maximize2 size={15}/><span>{isSketch ? "Éclatée indisponible" : "Éclatée"}</span></button><button type="button" disabled={emptyState || isSketch} className={magneticCam ? "is-active" : ""} onClick={() => setMagneticCam(v => !v)} title="Caméra magnétique embarquée (rotation autonome 360°)"><Activity size={15}/><span>{magneticCam ? "Caméra Mag. ON" : "Caméra Mag."}</span></button><button type="button" disabled={emptyState} className={magneticSnap ? "is-active" : ""} onClick={() => setMagneticSnap(v => !v)} title="Aimantation magnétique (angles 15° & grille pièces)"><Crosshair size={15}/><span>Aimant</span></button><button type="button" disabled={!materials.length} onClick={() => setConfig(c => ({ ...c, installedMaterials: (c.installedMaterials ?? []).map(pt => ({ ...pt, offsetX: 0, offsetY: 0 })) }))} title="Réinitialiser la position des pièces"><RotateCcw size={15}/><span>Reset Pièces</span></button><button type="button" disabled={!materials.length} onClick={exportBill} title="Exporter la nomenclature"><FileDown size={15}/><span>Export BOM</span></button></div>
     </div>
 
     {isSketch && <div className="cad-review-note" role="note">Croquis 2D : les modes filaire / solide et la vue éclatée ne sont pas disponibles.</div>}
