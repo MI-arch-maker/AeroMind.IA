@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { AlertTriangle, Box, CheckCircle2, ClipboardCheck, GitCompareArrows, Move3d, PackagePlus, Ruler, ShieldCheck, Trash2, Wrench } from "lucide-react";
 import type { ConceptConfig, InstalledMaterial } from "../lib/aeroEngine";
 import type { DroneCatalogDesign } from "../lib/droneCatalog";
-import { PhysicalDroneModel } from "./PhysicalDroneModel";
+import { AeromindMultiViewViewport } from "./AeromindMultiViewViewport";
 import "./physical-design-workbench.css";
 
 type PhysicalTab = "model" | "compare" | "validate";
@@ -146,7 +146,7 @@ export function PhysicalDesignWorkbench({ config, setConfig, activeProfile }: Pr
       {tab === "model" && <div className="physical-design-grid">
         <section className="physical-design-panel physical-design-viewport">
           <div className="physical-design-panel-heading"><div><span>01 / JUMEAU NUMÉRIQUE</span><h3>{activeProfile?.label ?? config.designName ?? "Cellule active"}</h3></div><span className="physical-design-chip">QUALIFICATION EN-9100</span></div>
-          <div className="physical-design-canvas"><PhysicalDroneModel design={activeProfile} parts={config.installedMaterials ?? []} interactive showGrid /><div className="physical-design-canvas-note"><Move3d size={13} /> Vue 3D conceptuelle · sélectionnez une pièce dans la liste</div></div>
+          <div className="physical-design-canvas"><AeromindMultiViewViewport design={activeProfile} parts={config.installedMaterials ?? []} /><div className="physical-design-canvas-note"><Move3d size={13} /> Vue 3D conceptuelle · sélectionnez une pièce dans la liste</div></div>
           <div className="physical-design-metrics"><div><small>BASELINE</small><strong>{baselineMass.toFixed(2)} <em>kg</em></strong></div><div><small>DELTA MODIFICATION</small><strong>+{deltaMass.toFixed(2)} <em>kg</em></strong></div><div><small>PIÈCES PROPOSÉES</small><strong>{modifications.length}</strong></div><div><small>STATUT</small><strong>À vérifier</strong></div></div>
         </section>
         <aside className="physical-design-panel physical-design-inspector">
