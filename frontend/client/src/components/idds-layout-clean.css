@@ -1,79 +1,42 @@
-/* Harmonisation ergonomique et suppression de tout chevauchement dans le Studio IDDS */
+/* Mise en page pleine largeur et spacieuse pour le Studio IDDS */
 .idds-console {
   display: flex !important;
   flex-direction: column !important;
-  gap: 14px !important;
-  padding: 16px !important;
-  overflow: visible !important;
+  gap: 16px !important;
+  width: 100% !important;
+  padding: 18px !important;
 }
 
 .idds-workspace {
   display: grid !important;
-  grid-template-columns: 250px minmax(0, 1fr) 290px !important;
-  gap: 14px !important;
+  grid-template-columns: minmax(0, 1.85fr) minmax(320px, 1fr) !important;
+  gap: 18px !important;
   align-items: start !important;
-  min-height: 680px !important;
-  overflow: visible !important;
+  width: 100% !important;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1100px) {
   .idds-workspace {
     grid-template-columns: 1fr !important;
   }
-}
-
-.idds-workspace > aside,
-.idds-layers-panel,
-.idds-inspector-panel {
-  position: relative !important;
-  top: 0 !important;
-  max-height: 780px !important;
-  overflow-y: auto !important;
-  padding: 12px !important;
-  box-sizing: border-box !important;
 }
 
 .idds-preview-frame {
   position: relative !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 10px !important;
-  min-height: 540px !important;
-  padding: 10px !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 560px !important;
+  padding: 14px !important;
   background: #050c17 !important;
   border: 1px solid #1e293b !important;
   border-radius: 8px !important;
-  overflow: visible !important;
 }
 
-/* Empêcher le panneau RENDU et la liste des 5 pièces de flotter par-dessus le drone */
-.idds-preview-frame .mt-floating-controls,
-.idds-preview-frame .idds-render-overlay,
-.idds-preview-frame [class*="render-panel"],
-.idds-preview-frame [class*="part-strip"],
-.idds-preview-frame [class*="parts-bar"] {
-  position: relative !important;
-  inset: auto !important;
+.idds-preview-frame .mt-viewport-shell,
+.idds-preview-frame canvas {
   width: 100% !important;
-  max-width: 100% !important;
-  margin: 0 !important;
-  z-index: 2 !important;
-}
-
-/* Grille propre pour la liste horizontale des pièces sous la scène 3D */
-.idds-preview-frame [class*="part-strip"],
-.idds-preview-frame [class*="parts-bar"] {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)) !important;
-  gap: 8px !important;
-}
-
-/* Panneau STUDIO / ASSEMBLAGE NUMÉRIQUE bien proportionné */
-.idds-impact-panel,
-[class*="impact-panel"] {
-  margin-top: 8px !important;
-  padding: 14px !important;
-  border-radius: 8px !important;
-  background: #081220 !important;
-  border: 1px solid #1e293b !important;
+  min-height: 440px !important;
 }
