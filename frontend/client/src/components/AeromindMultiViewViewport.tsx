@@ -1,5 +1,4 @@
 
-import { AeromindRenderStyleBar } from "./AeromindRenderStyleBar";
 import { useMemo, useState } from "react";
 import { Cpu, Layers, Ruler, Shield } from "lucide-react";
 import type { DroneCatalogDesign } from "../lib/droneCatalog";
