@@ -292,7 +292,7 @@ export function ParametricDroneCenter({ config, setConfig, hasProject, activePro
 
   const handleSave = async () => {
     if (!hasProject) {
-      toast.info("Aucun projet actif", { description: t("Les changements sont une prévisualisation locale et ne seront pas enregistrés dans un projet.") });
+      toast.info("Programme AEROMIND actif", { description: t("Les changements sont une prévisualisation locale et ne seront pas enregistrés dans un projet.") });
       return;
     }
     if (!onCommit) {

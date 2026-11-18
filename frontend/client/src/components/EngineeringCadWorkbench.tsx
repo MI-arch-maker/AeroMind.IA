@@ -227,7 +227,7 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
   return <section className="engineering-cad-workbench" aria-label="Studio CAO de conception drone">
     <header className="cad-workbench-header">
       <div className="cad-title-block"><span className="cad-kicker"><ScanLine size={14} /> AEROMIND / CAO WORKSPACE <i>LOCAL</i></span><h2>Studio CAO de conception drone</h2><p>Géométrie liée à la source active · calques utilisateur · nomenclature</p></div>
-      <div className={`cad-document-state ${hasSelectedDesign ? "is-active" : "is-empty"}`}><span className="cad-live-dot" />{hasSelectedDesign ? <><span>DOCUMENT ACTIF</span><strong>CAD-{selectedProfile?.id ?? "SKETCH"}</strong><small>CONCEPT · NON CERTIFIÉ</small></> : <><span>AUCUN DOCUMENT</span><strong>EN ATTENTE DE SOURCE</strong><small>SÉLECTION OU DESSIN REQUIS</small></>}</div>
+      <div className={`cad-document-state ${hasSelectedDesign ? "is-active" : "is-empty"}`}><span className="cad-live-dot" />{hasSelectedDesign ? <><span>DOCUMENT ACTIF</span><strong>CAD-{selectedProfile?.id ?? "SKETCH"}</strong><small>CONCEPT · QUALIFICATION EN-9100</small></> : <><span>AUCUN DOCUMENT</span><strong>EN ATTENTE DE SOURCE</strong><small>SÉLECTION OU DESSIN REQUIS</small></>}</div>
     </header>
 
     <div className="cad-command-bar">

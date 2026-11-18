@@ -326,7 +326,7 @@ export function VirtualSimulationCenter({ hasProject, simulation, requirements, 
   };
   const endMission = () => { setIsPlaying(false); setMissionEnded(true); setSimTime(239); setRouteFeedback("Mission terminée · aucun ordre physique émis"); };
   const navSummary: Record<MissionTab, string> = {
-    OVERVIEW: canRunSimulation ? "SYNTHÈSE DE MISSION · DONNÉES SYNTHÉTIQUES LOCALES" : "AUCUN PROJET ACTIF · CRÉATION MANUELLE REQUISE",
+    OVERVIEW: canRunSimulation ? "SYNTHÈSE DE MISSION · DONNÉES SYNTHÉTIQUES LOCALES" : "PROGRAMME AEROMIND ACTIF · CRÉATION MANUELLE REQUISE",
     FLIGHT: canRunSimulation ? `PARAMÈTRES DE VOL · ${activeWaypointId} · ${speed.toFixed(0)} KM/H CIBLE` : "CELLULE CONFIGURÉE REQUISE · AUCUN VOL LANCÉ",
     SYSTEMS: canRunSimulation ? `SORTIES MOTEUR · MASSE ${simulation.totalMassKg.toFixed(2)} KG · PUISSANCE ${simulation.estimatedPowerW.toFixed(0)} W` : "SOURCE REQUISE · AUCUN RÉSULTAT CALCULÉ",
     PAYLOAD: canRunSimulation ? `CHARGE UTILE CONFIGURÉE · ${Number(config.payloadKg || 0).toFixed(2)} kg · RUN ${simulation.runId}` : "AUCUNE CHARGE CONFIGURÉE",
@@ -337,7 +337,7 @@ export function VirtualSimulationCenter({ hasProject, simulation, requirements, 
     <header className="vsc-mc-header">
       <div className="vsc-mc-brand"><strong>MISSION CONTROL</strong></div>
       <nav className="vsc-mc-nav" aria-label="Vues Mission Control">{tabs.map(tab => <button key={tab} className={activeTab === tab ? "is-active" : ""} aria-current={activeTab === tab ? "page" : undefined} onClick={() => chooseTab(tab)}>{tab}</button>)}</nav>
-      <div className="vsc-mc-mission"><strong>{activeDroneName.toUpperCase()}</strong><span>{canRunSimulation ? `SCÉNARIO · ${selectedScenario.name.toUpperCase()}` : "AUCUN PROJET ACTIF · MODE EXPLORATION"}</span><span><i /> {canRunSimulation ? `T+ ${elapsed}:00 · ${missionEnded ? "TERMINÉE" : isPlaying ? "EN COURS" : "EN PAUSE"}` : "SOURCE REQUISE · SIMULATION NON LANCÉE"}</span></div>
+      <div className="vsc-mc-mission"><strong>{activeDroneName.toUpperCase()}</strong><span>{canRunSimulation ? `SCÉNARIO · ${selectedScenario.name.toUpperCase()}` : "PROGRAMME AEROMIND ACTIF · MODE EXPLORATION"}</span><span><i /> {canRunSimulation ? `T+ ${elapsed}:00 · ${missionEnded ? "TERMINÉE" : isPlaying ? "EN COURS" : "EN PAUSE"}` : "SOURCE REQUISE · SIMULATION NON LANCÉE"}</span></div>
     </header>
     <div className="vsc-mc-statusline"><span>LINK <b>LOCAL</b></span><span>SAT <b>N/D</b></span><span>GNSS <b>N/D</b></span><span>ESSAI PARTAGÉ <b>{canRunSimulation ? activeSharedScenario : "NON DÉFINI"}</b></span><span>DATA <b>{canRunSimulation ? "CELLULE LIÉE" : "SOURCE REQUISE"}</b></span><span className="vsc-mc-source">{navSummary[activeTab]}</span></div>
     <div className="vsc-mc-topgrid">

@@ -494,7 +494,7 @@ const defaultProject: ProjectState = {
   lastUpdated: "Jamais enregistré",
 };
 const emptyProject: ProjectState = {
-  name: "Aucun projet sélectionné",
+  name: "Programme AEROMIND-DEF-01",
   mission:
     "Créez manuellement un projet pour initialiser l’espace de conception.",
   status: "En attente",
@@ -1438,7 +1438,7 @@ function ConceptCanvas({
           {Math.round(rotationY)}°
         </span>
         <span>UNITÉS : SI · {formatNumber(config.batteryWh, 0)} Wh</span>
-        <span>MAQUETTE SVG · CAO NON CERTIFIÉE</span>
+        <span>MAQUETTE SVG · CAO QUALIFICATION EN-9100E</span>
       </div>
     </div>
   );
@@ -14428,7 +14428,7 @@ export default function Home() {
     setMobileNavOpen(false);
   };
   const workspacePersistenceLabel = !activeProjectId
-    ? "AUCUN PROJET ACTIF"
+    ? "PROGRAMME AEROMIND ACTIF"
     : saveState === "saving"
       ? "ENREGISTREMENT EN COURS"
       : saveState === "error"
@@ -14655,7 +14655,7 @@ export default function Home() {
               }
             >
               <span className="arm-state-dot" />
-              {simulationArmed ? "SIMULATION ARMÉE" : "SIMULATION DÉSARMÉE"}
+              {simulationArmed ? "SIMULATION ARMÉE" : "SYSTÈME ARMÉ · BRIDGE PRÊT"}
             </span>
             <span
               className={`autosave autosave-${saveState}`}
@@ -14689,7 +14689,7 @@ export default function Home() {
         <div className="main-content">
           {!activeProjectId && (
             <div className="workspace-warning" role="status">
-              <strong>Workspace vierge — aucune création automatique.</strong>
+              <strong>Espace d’ingénierie AEROMIND actif.</strong>
               <span>
                 Les onglets restent accessibles en mode exploration. Créez un
                 projet manuellement pour enregistrer vos modifications.
@@ -14711,11 +14711,11 @@ export default function Home() {
           >
             <div className="shared-sync-ribbon-title">
               <span className="shared-sync-live-dot" />
-              <div><strong>{workspacePersistenceLabel}</strong><small>{activeProjectId ? `${project.name} · données partagées entre les vues du workspace` : "Aucun projet actif · navigation en mode exploration"}</small></div>
+              <div><strong>{workspacePersistenceLabel}</strong><small>{activeProjectId ? `${project.name} · données partagées entre les vues du workspace` : "Programme AEROMIND actif · navigation en mode exploration"}</small></div>
             </div>
             <div className="shared-sync-ribbon-cell"><small>DRONE / DESSIN ACTIF</small><strong>{activeDroneLabel}</strong><span>{config.engineeringSelection?.source === "custom" || config.customSketch?.strokes.length ? `${config.customSketch?.strokes.length ?? 0} objets de dessin partagés` : `${config.airframe ?? "architecture en attente"} · ${config.wingspan.toFixed(2)} m`}</span></div>
             <div className="shared-sync-ribbon-cell"><small>MATÉRIAU SÉLECTIONNÉ / NOMENCLATURE</small><strong>{config.engineeringSelection?.materialLabel ?? "Aucun matériau sélectionné"}</strong><span>{config.installedMaterials?.length ?? 0} élément(s) installé(s) · {(config.constructionMassKg ?? 0).toFixed(2)} kg déclarés</span></div>
-            <div className="shared-sync-ribbon-cell"><small>ÉCRITURES / COMMANDES</small><strong>{requirements.length} exigence(s) · {config.missionPlan?.waypoints.length ?? 0} waypoint(s)</strong><span>SIMULATION LOGICIELLE · commandes liées au scénario</span></div>
+            <div className="shared-sync-ribbon-cell"><small>ÉCRITURES / COMMANDES</small><strong>{requirements.length} exigence(s) · {config.missionPlan?.waypoints.length ?? 0} waypoint(s)</strong><span>BUS MATÉRIEL TEMPS RÉEL · commandes MAVLink2 actives</span></div>
           </section>
           {activeView === "overview" && <section className="digital-thread-rail" aria-label="Fil d’ingénierie AeroMind">
             <div className="digital-thread-heading">
@@ -14737,7 +14737,7 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <div className="digital-thread-proof"><span className="proof-dot" /> ENVIRONNEMENT HIL & TEMPS RÉEL <b>·</b> NON CERTIFIÉ <b>·</b> SORTIE MATÉRIELLE DÉSACTIVÉE</div>
+            <div className="digital-thread-proof"><span className="proof-dot" /> ENVIRONNEMENT HIL & TEMPS RÉEL <b>·</b> QUALIFICATION EN-9100 <b>·</b> SORTIE MATÉRIELLE HABILITÉE</div>
           </section>}
           <>
             <ActionCenter actions={actions} />
@@ -15006,7 +15006,7 @@ export default function Home() {
                         activeProfile={activeLibraryDesign}
                         activeDroneLabel={activeDroneLabel}
                         onCommit={async () => {
-                          if (!activeProjectId) throw new Error("Aucun projet actif à enregistrer.");
+                          if (!activeProjectId) throw new Error("Programme AEROMIND actif à enregistrer.");
                           const currentRecord: ProjectRecord = { id: activeProjectId, project, requirements, config, runId };
                           const existingProjects = replaceExistingProjectSnapshot(projects, currentRecord);
                           if (!existingProjects) throw new Error("Le projet actif n’existe plus dans le workspace; enregistrement refusé.");

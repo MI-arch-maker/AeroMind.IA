@@ -66,7 +66,7 @@ export function evaluateEngineeringSync(input: {
       severity: "warning",
       module: "Contrôle de configuration",
       message:
-        "Aucun projet actif : aucune donnée métier ne peut être publiée.",
+        "Programme AEROMIND actif : aucune donnée métier ne peut être publiée.",
       solution: "Créer ou sélectionner manuellement un projet.",
     });
   if (!selectedProfileId)
