@@ -1,7 +1,8 @@
+from fastapi import Header
 """Restricted administrator workspace; never grants Super-Admin operations."""
 import json
 
-from fastapi import APIRouter, Body, Cookie, HTTPException, Response
+from fastapi import APIRouter, Body, Cookie, Header, HTTPException, Response
 from sqlalchemy import func, or_, select
 from .database import SessionLocal
 from .models import AdminAccountEvent, AuditEvent, Project, Drone, Simulation, User
