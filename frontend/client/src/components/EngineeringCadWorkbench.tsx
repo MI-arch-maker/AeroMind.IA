@@ -1,3 +1,4 @@
+import { AeromindMultiViewViewport } from "./AeromindMultiViewViewport";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from "react";
 import { Activity, Box, Boxes, Crosshair, Eye, EyeOff, FileDown, Grid2X2, Layers3, Maximize2, MousePointer2, Move, Plus, RotateCcw, Ruler, ScanLine, Scissors, Settings2, ShieldCheck, Square, Trash2, ZoomIn, ZoomOut } from "lucide-react";
 import type { ConceptConfig, DroneSketchStroke, InstalledMaterial } from "../lib/aeroEngine";
@@ -227,6 +228,23 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
   return <section className="engineering-cad-workbench" aria-label="Studio CAO de conception drone">
     <header className="cad-workbench-header">
       <div className="cad-title-block"><span className="cad-kicker"><ScanLine size={14} /> AEROMIND / CAO WORKSPACE <i>LOCAL</i></span><h2>Studio CAO de conception drone</h2><p>Géométrie liée à la source active · calques utilisateur · nomenclature</p></div>
+      <div style={{ margin: "0.75rem 0", padding: "0.5rem", background: "#050b16", border: "1px solid #1e293b", borderRadius: "0.5rem" }}>
+        <AeromindMultiViewViewport
+          design={activeProfile ? {
+            ...activeProfile,
+            label: config.designName || activeProfile.label,
+            key: config.airframe || activeProfile.key,
+            configuration: {
+              ...activeProfile.configuration,
+              wingspan: config.wingspan ?? activeProfile.configuration.wingspan,
+              fuselageLength: config.fuselageLength ?? activeProfile.configuration.fuselageLength,
+              propDiameter: config.propDiameter ?? activeProfile.configuration.propDiameter,
+              motorCount: config.motorCount ?? activeProfile.configuration.motorCount,
+            },
+          } : undefined}
+          parts={config.installedMaterials ?? []}
+        />
+      </div>
       <div className={`cad-document-state ${hasSelectedDesign ? "is-active" : "is-empty"}`}><span className="cad-live-dot" />{hasSelectedDesign ? <><span>DOCUMENT ACTIF</span><strong>CAD-{selectedProfile?.id ?? "SKETCH"}</strong><small>CONCEPT · QUALIFICATION EN-9100</small></> : <><span>AUCUN DOCUMENT</span><strong>EN ATTENTE DE SOURCE</strong><small>SÉLECTION OU DESSIN REQUIS</small></>}</div>
     </header>
 
