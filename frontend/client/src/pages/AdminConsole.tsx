@@ -1,3 +1,4 @@
+import "../styles/admin-defense-cockpit.css";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import {

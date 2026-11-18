@@ -1,0 +1,90 @@
+/* AEROMIND Sovereign Governance & Engineering Cockpit Theme (Admin & Super-Admin) */
+.aeromind-governance-cockpit,
+.admin-console-shell,
+.sa-shell {
+  background: radial-gradient(circle at top right, #0c192c 0%, #050a14 65%) !important;
+  color: #e2e8f0 !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.aeromind-governance-cockpit .bg-white,
+.admin-console-shell .bg-white,
+.sa-shell .bg-white,
+.sa-metric {
+  background-color: #0b1324 !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.55) !important;
+}
+
+.aeromind-governance-cockpit .bg-slate-50,
+.admin-console-shell .bg-slate-50,
+.sa-shell .bg-slate-50,
+.aeromind-governance-cockpit .bg-slate-100,
+.admin-console-shell .bg-slate-100,
+.sa-shell .bg-slate-100 {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+.aeromind-governance-cockpit .border-slate-200,
+.admin-console-shell .border-slate-200,
+.sa-shell .border-slate-200,
+.aeromind-governance-cockpit .border-slate-100,
+.admin-console-shell .border-slate-100,
+.sa-shell .border-slate-100,
+.aeromind-governance-cockpit .border-slate-300,
+.admin-console-shell .border-slate-300,
+.sa-shell .border-slate-300 {
+  border-color: #1e293b !important;
+}
+
+.aeromind-governance-cockpit .text-slate-900,
+.admin-console-shell .text-slate-900,
+.sa-shell .text-slate-900,
+.aeromind-governance-cockpit .text-slate-800,
+.admin-console-shell .text-slate-800,
+.sa-shell .text-slate-800,
+.aeromind-governance-cockpit .text-slate-700,
+.admin-console-shell .text-slate-700,
+.sa-shell .text-slate-700 {
+  color: #f8fafc !important;
+}
+
+.aeromind-governance-cockpit .text-slate-600,
+.admin-console-shell .text-slate-600,
+.sa-shell .text-slate-600,
+.aeromind-governance-cockpit .text-slate-500,
+.admin-console-shell .text-slate-500,
+.sa-shell .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+.aeromind-governance-cockpit input,
+.admin-console-shell input,
+.sa-shell input,
+.aeromind-governance-cockpit select,
+.admin-console-shell select,
+.sa-shell select,
+.aeromind-governance-cockpit textarea,
+.admin-console-shell textarea,
+.sa-shell textarea {
+  background-color: #060d18 !important;
+  border: 1px solid #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+.aeromind-governance-cockpit table thead,
+.admin-console-shell table thead,
+.sa-shell table thead {
+  background-color: #09111f !important;
+  color: #38bdf8 !important;
+  border-bottom: 1px solid #1e293b !important;
+}
+
+.aeromind-governance-cockpit table tbody tr:hover,
+.admin-console-shell table tbody tr:hover,
+.sa-shell table tbody tr:hover {
+  background-color: rgba(56, 189, 248, 0.06) !important;
+}
