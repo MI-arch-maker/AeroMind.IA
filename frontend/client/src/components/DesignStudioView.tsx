@@ -1,4 +1,4 @@
-import { AeromindMultiViewViewport } from "./AeromindMultiViewViewport";
+import { AeromindTwinRenderStage } from "./AeromindTwinRenderStage";
 import {
   useCallback,
   useEffect,
@@ -1566,7 +1566,7 @@ export function DesignStudioView({
         </header>
         <div className="idds-workspace">
           <div className="idds-preview-frame">
-            {true ? <AeromindMultiViewViewport design={integratedProfile ? { ...integratedProfile, label: config.designName || integratedProfile.label, key: config.airframe || integratedProfile.key, configuration: { ...integratedProfile.configuration, wingspan: config.wingspan ?? integratedProfile.configuration.wingspan, fuselageLength: config.fuselageLength ?? integratedProfile.configuration.fuselageLength, motorCount: config.motorCount ?? integratedProfile.configuration.motorCount } } : undefined} parts={config.installedMaterials ?? []} /> : <div className="idds-empty-preview"><Crosshair size={29}/><strong>AUCUN MODÈLE AFFICHÉ</strong><span>Le visuel apparaîtra après une sélection catalogue ou un dessin utilisateur.</span></div>}
+            {true ? <AeromindTwinRenderStage design={integratedProfile} config={config} /> : <div className="idds-empty-preview"><Crosshair size={29}/><strong>AUCUN MODÈLE AFFICHÉ</strong><span>Le visuel apparaîtra après une sélection catalogue ou un dessin utilisateur.</span></div>}
             {(integratedProfile || false) && <span className="idds-preview-label">{integratedProfile.label} · APERÇU CONCEPTUEL</span>}
           </div>
           <aside className="idds-source-panel"><div className="idds-source-title"><span className="idds-status-dot"/><div><small>DOCUMENT / SOURCE ACTIVE</small><strong>{integratedProfile.label}</strong></div></div>
@@ -1853,7 +1853,7 @@ export function DesignStudioView({
             </div>
             <div className="studio-physical-stage">
               <div className="studio-physical-stage-hud"><span>{integratedProfile ? "IDDS · MODÈLE PARAMÉTRIQUE / ARCHITECTURE" : "IDDS · GÉOMÉTRIE UTILISATEUR"}</span><small>{visibleParts.length} pièces visibles · masse estimée {totalMass.toFixed(2)} kg · faites glisser une pièce pour la déplacer</small></div>
-              <AeromindMultiViewViewport design={integratedProfile ? { ...integratedProfile, label: config.designName || integratedProfile.label, key: config.airframe || integratedProfile.key, configuration: { ...integratedProfile.configuration, wingspan: config.wingspan ?? integratedProfile.configuration.wingspan, fuselageLength: config.fuselageLength ?? integratedProfile.configuration.fuselageLength, motorCount: config.motorCount ?? integratedProfile.configuration.motorCount } } : undefined} parts={config.installedMaterials ?? []} />
+              <AeromindTwinRenderStage design={integratedProfile} config={config} />
               <div className="studio-3d-selection-list" aria-label="Sélectionner une pièce pour la configurer">
                 {visibleParts.map(part => <button key={part.id} className={selectedId === part.id ? "is-active" : ""} onClick={() => setSelectedId(part.id)}><span>{part.label}</span><small>{part.massKg.toFixed(2)} kg · {part.connectedTo ?? defaultBus(part.kind)}</small></button>)}
                 {!visibleParts.length && <small>Ajoutez une pièce depuis les outils de conception pour commencer la construction.</small>}
@@ -2299,7 +2299,7 @@ export function DesignStudioView({
         </header>
         <div className="idds-workspace">
           <div className="idds-preview-frame">
-            {hasStudioSource ? <AeromindMultiViewViewport design={iddsProfile ? { ...iddsProfile, label: config.designName || iddsProfile.label, key: config.airframe || iddsProfile.key, configuration: { ...iddsProfile.configuration, wingspan: config.wingspan ?? iddsProfile.configuration.wingspan, fuselageLength: config.fuselageLength ?? iddsProfile.configuration.fuselageLength, motorCount: config.motorCount ?? iddsProfile.configuration.motorCount } } : undefined} parts={config.installedMaterials ?? []} /> : <div className="idds-empty-preview"><Crosshair size={29}/><strong>AUCUN MODÈLE AFFICHÉ</strong><span>Le visuel apparaîtra après une sélection catalogue ou un dessin utilisateur.</span></div>}
+            {hasStudioSource ? <AeromindTwinRenderStage design={iddsProfile} config={config} /> : <div className="idds-empty-preview"><Crosshair size={29}/><strong>AUCUN MODÈLE AFFICHÉ</strong><span>Le visuel apparaîtra après une sélection catalogue ou un dessin utilisateur.</span></div>}
             {(iddsProfile || iddsUsesSketch) && <span className="idds-preview-label">{iddsSourceLabel} · APERÇU CONCEPTUEL</span>}
           </div>
           <aside className="idds-source-panel"><div className="idds-source-title"><span className="idds-status-dot"/><div><small>DOCUMENT / SOURCE ACTIVE</small><strong>{iddsSourceLabel}</strong></div></div>
@@ -2586,7 +2586,7 @@ export function DesignStudioView({
             </div>
             <div className="studio-physical-stage">
               <div className="studio-physical-stage-hud"><span>{iddsProfile ? "IDDS · MODÈLE PARAMÉTRIQUE / ARCHITECTURE" : "IDDS · GÉOMÉTRIE UTILISATEUR"}</span><small>{visibleParts.length} pièces visibles · masse estimée {totalMass.toFixed(2)} kg · faites glisser une pièce pour la déplacer</small></div>
-              <AeromindMultiViewViewport design={iddsProfile ? { ...iddsProfile, label: config.designName || iddsProfile.label, key: config.airframe || iddsProfile.key, configuration: { ...iddsProfile.configuration, wingspan: config.wingspan ?? iddsProfile.configuration.wingspan, fuselageLength: config.fuselageLength ?? iddsProfile.configuration.fuselageLength, motorCount: config.motorCount ?? iddsProfile.configuration.motorCount } } : undefined} parts={config.installedMaterials ?? []} />
+              <AeromindTwinRenderStage design={iddsProfile} config={config} />
               <div className="studio-3d-selection-list" aria-label="Sélectionner une pièce pour la configurer">
                 {visibleParts.map(part => <button key={part.id} className={selectedId === part.id ? "is-active" : ""} onClick={() => setSelectedId(part.id)}><span>{part.label}</span><small>{part.massKg.toFixed(2)} kg · {part.connectedTo ?? defaultBus(part.kind)}</small></button>)}
                 {!visibleParts.length && <small>Ajoutez une pièce depuis les outils de conception pour commencer la construction.</small>}
