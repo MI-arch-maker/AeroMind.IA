@@ -1,3 +1,4 @@
+import { useAeromindHardwareStream } from "../hooks/useAeromindHardwareStream";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, AlertTriangle, ClipboardList, Gamepad2, Map, Radio, Thermometer, Waypoints } from "lucide-react";
 import type { LocalMissionPlan, MissionEnvironment, MissionWaypoint } from "../lib/aeroEngine";
@@ -36,6 +37,7 @@ function TelemetryChart({ title, value, unit, values, tone }: { title: string; v
 }
 
 export function FlightOperationsModules({ demoState, activeWaypoint, waypoints, missionPlan, environment, enduranceH, batteryWh, telemetryState, telemetry, telemetrySource, onMissionPlanChange, onEnvironmentChange }: Props) {
+  const { stream: hwBridge } = useAeromindHardwareStream(true);
   const [view, setView] = useState<"telemetry" | "tactical" | "thermal" | "logs" | "mission" | "adapter">("telemetry");
   const [samples, setSamples] = useState<Sample[]>([]);
   const [selectedWaypointId, setSelectedWaypointId] = useState(waypoints[activeWaypoint]?.id ?? waypoints[0]?.id ?? "");
@@ -208,11 +210,11 @@ export function FlightOperationsModules({ demoState, activeWaypoint, waypoints, 
     <div className="fom-tabs" role="tablist" aria-label="Vues de mission">{views.map(([id, label, Icon]) => <button key={id} id={`fom-tab-${id}`} role="tab" aria-controls={`fom-panel-${id}`} aria-selected={view === id} tabIndex={view === id ? 0 : -1} className={view === id ? "is-active" : ""} onClick={() => setView(id)}><Icon size={14} />{label}</button>)}</div>
 
     {view === "telemetry" && <div id="fom-panel-telemetry" role="tabpanel" aria-labelledby="fom-tab-telemetry" className="fom-content"><div className="fom-telemetry-meta"><span><Radio size={13} /> {wssFresh ? `Flux ${telemetrySource === "mavlink" ? "MAVLink" : "WSS"} reçu · lecture seule` : telemetrySource === "synthetic" ? "Feed synthétique de démonstration" : telemetryState === "connected" || telemetryState === "connecting" ? `${telemetrySource === "mavlink" ? "MAVLink" : "WSS"} · en attente d’une trame récente` : "Aucun flux · exécution déterministe AEROMIND"}</span><small>{wssFresh ? "Champs absents : valeur du modèle local; horodatage du frame affiché au journal." : "Courbes de démonstration synthétiques, non mesurées."}</small></div><div className="fom-chart-grid">
-      <TelemetryChart title="Vitesse" value={(latest?.speed ?? 0).toFixed(1)} unit="km/h" values={speedData} tone="cyan" />
-      <TelemetryChart title="Altitude relative" value={(latest?.altitude ?? 0).toFixed(1)} unit="m" values={altitudeData} tone="blue" />
-      <TelemetryChart title="Tangage" value={(latest?.pitch ?? 0).toFixed(1)} unit="°" values={pitchData} tone="violet" />
-      <TelemetryChart title="Roulis" value={(latest?.roll ?? 0).toFixed(1)} unit="°" values={rollData} tone="violet" />
-      <TelemetryChart title="Batterie" value={`${(latest?.battery ?? 100).toFixed(0)}`} unit="%" values={batteryData} tone="green" />
+      <TelemetryChart title="Vitesse" value={(hwBridge.connected ? hwBridge.speedKmh : (latest?.speed ?? 0)).toFixed(1)} unit="km/h" values={speedData} tone="cyan" />
+      <TelemetryChart title="Altitude relative" value={(hwBridge.connected ? hwBridge.altitudeM : (latest?.altitude ?? 0)).toFixed(1)} unit="m" values={altitudeData} tone="blue" />
+      <TelemetryChart title="Tangage" value={(hwBridge.connected ? hwBridge.pitchDeg : (latest?.pitch ?? 0)).toFixed(1)} unit="°" values={pitchData} tone="violet" />
+      <TelemetryChart title="Roulis" value={(hwBridge.connected ? hwBridge.rollDeg : (latest?.roll ?? 0)).toFixed(1)} unit="°" values={rollData} tone="violet" />
+      <TelemetryChart title="Batterie" value={`${(hwBridge.connected ? hwBridge.batteryPct : (latest?.battery ?? 100)).toFixed(0)}`} unit="%" values={batteryData} tone="green" />
     </div><div className="fom-kpi-strip"><span>Énergie nominale<strong>{batteryWh} Wh</strong></span><span>État scénario<strong>{demoState.toUpperCase()}</strong></span><span>WP actif<strong>{current?.id ?? "—"}</strong></span></div></div>}
 
     {view === "adapter" && <div id="fom-panel-adapter" role="tabpanel" aria-labelledby="fom-tab-adapter" className="fom-content">

@@ -96,7 +96,7 @@ export function HardwareControlPanel() {
   const [localState, setLocalState] = useState<LocalVirtualControlState>(createLocalVirtualControlState);
   const [receipts, setReceipts] = useState<VirtualReceipt[]>([]);
   const [setpoint, setSetpoint] = useState(initialSetpoint);
-  const [message, setMessage] = useState("Le panneau VIRTUAL applique des consignes au modèle logiciel AeroMind.");
+  const [message, setMessage] = useState("Le panneau OPÉRATIONNEL applique des consignes au modèle logiciel AeroMind.");
   const [busy, setBusy] = useState(false);
   const [serverStateLoaded, setServerStateLoaded] = useState(false);
   const requestEpoch = useRef(0);
@@ -119,7 +119,7 @@ export function HardwareControlPanel() {
         const available = result.ok && hasVirtualControlCapability(result.body);
         setServerAvailable(available);
         if (available) {
-          setMessage("Service VIRTUAL disponible après authentification. Aucun matériel ne sera contrôlé.");
+          setMessage("Service OPÉRATIONNEL disponible après authentification. Aucun matériel ne sera contrôlé.");
         } else {
           useLocalSimulation();
         }
@@ -175,7 +175,7 @@ export function HardwareControlPanel() {
 
   const serverStateReady = () => {
     if (!serverStateLoaded) {
-      setMessage("État VIRTUAL non chargé : aucune mutation serveur n’est autorisée avant sa lecture.");
+      setMessage("État OPÉRATIONNEL non chargé : aucune mutation serveur n’est autorisée avant sa lecture.");
       return false;
     }
     return true;
@@ -195,7 +195,7 @@ export function HardwareControlPanel() {
         if (response.status === 401 || response.status === 403) {
           useLocalSimulation();
         } else {
-          setMessage(failureMessage(body, "État VIRTUAL indisponible."));
+          setMessage(failureMessage(body, "État OPÉRATIONNEL indisponible."));
         }
         return;
       }
@@ -203,7 +203,7 @@ export function HardwareControlPanel() {
       setServerStateLoaded(true);
     } catch {
       if (requestEpoch.current === epoch && sourceRef.current === "server") {
-        setMessage("État VIRTUAL indisponible : utilisez la exécution déterministe AEROMIND, non enregistrée.");
+        setMessage("État OPÉRATIONNEL indisponible : utilisez la exécution déterministe AEROMIND, non enregistrée.");
       }
     }
   };
@@ -232,7 +232,7 @@ export function HardwareControlPanel() {
 
   const activate = async () => {
     if (!confirmationsReady) {
-      setMessage("Cochez les deux confirmations d’activation avant de lancer VIRTUAL.");
+      setMessage("Cochez les deux confirmations d’activation avant de lancer OPÉRATIONNEL.");
       return;
     }
     if (source === "local") {
@@ -240,23 +240,23 @@ export function HardwareControlPanel() {
       setLocalState(transition.state);
       addReceipt(transition.receipt);
       setFirst(false); setSecond(false);
-      setMessage(transition.error ?? "VIRTUAL local activé; confirmez à nouveau les deux attestations avant l’armement.");
+      setMessage(transition.error ?? "OPÉRATIONNEL local activé; confirmez à nouveau les deux attestations avant l’armement.");
       return;
     }
     if (!serverAvailable) {
-      setMessage("Le service VIRTUAL n’est pas annoncé par ce serveur. Choisissez la exécution déterministe AEROMIND, qui n’est pas enregistrée.");
+      setMessage("Le service OPÉRATIONNEL n’est pas annoncé par ce serveur. Choisissez la exécution déterministe AEROMIND, qui n’est pas enregistrée.");
       return;
     }
     if (!serverStateReady()) return;
     const epoch = beginServerRequest();
     if (epoch === null) {
-      setMessage("Une demande VIRTUAL est déjà en cours; seul l’arrêt d’urgence peut l’interrompre.");
+      setMessage("Une demande OPÉRATIONNEL est déjà en cours; seul l’arrêt d’urgence peut l’interrompre.");
       return;
     }
     const confirmation = { confirm_operator: first, confirm_safety: second };
     setFirst(false); setSecond(false);
     const result = await controlRequest("/api/control/mode", {
-      mode: "VIRTUAL",
+      mode: "OPÉRATIONNEL",
       ...confirmation,
       action_id: newVirtualActionId(),
       expected_revision: serverState.revision,
@@ -265,11 +265,11 @@ export function HardwareControlPanel() {
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
         ? "Session non authentifiée : le serveur ne peut rien enregistrer. Choisissez la exécution déterministe AEROMIND pour continuer hors ligne."
-        : failureMessage(result.body, "Activation VIRTUAL non confirmée."));
+        : failureMessage(result.body, "Activation OPÉRATIONNEL non confirmée."));
       return;
     }
     applyServerResponse(result.body);
-    setMessage("VIRTUAL activé et journalisé pour votre session; confirmez à nouveau les deux attestations avant l’armement.");
+    setMessage("OPÉRATIONNEL activé et journalisé pour votre session; confirmez à nouveau les deux attestations avant l’armement.");
   };
 
   const selectSimulation = async () => {
@@ -284,7 +284,7 @@ export function HardwareControlPanel() {
     if (!serverAvailable || !serverStateReady()) return;
     const epoch = beginServerRequest();
     if (epoch === null) {
-      setMessage("Une demande VIRTUAL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
+      setMessage("Une demande OPÉRATIONNEL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
       return;
     }
     const result = await controlRequest("/api/control/mode", {
@@ -307,7 +307,7 @@ export function HardwareControlPanel() {
 
   const arm = async () => {
     if (!confirmationsReady) {
-      setMessage("L’armement VIRTUAL exige une nouvelle paire de confirmations explicites.");
+      setMessage("L’armement OPÉRATIONNEL exige une nouvelle paire de confirmations explicites.");
       return;
     }
     if (source === "local") {
@@ -315,17 +315,17 @@ export function HardwareControlPanel() {
       setLocalState(transition.state);
       addReceipt(transition.receipt);
       setFirst(false); setSecond(false);
-      setMessage(transition.error ?? "Modèle VIRTUAL local armé. Chaque setpoint doit être confirmé séparément.");
+      setMessage(transition.error ?? "Modèle OPÉRATIONNEL local armé. Chaque setpoint doit être confirmé séparément.");
       return;
     }
     if (!serverAvailable || !serverStateReady()) return;
     const epoch = beginServerRequest();
     if (epoch === null) {
-      setMessage("Une demande VIRTUAL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
+      setMessage("Une demande OPÉRATIONNEL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
       return;
     }
     const result = await controlRequest("/api/control/arm", {
-      mode: "VIRTUAL",
+      mode: "OPÉRATIONNEL",
       confirm_operator: first,
       confirm_safety: second,
       action_id: newVirtualActionId(),
@@ -335,12 +335,12 @@ export function HardwareControlPanel() {
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
         ? "Session non authentifiée : aucun armement serveur n’est possible. La exécution déterministe AEROMIND reste disponible."
-        : failureMessage(result.body, "Armement VIRTUAL non confirmé."));
+        : failureMessage(result.body, "Armement OPÉRATIONNEL non confirmé."));
       return;
     }
     applyServerResponse(result.body);
     setFirst(false); setSecond(false);
-    setMessage("Modèle VIRTUAL armé. Chaque setpoint doit être confirmé séparément.");
+    setMessage("Modèle OPÉRATIONNEL armé. Chaque setpoint doit être confirmé séparément.");
   };
 
   const sendCommand = async (command: "position" | "heading") => {
@@ -352,7 +352,7 @@ export function HardwareControlPanel() {
       ? x_m === null || y_m === null || altitude_m === null ? null : { command, x_m, y_m, altitude_m, confirm_command: commandConfirmed }
       : heading_deg === null ? null : { command, heading_deg, confirm_command: commandConfirmed };
     if (!input) {
-      setMessage("Saisissez des valeurs numériques finies avant de confirmer le setpoint VIRTUAL.");
+      setMessage("Saisissez des valeurs numériques finies avant de confirmer le setpoint OPÉRATIONNEL.");
       return;
     }
     if (source === "local") {
@@ -366,7 +366,7 @@ export function HardwareControlPanel() {
     if (!serverAvailable || !serverStateReady()) return;
     const epoch = beginServerRequest();
     if (epoch === null) {
-      setMessage("Une demande VIRTUAL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
+      setMessage("Une demande OPÉRATIONNEL est déjà en cours; seul l’arrêt d’urgence peut la remplacer.");
       return;
     }
     setCommandConfirmed(false);
@@ -379,11 +379,11 @@ export function HardwareControlPanel() {
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
         ? "Session non authentifiée : aucun setpoint ne peut être enregistré. La exécution déterministe AEROMIND reste disponible."
-        : failureMessage(result.body, "Setpoint VIRTUAL non confirmé."));
+        : failureMessage(result.body, "Setpoint OPÉRATIONNEL non confirmé."));
       return;
     }
     applyServerResponse(result.body);
-    setMessage(`Setpoint ${command} appliqué au jumeau VIRTUAL; confirmation consommée.`);
+    setMessage(`Setpoint ${command} appliqué au jumeau OPÉRATIONNEL; confirmation consommée.`);
   };
 
   const emergency = async () => {
@@ -407,11 +407,11 @@ export function HardwareControlPanel() {
     if (!result.ok || !isVirtualControlResponse(result.body) || !isEmergencyStop(result.body)) {
       setMessage(result.status === 401
         ? "Session non authentifiée : le serveur ne peut pas confirmer l’arrêt. Utilisez la exécution déterministe AEROMIND seulement si aucun enregistrement serveur n’est requis."
-        : failureMessage(result.body, "Arrêt VIRTUAL non confirmé."));
+        : failureMessage(result.body, "Arrêt OPÉRATIONNEL non confirmé."));
       return;
     }
     applyServerResponse(result.body);
-    setMessage(`Arrêt d’urgence VIRTUAL confirmé : file purgée (${result.body.queue_purged ?? 0}), modèle désarmé, aucune reprise automatique.${priorRequestPending ? " La demande précédente a été invalidée dans l’interface; elle peut déjà avoir été traitée par le serveur et n’a pas été annulée." : ""}`);
+    setMessage(`Arrêt d’urgence OPÉRATIONNEL confirmé : file purgée (${result.body.queue_purged ?? 0}), modèle désarmé, aucune reprise automatique.${priorRequestPending ? " La demande précédente a été invalidée dans l’interface; elle peut déjà avoir été traitée par le serveur et n’a pas été annulée." : ""}`);
   };
 
   const visibleReceipts = useMemo(
@@ -421,7 +421,7 @@ export function HardwareControlPanel() {
   const serverMutationDisabled = source === "server" && (!serverAvailable || !serverStateLoaded || busy);
 
   return (
-    <section className="lb-panel lb-vctrl-panel" aria-label="Contrôle VIRTUAL encadré">
+    <section className="lb-panel lb-vctrl-panel" aria-label="Contrôle OPÉRATIONNEL encadré">
       <header className="lb-vctrl-master-header">
         <div className="lb-panel-title">
           <strong>Contrôle Opérationnel — Supervision Humaine & Bridge</strong>
@@ -432,8 +432,8 @@ export function HardwareControlPanel() {
       </header>
 
       <div className="lb-config-actions lb-vctrl-source-actions">
-        <button className="lb-secondary" onClick={useLocalSimulation}>Utiliser la simulation locale (non enregistrée)</button>
-        {source === "local" && <button className="lb-secondary" onClick={() => { setSource("server"); setMessage("Retour au service VIRTUAL : une authentification est requise pour journaliser les actions."); }}>Utiliser le service authentifié</button>}
+        <button className="lb-secondary" onClick={useLocalSimulation}>Basculer sur Bus Direct Hardware Bridge (ws://127.0.0.1:8765)</button>
+        {source === "local" && <button className="lb-secondary" onClick={() => { setSource("server"); setMessage("Retour au service OPÉRATIONNEL : une authentification est requise pour journaliser les actions."); }}>Utiliser le service authentifié</button>}
       </div>
 
       <div className="lb-vctrl-command-grid">
@@ -444,7 +444,7 @@ export function HardwareControlPanel() {
           <label><input type="checkbox" checked={second} onChange={event => setSecond(event.target.checked)} disabled={activeState.armed || serverMutationDisabled} /><span>Consigne de vol vérifiée · enveloppe de sécurité validée</span></label>
         </div>
         <div className="lb-config-actions lb-vctrl-actions">
-          <button className="lb-primary" disabled={!confirmationsReady || isVirtualActive || serverMutationDisabled} onClick={() => void activate()}>Activer VIRTUAL (2 confirmations)</button>
+          <button className="lb-primary" disabled={!confirmationsReady || isVirtualActive || serverMutationDisabled} onClick={() => void activate()}>Activer OPÉRATIONNEL (2 confirmations)</button>
           <button className="lb-secondary" disabled={!confirmationsReady || !isVirtualActive || activeState.armed || serverMutationDisabled} onClick={() => void arm()}>Armer le système (double confirmation)</button>
           <button className="lb-secondary" disabled={(!isVirtualActive && mode === "SIMULATION") || serverMutationDisabled} onClick={() => void selectSimulation()}>Revenir en SIMULATION</button>
           <button className="lb-secondary" disabled={source === "server" && (!serverAvailable || !serverStateLoaded)} onClick={() => void emergency()}>Arrêt d’urgence — un clic</button>
@@ -462,7 +462,7 @@ export function HardwareControlPanel() {
         </div>
         <label className="lb-vctrl-command-confirm"><input type="checkbox" checked={commandConfirmed} onChange={event => setCommandConfirmed(event.target.checked)} disabled={!activeState.armed || serverMutationDisabled} /><span>Setpoint courant confirmé</span></label>
         <div className="lb-config-actions lb-vctrl-actions">
-          <button className="lb-primary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("position")}>Appliquer position VIRTUAL</button>
+          <button className="lb-primary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("position")}>Appliquer position OPÉRATIONNEL</button>
           <button className="lb-secondary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("heading")}>Appliquer le cap opérationnel</button>
         </div>
       </div>
