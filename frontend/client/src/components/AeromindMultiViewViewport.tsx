@@ -55,7 +55,7 @@ export function AeromindMultiViewViewport({ design, status = "idle", compact = f
             </div>
           </div>
         ) : (
-          <PhysicalDroneModel design={design} status={status} compact={compact} construction={construction} parts={parts} flightState={flightState} interactive={interactive} showGrid={showGrid} exploded={mode === "bom-harness-xray"} autoMotion={autoMotion} cameraZoom={cameraZoom ?? zoom ?? (mode === "bom-harness-xray" ? 1.1 : 1)} />
+          <AeromindHighResRenderViewport droneName={design?.label || "CELLULE ACTIVE"} airframe={design?.key || "FIXED-WING"} wingspanM={specs.wingspanMm / 1000} lengthM={specs.lengthMm / 1000} massKg={specs.massKg} motorCount={Number((design as any)?.configuration?.motorCount) || 2} />
         )}
       </div>
       {mode === "bom-harness-xray" && (
