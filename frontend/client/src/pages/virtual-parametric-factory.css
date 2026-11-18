@@ -44,3 +44,22 @@
 .mode-switch button.simulated{border-color:rgba(237,189,115,.42);color:#8c6723;background:rgba(237,189,115,.12)}
 .mode-switch button.simulated.selected{border-color:#b7812b;color:#65420d;background:linear-gradient(120deg,#f4d690,#f0c471);box-shadow:0 4px 14px rgba(162,112,34,.16)}
 .mode-switch button:focus-visible{outline:2px solid #278c91;outline-offset:2px}
+
+/* High-Contrast NATO / EN-9100 Aerospace Factory Typography Override */
+.vpf-shell, .vpf-main, .vpf-content {
+  color: #f1f5f9 !important;
+}
+.vpf-shell .panel, .vpf-shell .vpf-metric, .vpf-shell .equipment, .vpf-shell .table-row {
+  background: #091222 !important;
+  border-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+.vpf-shell h1, .vpf-shell h2, .vpf-shell h3, .vpf-shell strong, .vpf-shell b {
+  color: #f8fafc !important;
+}
+.vpf-shell p, .vpf-shell span, .vpf-shell small, .vpf-shell label, .vpf-section-note {
+  color: #cbd5e1 !important;
+}
+.vpf-shell .eyebrow {
+  color: #38bdf8 !important;
+}
