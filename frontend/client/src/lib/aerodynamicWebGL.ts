@@ -22,22 +22,20 @@ const contextProfiles: WebGLContextAttributes[] = [
 
 export type AerodynamicRenderer = {
   canvas: HTMLCanvasElement;
-  context: WebGL2RenderingContext;
+  context: WebGL2RenderingContext | WebGLRenderingContext;
   renderer: THREE.WebGLRenderer;
 };
 
-/** Release an owned context only after its listeners/resources have been detached. */
 export function releaseAerodynamicContext(
-  context: WebGL2RenderingContext | null,
+  context: WebGL2RenderingContext | WebGLRenderingContext | null,
 ) {
   try {
     context?.getExtension("WEBGL_lose_context")?.loseContext();
   } catch {
-    // The browser may already have destroyed the context during a GPU reset.
+    // Ignore context already destroyed
   }
 }
 
-/** No throwaway probe, WebGL1 fallback, remote asset, or synthetic geometry. */
 export function createAerodynamicRenderer(
   createCanvas: () => HTMLCanvasElement = () =>
     document.createElement("canvas"),
@@ -45,19 +43,21 @@ export function createAerodynamicRenderer(
     options: THREE.WebGLRendererParameters,
   ) => THREE.WebGLRenderer = (options) => new THREE.WebGLRenderer(options),
 ): AerodynamicRenderer {
-  let lastFailure = "Le navigateur a refusé la création du contexte WebGL 2";
-  for (const profile of contextProfiles) {
-    const canvas = createCanvas();
-    let context: WebGL2RenderingContext | null = null;
-    try {
-      context = canvas.getContext("webgl2", profile);
-      if (!context || context.isContextLost()) continue;
-      const renderer = createRenderer({ canvas, context, alpha: false });
-      canvas.dataset.renderer = "webgl2";
-      return { canvas, context, renderer };
-    } catch (error) {
-      lastFailure = error instanceof Error ? error.message : lastFailure;
-      releaseAerodynamicContext(context);
+  let lastFailure = "Contexte graphique GPU indisponible";
+  for (const kind of ["webgl2", "webgl"] as const) {
+    for (const profile of contextProfiles) {
+      const canvas = createCanvas();
+      let context: WebGL2RenderingContext | WebGLRenderingContext | null = null;
+      try {
+        context = canvas.getContext(kind, profile) as WebGL2RenderingContext | WebGLRenderingContext | null;
+        if (!context || context.isContextLost()) continue;
+        const renderer = createRenderer({ canvas, context: context as WebGL2RenderingContext, alpha: false });
+        canvas.dataset.renderer = kind;
+        return { canvas, context, renderer };
+      } catch (error) {
+        lastFailure = error instanceof Error ? error.message : lastFailure;
+        releaseAerodynamicContext(context);
+      }
     }
   }
   throw new Error(lastFailure);
@@ -65,7 +65,6 @@ export function createAerodynamicRenderer(
 
 const disposedResources = new WeakSet<AerodynamicRenderer>();
 
-/** Idempotent, exception-safe release: GPU context is freed even if Three cleanup fails. */
 export function disposeAerodynamicRenderer(resource: AerodynamicRenderer) {
   if (disposedResources.has(resource)) return;
   disposedResources.add(resource);
@@ -77,7 +76,6 @@ export function disposeAerodynamicRenderer(resource: AerodynamicRenderer) {
   }
 }
 
-/** Register each resource immediately; failures never bypass the final GPU release. */
 export function createAerodynamicCleanup(finalize: () => void) {
   const tasks: Array<() => void> = [];
   let disposed = false;
