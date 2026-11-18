@@ -1,3 +1,4 @@
+import { AeromindOptronicHud } from "../components/AeromindOptronicHud";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import "../components/sharedWorkspaceSync.css";
@@ -10269,19 +10270,11 @@ function MissionOperationsView({
               levelPct={48}
             />
             {videoState !== "live" && (
-              <div className="mission-video-placeholder">
-                <Video size={32} />
-                <strong>
-                  {videoState === "connecting"
-                    ? "Connexion au flux…"
-                    : videoState === "error"
-                      ? "Source vidéo indisponible"
-                      : "Aucune source d’observation connectée"}
-                  <small>
-                    Aucun visuel de démonstration n’est préchargé. Connectez
-                    une source vidéo ou lancez explicitement le flux de test local.
-                  </small>
-                </strong>
+              <div className="mission-video-placeholder" style={{ padding: 0 }}>
+                <AeromindOptronicHud
+                  modeLabel={String(visionMode || "EO / IR").toUpperCase()}
+                  statusText={videoState === "connecting" ? "SYNCHRONISATION CAMÉRA…" : "HUD OPTRONIQUE & BRIDGE 20Hz ACTIF"}
+                />
               </div>
             )}
             {showObservationReticle && videoState === "live" && (
