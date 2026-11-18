@@ -1,3 +1,4 @@
+import { AeromindDroneRenderPlate } from "./AeromindDroneRenderPlate";
 import { useMemo, useState } from "react";
 import { Compass, Cpu, Eye, Layers } from "lucide-react";
 import type { DroneCatalogDesign } from "../lib/droneCatalog";
@@ -60,7 +61,7 @@ export function AeromindMultiViewViewport({ design, compact = false, constructio
       {design ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
           <div style={{ minHeight: compact ? "220px" : "340px", background: "#03070e", border: "1px solid #1e293b", borderRadius: "0.4rem", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <img src={`/renders/${design.id}/${preset}.svg`} alt={`${design.label} - ${preset}`} style={{ width: "100%", height: "auto", display: "block" }} />
+            <AeromindDroneRenderPlate design={design} preset={preset} wingspanM={specs.wingspanMm / 1000} lengthM={specs.lengthMm / 1000} motorCount={specs.motorCount} />
           </div>
 
           {preset === "studio-blueprint" && (
