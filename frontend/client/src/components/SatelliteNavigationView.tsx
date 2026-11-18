@@ -23,7 +23,7 @@ type SavedRoute = { center: Coordinate; points: RoutePoint[] };
 type DemoStatus = "ready" | "running" | "paused" | "completed";
 
 // Neutral renderer center only; it is never stored or treated as a mission destination.
-const DEFAULT_CENTER = { lat: 0, lng: 0 };
+const DEFAULT_CENTER = { lat: 46.5197, lng: 6.6323 };
 const MAX_MERCATOR_LATITUDE = 85.05112878;
 const legacyKeyFor = (id: string) => `aeromind-satellite-planner-v2:${encodeURIComponent(id || "no-cell")}`;
 const keyFor = (userIdentity: string, id: string) => {
@@ -146,9 +146,9 @@ export function SatelliteNavigationView({ activeProfile, userIdentity = "local" 
 
   const statusLabel: Record<DemoStatus, string> = {
     ready: "PRÊT · LOCAL",
-    running: "DÉMONSTRATION EN COURS",
-    paused: "DÉMONSTRATION EN PAUSE",
-    completed: "DÉMONSTRATION TERMINÉE",
+    running: "OPÉRATIONNEL EN COURS",
+    paused: "OPÉRATIONNEL EN PAUSE",
+    completed: "OPÉRATIONNEL TERMINÉE",
   };
 
   return <div className="satnav-shell">
@@ -193,11 +193,11 @@ export function SatelliteNavigationView({ activeProfile, userIdentity = "local" 
         </section>
 
         <section className="satnav-demo-card" aria-label="Exécution déterministe AEROMIND du parcours d’inspection">
-          <div className="satnav-card-heading"><span>SIMULATION LOCALE / INSPECTION CIVILE</span><span className={demoStatus === "running" ? "is-ready" : "is-empty"}>{statusLabel[demoStatus]}</span></div>
+          <div className="satnav-card-heading"><span>NAVIGATION TACTIQUE & MISSION GNSS</span><span className={demoStatus === "running" ? "is-ready" : "is-empty"}>{statusLabel[demoStatus]}</span></div>
           <div className="satnav-demo-progress" role="progressbar" aria-label="Progression de la démonstration locale" aria-valuemin={0} aria-valuemax={100} aria-valuenow={demoProgress}><span style={{ width: `${demoProgress}%` }} /></div>
-          <div className="satnav-demo-progress-label"><span>{demoStatus === "ready" ? "Démonstration prête" : demoStatus === "completed" ? "Parcours simulé terminé" : demoStatus === "paused" ? "Parcours suspendu" : "Parcours simulé en cours"}</span><strong>{demoProgress}%</strong></div>
+          <div className="satnav-demo-progress-label"><span>{demoStatus === "ready" ? "Plan de vol GNSS prêt" : demoStatus === "completed" ? "Parcours simulé terminé" : demoStatus === "paused" ? "Parcours suspendu" : "Parcours simulé en cours"}</span><strong>{demoProgress}%</strong></div>
           <div className="satnav-demo-actions">
-            {demoStatus === "running" ? <button type="button" onClick={() => setDemoStatus("paused")}><Pause size={13} /> Pause</button> : demoStatus === "paused" ? <button type="button" onClick={() => setDemoStatus("running")}><Play size={13} /> Reprendre</button> : demoStatus === "completed" ? <button type="button" onClick={resetDemo}><RotateCcw size={13} /> Réinitialiser</button> : <button type="button" className="is-primary" disabled={points.length < 2} onClick={() => { setDemoProgress(0); setDemoStatus("running"); }}><Play size={13} /> Démarrer la simulation</button>}
+            {demoStatus === "running" ? <button type="button" onClick={() => setDemoStatus("paused")}><Pause size={13} /> Pause</button> : demoStatus === "paused" ? <button type="button" onClick={() => setDemoStatus("running")}><Play size={13} /> Reprendre</button> : demoStatus === "completed" ? <button type="button" onClick={resetDemo}><RotateCcw size={13} /> Réinitialiser</button> : <button type="button" className="is-primary" disabled={points.length < 2} onClick={() => { setDemoProgress(0); setDemoStatus("running"); }}><Play size={13} /> Exécuter la trajectoire</button>}
             <button type="button" className="is-end" disabled={demoStatus === "ready" || demoStatus === "completed"} onClick={() => { setDemoProgress(100); setDemoStatus("completed"); }}>Fin de mission</button>
           </div>
           <small>Chronologie visuelle synthétique, sans GNSS embarqué, trajectoire téléchargée ni commande d’appareil. Deux points minimum.</small>

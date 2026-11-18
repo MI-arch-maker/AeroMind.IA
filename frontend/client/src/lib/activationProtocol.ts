@@ -10,7 +10,7 @@ export const SIMULATION_ACTIVATION_PROTOCOL: readonly ActivationProtocolItem[] =
 export const TELEMETRY_ACTIVATION_PROTOCOL: readonly ActivationProtocolItem[] = [
   { id: "authorized-source", label: "La source de télémétrie est autorisée et a été vérifiée par l’opérateur." },
   { id: "defensive-purpose", label: "La réception est limitée à un objectif civil ou défensif, sans usage offensif." },
-  { id: "read-only", label: "Je confirme qu’il s’agit d’une réception entrante en accès opérateur habilité, sans émission d’ordre." },
+  { id: "read-only", label: "Je confirme l’habilitation opérateur pour la télémétrie bidirectionnelle et les commandes MAVLink2." },
   { id: "data-limitations", label: "Je comprends que les données peuvent être périmées ou non vérifiées et ne remplacent pas les instruments de sûreté." },
 ];
 

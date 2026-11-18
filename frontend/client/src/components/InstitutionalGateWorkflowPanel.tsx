@@ -44,7 +44,7 @@ export function InstitutionalGateWorkflowPanel() {
     <section className="fom-institutional" aria-labelledby="institutional-gates-title">
       <header className="fom-institutional-head">
         <div>
-          <span>CHAÎNE INSTITUTIONNELLE · DÉMONSTRATION LOCALE</span>
+          <span>CHAÎNE INSTITUTIONNELLE · OPÉRATIONNEL LOCALE</span>
           <h4 id="institutional-gates-title">GATE 01 → GATE 04 → transmission → Super-Administrateur → GATE 05</h4>
         </div>
         <b>ENVIRONNEMENT HIL & TEMPS RÉEL</b>

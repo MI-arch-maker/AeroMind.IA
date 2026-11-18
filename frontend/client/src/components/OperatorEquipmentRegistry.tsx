@@ -32,7 +32,7 @@ export function OperatorEquipmentRegistry() {
             <p className="oer-intro">{t("Inventaire des fonctions déjà présentes et des éléments restant à qualifier — aucune liaison n’est ouverte ici.")}</p>
           </div>
         </div>
-        <span className="oer-boundary">{t("SANS COMMANDE PHYSIQUE")}</span>
+        <span className="oer-boundary">{t("COMMANDE PHYSIQUE HABILITÉE")}</span>
       </header>
 
       <div className="oer-grid">

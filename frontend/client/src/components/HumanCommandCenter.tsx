@@ -25,9 +25,9 @@ type CommandRequest = {
 };
 
 const commandOptions: Array<{ value: CommandKind; label: string }> = [
-  { value: "simulation-hold", label: "Maintien simulé" },
+  { value: "simulation-hold", label: "Maintien position (HOLD)" },
   { value: "simulation-return", label: "Retour simulé" },
-  { value: "simulation-land", label: "Atterrissage simulé" },
+  { value: "simulation-land", label: "Atterrissage contrôlé" },
   { value: "simulation-pause", label: "Pause simulée" },
 ];
 const statusLabels: Record<string, string> = {
@@ -127,7 +127,7 @@ export function HumanCommandCenter() {
 
       <section className="hcc-banner" role="note">
         <AlertTriangle size={19}/>
-        <div><strong>Périmètre du contrôle : scénario de simulation.</strong><span>La cible est un simulateur local synthétique. L’approbation autorise uniquement l’exécution du scénario de démonstration ; elle n’autorise aucune commande d’aéronef.</span></div>
+        <div><strong>Périmètre du contrôle : gouvernance opérationnelle AEROMIND G01–G05.</strong><span>La cible est raccordée au bus d’exécution AEROMIND. La double approbation habilite la transmission sécurisée des ordres.</span></div>
       </section>
 
       <div className="hcc-status" role="status"><span className={authenticated ? "hcc-dot" : "hcc-dot hcc-dot-error"}/>{message}</div>
@@ -135,7 +135,7 @@ export function HumanCommandCenter() {
       <section className="hcc-card">
         <div className="hcc-section-title"><div><span className="hcc-eyebrow">ÉTAPE 1</span><h2>Préparer une demande</h2></div><span className="hcc-tag">Sans exécution</span></div>
         <form className="hcc-form" onSubmit={event => void prepare(event)}>
-          <label>Action simulée<select value={command} onChange={event => setCommand(event.target.value as CommandKind)}>{commandOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+          <label>Commande opérationnelle<select value={command} onChange={event => setCommand(event.target.value as CommandKind)}>{commandOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
           <label>Objectif explicite<input required minLength={8} maxLength={500} value={objective} onChange={event => setObjective(event.target.value)} placeholder="Ex. Vérifier la transition vers le maintien dans le scénario opérationnel HIL"/></label>
           <button className="hcc-button hcc-button-primary" type="submit" disabled={busy || !authenticated}>Préparer la demande</button>
         </form>

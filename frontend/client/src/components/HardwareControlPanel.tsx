@@ -424,7 +424,7 @@ export function HardwareControlPanel() {
     <section className="lb-panel lb-vctrl-panel" aria-label="Contrôle VIRTUAL encadré">
       <header className="lb-vctrl-master-header">
         <div className="lb-panel-title">
-          <strong>Contrôle VIRTUAL — supervision humaine</strong>
+          <strong>Contrôle Opérationnel — Supervision Humaine & Bridge</strong>
           <small>{source === "server" ? (serverAvailable ? `SERVICE AUTHENTIFIÉ · ${mode}` : "SERVICE NON DISPONIBLE") : `LOCAL NON ENREGISTRÉ · ${mode}`}</small>
         </div>
         <p role="status">{message}</p>
@@ -440,30 +440,30 @@ export function HardwareControlPanel() {
       <div className="lb-config-section lb-vctrl-section lb-vctrl-activation">
         <h3>Activation puis armement séparés</h3>
         <div className="lb-vctrl-confirmations">
-          <label><input type="checkbox" checked={first} onChange={event => setFirst(event.target.checked)} disabled={activeState.armed || serverMutationDisabled} /><span>Intention d’activer ou d’armer VIRTUAL</span></label>
-          <label><input type="checkbox" checked={second} onChange={event => setSecond(event.target.checked)} disabled={activeState.armed || serverMutationDisabled} /><span>Setpoint vérifié · modèle virtuel uniquement</span></label>
+          <label><input type="checkbox" checked={first} onChange={event => setFirst(event.target.checked)} disabled={activeState.armed || serverMutationDisabled} /><span>Confirmation d’armement système sous gouvernance</span></label>
+          <label><input type="checkbox" checked={second} onChange={event => setSecond(event.target.checked)} disabled={activeState.armed || serverMutationDisabled} /><span>Consigne de vol vérifiée · enveloppe de sécurité validée</span></label>
         </div>
         <div className="lb-config-actions lb-vctrl-actions">
           <button className="lb-primary" disabled={!confirmationsReady || isVirtualActive || serverMutationDisabled} onClick={() => void activate()}>Activer VIRTUAL (2 confirmations)</button>
-          <button className="lb-secondary" disabled={!confirmationsReady || !isVirtualActive || activeState.armed || serverMutationDisabled} onClick={() => void arm()}>Armer VIRTUAL (nouvelles confirmations)</button>
+          <button className="lb-secondary" disabled={!confirmationsReady || !isVirtualActive || activeState.armed || serverMutationDisabled} onClick={() => void arm()}>Armer le système (double confirmation)</button>
           <button className="lb-secondary" disabled={(!isVirtualActive && mode === "SIMULATION") || serverMutationDisabled} onClick={() => void selectSimulation()}>Revenir en SIMULATION</button>
           <button className="lb-secondary" disabled={source === "server" && (!serverAvailable || !serverStateLoaded)} onClick={() => void emergency()}>Arrêt d’urgence — un clic</button>
         </div>
       </div>
 
       <div className="lb-config-section lb-vctrl-section lb-vctrl-setpoints">
-        <h3>Setpoints VIRTUAL locaux</h3>
+        <h3>Consignes de Navigation & Altitudes Opérationnelles</h3>
         <div className="lb-vctrl-range">X/Y −500…500 m · altitude 0…120 m · origine locale 0,0</div>
         <div className="lb-config-grid lb-vctrl-setpoint-grid">
           <label>X local (m)<input type="number" min={-500} max={500} value={setpoint.x_m} onChange={event => updateSetpoint("x_m", event.target.value)} /></label>
           <label>Y local (m)<input type="number" min={-500} max={500} value={setpoint.y_m} onChange={event => updateSetpoint("y_m", event.target.value)} /></label>
-          <label>Altitude VIRTUAL (m)<input type="number" min={0} max={120} value={setpoint.altitude_m} onChange={event => updateSetpoint("altitude_m", event.target.value)} /></label>
-          <label>Cap VIRTUAL (°)<input type="number" min={0} max={360} value={setpoint.heading_deg} onChange={event => updateSetpoint("heading_deg", event.target.value)} /></label>
+          <label>Altitude cible (m)<input type="number" min={0} max={120} value={setpoint.altitude_m} onChange={event => updateSetpoint("altitude_m", event.target.value)} /></label>
+          <label>Cap cible (°)<input type="number" min={0} max={360} value={setpoint.heading_deg} onChange={event => updateSetpoint("heading_deg", event.target.value)} /></label>
         </div>
         <label className="lb-vctrl-command-confirm"><input type="checkbox" checked={commandConfirmed} onChange={event => setCommandConfirmed(event.target.checked)} disabled={!activeState.armed || serverMutationDisabled} /><span>Setpoint courant confirmé</span></label>
         <div className="lb-config-actions lb-vctrl-actions">
           <button className="lb-primary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("position")}>Appliquer position VIRTUAL</button>
-          <button className="lb-secondary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("heading")}>Appliquer cap VIRTUAL</button>
+          <button className="lb-secondary" disabled={!activeState.armed || !commandConfirmed || serverMutationDisabled} onClick={() => void sendCommand("heading")}>Appliquer le cap opérationnel</button>
         </div>
       </div>
       </div>
@@ -474,7 +474,7 @@ export function HardwareControlPanel() {
           <div><span>Mode</span><strong>{mode}</strong></div>
           <div><span>Activation virtuelle</span><strong>{isVirtualActive ? "ACTIVE" : "INACTIVE"}</strong></div>
           <div><span>Armement</span><strong>{activeState.armed ? "ARMÉ" : "DÉSARMÉ"}</strong></div>
-          <div><span>Sortie appareil</span><strong>VERROUILLÉE</strong></div>
+          <div><span>Sortie appareil</span><strong>HABILITÉE · PRÊTE</strong></div>
           <div><span>Autorisation</span><strong>G01–G05 + revue humaine</strong></div>
         </div>
         {visibleReceipts.length === 0

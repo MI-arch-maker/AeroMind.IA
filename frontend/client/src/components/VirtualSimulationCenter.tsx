@@ -56,7 +56,7 @@ export function VirtualSimulationCenter({ hasProject, simulation, requirements, 
     return points.length ? {
       lat: points.reduce((sum, point) => sum + (point.latitude ?? 90 - point.y * 1.8), 0) / points.length,
       lng: points.reduce((sum, point) => sum + (point.longitude ?? point.x * 3.6 - 180), 0) / points.length,
-    } : { lat: 0, lng: 0 };
+    } : { lat: 46.5197, lng: 6.6323 };
   });
   const [routeEditMode, setRouteEditMode] = useState(false);
   const [routeFeedback, setRouteFeedback] = useState("Sélectionnez un point ou activez AJOUT RAPIDE");

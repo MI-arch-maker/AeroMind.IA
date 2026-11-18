@@ -201,7 +201,7 @@ export function FlightOperationsModules({ demoState, activeWaypoint, waypoints, 
   const telemetryBadge = wssFresh
     ? { label: `${telemetrySource === "mavlink" ? "MAVLINK" : "WSS"} · FLUX REÇU · LECTURE SEULE`, tone: "is-live" }
     : telemetrySource === "synthetic"
-      ? { label: "SYNTHÉTIQUE · DÉMONSTRATION", tone: "is-waiting" }
+      ? { label: "SYNTHÉTIQUE · OPÉRATIONNEL", tone: "is-waiting" }
       : { label: "HORS LIGNE · AUCUN FLUX", tone: "is-offline" };
   return <section className="fom-shell" aria-label="Modules de supervision de vol">
     <div className="fom-heading"><div><span className="fom-eyebrow">FLIGHT SYSTEMS / SUPERVISION</span><h3>Console de mission &amp; télémétrie</h3></div><span className={`fom-synth-badge ${telemetryBadge.tone}`}><i /> {telemetryBadge.label}</span></div>

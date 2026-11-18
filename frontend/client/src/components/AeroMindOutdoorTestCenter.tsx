@@ -24,7 +24,7 @@ type Props = {
   onOpenBuilder: () => void;
 };
 
-const BASE_CENTER = { lat: 0, lng: 0 };
+const BASE_CENTER = { lat: 46.5197, lng: 6.6323 };
 const FLEET_ROLES = ["LEAD / NAVIGATION", "SCOUT / OBSERVATION", "RELAY / COMMS", "RESERVE / SAFETY"];
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 

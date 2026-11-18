@@ -5867,7 +5867,7 @@ function ConceptView({
             <label className="assembly-field">
               Perte de liaison (scénario simulé)
               <select
-                aria-label="Action simulée en cas de perte de liaison"
+                aria-label="Commande opérationnelle en cas de perte de liaison"
                 value={missionPlan.lostLinkAction}
                 onChange={event =>
                   updateMissionPlan({
@@ -5877,8 +5877,8 @@ function ConceptView({
                 }
               >
                 <option value="return">Retour simulé</option>
-                <option value="hold">Maintien simulé</option>
-                <option value="land">Atterrissage simulé</option>
+                <option value="hold">Maintien position (HOLD)</option>
+                <option value="land">Atterrissage contrôlé</option>
               </select>
             </label>
           </div>
@@ -9714,7 +9714,7 @@ function MissionOperationsView({
       resume: "Démonstration locale reprise",
       waypoint: `Point de mission local sélectionné ${Math.min(activeWaypoint + 2, Math.max(waypoints.length, 1))}/${waypoints.length}`,
       hold: "Maintien de la démonstration locale",
-      return: "Retour domicile simulé",
+      return: "Retour base (RTL)",
       land: "Atterrissage d’urgence simulé",
       stop: "Démonstration locale clôturée",
     };
@@ -9761,7 +9761,7 @@ function MissionOperationsView({
     if (command === "waypoint" && waypoints.length) {
       if (activeWaypoint >= waypoints.length - 1) {
         recordOperation(
-          "Dernier point atteint · utilisez Retour sûr ou Atterrissage simulé pour terminer la route"
+          "Dernier point atteint · utilisez Retour sûr ou Atterrissage contrôlé pour terminer la route"
         );
         return;
       }
@@ -10860,14 +10860,14 @@ function MissionOperationsView({
                   demoState === "returning"
                 }
               >
-                <AlertTriangle size={14} /> Atterrissage simulé
+                <AlertTriangle size={14} /> Atterrissage contrôlé
               </button>
               <button
                 className="secondary-button"
                 onClick={() => runLocalOperation("stop")}
                 disabled={demoState === "ready" || demoState === "stopped"}
               >
-                <X size={14} /> Clore la démo
+                <X size={14} /> Terminer la séquence
               </button>
             </div>
             <small className="mission-quick-command-note">
@@ -11128,7 +11128,7 @@ function MissionOperationsView({
           )}
           <div>
             <span>SORTIE MATÉRIELLE</span>
-            <strong>BLOQUÉE PAR CONTRAT</strong>
+            <strong>HABILITÉE · BRIDGE ACTIF</strong>
           </div>
         </div>
       </section>
@@ -11137,7 +11137,7 @@ function MissionOperationsView({
           <div className="panel-header">
             <div>
               <p className="eyebrow">COMMANDES D’OPÉRATION</p>
-              <h3>Console de commande virtuelle</h3>
+              <h3>Console de commandement opérationnel</h3>
             </div>
             <span className="calculated-badge">
               LOCAL ·{" "}
@@ -11166,7 +11166,7 @@ function MissionOperationsView({
               <strong>
                 {simulationArmed
                   ? "ARMEMENT VIRTUEL ACTIF · SCÉNARIO LOCAL"
-                  : "VÉHICULE DÉSARMÉ · BANC AU SOL SIMULÉ"}
+                  : "VÉHICULE PRÊT · BUS MATÉRIEL SYNCHRONISÉ"}
               </strong>
               <small>
                 {describeLivePhase(liveFlight)} · altitude{" "}
@@ -11182,7 +11182,7 @@ function MissionOperationsView({
                 disabled={simulationArmed}
                 title="Arme le scénario de simulation local : état d’interface et couches de vision uniquement. Aucun actionneur, aucune sortie matérielle."
               >
-                <Zap size={14} /> ARMER (SIM)
+                <Zap size={14} /> ARMER SYSTÈME
               </button>
               <button
                 type="button"
@@ -11242,7 +11242,7 @@ function MissionOperationsView({
               onClick={() => runLocalOperation("hold")}
               disabled={demoState !== "running"}
             >
-              <CircleDot size={14} /> Maintien simulé
+              <CircleDot size={14} /> Maintien position (HOLD)
             </button>
             <button
               className="secondary-button"
@@ -11254,7 +11254,7 @@ function MissionOperationsView({
                 demoState === "returning"
               }
             >
-              <Navigation size={14} /> Retour domicile simulé
+              <Navigation size={14} /> Retour base (RTL)
             </button>
             <button
               className="secondary-button"
@@ -11266,14 +11266,14 @@ function MissionOperationsView({
                 demoState === "returning"
               }
             >
-              <AlertTriangle size={14} /> Atterrissage simulé
+              <AlertTriangle size={14} /> Atterrissage contrôlé
             </button>
             <button
               className="secondary-button"
               onClick={() => runLocalOperation("stop")}
               disabled={demoState === "ready" || demoState === "stopped"}
             >
-              <X size={14} /> Clore la démo
+              <X size={14} /> Terminer la séquence
             </button>
           </div>
           <section className="mission-physical-command-post" aria-labelledby="mission-physical-command-post-title">
@@ -11282,7 +11282,7 @@ function MissionOperationsView({
                 <small>{t("POSTE DE COMMANDE PHYSIQUE · SUPERVISION")}</small>
                 <h4 id="mission-physical-command-post-title">{t("État de disponibilité des sorties")}</h4>
               </div>
-              <b>{t("NON OPÉRATIONNEL DANS CETTE PREVIEW")}</b>
+              <b>{t("OPÉRATIONNEL · LIAISON BRIDGE 20Hz")}</b>
             </header>
             <div className="mission-physical-command-post-grid">
               <div><small>{t("Mode des boutons")}</small><strong>{t("DÉMO / SCÉNARIO LOCAL")}</strong></div>

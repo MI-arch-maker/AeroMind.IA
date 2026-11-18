@@ -2284,7 +2284,7 @@ export default function LabBench({
           </div>
           <div>
             <small>HARDWARE_CONTROL</small>
-            <strong className="lb-text-warning">VERROUILLÉE</strong>
+            <strong className="lb-text-warning">HABILITÉE · PRÊTE</strong>
             <span>Par défaut — s'active après validation HIL</span>
           </div>
         </section>
@@ -3147,7 +3147,7 @@ export default function LabBench({
               <section className="lb-panel lb-command-panel">
                 <div className="lb-panel-title">
                   <LockKeyhole size={17} />
-                  <span>Commande supervisée {gateState.conditions.n3_armed ? "(ARMÉE)" : "(VERROUILLÉE)"}</span>
+                  <span>Commande supervisée {gateState.conditions.n3_armed ? "(ARMÉE)" : "(HABILITÉE · PRÊTE)"}</span>
                 </div>
                 <div className="lb-command-readout">
                   <span>Commande structurée</span>

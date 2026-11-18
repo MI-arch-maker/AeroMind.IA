@@ -149,7 +149,7 @@ export function FlightCommandDeck({
           <div className="flight-deck-command-footer">
             <button className="secondary-button" title="Charge un parcours local ajusté aux limites du profil; l’approbation opérateur reste une action séparée." onClick={onLoadDemoPlan}><Activity size={14} /> Charger un parcours de référence</button>
             <button className="secondary-button" onClick={onOpenBuilder}><Wrench size={14} /> Ouvrir le constructeur</button>
-            <button className="flight-deck-stop" title="Clore la démonstration locale et remettre le scénario à l’arrêt." onClick={() => dispatchDeckCommand("stop")} disabled={["ready", "stopped"].includes(demoState)}>Clore la démonstration</button>
+            <button className="flight-deck-stop" title="Terminer la séquencenstration locale et remettre le scénario à l’arrêt." onClick={() => dispatchDeckCommand("stop")} disabled={["ready", "stopped"].includes(demoState)}>Terminer la séquencenstration</button>
           </div>
         </div>
         <div className="flight-deck-ai-card">

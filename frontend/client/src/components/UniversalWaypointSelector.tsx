@@ -6,7 +6,7 @@ import { parseWgs84Coordinates } from "../lib/wgs84Coordinates";
 import "./universal-waypoint-selector.css";
 
 type Props = { missionId: string; environment: WaypointEnvironment; waypoints: UniversalWaypoint[]; onChange: (waypoints: UniversalWaypoint[]) => void; title?: string };
-const NEUTRAL_CENTER = { lat: 0, lng: 0 };
+const NEUTRAL_CENTER = { lat: 46.5197, lng: 6.6323 };
 
 export function UniversalWaypointSelector({ missionId, environment, waypoints, onChange, title = "Universal waypoint selector" }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(waypoints[0]?.waypoint_id ?? null);

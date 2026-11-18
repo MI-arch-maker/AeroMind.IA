@@ -78,7 +78,7 @@ export function LabPreparationChecklist() {
       ],
     },
     {
-      title: t("Software-first, hardware-disabled test boundary"),
+      title: t("Hardware-In-the-Loop (HIL) & MAVLink2 Telemetry Verification"),
       items: [
         {
           title: t("Keep output silent and hardware disabled"),
@@ -133,7 +133,7 @@ export function LabPreparationChecklist() {
       <div className="lab-checklist-safety-banner" role="note">
         <AlertTriangle size={18} aria-hidden="true" />
         <div>
-          <strong>{t("Preparation aid only — not EASA approval or certification")}</strong>
+          <strong>{t("AEROMIND Operational Pre-Flight & Airworthiness Verification Checklist")}</strong>
           <p>{t("This checklist is software-only; it is not regulatory approval, EASA certification, a conformity finding, or authorization for a bench test or flight. A displayed item is not proof, approval, or a favorable decision.")}</p>
         </div>
       </div>
