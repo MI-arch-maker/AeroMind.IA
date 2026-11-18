@@ -269,3 +269,105 @@
 .imported-profile-confirm-dialog .imported-profile-confirm-retain{border:1px solid rgba(71,211,151,.4);background:rgba(40,141,110,.25);color:#a9f0d0}
 .imported-profile-confirm-dialog .imported-profile-confirm-delete{border:1px solid rgba(227,115,102,.42);background:rgba(155,58,52,.24);color:#ffc0b3}
 @media(max-width:460px){.legacy-drone-library .imported-profile-management-actions button{justify-content:flex-start}.imported-profile-confirm-dialog{padding:17px!important}}
+
+/* Sélecteur libre des 4 styles de rendu AEROMIND */
+.aeromind-render-style-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(6, 18, 32, 0.96), rgba(11, 28, 48, 0.94));
+}
+.render-bar-title {
+  font: 700 10px ui-monospace, monospace;
+  letter-spacing: 0.12em;
+  color: #38bdf8;
+}
+.render-bar-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.render-style-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.85);
+  color: #cbd5e1;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.render-style-chip:hover {
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+.render-style-chip.is-active {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.28), rgba(6, 182, 212, 0.22));
+  border-color: #38bdf8;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+}
+.render-style-chip b {
+  font: 700 9px ui-monospace, monospace;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+
+/* Style 1 : Studio PBR Carbone & Métal */
+[data-aeromind-render="studio-pbr"] .parametric-preview svg,
+[data-aeromind-render="studio-pbr"] .parametric-preview canvas {
+  filter: contrast(1.18) saturate(1.12) drop-shadow(0 12px 18px rgba(0, 0, 0, 0.65));
+}
+[data-aeromind-render="studio-pbr"] .parametric-preview {
+  background: radial-gradient(circle at 50% 38%, rgba(56, 189, 248, 0.14), rgba(4, 10, 18, 0.98) 72%) !important;
+}
+
+/* Style 2 : Hybride X-Ray Interne */
+[data-aeromind-render="xray-hybrid"] .parametric-preview svg path {
+  fill-opacity: 0.34 !important;
+  stroke: #38bdf8 !important;
+  stroke-width: 0.85px !important;
+}
+[data-aeromind-render="xray-hybrid"] .parametric-preview {
+  background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.2), rgba(2, 8, 16, 0.98) 75%) !important;
+}
+
+/* Style 3 : Tactique Night-Ops HUD */
+[data-aeromind-render="night-ops"] .parametric-preview svg path {
+  fill: rgba(6, 78, 59, 0.55) !important;
+  stroke: #34d399 !important;
+  stroke-width: 0.9px !important;
+}
+[data-aeromind-render="night-ops"] .parametric-preview {
+  background:
+    linear-gradient(rgba(16, 185, 129, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.08) 1px, transparent 1px),
+    #020c0a !important;
+  background-size: 18px 18px !important;
+}
+
+/* Style 4 : Blueprint Bureau d'Études */
+[data-aeromind-render="blueprint-cad"] .parametric-preview svg path {
+  fill: rgba(12, 74, 110, 0.45) !important;
+  stroke: #e0f2fe !important;
+  stroke-width: 0.85px !important;
+}
+[data-aeromind-render="blueprint-cad"] .parametric-preview {
+  background:
+    linear-gradient(rgba(186, 230, 253, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(186, 230, 253, 0.12) 1px, transparent 1px),
+    #072540 !important;
+  background-size: 16px 16px !important;
+}

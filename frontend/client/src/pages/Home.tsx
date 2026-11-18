@@ -1,3 +1,4 @@
+import { AeromindRenderStyleBar } from "../components/AeromindRenderStyleBar";
 import { AeromindOptronicHud } from "../components/AeromindOptronicHud";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -2935,7 +2936,8 @@ function DroneCatalogView({
       </section>
       <IndustrialModelRegistry onApply={onApplyIndustrial} />
       <section className="panel catalog-comparison-panel legacy-comparison-panel" aria-labelledby="catalog-comparison-title"><div className="panel-header"><div><p className="eyebrow">ÉTUDE DE VARIANTES / PARAMÈTRES DÉCLARÉS</p><h3 id="catalog-comparison-title">Comparer deux concepts</h3></div><span className="calculated-badge">{comparison.length} / 2 sélectionnés</span></div>{comparison.length === 2 ? <div className="catalog-comparison-scroll"><div className="catalog-comparison-grid"><div className="catalog-comparison-label">Paramètre</div>{comparison.map(item => <strong key={item.id} className="catalog-comparison-name">{displayLabel(item)}</strong>)}{comparisonRows.flatMap(([label, value]) => [<span key={`${label}-label`} className="catalog-comparison-label">{label}</span>, ...comparison.map(item => <span key={`${label}-${item.id}`} className="catalog-comparison-value">{value(item)}</span>)])}</div></div> : <p className="catalog-comparison-empty">Sélectionnez deux fiches à comparer. Les valeurs restent des hypothèses de concept.</p>}</section>
-      <section className="legacy-concept-section" aria-labelledby="legacy-concepts-title"><div className="legacy-section-heading"><div><p className="eyebrow">05 / CONCEPTS AEROMIND · PARAMETRIC CORE</p><h3 id="legacy-concepts-title">Variantes paramétriques disponibles</h3></div><span>{visibleCatalog.length} / {catalog.length} affichés</span></div><div className="legacy-concept-grid">{visibleCatalog.map(item => {
+      <AeromindRenderStyleBar />
+<section className="legacy-concept-section" aria-labelledby="legacy-concepts-title"><div className="legacy-section-heading"><div><p className="eyebrow">05 / CONCEPTS AEROMIND · PARAMETRIC CORE</p><h3 id="legacy-concepts-title">Variantes paramétriques disponibles</h3></div><span>{visibleCatalog.length} / {catalog.length} affichés</span></div><div className="legacy-concept-grid">{visibleCatalog.map(item => {
         const importedProfile = importedProfiles.find(profile => profile.id === item.id);
         const isImportedPending = Boolean(importedProfile && importedProfile.libraryWorkflow.status !== "accepted");
         const isImportedAccepted = Boolean(importedProfile && importedProfile.libraryWorkflow.status === "accepted");
