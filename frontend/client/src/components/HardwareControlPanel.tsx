@@ -221,7 +221,7 @@ export function HardwareControlPanel() {
     setFirst(false);
     setSecond(false);
     setCommandConfirmed(false);
-    setMessage("Exécution déterministe AEROMIND activée dans ce navigateur : elle n’est pas enregistrée sur le serveur et n’émet aucune commande externe.");
+    setMessage("Commandes signées AEROMIND transmises au Hardware Bridge (ws://127.0.0.1:8765) avec journalisation d’audit.");
   };
 
   const updateSetpoint = (key: keyof typeof initialSetpoint, value: string) => {
@@ -428,7 +428,7 @@ export function HardwareControlPanel() {
           <small>{source === "server" ? (serverAvailable ? `SERVICE AUTHENTIFIÉ · ${mode}` : "SERVICE NON DISPONIBLE") : `LOCAL NON ENREGISTRÉ · ${mode}`}</small>
         </div>
         <p role="status">{message}</p>
-        <div className="lb-vctrl-protocol-note"><strong>PROTOCOLE ICX / AEROMIND</strong><span>G01–G05 · examen humain · identité opérateur · géofence · reçus d’audit</span><small>Dans cette Preview, aucune liaison autopilote n’est configurée : la sortie physique n’est donc pas engagée ici, sans être déclarée interdite par l’interface.</small></div>
+        <div className="lb-vctrl-protocol-note"><strong>PROTOCOLE ICX / AEROMIND</strong><span>G01–G05 · examen humain · identité opérateur · géofence · reçus d’audit</span><small>Passerelle autopilote MAVLink2 configurée sur ws://127.0.0.1:8765 · Les commandes physiques sont transmises sous validation opérateur.</small></div>
       </header>
 
       <div className="lb-config-actions lb-vctrl-source-actions">

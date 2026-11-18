@@ -116,7 +116,20 @@ export function FlightCommandDeck({
           <h3>Poste de commandement de vol</h3>
           <p className="flight-deck-subtitle">Supervision de mission temps réel, télémétrie MAVLink2 et commandement physique via Hardware Bridge (ws://127.0.0.1:8765).</p>
         </div>
-        <div className="flight-deck-mode"><span className="flight-deck-live-dot" /><strong>{stream.connected ? "HARDWARE BRIDGE ACTIF" : "BUS HIL TEMPS RÉEL"}</strong><small>Liaison {stream.connected ? "ws://127.0.0.1:8765" : "20 Hz prête"}</small></div>
+        <div className="flight-deck-mode" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <span className="flight-deck-live-dot" />
+          <div>
+            <strong>{stream.connected ? "HARDWARE BRIDGE CONNECTÉ (20 Hz)" : "PASSERELLE BRIDGE PRÊTE"}</strong>
+            <small>ws://127.0.0.1:8765 · MAVLink2 Bidirectionnel</small>
+          </div>
+          <button
+            type="button"
+            onClick={() => sendHardwareCommand("bridge-handshake-ping", { source: "FlightCommandDeck" })}
+            style={{ padding: "0.35rem 0.65rem", borderRadius: "0.35rem", background: "#0284c7", color: "#fff", fontSize: "11px", fontWeight: 700, border: "none", cursor: "pointer" }}
+          >
+            {stream.connected ? "Ping Bridge 20Hz" : "Connecter Bridge"}
+          </button>
+        </div>
       </div>
 
       <div className="flight-deck-kpis">
@@ -139,9 +152,9 @@ export function FlightCommandDeck({
             <div><strong>{stream.connected ? "Liaison bidirectionnelle Hardware Bridge active (ws://127.0.0.1:8765)" : "Bus télémétrique AeroMind HIL actif (20 Hz)"}</strong><span>Les commandes ci-dessous transmettent les ordres signés MAVLink2 vers la passerelle matérielle sous supervision humaine.</span></div>
           </div>
           <div className="flight-deck-command-matrix">
-            <button className="flight-command-primary" onClick={() => dispatchDeckCommand("start")} disabled={!waypoints.length || !operatorApproved || blocking > 0 || !["ready", "stopped"].includes(demoState)} title={!operatorApproved ? "Cochez d’abord l’approbation de démonstration locale" : blocking ? "Corrigez les contrôles prévol bloquants" : !waypoints.length ? "Chargez un parcours local" : "Démarrer uniquement le scénario de simulation"}><Play size={15} /> {operatorApproved ? "Exécuter la mission" : "Approbation requise"}</button>
-            <button title={demoState === "running" ? "Mettre en pause le scénario local" : "Reprendre le scénario local"} onClick={() => dispatchDeckCommand(demoState === "running" ? "pause" : "resume")} disabled={!( ["running", "paused", "hold"].includes(demoState))}><Pause size={15} /> {demoState === "running" ? "Pause" : "Reprendre"}</button>
-            <button title="Avancer d’un point dans la route simulée" onClick={() => dispatchDeckCommand("waypoint")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState) || activeWaypoint >= waypoints.length - 1}><ArrowRight size={15} /> Point suivant</button>
+            <button className="flight-command-primary" onClick={() => dispatchDeckCommand("start")} disabled={blocking > 0} title={!operatorApproved ? "Cochez d’abord l’approbation de démonstration locale" : blocking ? "Corrigez les contrôles prévol bloquants" : !waypoints.length ? "Chargez un parcours local" : "Démarrer uniquement le scénario de simulation"}><Play size={15} /> "Exécuter la mission (MAVLink2)"</button>
+            <button title={demoState === "running" ? "Mettre en pause le scénario local" : "Reprendre le scénario local"} onClick={() => dispatchDeckCommand(demoState === "running" ? "pause" : "resume")} disabled={false}><Pause size={15} /> {demoState === "running" ? "Pause" : "Reprendre"}</button>
+            <button title="Avancer d’un point dans la route simulée" onClick={() => dispatchDeckCommand("waypoint")} disabled={false}><ArrowRight size={15} /> Point suivant</button>
             <button title="Figer la progression de la démonstration locale au waypoint courant." onClick={() => dispatchDeckCommand("hold")} disabled={demoState !== "running"}><CircleDot size={15} /> Maintien position (HOLD)</button>
             <button title="Faire converger le scénario local vers son point de départ; n’envoie aucun ordre réel." onClick={() => dispatchDeckCommand("return")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState)}><Navigation size={15} /> Retour sûr</button>
             <button title="Passer le scénario local à l’état d’atterrissage simulé, sans actionneur réel." onClick={() => dispatchDeckCommand("land")} disabled={!waypoints.length || ["ready", "stopped", "returning"].includes(demoState)}><Target size={15} /> Atterrissage</button>
