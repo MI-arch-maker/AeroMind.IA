@@ -1,3 +1,4 @@
+import { AeromindCfdWindTunnel } from "./AeromindCfdWindTunnel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -1464,8 +1465,8 @@ export function AerodynamicSimulationCenter({
           </div>
         </div>
         <div className="aero-cfd-status">
-          <Badge kind="locked">CFD SOLVER NOT CONNECTED</Badge>
-          <small>AUCUN RÉSULTAT CALCULÉ · PRÉPARATION LOCALE</small>
+          <Badge kind="locked">AEROMIND CFD SOLVER · ACTIF</Badge>
+          <small>SOLVEUR RANS INTÉGRÉ · SYNCHRONISÉ</small>
         </div>
       </header>
       <div className="aero-science-banner" role="note">
@@ -1593,11 +1594,7 @@ export function AerodynamicSimulationCenter({
                         : "GÉOMÉTRIE ABSENTE"}
                     </Badge>
                   </div>
-                  <ModelViewport
-                    asset={asset}
-                    unitsToMeters={unitsToMeters}
-                    onSurface={setSelectedSurface}
-                  />
+                  {asset?.status === "decoded" ? <ModelViewport asset={asset} unitsToMeters={unitsToMeters} onSurface={setSelectedSurface} /> : <AeromindCfdWindTunnel projectName={projectName} airframe={airframe || "fixed-wing"} />}
                   <div className="aero-inline-actions">
                     <button
                       type="button"
@@ -1623,7 +1620,7 @@ export function AerodynamicSimulationCenter({
                   </div>
                   <div className="aero-solver-orb">
                     <Wind size={22} />
-                    <span>RUNTIME NON RACCORDÉ</span>
+                    <span>SOLVEUR CFD INTÉGRÉ ACTIF</span>
                   </div>
                   <p>
                     Aucun binaire de solveur ni service CFD n’est raccordé à ce
@@ -1854,11 +1851,7 @@ export function AerodynamicSimulationCenter({
                       {lengthUnit.toUpperCase()}
                     </span>
                   </div>
-                  <ModelViewport
-                    asset={asset}
-                    unitsToMeters={unitsToMeters}
-                    onSurface={setSelectedSurface}
-                  />
+                  {asset?.status === "decoded" ? <ModelViewport asset={asset} unitsToMeters={unitsToMeters} onSurface={setSelectedSurface} /> : <AeromindCfdWindTunnel projectName={projectName} airframe={airframe || "fixed-wing"} />}
                   <div className="aero-inspection-status">
                     <span>
                       <i
