@@ -192,7 +192,7 @@ export function SatelliteNavigationView({ activeProfile, userIdentity = "local" 
           <div className="satnav-route-footer">Enregistré localement dans ce navigateur · par cellule</div>
         </section>
 
-        <section className="satnav-demo-card" aria-label="Simulation locale du parcours d’inspection">
+        <section className="satnav-demo-card" aria-label="Exécution déterministe AEROMIND du parcours d’inspection">
           <div className="satnav-card-heading"><span>SIMULATION LOCALE / INSPECTION CIVILE</span><span className={demoStatus === "running" ? "is-ready" : "is-empty"}>{statusLabel[demoStatus]}</span></div>
           <div className="satnav-demo-progress" role="progressbar" aria-label="Progression de la démonstration locale" aria-valuemin={0} aria-valuemax={100} aria-valuenow={demoProgress}><span style={{ width: `${demoProgress}%` }} /></div>
           <div className="satnav-demo-progress-label"><span>{demoStatus === "ready" ? "Démonstration prête" : demoStatus === "completed" ? "Parcours simulé terminé" : demoStatus === "paused" ? "Parcours suspendu" : "Parcours simulé en cours"}</span><strong>{demoProgress}%</strong></div>

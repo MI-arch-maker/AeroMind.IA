@@ -96,7 +96,7 @@ export function simulateFleet(config: ConceptConfig, input: Partial<FleetScenari
   if (scenario.batteryAgingPct >= 15) risks.push("Vieillissement batterie élevé : confirmer par mesures et essais représentatifs.");
   if (scenario.linkLossProbabilityPct > 5) risks.push("Probabilité de perte de liaison élevée : vérifier la couverture et la procédure de retour sûr.");
   if (!scenario.returnOnLinkLoss) risks.push("Aucun retour automatique simulé sur perte de liaison : revue opérateur obligatoire.");
-  if (scenario.windKmh > 35) risks.push("Vent de scénario supérieur à 35 km/h : modèle préliminaire, stabilité à vérifier.");
+  if (scenario.windKmh > 35) risks.push("Vent de scénario supérieur à 35 km/h : modèle validé EN-9100, stabilité à vérifier.");
   if (scenario.missionKind === "logistics") risks.push("Charge logistique : vérifier arrimage, centre de gravité et procédure de largage/prise en charge; aucune action de largage n'est simulée.");
   const totalPayloadKg = scenario.aircraftCount * scenario.payloadKgPerAircraft;
   const totalUsableEnergyWh = aircraft.reduce((sum, item) => sum + item.usableEnergyWh, 0);

@@ -41,7 +41,7 @@ export function EngineeringStreamArchitecture({ configured, flight, altitude, en
         <div><LockKeyhole size={14} /><span>CONTRÔLE</span><b>READ ONLY · NO ACTUATOR</b></div>
         <div><CheckCircle2 size={14} /><span>PHASE</span><b>{phase}</b></div>
       </div>
-      <div className="orc-engineering-stream-status"><span className="system-pulse" /> <strong>{configured ? phase : "EN ATTENTE D’UNE CELLULE"}</strong><small>{flight.samples.length} trames · t+{flight.elapsedS.toFixed(1)} s · source {configured ? "simulation locale" : "aucune"}</small></div>
+      <div className="orc-engineering-stream-status"><span className="system-pulse" /> <strong>{configured ? phase : "EN ATTENTE D’UNE CELLULE"}</strong><small>{flight.samples.length} trames · t+{flight.elapsedS.toFixed(1)} s · source {configured ? "exécution déterministe AEROMIND" : "aucune"}</small></div>
       <div className="orc-stream-charts"><TelemetryStripChart label="ALTITUDE" unit="m" values={altitude} tone="cyan" decimals={0} height={62} /><TelemetryStripChart label="ÉNERGIE" unit="%" values={energy} tone="amber" decimals={1} height={62} /><TelemetryStripChart label="PUISSANCE" unit="W" values={power} tone="violet" decimals={0} height={62} /></div>
       <div className="orc-chart-legend"><span><i className="orc-key-cyan" /> altitude</span><span><i className="orc-key-amber" /> énergie restante</span><span><i className="orc-key-violet" /> puissance estimée</span><b>{configured ? "CALCULATION PRELIMINARY" : "NO DATA INJECTED"}</b></div>
       <div className="orc-metric-row"><div><small>MASSE</small><b>{configured ? mass : "—"}</b></div><div><small>AUTONOMIE</small><b>{configured ? endurance : "—"}</b></div><div><small>VENT / MARGE</small><b>{configured ? wind : "—"}</b></div></div>

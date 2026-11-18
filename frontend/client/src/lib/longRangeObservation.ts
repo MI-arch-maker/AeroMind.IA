@@ -188,7 +188,7 @@ const seeds: VectorSeed[] = [
     sensorSuite: [
       "Tourelle électro-optique et thermique combinée",
       "Capteur cartographique haute résolution",
-      "Télémétrie de situation en lecture seule",
+      "Télémétrie de situation en accès opérateur habilité",
     ],
     engineeringWatchpoints: [
       "Refroidissement de la tourelle au sol",

@@ -106,14 +106,14 @@ export function ArtificialHorizon({
     <div className={`artificial-horizon ${compact ? "is-compact" : ""} ${armed ? "is-armed" : "is-idle"}`}>
       <div className="artificial-horizon-heading">
         <span className="horizon-mode">
-          {dataSource === "read-only" ? "TÉLÉMÉTRIE · LECTURE SEULE" : armed ? "VOL SIMULÉ · CADRAGE ACTIF" : "BANC AU SOL · INSTRUMENT PRÊT"}
+          {dataSource === "read-only" ? "TÉLÉMÉTRIE · ACCÈS OPÉRATEUR HABILITÉ" : armed ? "VOL SIMULÉ · CADRAGE ACTIF" : "BANC AU SOL · INSTRUMENT PRÊT"}
         </span>
         <strong>{heading.toFixed(0).padStart(3, "0")}°</strong>
         <span className="horizon-cardinal">
           {["N", "NE", "E", "SE", "S", "SO", "O", "NO"][Math.round(heading / 45) % 8]}
         </span>
       </div>
-      <svg viewBox="0 0 220 220" role="img" aria-label={`Horizon artificiel ${dataSource === "read-only" ? "alimenté par télémétrie en lecture seule" : "simulé"}, assiette ${smooth.pitchDeg.toFixed(1)} degrés, inclinaison ${smooth.rollDeg.toFixed(1)} degrés`}>
+      <svg viewBox="0 0 220 220" role="img" aria-label={`Horizon artificiel ${dataSource === "read-only" ? "alimenté par télémétrie en accès opérateur habilité" : "simulé"}, assiette ${smooth.pitchDeg.toFixed(1)} degrés, inclinaison ${smooth.rollDeg.toFixed(1)} degrés`}>
         <defs>
           <clipPath id="horizon-clip">
             <circle cx="110" cy="110" r="88" />
@@ -201,7 +201,7 @@ export function ArtificialHorizon({
         </div>
       </div>
       <div className="artificial-horizon-legend">
-        {dataSource === "read-only" ? "Trame externe reçue · lecture seule; aucun champ absent n’est estimé ici." : "Instrument simulé · valeurs d’avant-projet, jamais une mesure embarquée."}
+        {dataSource === "read-only" ? "Trame externe reçue · accès opérateur habilité; aucun champ absent n’est estimé ici." : "Instrument simulé · valeurs d’avant-projet, jamais une mesure embarquée."}
       </div>
     </div>
   );

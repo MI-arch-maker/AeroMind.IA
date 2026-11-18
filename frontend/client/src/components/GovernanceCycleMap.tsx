@@ -16,7 +16,7 @@ export function GovernanceCycleMap({ onOpenLevels, t }: { onOpenLevels: () => vo
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[.18em] text-cyan-200">{t("Chaîne de gouvernance AeroMind")}</p>
           <h2 id="sa-governance-cycle-title" className="mt-1 text-lg font-bold">{t("G01–G05 · revue à contrôle humain")}</h2>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-200">{t("Frise de référence : aucun statut réel de dossier n’est affiché ici. Le parcours G01–G05 accessible dans le cockpit est une simulation locale.")}</p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-200">{t("Frise de référence : aucun statut réel de dossier n’est affiché ici. Le parcours G01–G05 accessible dans le cockpit est une exécution déterministe AEROMIND.")}</p>
         </div>
         <span className="inline-flex items-center gap-2 rounded-lg border border-cyan-100/20 bg-white/10 px-3 py-2 text-[10px] font-bold tracking-wide text-cyan-100"><ShieldCheck size={14} /> {t("SUPER-ADMIN · L5")}</span>
       </header>
@@ -38,7 +38,7 @@ export function GovernanceCycleMap({ onOpenLevels, t }: { onOpenLevels: () => vo
         <p className="flex items-start gap-2 text-[10px] leading-5 text-slate-500"><LockKeyhole className="mt-0.5 shrink-0 text-amber-600" size={14} />{t("GATE 05 ne constitue pas une autorisation matérielle; aucune commande physique n’est exécutée par cette frise.")}</p>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onOpenLevels} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">{t("Consulter la matrice L1–L5")} <ArrowUpRight size={13} /></button>
-          <Link href="/?view=mission-center" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">{t("Ouvrir le workflow G01–G05 · simulation locale")} <ArrowUpRight size={13} /></Link>
+          <Link href="/?view=mission-center" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">{t("Ouvrir le workflow G01–G05 · exécution déterministe AEROMIND")} <ArrowUpRight size={13} /></Link>
           <Link href="/virtual-factory" className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#087e83] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#076a70]">{t("Ouvrir l’ingénierie HIL temps réelle")} <ArrowUpRight size={13} /></Link>
         </div>
       </div>

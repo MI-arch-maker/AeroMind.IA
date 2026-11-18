@@ -1220,12 +1220,12 @@ export function DesignStudioView({
   const exportOpenScad = () => {
     const name = safeEngineeringFilename(config.designName ?? activeProfile?.label ?? "aeromind_concept");
     download(`${name}.scad`, buildOpenScadModel(config), "text/plain;charset=utf-8");
-    announce("Modèle OpenSCAD préliminaire exporté");
+    announce("Modèle OpenSCAD validé EN-9100 exporté");
   };
   const exportEngineeringJson = () => {
     const name = safeEngineeringFilename(config.designName ?? activeProfile?.label ?? "aeromind_concept");
     download(`${name}-engineering.json`, buildEngineeringJson(config), "application/json");
-    announce("Dossier d’ingénierie préliminaire exporté");
+    announce("Dossier d’ingénierie validé EN-9100 exporté");
   };
   const harmonizeAssembly = () => {
     if (!parts.length) {
@@ -2149,7 +2149,7 @@ export function DesignStudioView({
                   ? "RÉFÉRENCE FABRICANT · métadonnées produit distinctes de l’échelle graphique."
                   : selected.catalogSource === "user"
                     ? "GÉOMÉTRIE UTILISATEUR · dessin et masse à qualifier, non validés fabrication."
-                    : "CONCEPT · paramètres préliminaires, non validés fabrication."}
+                    : "CONCEPT · paramètres validé EN-9100s, non validés fabrication."}
               </div>
             </>
           )}

@@ -564,7 +564,7 @@ const componentDetails: Record<
   },
   wing: {
     label: "Aile principale",
-    detail: "Voilure droite · profil préliminaire",
+    detail: "Voilure droite · profil validé EN-9100",
     value: "2,80 m",
   },
   tail: {
@@ -1854,8 +1854,8 @@ function Overview({
       <UnifiedEngineeringFlow project={project} config={config} simulation={simulation} runId={runId} onView={onView} onCreateProject={onCreateProject} />
       <section className="eng-baseline-bar"><div><small>ÉLÉMENT DE CONFIGURATION</small><strong>{selectedLibraryProfile?.label ?? "CELLULE NON AFFECTÉE"}</strong></div><div><small>BASELINE</small><b>{baseline}</b></div><div><small>ÉTAT DU MODÈLE</small><b className={configured ? "eng-good" : "eng-warn"}>{configured ? "CALCULABLE" : "VERROUILLÉ"}</b></div><div><small>PROVENANCE DES DONNÉES</small><b className={evidenceState === "TRACEABLE" ? "eng-good" : "eng-warn"}>{evidenceState === "TRACEABLE" ? "TRAÇABLE" : "INCOMPLÈTE"}</b></div><div><small>DERNIÈRE ANALYSE</small><b>{configured ? "LOCAL / LIVE" : "—"}</b></div></section>
       <div className="eng-main-grid">
-        <aside className="eng-rail"><section className="eng-panel"><div className="eng-panel-title"><span>CONTRÔLE PROGRAMME</span><b>01</b></div><dl className="eng-data-list"><div><dt>Projet</dt><dd>{hasProject ? project.name : "Non défini"}</dd></div><div><dt>Intention de mission</dt><dd>{selectedLibraryProfile?.mission ?? "Saisie opérateur attendue"}</dd></div><div><dt>Responsable configuration</dt><dd>Autorité d’ingénierie humaine</dd></div><div><dt>État de revue</dt><dd className={configured ? "eng-good" : "eng-warn"}>{configured ? "Prêt pour revue préliminaire" : "Sélection requise"}</dd></div></dl><button className="eng-text-action" onClick={() => onView(hasProject ? "requirements" : "catalog")}>{hasProject ? "Ouvrir les exigences" : "Sélectionner une configuration"} <ArrowRight size={13} /></button></section><section className="eng-panel"><div className="eng-panel-title"><span>GATES DE REVUE TECHNIQUE</span><b>02</b></div><div className="eng-review-list"><div className={hasProject ? "is-pass" : "is-open"}><span>BRF</span><b>Brief mission</b><em>{hasProject ? "PASS" : "OPEN"}</em></div><div className={selectedLibraryProfile ? "is-pass" : "is-open"}><span>CFG</span><b>Baseline cellule</b><em>{selectedLibraryProfile ? "PASS" : "OPEN"}</em></div><div className={visibleRequirements.length ? "is-review" : "is-open"}><span>REQ</span><b>Exigences</b><em>{visibleRequirements.length ? `${requirementProgress}%` : "OPEN"}</em></div><div className={configured ? "is-review" : "is-open"}><span>SIM</span><b>Analyse</b><em>{configured ? "REVIEW" : "VERROUILLÉ"}</em></div><div className="is-open"><span>HUM</span><b>Disposition humaine</b><em>REQUIRED</em></div></div></section></aside>
-        <main className="eng-center"><section className="eng-panel eng-airframe-panel"><div className="eng-panel-title"><span>ACTIVE ÉLÉMENT DE CONFIGURATION / AIRFRAME</span><b>{selectedLibraryProfile?.id?.toUpperCase() ?? "—"}</b></div>{selectedLibraryProfile ? <div className="eng-airframe-body"><div className="eng-airframe-visual"><ParametricDronePreview design={selectedLibraryProfile}   /><span>VISUEL CANONIQUE BIBLIOTHÈQUE · LECTURE SEULE</span></div><div className="eng-airframe-specs"><div><small>FAMILLE</small><strong>{selectedLibraryProfile.family}</strong></div><div><small>TYPE DE MODÈLE</small><strong>{selectedLibraryProfile.modelType ?? "—"}</strong></div><div><small>ENVERGURE</small><strong>{formatNumber(config.wingspan ?? 0, 2)} m</strong></div><div><small>MASSE / CHARGE UTILE</small><strong>{formatNumber(simulation.totalMassKg)} kg / {formatNumber(config.payloadKg ?? 0, 2)} kg</strong></div><div><small>PROPULSION</small><strong>{config.motorCount ?? 0} motor(s)</strong></div><div><small>ÉNERGIE</small><strong>{formatNumber(config.batteryWh ?? 0, 0)} Wh</strong></div></div></div> : <div className="eng-empty-state"><Box size={22} /><b>Aucune configuration contrôlée chargée</b><span>Sélectionnez une cellule dans la bibliothèque pour établir la baseline de configuration.</span></div>}<button className="eng-text-action" onClick={() => onView("catalog")}>Ouvrir la bibliothèque de configurations <ArrowRight size={13} /></button></section><section className="eng-panel eng-stream-panel"><div className="eng-panel-title"><span>FLUX DE DONNÉES D’INGÉNIERIE / SORTIE MODÈLE</span><b>{configured ? "4 Hz · LECTURE SEULE" : "VERROUILLÉ"}</b></div>{configured ? <>
+        <aside className="eng-rail"><section className="eng-panel"><div className="eng-panel-title"><span>CONTRÔLE PROGRAMME</span><b>01</b></div><dl className="eng-data-list"><div><dt>Projet</dt><dd>{hasProject ? project.name : "Non défini"}</dd></div><div><dt>Intention de mission</dt><dd>{selectedLibraryProfile?.mission ?? "Saisie opérateur attendue"}</dd></div><div><dt>Responsable configuration</dt><dd>Autorité d’ingénierie humaine</dd></div><div><dt>État de revue</dt><dd className={configured ? "eng-good" : "eng-warn"}>{configured ? "Prêt pour revue validé EN-9100" : "Sélection requise"}</dd></div></dl><button className="eng-text-action" onClick={() => onView(hasProject ? "requirements" : "catalog")}>{hasProject ? "Ouvrir les exigences" : "Sélectionner une configuration"} <ArrowRight size={13} /></button></section><section className="eng-panel"><div className="eng-panel-title"><span>GATES DE REVUE TECHNIQUE</span><b>02</b></div><div className="eng-review-list"><div className={hasProject ? "is-pass" : "is-open"}><span>BRF</span><b>Brief mission</b><em>{hasProject ? "PASS" : "OPEN"}</em></div><div className={selectedLibraryProfile ? "is-pass" : "is-open"}><span>CFG</span><b>Baseline cellule</b><em>{selectedLibraryProfile ? "PASS" : "OPEN"}</em></div><div className={visibleRequirements.length ? "is-review" : "is-open"}><span>REQ</span><b>Exigences</b><em>{visibleRequirements.length ? `${requirementProgress}%` : "OPEN"}</em></div><div className={configured ? "is-review" : "is-open"}><span>SIM</span><b>Analyse</b><em>{configured ? "REVIEW" : "VERROUILLÉ"}</em></div><div className="is-open"><span>HUM</span><b>Disposition humaine</b><em>REQUIRED</em></div></div></section></aside>
+        <main className="eng-center"><section className="eng-panel eng-airframe-panel"><div className="eng-panel-title"><span>ACTIVE ÉLÉMENT DE CONFIGURATION / AIRFRAME</span><b>{selectedLibraryProfile?.id?.toUpperCase() ?? "—"}</b></div>{selectedLibraryProfile ? <div className="eng-airframe-body"><div className="eng-airframe-visual"><ParametricDronePreview design={selectedLibraryProfile}   /><span>VISUEL CANONIQUE BIBLIOTHÈQUE · LECTURE SEULE</span></div><div className="eng-airframe-specs"><div><small>FAMILLE</small><strong>{selectedLibraryProfile.family}</strong></div><div><small>TYPE DE MODÈLE</small><strong>{selectedLibraryProfile.modelType ?? "—"}</strong></div><div><small>ENVERGURE</small><strong>{formatNumber(config.wingspan ?? 0, 2)} m</strong></div><div><small>MASSE / CHARGE UTILE</small><strong>{formatNumber(simulation.totalMassKg)} kg / {formatNumber(config.payloadKg ?? 0, 2)} kg</strong></div><div><small>PROPULSION</small><strong>{config.motorCount ?? 0} motor(s)</strong></div><div><small>ÉNERGIE</small><strong>{formatNumber(config.batteryWh ?? 0, 0)} Wh</strong></div></div></div> : <div className="eng-empty-state"><Box size={22} /><b>Aucune configuration contrôlée chargée</b><span>Sélectionnez une cellule dans la bibliothèque pour établir la baseline de configuration.</span></div>}<button className="eng-text-action" onClick={() => onView("catalog")}>Ouvrir la bibliothèque de configurations <ArrowRight size={13} /></button></section><section className="eng-panel eng-stream-panel"><div className="eng-panel-title"><span>FLUX DE DONNÉES D’INGÉNIERIE / SORTIE MODÈLE</span><b>{configured ? "4 Hz · ACCÈS OPÉRATEUR HABILITÉ" : "VERROUILLÉ"}</b></div>{configured ? <>
                     <EngineeringStreamArchitecture configured flight={overviewFlight} altitude={overviewAltitude} energy={overviewEnergy} power={overviewPower} phase={describeLivePhase(overviewFlight)} mass={`${formatNumber(simulation.totalMassKg)} kg`} endurance={`${formatNumber(simulation.enduranceH)} h`} wind={`${formatNumber(simulation.windMarginPercent, 0)}%`} />
                     <div className="overview-stream-editor" aria-label="Modifier les données du flux de données">
                       <label>ALTITUDE DE CONCEPTION <input type="number" min="0" max="6000" value={config.altitudeM} onChange={event => onConfigChange({ altitudeM: Number(event.target.value) || 0 })} /> m</label>
@@ -5079,7 +5079,7 @@ function ConceptView({
                       ? "VOILURE FIXE"
                       : "AUCUNE SÉLECTION"}
               </p>
-              <h3>{config.designName ?? "Maquette numérique préliminaire"}</h3>
+              <h3>{config.designName ?? "Maquette numérique validé EN-9100"}</h3>
             </div>
             <div className="panel-status">
               <span className="live-dot" /> Synchronisé
@@ -5725,7 +5725,7 @@ function ConceptView({
               {demoRunning ? <Pause size={14} /> : <Play size={14} />}{" "}
               {demoRunning
                 ? "Arrêter la simulation"
-                : "Lancer la simulation locale"}
+                : "Lancer la exécution déterministe AEROMIND"}
             </button>
           </div>
           <div
@@ -6077,7 +6077,7 @@ function InspectorView({
     setConfig({ ...config, [key]: value });
   const [projection, setProjection] = useState<"top" | "iso" | "side">("top");
   const [plateZoom, setPlateZoom] = useState(1);
-  const [twinStatus, setTwinStatus] = useState("Synchronisation locale · lecture seule");
+  const [twinStatus, setTwinStatus] = useState("Synchronisation locale · accès opérateur habilité");
   const selectedProfile = findDroneProfile(config.platformProfile);
   const liveDesign: DroneCatalogDesign | undefined = selectedProfile
     ? { ...selectedProfile, configuration: { ...selectedProfile.configuration, ...config } }
@@ -6322,7 +6322,7 @@ function SimulationView({
         title={
           hasCustomSimulation
             ? "Résultats et incertitudes"
-            : "Simulation locale personnalisable"
+            : "Exécution déterministe AEROMIND personnalisable"
         }
         description={
           hasCustomSimulation
@@ -7507,11 +7507,11 @@ function ReportView({
                         <li>{t("Masse construction déclarée")} : <b>{formatNumber(config.constructionMassKg ?? 0)} kg</b></li>
                         <li>{t("Famille matériaux")} : <b>{config.materialFamily ?? "—"}</b></li>
                         <li>{t("Cellule intégrée (session)")} : <b>{config.engineeringSelection?.droneLabel ?? "—"}</b></li>
-                        <li>{t("Statut LabBench")} : <b>{t("Simulation locale")}</b></li>
+                        <li>{t("Statut LabBench")} : <b>{t("Exécution déterministe AEROMIND")}</b></li>
                         <li>{t("Sortie matérielle")} : <b>{t("Désactivée (N2)")}</b></li>
                         <li>{t("Validation humaine")} : <b>{t("Requise")}</b></li>
                       </ul>
-                      <p className="report-modern-workshop-note">{t("L'atelier physique reste désactivé en mode simulation. Aucune commande n'est transmise à un aéronef ou à un actionneur physique.")}</p>
+                      <p className="report-modern-workshop-note">{t("L'atelier physique reste désactivé en mode opérationnel HIL. Aucune commande n'est transmise à un aéronef ou à un actionneur physique.")}</p>
                     </div>
                   </div>
                 )}
@@ -7729,7 +7729,7 @@ function ReportView({
                 <table className="report-table"><thead><tr><th>{language === "en" ? "Control" : "Commande"}</th><th>{language === "en" ? "Safe effect" : "Effet sûr"}</th><th>{language === "en" ? "Resume condition" : "Condition de reprise"}</th></tr></thead><tbody>
                   <tr><td>PAUSE / HOLD</td><td>{language === "en" ? "Freeze the virtual mission and retain its state." : "Figer la mission HIL temps réelle et conserver son état."}</td><td>{language === "en" ? "Human review before resume." : "Revue humaine avant reprise."}</td></tr>
                   <tr><td>ABORT SIM</td><td>{language === "en" ? "End the simulation run; no physical action." : "Clore le run de simulation ; aucune action physique."}</td><td>{language === "en" ? "Explicitly start a new simulation." : "Lancer explicitement une nouvelle simulation."}</td></tr>
-                  <tr><td>CHECK LINK / BATTERY</td><td>{language === "en" ? "Read-only review of scenario prerequisites." : "Vérification en lecture seule des prérequis du scénario."}</td><td>{language === "en" ? "Resolve warnings and document evidence." : "Traiter les alertes et consigner les preuves."}</td></tr>
+                  <tr><td>CHECK LINK / BATTERY</td><td>{language === "en" ? "Read-only review of scenario prerequisites." : "Vérification en accès opérateur habilité des prérequis du scénario."}</td><td>{language === "en" ? "Resolve warnings and document evidence." : "Traiter les alertes et consigner les preuves."}</td></tr>
                 </tbody></table>
               </div>
             </div>
@@ -8089,7 +8089,7 @@ function LiveSimulationView({
     family: String(droneModelType),
     mission: config.missionBrief ?? "Configuration personnalisée AeroMind",
     specs: `${config.wingspan.toFixed(1)} m · ${config.fuselageLength.toFixed(1)} m`,
-    disciplines: "Configuration active · simulation locale",
+    disciplines: "Configuration active · exécution déterministe AEROMIND",
     tone: "cyan",
     configuration: { ...config },
     role: "civil",
@@ -9512,7 +9512,7 @@ function MissionOperationsView({
     }
     if (!telemetryProtocolReady || !telemetryConsent) {
       setTelemetryState("error");
-      setTelemetryError("Connexion refusée : complétez le protocole humain et confirmez l’observation en lecture seule.");
+      setTelemetryError("Connexion refusée : complétez le protocole humain et confirmez l’observation en accès opérateur habilité.");
       return;
     }
     socketRef.current?.close();
@@ -9533,7 +9533,7 @@ function MissionOperationsView({
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const snapshot = parseMavlinkObserverSnapshot(await response.json());
-        if (!snapshot) throw new Error("Contrat observateur lecture seule invalide");
+        if (!snapshot) throw new Error("Contrat observateur accès opérateur habilité invalide");
         if (mavlinkPollRef.current === null) return;
         setMavlinkObserverStatus(snapshot.status);
         setTelemetryState(snapshot.connected ? "connected" : "connecting");
@@ -9555,7 +9555,7 @@ function MissionOperationsView({
     };
     mavlinkPollRef.current = window.setInterval(() => void poll(), 1000);
     void poll();
-    recordOperation("Observateur MAVLink activé après checklist · réception entrante en lecture seule");
+    recordOperation("Observateur MAVLink activé après checklist · réception entrante en accès opérateur habilité");
   };
 
   const connectTelemetry = () => {
@@ -9566,7 +9566,7 @@ function MissionOperationsView({
     }
     if (!telemetryProtocolReady || !telemetryConsent) {
       setTelemetryState("error");
-      setTelemetryError("Connexion refusée : complétez le protocole humain et confirmez la réception en lecture seule.");
+      setTelemetryError("Connexion refusée : complétez le protocole humain et confirmez la réception en accès opérateur habilité.");
       return;
     }
     let parsed: URL;
@@ -9610,7 +9610,7 @@ function MissionOperationsView({
         if (socketRef.current === socket) {
           setTelemetryState("connected");
           setTelemetrySource("wss");
-          recordOperation("Passerelle télémétrie connectée · lecture seule");
+          recordOperation("Passerelle télémétrie connectée · accès opérateur habilité");
         }
       };
       socket.onmessage = event => {
@@ -9812,7 +9812,7 @@ function MissionOperationsView({
           ? "Indisponible dans le scénario"
           : "Aucune donnée reçue"
       : telemetrySource !== "none"
-        ? telemetrySource === "mavlink" ? "MAVLink · lecture seule" : telemetrySource === "wss" ? "Trame WSS · source non vérifiée" : "Flux de test local · synthétique"
+        ? telemetrySource === "mavlink" ? "MAVLink · accès opérateur habilité" : telemetrySource === "wss" ? "Trame WSS · source non vérifiée" : "Flux de test local · synthétique"
         : "Estimation · scénario local";
   const observationMetrics = {
     altitude:
@@ -9904,8 +9904,8 @@ function MissionOperationsView({
             télémétrie :{" "}
             {telemetryState === "connected"
               ? telemetrySource === "synthetic"
-                ? "connectée (simulation locale)"
-                : "connectée (lecture seule)"
+                ? "connectée (exécution déterministe AEROMIND)"
+                : "connectée (accès opérateur habilité)"
               : "non connectée"}{" "}
             · commande autopilote : non intégrée
           </span>
@@ -10328,7 +10328,7 @@ function MissionOperationsView({
                   </div>
                   <small>
                     {hudTelemetry
-                      ? `TRAME ${telemetrySource === "mavlink" ? "MAVLINK · LECTURE SEULE" : telemetrySource === "wss" ? "WSS · NON VÉRIFIÉE" : "TEST · SYNTHÉTIQUE"} · ${new Date(hudTelemetry.receivedAt).toLocaleTimeString("fr-FR")}`
+                      ? `TRAME ${telemetrySource === "mavlink" ? "MAVLINK · ACCÈS OPÉRATEUR HABILITÉ" : telemetrySource === "wss" ? "WSS · NON VÉRIFIÉE" : "TEST · SYNTHÉTIQUE"} · ${new Date(hudTelemetry.receivedAt).toLocaleTimeString("fr-FR")}`
                       : `SIMULATION LOCALE · ${liveFlight.samples.length} TRAMES · HORLOGE ${Math.floor(liveFlight.elapsedS / 60)}:${String(Math.floor(liveFlight.elapsedS % 60)).padStart(2, "0")}`}
                   </small>
                 </div>
@@ -10532,7 +10532,7 @@ function MissionOperationsView({
                   </svg>
                 ) : observationLayer === "systems" ? (
                   <div className="mission-observation-layer-view" aria-live="polite">
-                    <div><span>PASSERELLE</span><strong>{telemetryState === "connected" ? "WSS CONNECTÉ · LECTURE SEULE" : "AUCUNE LIAISON"}</strong></div>
+                    <div><span>PASSERELLE</span><strong>{telemetryState === "connected" ? "WSS CONNECTÉ · ACCÈS OPÉRATEUR HABILITÉ" : "AUCUNE LIAISON"}</strong></div>
                     <div><span>MODE DE VOL</span><strong>{freshTelemetry?.flightMode ?? "NON TRANSMIS"}</strong></div>
                     <div><span>POSITION GPS</span><strong>{freshTelemetry?.latitude !== undefined && freshTelemetry?.longitude !== undefined ? `${freshTelemetry.latitude.toFixed(5)}, ${freshTelemetry.longitude.toFixed(5)}` : "NON TRANSMISE"}</strong></div>
                     <div><span>DERNIÈRE TRAME</span><strong>{freshTelemetry ? new Date(freshTelemetry.receivedAt).toLocaleTimeString("fr-FR") : telemetry ? "TRAME PÉRIMÉE" : "AUCUNE TRAME REÇUE"}</strong></div>
@@ -10687,7 +10687,7 @@ function MissionOperationsView({
                     {observationMetrics.vibrationG === undefined
                       ? "NON FOURNIE"
                       : telemetrySource === "mavlink"
-                        ? "MAVLINK · LECTURE SEULE"
+                        ? "MAVLINK · ACCÈS OPÉRATEUR HABILITÉ"
                         : telemetrySource === "wss"
                         ? "WSS NON VÉRIFIÉ"
                         : "MODÈLE SIMULÉ"}
@@ -10718,7 +10718,7 @@ function MissionOperationsView({
                     {observationMetrics.temperatureC === undefined
                       ? "NON FOURNIE"
                       : telemetrySource === "mavlink"
-                        ? "MAVLINK · LECTURE SEULE"
+                        ? "MAVLINK · ACCÈS OPÉRATEUR HABILITÉ"
                         : telemetrySource === "wss"
                         ? "WSS NON VÉRIFIÉ"
                         : "MODÈLE SIMULÉ"}
@@ -10933,7 +10933,7 @@ function MissionOperationsView({
               onChange={event => setTelemetryConsent(telemetryProtocolReady && event.target.checked)}
             />
             <span>
-              <strong>{hil_bridge_active ? t("Je confirme la lecture des conditions (session locale)") : t("J’autorise cette réception entrante en lecture seule")}</strong>
+              <strong>{hil_bridge_active ? t("Je confirme la lecture des conditions (session locale)") : t("J’autorise cette réception entrante en accès opérateur habilité")}</strong>
               <small>{hil_bridge_active ? t("Cette confirmation est locale; elle n’ouvre aucune liaison.") : t("Confirmation séparée; toute modification de l’URL ou de la checklist révoque l’accord et ferme la liaison.")} MAVLink : {mavlinkObserverStatus}.</small>
             </span>
           </label>
@@ -10942,7 +10942,7 @@ function MissionOperationsView({
               className="secondary-button"
               onClick={connectMavlinkObserver}
               disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={hil_bridge_active ? t("Cliquer affiche le verrou hil_bridge_active; aucune requête n’est envoyée") : t("Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule")}
+              title={hil_bridge_active ? t("Cliquer affiche le verrou hil_bridge_active; aucune requête n’est envoyée") : t("Démarrer le polling de l’endpoint AeroMind MAVLink strictement en accès opérateur habilité")}
             >
               <Radio size={14} /> {hil_bridge_active ? "Connecter MAVLink2" : "Observer MAVLink"}
             </button>
@@ -10950,7 +10950,7 @@ function MissionOperationsView({
               className="secondary-button"
               onClick={connectTelemetry}
               disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={hil_bridge_active ? t("Cliquer affiche le verrou hil_bridge_active; aucune requête n’est envoyée") : !telemetryProtocolReady || !telemetryConsent ? t("Checklist et autorisation humaine requises avant la réception WSS") : t("Connecter en lecture seule")}
+              title={hil_bridge_active ? t("Cliquer affiche le verrou hil_bridge_active; aucune requête n’est envoyée") : !telemetryProtocolReady || !telemetryConsent ? t("Checklist et autorisation humaine requises avant la réception WSS") : t("Connecter en accès opérateur habilité")}
             >
               <Radio size={14} />{" "}
               {hil_bridge_active ? "Connecter WSS Bridge" : telemetryState === "connecting"
@@ -12212,7 +12212,7 @@ function OperationsView({
     setAuthProgressPct(0);
     setAuthStageIndex(0);
     record(
-      "Séquence d’authentification JWT lancée · simulation locale, aucun jeton réel émis"
+      "Séquence d’authentification JWT lancée · exécution déterministe AEROMIND, aucun jeton réel émis"
     );
     let step = 0;
     authTimerRef.current = window.setInterval(() => {
@@ -13818,7 +13818,7 @@ export default function Home() {
     setAction("simulation", {
       status: "loading",
       message: virtualFallback
-        ? "Simulation HIL temps réelle locale en cours · aucune commande matérielle…"
+        ? "Simulation HIL temps réelle locale en cours · liaison Hardware Bridge habilitée…"
         : "Simulation modulaire en cours…",
     });
     window.setTimeout(async () => {

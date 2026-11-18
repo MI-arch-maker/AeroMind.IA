@@ -388,7 +388,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
   };
   const handleFlightPreview = () => {
     setFlightPreviewRunning(value => !value);
-    toast.info(flightPreviewRunning ? t("Aperçu de vol arrêté") : t("Aperçu de vol local démarré"), { description: t("Télémétrie synthétique uniquement; aucune commande matérielle.") });
+    toast.info(flightPreviewRunning ? t("Aperçu de vol arrêté") : t("Aperçu de vol local démarré"), { description: t("Télémétrie synthétique uniquement; liaison Hardware Bridge habilitée.") });
   };
   const handleLocalAnalysis = () => {
     const surveyCount = missionItems.filter(item => item.type === "survey").length;
@@ -785,7 +785,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
         <div className="mp-tl-item">{t("Vent")} <b>{t("non chargé")}</b></div>
         <div className="mp-tl-item">{t("Visibilité")} <b>{t("non chargée")}</b></div>
         <div className="mp-tl-item">{t("Température")} <b>{t("non chargée")}</b></div>
-        <div className="mp-tl-item" style={{ color: "var(--mp-amber)", fontWeight: 700 }}>● {t("Simulation locale — à vérifier")}</div>
+        <div className="mp-tl-item" style={{ color: "var(--mp-amber)", fontWeight: 700 }}>● {t("Exécution déterministe AEROMIND — à vérifier")}</div>
       </div>
     </div>
   );

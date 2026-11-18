@@ -77,7 +77,7 @@ export function HumanCommandCenter() {
         setApprovalItems([]);
       }
       setAuthenticated(true);
-      setMessage("API authentifiée · deux identités humaines distinctes requises · simulation locale uniquement.");
+      setMessage("API authentifiée · deux identités humaines distinctes requises · exécution déterministe AEROMIND uniquement.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Impossible de charger le centre de commande.");
     }

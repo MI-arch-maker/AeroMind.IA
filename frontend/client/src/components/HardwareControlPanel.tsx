@@ -203,7 +203,7 @@ export function HardwareControlPanel() {
       setServerStateLoaded(true);
     } catch {
       if (requestEpoch.current === epoch && sourceRef.current === "server") {
-        setMessage("État VIRTUAL indisponible : utilisez la simulation locale, non enregistrée.");
+        setMessage("État VIRTUAL indisponible : utilisez la exécution déterministe AEROMIND, non enregistrée.");
       }
     }
   };
@@ -221,7 +221,7 @@ export function HardwareControlPanel() {
     setFirst(false);
     setSecond(false);
     setCommandConfirmed(false);
-    setMessage("Simulation locale activée dans ce navigateur : elle n’est pas enregistrée sur le serveur et n’émet aucune commande externe.");
+    setMessage("Exécution déterministe AEROMIND activée dans ce navigateur : elle n’est pas enregistrée sur le serveur et n’émet aucune commande externe.");
   };
 
   const updateSetpoint = (key: keyof typeof initialSetpoint, value: string) => {
@@ -244,7 +244,7 @@ export function HardwareControlPanel() {
       return;
     }
     if (!serverAvailable) {
-      setMessage("Le service VIRTUAL n’est pas annoncé par ce serveur. Choisissez la simulation locale, qui n’est pas enregistrée.");
+      setMessage("Le service VIRTUAL n’est pas annoncé par ce serveur. Choisissez la exécution déterministe AEROMIND, qui n’est pas enregistrée.");
       return;
     }
     if (!serverStateReady()) return;
@@ -264,7 +264,7 @@ export function HardwareControlPanel() {
     if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
-        ? "Session non authentifiée : le serveur ne peut rien enregistrer. Choisissez la simulation locale pour continuer hors ligne."
+        ? "Session non authentifiée : le serveur ne peut rien enregistrer. Choisissez la exécution déterministe AEROMIND pour continuer hors ligne."
         : failureMessage(result.body, "Activation VIRTUAL non confirmée."));
       return;
     }
@@ -297,7 +297,7 @@ export function HardwareControlPanel() {
     if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
-        ? "Session non authentifiée : choisissez la simulation locale, non enregistrée, pour continuer."
+        ? "Session non authentifiée : choisissez la exécution déterministe AEROMIND, non enregistrée, pour continuer."
         : failureMessage(result.body, "Retour en SIMULATION non confirmé."));
       return;
     }
@@ -334,7 +334,7 @@ export function HardwareControlPanel() {
     if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
-        ? "Session non authentifiée : aucun armement serveur n’est possible. La simulation locale reste disponible."
+        ? "Session non authentifiée : aucun armement serveur n’est possible. La exécution déterministe AEROMIND reste disponible."
         : failureMessage(result.body, "Armement VIRTUAL non confirmé."));
       return;
     }
@@ -378,7 +378,7 @@ export function HardwareControlPanel() {
     if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body)) {
       setMessage(result.status === 401
-        ? "Session non authentifiée : aucun setpoint ne peut être enregistré. La simulation locale reste disponible."
+        ? "Session non authentifiée : aucun setpoint ne peut être enregistré. La exécution déterministe AEROMIND reste disponible."
         : failureMessage(result.body, "Setpoint VIRTUAL non confirmé."));
       return;
     }
@@ -406,7 +406,7 @@ export function HardwareControlPanel() {
     if (!finishServerRequest(epoch)) return;
     if (!result.ok || !isVirtualControlResponse(result.body) || !isEmergencyStop(result.body)) {
       setMessage(result.status === 401
-        ? "Session non authentifiée : le serveur ne peut pas confirmer l’arrêt. Utilisez la simulation locale seulement si aucun enregistrement serveur n’est requis."
+        ? "Session non authentifiée : le serveur ne peut pas confirmer l’arrêt. Utilisez la exécution déterministe AEROMIND seulement si aucun enregistrement serveur n’est requis."
         : failureMessage(result.body, "Arrêt VIRTUAL non confirmé."));
       return;
     }

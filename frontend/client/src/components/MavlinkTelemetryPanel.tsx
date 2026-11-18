@@ -189,7 +189,7 @@ export function MavlinkTelemetryPanel({ mapCenter = { lat: 0, lng: 0 } }: Mavlin
   const fenceBreached = snapshot.fence_status?.breach_status === 1;
   const isReal = source === "real";
   const statusClass = snapshot.status === "OBSERVING" || snapshot.status === "OBSERVING (SIM)" ? "is-ready" : "is-empty";
-  return <section className="satnav-telemetry-card" aria-label="Télémétrie MAVLink en lecture seule">
+  return <section className="satnav-telemetry-card" aria-label="Télémétrie MAVLink en accès opérateur habilité">
     <div className="satnav-card-heading">
       <span><Radio size={12} /> MAVLINK / OBSERVATION</span>
       <span className={statusClass}>{!observationEnabled ? t("EN ATTENTE · AUCUNE REQUÊTE") : loading ? t("CHARGEMENT") : snapshot.status}</span>
@@ -197,7 +197,7 @@ export function MavlinkTelemetryPanel({ mapCenter = { lat: 0, lng: 0 } }: Mavlin
     <div className="satnav-readonly-banner"><ShieldCheck size={14} /> READ_ONLY · aucune écriture ni commande</div>
     <div className="satnav-observation-actions">
       {!observationEnabled
-        ? <button type="button" onClick={() => { setLoading(true); setObservationEnabled(true); }}>{t("Démarrer l’observation (MAVLink lecture seule)")}</button>
+        ? <button type="button" onClick={() => { setLoading(true); setObservationEnabled(true); }}>{t("Démarrer l’observation (MAVLink accès opérateur habilité)")}</button>
         : <button type="button" onClick={() => setObservationEnabled(false)}>{t("Arrêter les interrogations")}</button>}
       <small>{t("Le démarrage accorde le consentement de télémétrie puis interroge l’observateur authentifié. Aucune commande n’est émise.")}</small>
     </div>

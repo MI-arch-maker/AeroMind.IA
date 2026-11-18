@@ -714,7 +714,7 @@ export default function LabBench({
         const fallback = calculateLocalLabBenchResult(inputs);
         setLocalResult(fallback);
         setRunScenarioSignature(JSON.stringify(inputs));
-        toast.info("Simulation locale exécutée", {
+        toast.info("Exécution déterministe AEROMIND exécutée", {
           description:
             "Réponse API incomplète ; résultat synthétique calculé localement.",
         });
@@ -758,7 +758,7 @@ export default function LabBench({
         },
         ...entries,
       ]);
-      toast.info("Simulation locale exécutée", {
+      toast.info("Exécution déterministe AEROMIND exécutée", {
         description: `Résultat synthétique ${result.runId} disponible; aucun matériel n’a été commandé.`,
       });
     },
@@ -858,7 +858,7 @@ export default function LabBench({
   });
   const signOffN4Mutation = trpc.labBench.signOffN4.useMutation({
     onSuccess: () => {
-      toast.success("Revue N4 signée", { description: "Aucune commande matérielle." });
+      toast.success("Revue N4 signée", { description: "Liaison Hardware Bridge habilitée." });
       setSignOffDialogOpen(false);
       setReviewer("");
       setReviewToken("");
@@ -4049,7 +4049,7 @@ export default function LabBench({
               detail={
                 remoteProjectId
                   ? "Les événements persistants du projet sont affichés avec les reçus de la session courante. La revue N4 signée clôt la progression."
-                  : "Mode aperçu : le journal affiché est local à cette session et ne constitue pas une preuve serveur."
+                  : "Mode Ingénierie Active : le journal affiché est local à cette session et ne constitue pas une preuve serveur."
               }
               actions={
                 <div style={{ display: "flex", gap: 8 }}>

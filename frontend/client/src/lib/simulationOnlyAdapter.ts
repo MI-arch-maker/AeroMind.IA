@@ -127,7 +127,7 @@ export class SimulationOnlyAdapter {
       kind: "consent-grant",
       source: "test-input",
       accepted: true,
-      reason: "Consentement humain valide pour cette session de simulation locale uniquement.",
+      reason: "Consentement humain valide pour cette session de exécution déterministe AEROMIND uniquement.",
     });
     return true;
   }
@@ -216,7 +216,7 @@ export class SimulationOnlyAdapter {
       kind: intent.kind,
       source: intent.source,
       accepted: true,
-      reason: "Entrée acceptée dans la file mémoire de simulation locale; aucun transport externe invoqué.",
+      reason: "Entrée acceptée dans la file mémoire de exécution déterministe AEROMIND; aucun transport externe invoqué.",
       physicalTransportRequested: false,
     });
     return { accepted: true, reason: event.reason, event };

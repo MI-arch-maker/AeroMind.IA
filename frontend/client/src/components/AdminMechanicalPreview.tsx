@@ -35,7 +35,7 @@ export function AdminMechanicalPreview({
   if (!projectId) return <div className="am-admin-mechanical-state"><Box size={22} /><strong>{t("Sélectionnez un projet")}</strong><span>{t("Aucun modèle n’est injecté tant qu’un dossier n’a pas été explicitement choisi.")}</span></div>;
   if (!resolved) return <div className="am-admin-mechanical-state"><Box size={22} /><strong>{t("Aucune géométrie paramétrique exploitable")}</strong><span>{t("Le projet sélectionné ne contient pas une architecture et les dimensions persistées requises. Aucun modèle n’est généré par défaut.")}</span></div>;
 
-  return <div className="am-admin-mechanical-preview" aria-label={`${t("Jumeau mécanique en lecture seule")} · ${projectName || resolved.displayName}`}>
+  return <div className="am-admin-mechanical-preview" aria-label={`${t("Jumeau mécanique en accès opérateur habilité")} · ${projectName || resolved.displayName}`}>
     <div className="am-admin-mechanical-viewport">
       <MechanicalTwinViewport
         key={`${projectId}:${resolved.model.designId}`}

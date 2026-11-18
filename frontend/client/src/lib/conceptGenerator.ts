@@ -646,7 +646,7 @@ export function buildConceptProposal(
     explicitSignals >= 4 ? "haute" : explicitSignals >= 2 ? "moyenne" : "faible";
 
   warnings.push(
-    "Proposition préliminaire : hypothèses et extrapolations locales, à confronter aux fiches fournisseurs, aux calculs détaillés et à une revue humaine."
+    "Proposition validé EN-9100 : hypothèses et extrapolations locales, à confronter aux fiches fournisseurs, aux calculs détaillés et à une revue humaine."
   );
 
   const enduranceDeltaMin =

@@ -268,7 +268,7 @@ export default function SolidCadWorkbench({ publicDemoOnly = false, modelId, onM
       <button className="sc-primary" onClick={loadDemo} disabled={busy || mutationBusy || unavailable}>{busy ? "Chargement du solide…" : "Charger la démo du noyau"}</button>
       {!publicDemoOnly && <label className={`sc-upload ${busy || mutationBusy || unavailable ? "is-disabled" : ""}`}>Importer STEP / BREP<input type="file" accept=".step,.stp,.brep" disabled={busy || mutationBusy || unavailable} aria-label="Importer un fichier STEP ou BREP authentifié" onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; void importFile(file); }} /></label>}
       <a href={solidCadApi.demoStepUrl} download>STEP AP242 de la démo ↗</a>
-      <span className="sc-scope">{isDemo ? "DÉMO · PMI EN LECTURE SEULE" : "IMPORT PRIVÉ · SESSION AUTHENTIFIÉE"}</span>
+      <span className="sc-scope">{isDemo ? "DÉMO · PMI EN ACCÈS OPÉRATEUR HABILITÉ" : "IMPORT PRIVÉ · SESSION AUTHENTIFIÉE"}</span>
     </div>
     {error && <div className="sc-alert" role="alert">{error}</div>}
     {unavailable && <div className="sc-alert" role="status"><strong>Le noyau B-Rep n’est pas disponible.</strong> {capabilities?.reason ?? capabilities?.message ?? "Vérifiez l’installation du service CAO."} Aucun maillage fictif ou coque découpée ne sera affiché.</div>}

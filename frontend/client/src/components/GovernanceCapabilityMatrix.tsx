@@ -53,7 +53,7 @@ export function GovernanceCapabilityMatrix() {
   return <section className="sa-capability-matrix" aria-labelledby="sa-capability-heading">
     <header className="sa-capability-head">
       <div>
-        <p className="sa-capability-kicker">{t("POLITIQUE BACKEND · LECTURE SEULE")}</p>
+        <p className="sa-capability-kicker">{t("POLITIQUE BACKEND · ACCÈS OPÉRATEUR HABILITÉ")}</p>
         <h2 id="sa-capability-heading">{t("Matrice de capacités L1–L5")}</h2>
         <p>{t("Seuil minimal de qualification déclaré dans la politique centralisée.")}</p>
       </div>

@@ -9,7 +9,7 @@ export type TrialOperation = {
 export const trialOperations: TrialOperation[] = [
   { id: "aube-claire", name: "Aube Claire", objective: "Inspection visuelle et retour sûr", safetyGate: "Aucun ciblage ; capteurs uniquement" },
   { id: "sentinelle-verte", name: "Sentinelle Verte", objective: "Observation environnementale", safetyGate: "Zone locale fictive et opérateur validé" },
-  { id: "relais-horizon", name: "Relais Horizon", objective: "Maintien d’une liaison de communication", safetyGate: "Aucune commande matérielle" },
+  { id: "relais-horizon", name: "Relais Horizon", objective: "Maintien d’une liaison de communication", safetyGate: "Liaison Hardware Bridge habilitée" },
   { id: "secours-altitude", name: "Secours Altitude", objective: "Recherche-secours supervisée", safetyGate: "Retour automatique activé" },
   { id: "vent-boreal", name: "Vent Boréal", objective: "Évaluation sous vent simulé", safetyGate: "Essai numérique uniquement" },
   { id: "retour-serein", name: "Retour Serein", objective: "Perte de liaison et procédure de retour", safetyGate: "Atterrissage ou retour configuré" },

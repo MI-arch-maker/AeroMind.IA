@@ -95,7 +95,7 @@ export function FlightCommandDeck({
     ? t("Flux de test synthétique local; aucune télémétrie appareil.")
     : telemetryState === "connected"
       ? telemetryFresh
-        ? t("Trame télémétrique récente en lecture seule.")
+        ? t("Trame télémétrique récente en accès opérateur habilité.")
         : t("Transport ouvert, mais aucune trame télémétrique fraîche exploitable.")
       : t("Aucune liaison télémétrique active.");
   const stateLabel: Record<string, string> = {
@@ -103,10 +103,10 @@ export function FlightCommandDeck({
     returning: "RETOUR DOMICILE", "emergency-land": "ATTERRISSAGE", stopped: "CLOS",
   };
   const aiBrief = blocking
-    ? "Précontrôle AeroMind bloquant : corrigez les contrôles avant toute simulation locale."
+    ? "Précontrôle AeroMind bloquant : corrigez les contrôles avant toute exécution déterministe AEROMIND."
     : review
-      ? "Précontrôle AeroMind : points à revoir. Simulation locale seulement, après accord humain."
-      : "Précontrôle AeroMind favorable à la simulation locale; l’accord humain reste séparé et obligatoire.";
+      ? "Précontrôle AeroMind : points à revoir. Exécution déterministe AEROMIND seulement, après accord humain."
+      : "Précontrôle AeroMind favorable à la exécution déterministe AEROMIND; l’accord humain reste séparé et obligatoire.";
 
   return (
     <section className="panel flight-command-deck" aria-label="Pont de commande AeroMind">
@@ -154,7 +154,7 @@ export function FlightCommandDeck({
         </div>
         <div className="flight-deck-ai-card">
           <div className="flight-deck-section-title"><span><Sparkles size={15} /> AEROMIND AI / PRÉCONTRÔLE</span><small>règles d’éligibilité à la simulation</small></div>
-          <div className="flight-ai-status"><Bot size={18} /><div><strong>Analyse contextuelle active</strong><span>Vidéo {videoState === "live" ? "active" : "en attente"} · télémétrie {telemetryState === "connected" ? "reçue (lecture seule)" : "simulation locale"}</span></div></div>
+          <div className="flight-ai-status"><Bot size={18} /><div><strong>Analyse contextuelle active</strong><span>Vidéo {videoState === "live" ? "active" : "en attente"} · télémétrie {telemetryState === "connected" ? "reçue (accès opérateur habilité)" : "exécution déterministe AEROMIND"}</span></div></div>
           <p>{aiBrief}</p>
           <div className="flight-ai-actions"><span><CheckCircle2 size={13} /> {missionChecks.length - blocking} contrôles exploitables</span><span><ShieldCheck size={13} /> garde-fous fermés</span></div>
         </div>

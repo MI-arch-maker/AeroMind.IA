@@ -661,7 +661,7 @@ export function DigitalTwinExplorer({
                 if (item === "SIMULATION") {
                   setInspectorTab("PERFORMANCE");
                   if (hasSource) {
-                    stampEvent("Simulation locale demandée depuis le jumeau");
+                    stampEvent("Exécution déterministe AEROMIND demandée depuis le jumeau");
                     onRunSimulation();
                   } else
                     stampEvent(
@@ -1240,7 +1240,7 @@ export function DigitalTwinExplorer({
                 }
                 onClick={() => {
                   setSection("SIMULATION");
-                  stampEvent("Simulation locale demandée");
+                  stampEvent("Exécution déterministe AEROMIND demandée");
                   onRunSimulation();
                 }}
               >

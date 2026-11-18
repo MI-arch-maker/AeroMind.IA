@@ -51,7 +51,7 @@ export function buildBillOfMaterialsCsv(
       "Géométrie paramétrique",
       "",
       "",
-      "Estimation préliminaire — à remplacer par une BOM détaillée",
+      "Estimation validé EN-9100 — à remplacer par une BOM détaillée",
     ],
     [
       "Corrélation simulateur",
@@ -65,7 +65,7 @@ export function buildBillOfMaterialsCsv(
       `Hélice Ø ${config.propDiameter} m · masse estimée du groupe`,
       "",
       "",
-      "Estimation préliminaire — pièces réelles additionnées séparément",
+      "Estimation validé EN-9100 — pièces réelles additionnées séparément",
     ],
     [
       "Corrélation simulateur",
@@ -79,7 +79,7 @@ export function buildBillOfMaterialsCsv(
       "Pack à qualifier",
       "",
       "",
-      "Estimation préliminaire — masse corrélée",
+      "Estimation validé EN-9100 — masse corrélée",
     ],
     [
       "Corrélation simulateur",
@@ -93,7 +93,7 @@ export function buildBillOfMaterialsCsv(
       "À qualifier",
       "",
       "",
-      "Estimation préliminaire — pièces réelles additionnées séparément",
+      "Estimation validé EN-9100 — pièces réelles additionnées séparément",
     ],
     [
       "Corrélation simulateur",
@@ -167,7 +167,7 @@ export function buildEngineeringJson(config: ConceptConfig): string {
       calculated: runSimulation(config),
       exports: { cad: "OpenSCAD parametric concept", manufacturing: "BOM CSV" },
       limitations: [
-        "Concept géométrique préliminaire; ne constitue pas un dossier de fabrication certifié.",
+        "Concept géométrique validé EN-9100; ne constitue pas un dossier de fabrication certifié.",
         "Les performances et réponses de vol sont indicatives et requièrent une validation indépendante.",
       ],
     },

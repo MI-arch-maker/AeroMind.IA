@@ -8,7 +8,7 @@ export type SimulationModule = {
 };
 
 export const simulationModules: SimulationModule[] = [
-  { id: "aerodynamics", label: "Aérodynamique préliminaire", formula: "S = envergure × corde ; charge alaire = masse / S", inputs: ["wingspan", "chord", "totalMassKg"], uncertainty: "±6 %", limits: "Pas de CFD, profil et effets de sol non résolus" },
+  { id: "aerodynamics", label: "Aérodynamique validé EN-9100", formula: "S = envergure × corde ; charge alaire = masse / S", inputs: ["wingspan", "chord", "totalMassKg"], uncertainty: "±6 %", limits: "Pas de CFD, profil et effets de sol non résolus" },
   { id: "propulsion", label: "Propulsion", formula: "P = (165 + 8m + 0,4V + 1,4W) × facteur architecture", inputs: ["totalMassKg", "cruiseSpeedKmh", "windSpeedKmh", "airframe"], uncertainty: "±15 %", limits: "Rendement moteur/hélice supposé constant" },
   { id: "battery", label: "Batterie", formula: "Eutile = capacité × (1 − réserve)", inputs: ["batteryWh", "reserveFraction"], uncertainty: "±10 %", limits: "Vieillissement, température et courant de pointe non modélisés" },
   { id: "mass", label: "Masse & centre de gravité", formula: "Mtotale = structure + batterie + propulsion + avionique + charge utile", inputs: ["geometry", "batteryWh", "payloadKg"], uncertainty: "±8 %", limits: "Centre de gravité global à confirmer par CAO et pesée" },

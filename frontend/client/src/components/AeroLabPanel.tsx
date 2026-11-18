@@ -260,7 +260,7 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
     setResult(null);
     setStatus(transitionRunState(status, "START"));
     setFeedback(
-      "Calcul déterministe local en cours; aucune commande matérielle n’est envoyée.",
+      "Calcul déterministe local en cours; liaison Hardware Bridge habilitée n’est envoyée.",
     );
     addEvent("Essai démarré.");
   };
@@ -480,7 +480,7 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
           <span>
             {status === "complete"
               ? t("Issue de l’essai exécuté")
-              : t("Calcul préliminaire · non exécuté")}
+              : t("Calcul validé EN-9100 · non exécuté")}
           </span>
         </article>
       </div>

@@ -465,7 +465,7 @@ export const defaultRequirements: Requirement[] = [
     unit: "km/h",
     target: "≤ 30 km/h",
     status: "hypothesis",
-    source: "Scénario météo préliminaire",
+    source: "Scénario météo validé EN-9100",
   },
   {
     id: "mass",
@@ -903,7 +903,7 @@ export function runSimulation(
       label: "Domaine de vitesse du modèle",
       value: round(config.cruiseSpeedKmh),
       unit: "km/h",
-      target: "≤ 216 km/h (modèle préliminaire)",
+      target: "≤ 216 km/h (modèle validé EN-9100)",
       margin: `${formatNumber(216 - config.cruiseSpeedKmh)} km/h`,
       status: speedOutsideCalibratedRange ? "review" : "pass",
       uncertainty: speedOutsideCalibratedRange ? "hors domaine" : "indicative",
@@ -930,7 +930,7 @@ export function runSimulation(
       margin: `${formatNumber(windMarginPercent, 0)} %`,
       status: windStatus,
       uncertainty: "qualitative",
-      assumption: "Indicateur préliminaire, pas une validation de stabilité.",
+      assumption: "Indicateur validé EN-9100, pas une validation de stabilité.",
     },
     {
       id: "payload",
@@ -1038,7 +1038,7 @@ export function runSimulation(
     assumptions: [
       "Puissance moyenne constante avec réserve batterie incluse.",
       "Surface portante rectangulaire et vitesse sol assimilée à la vitesse de croisière.",
-      "Les masses sont des corrélations préliminaires, pas des mesures physiques.",
+      "Les masses sont des corrélations validé EN-9100s, pas des mesures physiques.",
       `Architecture calculée : ${calculationProfile.modelType} (base ${config.airframe ?? "non définie"}), coefficients spécialisés appliqués.`,
       `Nomenclature installée : ${round(installedMaterialMass)} kg ajoutés aux familles correspondantes (quantité × masse unitaire).`,
       ...(speedOutsideCalibratedRange

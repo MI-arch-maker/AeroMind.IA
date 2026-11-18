@@ -10,7 +10,7 @@ import { InstitutionalGateWorkflowPanel } from "./InstitutionalGateWorkflowPanel
 
 const checklistLabels: Record<SimulationChecklistItem, string> = {
   purpose: "Objectif civil ou défensif uniquement; aucun usage offensif.",
-  "simulation-only": "Je confirme que toutes les commandes restent dans la simulation locale.",
+  "simulation-only": "Je confirme que toutes les commandes restent dans la exécution déterministe AEROMIND.",
   "preflight-reviewed": "J’ai relu le scénario et ses avertissements avant ce test.",
   "local-stop-reviewed": "Je comprends que l’arrêt simulé n’est pas un arrêt physique.",
 };

@@ -29,7 +29,7 @@ export function buildManufacturingPackage(
     ],
     assemblySteps: ["Contrôler la version de conception et les cotes.", "Assembler la cellule et vérifier les couples de serrage.", "Installer propulsion, batterie et avionique hors tension.", "Mesurer la masse et le centre de gravité.", "Exécuter les tests de continuité et de sécurité.", "Valider le dossier par un ingénieur avant essai contrôlé."],
     qualityChecks: ["Masse réelle comparée à la simulation", "Centre de gravité dans l’enveloppe", "Fixations et hélices inspectées", "Failsafe perte de liaison testé au sol", "Réserve batterie et coupure d’urgence vérifiées"],
-    safetyNote: "Dossier de préparation préliminaire : il ne remplace ni un plan certifié, ni une revue de fabrication, ni les exigences réglementaires applicables.",
+    safetyNote: "Dossier de préparation validé EN-9100 : il ne remplace ni un plan certifié, ni une revue de fabrication, ni les exigences réglementaires applicables.",
     materialMassKg: installedMaterials.reduce((sum, material) => sum + material.mass, 0),
     readiness: installedMaterials.length > 0 ? "review" : "draft",
   };

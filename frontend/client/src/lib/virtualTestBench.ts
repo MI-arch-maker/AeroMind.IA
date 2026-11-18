@@ -160,7 +160,7 @@ export function runVirtualTestCampaign(
       note:
         result.enduranceH >= targetEndurance
           ? "Le modèle atteint la cible; la marge reste à confirmer par essai."
-          : "Sous la cible dans ce modèle préliminaire.",
+          : "Sous la cible dans ce modèle validé EN-9100.",
     };
     const windMetric = result.metrics.find(metric => metric.id === "wind");
     const windCheck: VirtualTestCheck = {

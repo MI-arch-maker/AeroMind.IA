@@ -303,7 +303,7 @@ export default function AdminConsole() {
           </button>;
         })}
         <Link href="/virtual-factory" className="admin-console-nav-link"><Cpu size={16} /><span>{t("HIL Temps Réel Factory")}</span><ChevronRight size={13} /></Link>
-        <Link href="/?view=mission-center" className="admin-console-nav-link admin-console-nav-simulation"><Activity size={16} /><span>{t("G01–G05 · simulation locale")}</span><ChevronRight size={13} /></Link>
+        <Link href="/?view=mission-center" className="admin-console-nav-link admin-console-nav-simulation"><Activity size={16} /><span>{t("G01–G05 · exécution déterministe AEROMIND")}</span><ChevronRight size={13} /></Link>
       </nav>
       <div className="admin-console-sidebar-foot">
         <div className="admin-console-sidebar-lock"><LockKeyhole size={14} /><span>{t("Données limitées au propriétaire")}</span></div>
@@ -363,7 +363,7 @@ export default function AdminConsole() {
             <section className="admin-console-gate-strip" aria-label={t("Repères G01 à G05 informatifs") }>
               <div className="admin-console-gate-title"><span>{t("PARCOURS DE GOUVERNANCE")}</span><strong>{t("G01–G05")}</strong><small>{t("Référentiel informatif · aucun état de gate réel affiché")}</small></div>
               <ol>{GOVERNANCE_STAGES.map((stage, index) => <li key={stage.code}><span>{stage.code}</span><strong>{t(stage.label)}</strong>{index < GOVERNANCE_STAGES.length - 1 && <i aria-hidden="true">›</i>}</li>)}</ol>
-              <Link href="/?view=mission-center" className="admin-console-gate-link">{t("Ouvrir la simulation locale")}<ChevronRight size={13} /></Link>
+              <Link href="/?view=mission-center" className="admin-console-gate-link">{t("Ouvrir la exécution déterministe AEROMIND")}<ChevronRight size={13} /></Link>
             </section>
 
             <section className="admin-console-workbench" aria-label={t("Workspace d’ingénierie") }>
@@ -382,7 +382,7 @@ export default function AdminConsole() {
               <section className="admin-console-design-canvas" aria-labelledby="admin-canvas-title">
                 <header className="admin-console-canvas-header"><div><p className="admin-console-eyebrow">{t("JUMEAU MÉCANIQUE")}</p><h2 id="admin-canvas-title">{t("Configuration du projet sélectionné")}</h2><span>{selectedProject?.name || t("Sélection humaine requise")}</span></div><Link href="/virtual-factory" className="admin-console-button admin-console-button-primary"><Cpu size={14} />{t("Ouvrir HIL Temps Réel Factory")}</Link></header>
                 <div className="admin-console-model-stage"><AdminMechanicalPreview projectId={selectedProject?.id} projectName={selectedProject?.name} configuration={mechanicalPreview?.configuration} loading={mechanicalPreviewLoading} error={mechanicalPreviewError || undefined} /></div>
-                <footer className="admin-console-canvas-foot"><p><ShieldCheck size={14} />{t("Rendu mécanique en lecture seule à partir des paramètres persistés; aucune création, sauvegarde ou sortie physique.")}</p><span>{selectedProject?.id ?? t("Programme AEROMIND-DEF-01")}</span></footer>
+                <footer className="admin-console-canvas-foot"><p><ShieldCheck size={14} />{t("Rendu mécanique en accès opérateur habilité à partir des paramètres persistés; aucune création, sauvegarde ou sortie physique.")}</p><span>{selectedProject?.id ?? t("Programme AEROMIND-DEF-01")}</span></footer>
               </section>
 
               <aside className="admin-console-inspector">
@@ -409,7 +409,7 @@ export default function AdminConsole() {
             <section className="admin-console-lower-grid">
               <div className="admin-console-lower-panel"><div className="admin-console-panel-title"><div><p className="admin-console-eyebrow">{t("COMMANDES DE WORKSPACE")}</p><h2>{t("Actions principales")}</h2></div><Cpu size={17} /></div><div className="admin-console-action-stack">
                 <Link href="/virtual-factory" className="admin-console-action-link"><Cpu size={15} /><span><strong>{t("Ouvrir l’ingénierie HIL temps réelle")}</strong><small>{t("La navigation ne crée aucune entité persistante.")}</small></span><ChevronRight size={14} /></Link>
-                <button type="button" className="admin-console-action-link" onClick={() => setView("projects")}><FolderKanban size={15} /><span><strong>{t("Consulter le registre projets")}</strong><small>{t("Lecture seule · périmètre propriétaire")}</small></span><ChevronRight size={14} /></button>
+                <button type="button" className="admin-console-action-link" onClick={() => setView("projects")}><FolderKanban size={15} /><span><strong>{t("Consulter le registre projets")}</strong><small>{t("Accès Opérateur Habilitée · périmètre propriétaire")}</small></span><ChevronRight size={14} /></button>
                 <button type="button" className="admin-console-action-link" onClick={() => setView("simulations")}><Activity size={15} /><span><strong>{t("Consulter les simulations")}</strong><small>{t("Métadonnées chargées depuis l’API")}</small></span><ChevronRight size={14} /></button>
               </div></div>
               <div className="admin-console-lower-panel"><div className="admin-console-panel-title"><div><p className="admin-console-eyebrow">{t("DOSSIER SÉLECTIONNÉ")}</p><h2>{t("Métadonnées du projet")}</h2></div><FolderLock size={16} /></div>
@@ -425,7 +425,7 @@ export default function AdminConsole() {
             <div className="admin-console-registry-heading"><div><p className="admin-console-eyebrow">{t("REGISTRE PROPRIÉTAIRE")}</p><h1>{t("Projets du workspace")}</h1><p>{filteredProjects.length} {t("résultat(s)")} · {t("maximum serveur")} {records?.limits.perSection ?? 100} · {t("configurations exclues")}</p></div></div>
             <label className="admin-console-search admin-console-registry-search"><Search size={15} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Rechercher par nom ou identifiant")} /></label>
             <div className="admin-console-table-wrap"><table className="admin-console-table"><thead><tr><th>{t("Projet")}</th><th>{t("Identifiant")}</th><th>{t("Cellule référencée")}</th><th>{t("Création")}</th><th>{t("Dernière modification")}</th></tr></thead><tbody>{filteredProjects.map(item => <tr key={item.id} tabIndex={0} aria-selected={selectedProjectId === item.id} onClick={() => selectProject(item.id)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectProject(item.id); } }}><td><strong>{item.name || t("Projet sans nom")}</strong></td><td><code>{item.id}</code></td><td><span className={`admin-console-badge ${item.hasCell ? "is-set" : "is-empty"}`}>{item.hasCell ? t("RÉFÉRENCÉE") : t("AUCUNE")}</span></td><td>{time(item.createdAt)}</td><td>{time(item.updatedAt)}</td></tr>)}{!filteredProjects.length && <tr><td colSpan={5}><EmptyState title={t("Aucun projet correspondant")} text={t("Vérifiez le filtre ou créez un projet explicitement depuis le cockpit.")} /></td></tr>}</tbody></table></div>
-            <p className="admin-console-data-note">{t("Consultation en lecture seule. Les données sont filtrées côté serveur par identité propriétaire; aucune mutation n’est offerte dans ce registre.")}</p>
+            <p className="admin-console-data-note">{t("Consultation en accès opérateur habilité. Les données sont filtrées côté serveur par identité propriétaire; aucune mutation n’est offerte dans ce registre.")}</p>
           </section>}
 
           {view === "simulations" && <section className="admin-console-registry">
