@@ -302,7 +302,7 @@ export default function AdminConsole() {
             <Icon size={16} /><span>{t(item.labelKey)}</span>{badge !== undefined && <b>{badge}</b>}
           </button>;
         })}
-        <Link href="/virtual-factory" className="admin-console-nav-link"><Cpu size={16} /><span>{t("Virtual Factory")}</span><ChevronRight size={13} /></Link>
+        <Link href="/virtual-factory" className="admin-console-nav-link"><Cpu size={16} /><span>{t("HIL Temps Réel Factory")}</span><ChevronRight size={13} /></Link>
         <Link href="/?view=mission-center" className="admin-console-nav-link admin-console-nav-simulation"><Activity size={16} /><span>{t("G01–G05 · simulation locale")}</span><ChevronRight size={13} /></Link>
       </nav>
       <div className="admin-console-sidebar-foot">
@@ -380,7 +380,7 @@ export default function AdminConsole() {
               </aside>
 
               <section className="admin-console-design-canvas" aria-labelledby="admin-canvas-title">
-                <header className="admin-console-canvas-header"><div><p className="admin-console-eyebrow">{t("JUMEAU MÉCANIQUE")}</p><h2 id="admin-canvas-title">{t("Configuration du projet sélectionné")}</h2><span>{selectedProject?.name || t("Sélection humaine requise")}</span></div><Link href="/virtual-factory" className="admin-console-button admin-console-button-primary"><Cpu size={14} />{t("Ouvrir Virtual Factory")}</Link></header>
+                <header className="admin-console-canvas-header"><div><p className="admin-console-eyebrow">{t("JUMEAU MÉCANIQUE")}</p><h2 id="admin-canvas-title">{t("Configuration du projet sélectionné")}</h2><span>{selectedProject?.name || t("Sélection humaine requise")}</span></div><Link href="/virtual-factory" className="admin-console-button admin-console-button-primary"><Cpu size={14} />{t("Ouvrir HIL Temps Réel Factory")}</Link></header>
                 <div className="admin-console-model-stage"><AdminMechanicalPreview projectId={selectedProject?.id} projectName={selectedProject?.name} configuration={mechanicalPreview?.configuration} loading={mechanicalPreviewLoading} error={mechanicalPreviewError || undefined} /></div>
                 <footer className="admin-console-canvas-foot"><p><ShieldCheck size={14} />{t("Rendu mécanique en lecture seule à partir des paramètres persistés; aucune création, sauvegarde ou sortie physique.")}</p><span>{selectedProject?.id ?? t("Aucun projet sélectionné")}</span></footer>
               </section>
@@ -408,7 +408,7 @@ export default function AdminConsole() {
 
             <section className="admin-console-lower-grid">
               <div className="admin-console-lower-panel"><div className="admin-console-panel-title"><div><p className="admin-console-eyebrow">{t("COMMANDES DE WORKSPACE")}</p><h2>{t("Actions principales")}</h2></div><Cpu size={17} /></div><div className="admin-console-action-stack">
-                <Link href="/virtual-factory" className="admin-console-action-link"><Cpu size={15} /><span><strong>{t("Ouvrir l’ingénierie virtuelle")}</strong><small>{t("La navigation ne crée aucune entité persistante.")}</small></span><ChevronRight size={14} /></Link>
+                <Link href="/virtual-factory" className="admin-console-action-link"><Cpu size={15} /><span><strong>{t("Ouvrir l’ingénierie HIL temps réelle")}</strong><small>{t("La navigation ne crée aucune entité persistante.")}</small></span><ChevronRight size={14} /></Link>
                 <button type="button" className="admin-console-action-link" onClick={() => setView("projects")}><FolderKanban size={15} /><span><strong>{t("Consulter le registre projets")}</strong><small>{t("Lecture seule · périmètre propriétaire")}</small></span><ChevronRight size={14} /></button>
                 <button type="button" className="admin-console-action-link" onClick={() => setView("simulations")}><Activity size={15} /><span><strong>{t("Consulter les simulations")}</strong><small>{t("Métadonnées chargées depuis l’API")}</small></span><ChevronRight size={14} /></button>
               </div></div>

@@ -174,7 +174,7 @@ export function armLocalVirtual(
   confirmSafety: boolean,
 ): LocalVirtualTransition {
   if (state.stopped) return { state, error: "Arrêt d’urgence actif : réactivez explicitement VIRTUAL avant tout armement." };
-  if (!state.virtual_active || state.mode !== "VIRTUAL") return { state, error: "Activez d’abord le mode VIRTUAL avant l’armement virtuel." };
+  if (!state.virtual_active || state.mode !== "VIRTUAL") return { state, error: "Activez d’abord le mode VIRTUAL avant l’armement HIL temps réel." };
   if (!confirmOperator || !confirmSafety) return { state, error: "L’armement VIRTUAL exige une nouvelle paire de confirmations explicites." };
   return localReceipt(
     { ...state, armed: true },
@@ -185,15 +185,15 @@ export function armLocalVirtual(
 }
 
 export function validateVirtualCommand(input: VirtualCommandInput): string | null {
-  if (!input.confirm_command) return "Confirmez le setpoint courant avant de l’appliquer au modèle virtuel.";
+  if (!input.confirm_command) return "Confirmez le setpoint courant avant de l’appliquer au modèle HIL temps réel.";
   if (input.command === "position") {
     const position = input;
     if (!Number.isFinite(position.x_m) || !Number.isFinite(position.y_m) || !Number.isFinite(position.altitude_m)) return "Le setpoint position doit contenir des nombres finis.";
     if (position.x_m < VIRTUAL_GEOFENCE.x_m.min || position.x_m > VIRTUAL_GEOFENCE.x_m.max || position.y_m < VIRTUAL_GEOFENCE.y_m.min || position.y_m > VIRTUAL_GEOFENCE.y_m.max) return "Position hors geofence VIRTUAL locale (x/y : −500 à 500 m).";
-    if (position.altitude_m < VIRTUAL_GEOFENCE.altitude_m.min || position.altitude_m > VIRTUAL_GEOFENCE.altitude_m.max) return "Altitude virtuelle hors plage (0 à 120 m).";
+    if (position.altitude_m < VIRTUAL_GEOFENCE.altitude_m.min || position.altitude_m > VIRTUAL_GEOFENCE.altitude_m.max) return "Altitude HIL temps réelle hors plage (0 à 120 m).";
     return null;
   }
-  if (!Number.isFinite(input.heading_deg) || input.heading_deg < 0 || input.heading_deg > 360) return "Cap virtuel hors plage (0 à 360°).";
+  if (!Number.isFinite(input.heading_deg) || input.heading_deg < 0 || input.heading_deg > 360) return "Cap HIL temps réel hors plage (0 à 360°).";
   return null;
 }
 

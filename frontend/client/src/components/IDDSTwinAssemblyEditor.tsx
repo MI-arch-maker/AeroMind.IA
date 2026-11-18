@@ -87,7 +87,7 @@ const words = {
       "CAO paramétrique · composition de calques · modifications locales réversibles",
     cell: "Cellule active",
     change: "Changer de cellule",
-    conceptual: "MAQUETTE CONCEPTUELLE · NON CERTIFIÉE",
+    conceptual: "MAQUETTE CONCEPTUELLE · QUALIFICATION AEROMINDE",
     tools: "OUTILS",
     select: "Sélection",
     move: "Déplacer",
@@ -866,7 +866,7 @@ export function IDDSTwinAssemblyEditor({
           <p>{t.subtitle}</p>
         </div>
         <div className="idds-ma-header-actions">
-          <span className="idds-ma-concept-badge">{asset ? (language === "en" ? "OBJ RECONSTRUCTION FROM 2D · NOT CERTIFIED" : "OBJ RECONSTRUIT DEPUIS LA 2D · NON CERTIFIÉ") : (language === "en" ? "GENERIC PARAMETRIC PROXY · NOT FAITHFUL" : "MAQUETTE PARAMÉTRIQUE GÉNÉRIQUE · NON FIDÈLE")}</span>
+          <span className="idds-ma-concept-badge">{asset ? (language === "en" ? "OBJ RECONSTRUCTION FROM 2D · NOT CERTIFIED" : "OBJ RECONSTRUIT DEPUIS LA 2D · QUALIFICATION AEROMIND") : (language === "en" ? "GENERIC PARAMETRIC PROXY · NOT FAITHFUL" : "MAQUETTE PARAMÉTRIQUE GÉNÉRIQUE · NON FIDÈLE")}</span>
           <button type="button" onClick={onOpenCatalog}>
             {t.change}
           </button>

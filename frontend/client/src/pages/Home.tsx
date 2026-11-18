@@ -7043,7 +7043,7 @@ function CopilotView({
             <button
               onClick={() =>
                 sendMessage(
-                  "Prépare la liste des essais virtuels à exécuter avant toute validation humaine."
+                  "Prépare la liste des essais HIL temps réels à exécuter avant toute validation humaine."
                 )
               }
             >
@@ -7255,7 +7255,7 @@ function ReportView({
                 <div>
                   <span className="eyebrow">00 / PREUVES UNIFIÉES</span>
                   <h4>{t("Dossier de preuves — jumeau numérique & atelier physique")}</h4>
-                  <p>{t("Captures des constructions PARAMETRIC, des assemblages STUDIO IDDS, des croquis de drone, des missions, des simulations, des rapports de décisions et de tous les artefacts virtuels et physiques du projet.")}</p>
+                  <p>{t("Captures des constructions PARAMETRIC, des assemblages STUDIO IDDS, des croquis de drone, des missions, des simulations, des rapports de décisions et de tous les artefacts HIL temps réels et physiques du projet.")}</p>
                 </div>
                 <nav className="report-modern-tabs" role="tablist">
                   {([
@@ -7486,7 +7486,7 @@ function ReportView({
                     <div className="report-modern-workshop-card virtual">
                       <header>
                         <span className="eyebrow">JUMEAAU NUMÉRIQUE · VIRTUEL</span>
-                        <h5>{t("Atelier virtuel")}</h5>
+                        <h5>{t("Atelier HIL temps réel")}</h5>
                       </header>
                       <ul>
                         <li>{t("Architecture active")} : <b>{config.airframe ?? "—"}</b></li>
@@ -7724,10 +7724,10 @@ function ReportView({
             <div className="report-section" id="report-safe-commands">
               <span className="report-number">06</span>
               <div>
-                <h4>{language === "en" ? "Safe commands · simulation_only" : "Commandes sûres · simulation uniquement"}</h4>
-                <p>{language === "en" ? "These controls change the virtual scenario only. No command is sent to physical aircraft or actuators." : "Ces commandes modifient uniquement le scénario virtuel. Aucune commande n’est transmise à un aéronef ou à un actionneur physique."}</p>
+                <h4>{language === "en" ? "Safe commands · simulation_only" : "Commandes sûres · mode HIL & temps réel"}</h4>
+                <p>{language === "en" ? "These controls change the virtual scenario only. No command is sent to physical aircraft or actuators." : "Ces commandes modifient uniquement le scénario opérationnel HIL. Aucune commande n’est transmise à un aéronef ou à un actionneur physique."}</p>
                 <table className="report-table"><thead><tr><th>{language === "en" ? "Control" : "Commande"}</th><th>{language === "en" ? "Safe effect" : "Effet sûr"}</th><th>{language === "en" ? "Resume condition" : "Condition de reprise"}</th></tr></thead><tbody>
-                  <tr><td>PAUSE / HOLD</td><td>{language === "en" ? "Freeze the virtual mission and retain its state." : "Figer la mission virtuelle et conserver son état."}</td><td>{language === "en" ? "Human review before resume." : "Revue humaine avant reprise."}</td></tr>
+                  <tr><td>PAUSE / HOLD</td><td>{language === "en" ? "Freeze the virtual mission and retain its state." : "Figer la mission HIL temps réelle et conserver son état."}</td><td>{language === "en" ? "Human review before resume." : "Revue humaine avant reprise."}</td></tr>
                   <tr><td>ABORT SIM</td><td>{language === "en" ? "End the simulation run; no physical action." : "Clore le run de simulation ; aucune action physique."}</td><td>{language === "en" ? "Explicitly start a new simulation." : "Lancer explicitement une nouvelle simulation."}</td></tr>
                   <tr><td>CHECK LINK / BATTERY</td><td>{language === "en" ? "Read-only review of scenario prerequisites." : "Vérification en lecture seule des prérequis du scénario."}</td><td>{language === "en" ? "Resolve warnings and document evidence." : "Traiter les alertes et consigner les preuves."}</td></tr>
                 </tbody></table>
@@ -8108,8 +8108,8 @@ function LiveSimulationView({
   return (
     <div className="view-stack">
       <SectionHeading
-        eyebrow="04 / BANC DE TESTS VIRTUELS"
-        title="Essais virtuels & tableau visuel"
+        eyebrow="04 / BANC D’ESSAIS HIL & TÉLÉMÉTRIE"
+        title="Campagne d’essais HIL & instrumentation"
         description="Comparez cinq perturbations paramétriques du projet actif, consultez les contrôles calculés et exportez le journal d’essais. Solveur déterministe AeroMind actif · Télémétrie et exportation de campagne validés."
         action={
           <span className={`live-state ${playing ? "live-on" : "live-off"}`}>
@@ -8169,7 +8169,7 @@ function LiveSimulationView({
           <button
             className={mode === "manual" ? "is-active" : ""}
             aria-pressed={mode === "manual"}
-            title="Les manches virtuels influencent directement la trajectoire simulée."
+            title="Les manches HIL temps réels influencent directement la trajectoire simulée."
             onClick={() => setMode("manual")}
           >
             MANUEL
@@ -8177,7 +8177,7 @@ function LiveSimulationView({
           <button
             className={mode === "supervised" ? "is-active" : ""}
             aria-pressed={mode === "supervised"}
-            title="Les manches virtuels sont atténués pour une démonstration supervisée."
+            title="Les manches HIL temps réels sont atténués pour une démonstration supervisée."
             onClick={() => setMode("supervised")}
           >
             SUPERVISÉ
@@ -8194,7 +8194,7 @@ function LiveSimulationView({
       </div>
       <div className="live-mode-explanation" role="status">
         {mode === "manual"
-          ? "MANUEL · Les manches virtuels influencent directement cap, altitude et vitesse du modèle."
+          ? "MANUEL · Les manches HIL temps réels influencent directement cap, altitude et vitesse du modèle."
           : mode === "supervised"
             ? "SUPERVISÉ · Autorité nominale 100 % active avec enveloppe de protection AeroMind."
             : "RETOUR SÛR · L’animation converge vers le point de départ; les manches sont neutralisés."}{" "}
@@ -8244,8 +8244,8 @@ function LiveSimulationView({
                 mode === "safe-return"
                   ? "Le marqueur converge vers le centre local; aucun GPS ni aéronef n’est utilisé."
                   : mode === "manual"
-                    ? "La position suit les commandes virtuelles avec pleine autorité dans le modèle."
-                    : "Les commandes virtuelles sont limitées à 35 % dans le modèle."
+                    ? "La position suit les commandes HIL temps réelles avec pleine autorité dans le modèle."
+                    : "Les commandes HIL temps réelles sont limitées à 35 % dans le modèle."
               }
             >
               <Radio size={13} />{" "}
@@ -8432,7 +8432,7 @@ function LiveSimulationView({
                   </strong>
                 </span>
                 <input
-                  aria-label="Manche virtuel, roulis et cap"
+                  aria-label="Manche HIL temps réel, roulis et cap"
                   type="range"
                   min="-100"
                   max="100"
@@ -8451,7 +8451,7 @@ function LiveSimulationView({
                   </strong>
                 </span>
                 <input
-                  aria-label="Manche virtuel, tangage et altitude"
+                  aria-label="Manche HIL temps réel, tangage et altitude"
                   type="range"
                   min="-100"
                   max="100"
@@ -8466,7 +8466,7 @@ function LiveSimulationView({
                   Gaz <strong>{throttlePct} %</strong>
                 </span>
                 <input
-                  aria-label="Gaz virtuel de simulation"
+                  aria-label="Gaz HIL temps réel de simulation"
                   type="range"
                   min="0"
                   max="100"
@@ -8758,7 +8758,7 @@ function TestFlightCoordinator() {
   >("idle");
   const [mission, setMission] = useState("Essai captif de trajectoire");
   const [log, setLog] = useState<string[]>([
-    "Fenêtre d’essai prête · simulation uniquement",
+    "Fenêtre d’essai prête · mode HIL & temps réel",
   ]);
   const record = (message: string) =>
     setLog(items =>
@@ -9066,7 +9066,7 @@ function MissionOperationsView({
   const liveLinkSeries = liveSeries(liveFlight.samples, "linkQualityPct");
   const setSimulationArmState = (nextArmed: boolean) => {
     if (nextArmed && (!simulationProtocolReady || !operatorApproved)) {
-      recordOperation("Armement virtuel refusé · protocole humain complet et approbation explicite requis");
+      recordOperation("Armement HIL temps réel refusé · protocole humain complet et approbation explicite requis");
       return;
     }
     const decision = authorizeControlCommand(
@@ -9085,7 +9085,7 @@ function MissionOperationsView({
     onSimulationArmedChange(nextArmed);
     if (!nextArmed) setVisionMode("visible");
     recordOperation(
-      `${audit.id} · ${nextArmed ? "armement virtuel du scénario local" : "désarmement virtuel"} · état global mis à jour, aucune sortie actionneur`
+      `${audit.id} · ${nextArmed ? "armement HIL temps réel du scénario local" : "désarmement HIL temps réel"} · état global mis à jour, aucune sortie actionneur`
     );
   };
   const missionPlan: LocalMissionPlan = {
@@ -10128,7 +10128,7 @@ function MissionOperationsView({
                   title={
                     simulationArmed
                       ? item.description
-                      : "Couche disponible après armement virtuel du scénario local."
+                      : "Couche disponible après armement HIL temps réel du scénario local."
                   }
                   onClick={() => {
                     setVisionMode(item.id);
@@ -11479,7 +11479,7 @@ function MissionOperationsView({
           </div>
           <div
             className="mission-preflight-grid"
-            aria-label="Contrôles de prévol virtuels"
+            aria-label="Contrôles de prévol HIL temps réels"
           >
             {missionChecks.map((check, index) => {
               const status =
@@ -13809,7 +13809,7 @@ export default function Home() {
           reserveFraction: candidateConfig.reserveFraction > 0 ? candidateConfig.reserveFraction : defaultConcept.reserveFraction,
           maxTakeoffKg: candidateConfig.maxTakeoffKg > 0 ? candidateConfig.maxTakeoffKg : defaultConcept.maxTakeoffKg,
           altitudeM: candidateConfig.altitudeM > 0 ? candidateConfig.altitudeM : defaultConcept.altitudeM,
-          designName: "Démonstrateur virtuel AeroMind",
+          designName: "Démonstrateur HIL temps réel AeroMind",
         })
       : candidateConfig;
     if (virtualFallback) setConfig(simulationConfig);
@@ -13818,7 +13818,7 @@ export default function Home() {
     setAction("simulation", {
       status: "loading",
       message: virtualFallback
-        ? "Simulation virtuelle locale en cours · aucune commande matérielle…"
+        ? "Simulation HIL temps réelle locale en cours · aucune commande matérielle…"
         : "Simulation modulaire en cours…",
     });
     window.setTimeout(async () => {
@@ -14386,7 +14386,7 @@ export default function Home() {
     if (navigateAfterLoad) setActiveView(keepStudioOpen ? "design-studio" : "digital-twin");
     setAction("catalog", {
       status: "success",
-      message: `${design.label} appliqué au workspace après action humaine; état de persistance visible dans l’en-tête. ${estimatedTakeoffMass ? "La MTOW de banc a été estimée à partir de la masse calculée (+10 %, hypothèse locale non certifiée) car aucune valeur source n’est fournie. " : ""}${requirementsForDroneProfile(design).length} exigences proposées, non approuvées et personnalisables dans Exigences.`,
+      message: `${design.label} appliqué au workspace après action humaine; état de persistance visible dans l’en-tête. ${estimatedTakeoffMass ? "La MTOW de banc a été estimée à partir de la masse calculée (+10 %, hypothèse locale qualification AEROMIND en course) car aucune valeur source n’est fournie. " : ""}${requirementsForDroneProfile(design).length} exigences proposées, non approuvées et personnalisables dans Exigences.`,
     });
   };
   // Resolve the active catalogue design from persisted workspace state as well
@@ -14650,7 +14650,7 @@ export default function Home() {
               aria-live="polite"
               title={
                 simulationArmed
-                  ? "Scénario de simulation armé virtuellement : état d’interface et couches de vision uniquement. Aucun actionneur réel."
+                  ? "Scénario de simulation armé HIL temps réellement : état d’interface et couches de vision uniquement. Aucun actionneur réel."
                   : "Banc au sol simulé. Le flux de télémétrie continue de s’animer."
               }
             >

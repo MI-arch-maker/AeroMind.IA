@@ -85,7 +85,7 @@ export function PayloadMissionWorkbench({ installed, profiles = {}, onInstall, o
 
   const reticleSize = 22 + (currentProfile.fieldOfViewDeg - 20) / 100 * 40;
   return (
-    <section className="payload-workbench panel" aria-label="Atelier virtuel des modules de mission">
+    <section className="payload-workbench panel" aria-label="Atelier HIL temps réel des modules de mission">
       <div className="payload-workbench-heading">
         <div>
           <p className="eyebrow">PAYLOAD INTEGRATION / SOL SIMULATOR</p>

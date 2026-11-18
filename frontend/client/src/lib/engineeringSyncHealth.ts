@@ -207,7 +207,7 @@ export function evaluateEngineeringSync(input: {
             },
             {
               id: "test",
-              label: "Essais virtuels",
+              label: "Essais HIL temps réels",
               state: state("Essais / tableau visuel"),
             },
             { id: "report", label: "Rapports", state: state("Rapport") },

@@ -170,7 +170,7 @@ export class SimulationOnlyAdapter {
       intent.source === "hardware-transport" || PHYSICAL_COMMAND_NAMES.has(intent.kind);
 
     if (!sourceIsLocal) {
-      return this.reject(intent, now, "Source refusée : seules les entrées joystick virtuel et test local sont admises.", physicalTransportRequested);
+      return this.reject(intent, now, "Source refusée : seules les entrées joystick HIL temps réel et test local sont admises.", physicalTransportRequested);
     }
     if (PHYSICAL_COMMAND_NAMES.has(intent.kind)) {
       return this.reject(intent, now, "Commande refusée par défaut : le simulateur n’accepte aucun ordre matériel.", true);

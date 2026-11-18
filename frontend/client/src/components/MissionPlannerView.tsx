@@ -347,7 +347,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
     if (result.detourCount === 0) {
       setAiSuggestions([]);
       setAiOptimized(false);
-      toast.info(t("Aucun détour requis"), { description: t("La trajectoire ne croise pas les obstacles virtuels configurés; le plan reste inchangé.") });
+      toast.info(t("Aucun détour requis"), { description: t("La trajectoire ne croise pas les zones d’exclusion tactiques configurés; le plan reste inchangé.") });
       return;
     }
     setAiSuggestions(suggestions);
@@ -663,11 +663,11 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
                 <BrainCircuit size={18} />
                 <div>
                   <strong>{t("Aide à la navigation · calcul local")}</strong>
-                  <small>{t("Contournement d'obstacles virtuels · optimisation géométrique · suggestions de waypoints")}</small>
+                  <small>{t("Contournement d'zones d’exclusion tactiques · optimisation géométrique · suggestions de waypoints")}</small>
                 </div>
               </div>
               <div className="mp-ai-section">
-                <div className="mp-ai-section-title"><Wind size={12} /> {t("Obstacles virtuels détectés")}</div>
+                <div className="mp-ai-section-title"><Wind size={12} /> {t("Zones d’exclusion tactiques détectés")}</div>
                 {aiObstacles.length ? (
                   <ul className="mp-ai-list">
                     {aiObstacles.map((obs, idx) => (

@@ -278,7 +278,7 @@ export function HardwareControlPanel() {
       const transition = selectLocalSimulation(localState);
       setLocalState(transition.state);
       addReceipt(transition.receipt);
-      setMessage("Retour à SIMULATION locale : modèle virtuel désarmé.");
+      setMessage("Retour à SIMULATION locale : modèle HIL temps réel désarmé.");
       return;
     }
     if (!serverAvailable || !serverStateReady()) return;
@@ -302,7 +302,7 @@ export function HardwareControlPanel() {
       return;
     }
     applyServerResponse(result.body);
-    setMessage("Retour à SIMULATION : modèle virtuel désarmé.");
+    setMessage("Retour à SIMULATION : modèle HIL temps réel désarmé.");
   };
 
   const arm = async () => {

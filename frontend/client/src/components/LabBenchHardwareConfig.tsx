@@ -38,7 +38,7 @@ type HardwareConfig = {
 };
 const defaults: HardwareConfig = {
   manufacturer: "AeroMind — émulateur",
-  model: "LabBench 01 virtuel",
+  model: "LabBench 01 HIL temps réel",
   hardwareRevision: "VIRTUAL",
   firmwareVersion: "simulation-v1",
   transport: "serial",

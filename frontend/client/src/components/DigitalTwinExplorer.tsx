@@ -977,8 +977,8 @@ export function DigitalTwinExplorer({
                     ? "CROQUIS 2D · UNITÉS NON CALIBRÉES"
                     : design
                       ? presentation === "exploded"
-                        ? "ÉCLATEMENT PARAMÉTRIQUE · NON CERTIFIÉ"
-                        : "HORIZON 3D · PARAMÉTRIQUE · NON CERTIFIÉ"
+                        ? "ÉCLATEMENT PARAMÉTRIQUE · QUALIFICATION AEROMIND"
+                        : "HORIZON 3D · PARAMÉTRIQUE · QUALIFICATION AEROMIND"
                       : "SCÈNE VIDE · SOURCE REQUISE"}
                 </span>
                 <span>

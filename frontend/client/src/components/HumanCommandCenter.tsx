@@ -136,7 +136,7 @@ export function HumanCommandCenter() {
         <div className="hcc-section-title"><div><span className="hcc-eyebrow">ÉTAPE 1</span><h2>Préparer une demande</h2></div><span className="hcc-tag">Sans exécution</span></div>
         <form className="hcc-form" onSubmit={event => void prepare(event)}>
           <label>Action simulée<select value={command} onChange={event => setCommand(event.target.value as CommandKind)}>{commandOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-          <label>Objectif explicite<input required minLength={8} maxLength={500} value={objective} onChange={event => setObjective(event.target.value)} placeholder="Ex. Vérifier la transition vers le maintien dans le scénario virtuel"/></label>
+          <label>Objectif explicite<input required minLength={8} maxLength={500} value={objective} onChange={event => setObjective(event.target.value)} placeholder="Ex. Vérifier la transition vers le maintien dans le scénario opérationnel HIL"/></label>
           <button className="hcc-button hcc-button-primary" type="submit" disabled={busy || !authenticated}>Préparer la demande</button>
         </form>
         <small className="hcc-help">Aucun paramètre d’actionneur n’est accepté. L’identifiant de cible est attribué par le serveur et désigne uniquement le simulateur.</small>

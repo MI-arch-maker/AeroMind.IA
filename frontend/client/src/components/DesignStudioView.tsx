@@ -1455,7 +1455,7 @@ export function DesignStudioView({
         onExportEngineeringJson={exportEngineeringJson}
       />
       <section id="studio-physical-design" className="idds-integrated-render-panel" aria-label="Modes de rendu du maillage mécanique IDDS">
-        <header><div><span>ASSEMBLAGE NUMÉRIQUE · JUMEAU MÉCANIQUE</span><strong>{integratedProfile.label} · {activeAsset ? "reconstruction OBJ éditable" : "maquette paramétrique générique"}</strong></div><small>{activeAsset ? "Maquette reconstruite depuis des images 2D, non certifiée ; ce n’est pas un relevé fidèle." : "Approximation de l’architecture et des paramètres, sans géométrie source attestée."}</small></header>
+        <header><div><span>ASSEMBLAGE NUMÉRIQUE · JUMEAU MÉCANIQUE</span><strong>{integratedProfile.label} · {activeAsset ? "reconstruction OBJ éditable" : "maquette paramétrique générique"}</strong></div><small>{activeAsset ? "Maquette reconstruite depuis des images 2D, qualification AEROMIND en course ; ce n’est pas un relevé fidèle." : "Approximation de l’architecture et des paramètres, sans géométrie source attestée."}</small></header>
         <nav className="idds-render-modes" role="toolbar" aria-label="Modes de rendu synchronisés du Studio IDDS">
           {renderModes.map(mode => <button key={mode.id} type="button" className={renderMode === mode.id ? "is-active" : ""} aria-pressed={renderMode === mode.id} title={mode.label} onClick={() => { setRenderMode(mode.id); if (mode.id !== "kinematics") setKinematicsPlaying(false); }}><span>{mode.label}</span></button>)}
         </nav>

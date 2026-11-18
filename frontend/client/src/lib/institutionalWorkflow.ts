@@ -140,5 +140,5 @@ export function executeVirtualSimulation(
 ): { workflow: InstitutionalWorkflow; error?: string } {
   if (actorRole !== "operator" && actorRole !== "analyst") return { workflow, error: "Un rôle operator ou analyst est requis pour exécuter la simulation." };
   const next = { ...workflow, simulationExecutions: workflow.simulationExecutions + 1 };
-  return { workflow: event(next, "SIMULATION", "institutional.simulation.executed", actorRole, "allow", "Commande virtuelle exécutée dans le simulateur local; aucun transport MAVLink ou physique invoqué.") };
+  return { workflow: event(next, "SIMULATION", "institutional.simulation.executed", actorRole, "allow", "Commande HIL temps réelle exécutée dans le simulateur local; aucun transport MAVLink ou physique invoqué.") };
 }

@@ -2,7 +2,7 @@ export type ActivationProtocolItem = { id: string; label: string };
 
 export const SIMULATION_ACTIVATION_PROTOCOL: readonly ActivationProtocolItem[] = [
   { id: "defensive-purpose", label: "Je confirme un objectif civil ou défensif, sans usage offensif." },
-  { id: "plan-reviewed", label: "J’ai relu le parcours virtuel, les limites et les contrôles prévol." },
+  { id: "plan-reviewed", label: "J’ai relu le parcours HIL temps réel, les limites et les contrôles prévol." },
   { id: "simulation_only", label: "Je comprends que cette validation n’autorise aucun vol réel ni commande matérielle." },
   { id: "independent-stop", label: "Je sais qu’un arrêt simulé n’est pas un arrêt d’urgence physique." },
 ];

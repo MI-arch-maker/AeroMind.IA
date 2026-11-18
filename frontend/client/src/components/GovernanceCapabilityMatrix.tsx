@@ -30,8 +30,8 @@ export function GovernanceCapabilityMatrix() {
 
   const capabilityLabel = (id: string) => {
     switch (id) {
-      case "basic": return t("Lecture, brouillons et calculs virtuels de base");
-      case "engineering": return t("Édition d’ingénierie et simulation virtuelle nominale");
+      case "basic": return t("Lecture, brouillons et calculs HIL temps réels de base");
+      case "engineering": return t("Édition d’ingénierie et simulation HIL temps réelle nominale");
       case "advanced": return t("Analyse avancée, workflows, preuves et exports");
       case "admin": return t("Routes d’administration");
       case "physical": return t("Routes matériel / données live");

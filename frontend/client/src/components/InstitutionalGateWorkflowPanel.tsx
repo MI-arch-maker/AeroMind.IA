@@ -32,7 +32,7 @@ export function InstitutionalGateWorkflowPanel() {
   const [workflow, setWorkflow] = useState(() => createInstitutionalWorkflow());
   const [activeRole, setActiveRole] = useState<InstitutionalRole>("operator");
   const [transmissionInput, setTransmissionInput] = useState("");
-  const [message, setMessage] = useState("Prêt : les commandes virtuelles restent disponibles dans le simulateur.");
+  const [message, setMessage] = useState("Prêt : les commandes HIL temps réelles restent disponibles dans le simulateur.");
   const expectedGate = useMemo(() => nextGate(workflow), [workflow]);
 
   const apply = (result: { workflow: InstitutionalWorkflow; error?: string }, success: string) => {

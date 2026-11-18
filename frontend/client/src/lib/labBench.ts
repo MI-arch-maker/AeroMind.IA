@@ -254,7 +254,7 @@ export function normalizeLabBenchProjects(value: unknown): LabBenchProject[] {
 export const localLabBenchStatus = {
   project: {
     code: "LABBENCH-01",
-    name: "LabBench 01 — laboratoire virtuel",
+    name: "LabBench 01 — laboratoire HIL temps réel",
     proofLevel: "N2 — Simulation",
   },
   services: [
@@ -266,7 +266,7 @@ export const localLabBenchStatus = {
     },
     {
       id: "gateway",
-      label: "Passerelle virtuelle",
+      label: "Passerelle HIL temps réelle",
       detail: "Disponible après activation LABBENCH et données AeroMind synchronisées.",
       state: "limited",
     },
@@ -280,7 +280,7 @@ export const localLabBenchStatus = {
   requirements: [
     {
       code: "REQ-SIM-001",
-      title: "Consigne virtuelle bornée",
+      title: "Consigne HIL temps réelle bornée",
       limit: "0–90",
       unit: "°",
       source: "Contrat de simulation LABBENCH",
@@ -292,7 +292,7 @@ export const localLabBenchStatus = {
       title: "Périmètre de simulation",
       limit: "0 commande physique",
       unit: "",
-      source: "Périmètre virtuel AeroMind",
+      source: "Périmètre HIL temps réel AeroMind",
       acceptance: "Aucun adaptateur matériel chargé.",
       status: "approved",
     },
@@ -303,7 +303,7 @@ export const localLabBenchStatus = {
       unit: "",
       source: "Contrat de simulation LABBENCH",
       acceptance:
-        "Confirmation de la consigne et du périmètre virtuel avant chaque action.",
+        "Confirmation de la consigne et du périmètre HIL temps réel avant chaque action.",
       status: "approved",
     },
   ],

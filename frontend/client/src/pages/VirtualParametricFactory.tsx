@@ -37,7 +37,7 @@ const materials = [
   ["Résine technique", "ResinLab / SLA-TX-07", "0.0 L", "MISSING", "#f17e78"],
 ];
 const equipment = [
-  ["FDM-01 / virtual", "Machine virtuelle simulée", "SIMULATION", "#75e2dc"],
+  ["FDM-01 / virtual", "Machine HIL temps réelle simulée", "SIMULATION", "#75e2dc"],
   ["FDM-02 / lab", "Aucune communication vérifiée", "NON CONFIGURÉ", "#829a9b"],
   ["Dryer-01", "Séchage matériaux", "EN ATTENTE DE CONNEXION", "#edbd73"],
   ["QC-Station", "Contrôle dimensionnel", "INDISPONIBLE", "#f17e78"],
@@ -157,7 +157,7 @@ export default function VirtualParametricFactory() {
     const timer = window.setInterval(() => setProgress(value => value >= 100 ? 0 : Math.min(100, value + (slowMotion ? 0.35 : 1.2))), 1000);
     return () => window.clearInterval(timer);
   }, [running, slowMotion]);
-  const simulate = () => { setRunning(value => !value); announce(running ? "Simulation virtuelle mise en pause" : `Simulation virtuelle démarrée${slowMotion ? " · ralenti" : ""}`); };
+  const simulate = () => { setRunning(value => !value); announce(running ? "Simulation HIL temps réelle mise en pause" : `Simulation virtuelle démarrée${slowMotion ? " · ralenti" : ""}`); };
   const toggleSlowMotion = () => { setSlowMotion(value => !value); announce(slowMotion ? "Vitesse normale activée" : "Ralenti activé — inspection détaillée de trajectoire"); };
   return <div className="vpf-shell">
     <aside className="vpf-sidebar"><div className="vpf-brand"><div className="vpf-mark">A</div><div><strong>AEROMIND.IA</strong><span>VIRTUAL FACTORY / APERÇU</span></div></div><div className="vpf-rule" /><div className="vpf-plant"><Factory size={15} /><div><small>PLANT INSTANCE</small><strong>AP-3D / DÉMONSTRATION</strong></div><span className="live-dot" /></div><nav>{nav.map(item => { const Icon = item.icon; return <button key={item.id} title={item.label} aria-current={section === item.id ? "page" : undefined} className={section === item.id ? "active" : ""} onClick={() => setSection(item.id)}><Icon size={16} /><span>{item.label}</span>{item.id === "lab" && <b>4</b>}</button>; })}</nav><div className="vpf-sidebar-bottom"><Status tone="green">virtual_only</Status><small>Physical control is locked</small><button className="support-btn" onClick={() => setSection("history")}> <LifeBuoy size={15} /> SAFETY & AUDIT</button></div></aside>

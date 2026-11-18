@@ -100,7 +100,7 @@ const initialTasks: TaskRecord[] = [
 const initialKnowledge: KnowledgeRecord[] = [
   { id: "KB-001", title: "Contrat de conception paramétrique", type: "Procédure", source: "AeroMind / Engineering Hub", version: "v3.2", evidence: "verified", updated: "03 nov. 2026" },
   { id: "KB-002", title: "Baseline drone actif", type: "Modèle", source: "Projet local", version: "rev. locale", evidence: "hypothesis", updated: "Aujourd’hui" },
-  { id: "KB-003", title: "Rapport de simulation synthétique", type: "Simulation", source: "LabBench virtuel", version: "SIM-000", evidence: "recommendation", updated: "02 nov. 2026" },
+  { id: "KB-003", title: "Rapport de simulation synthétique", type: "Simulation", source: "LabBench HIL temps réel", version: "SIM-000", evidence: "recommendation", updated: "02 nov. 2026" },
 ];
 const initialActivity: ActivityRecord[] = [
   { id: "ACT-01", label: "Contrôle de provenance", detail: "Master Intelligence a vérifié le contexte du projet actif.", time: "09:42", tone: "green" },

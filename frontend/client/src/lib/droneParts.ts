@@ -253,7 +253,7 @@ export const dronePartCatalog: DronePartDefinition[] = [
     id: "parachute",
     label: "Module de récupération",
     category: "safety",
-    use: "Récupération — système non certifié",
+    use: "Récupération — système qualification AEROMIND en cours",
     massKg: 0.32,
     geometry: "mount",
   },

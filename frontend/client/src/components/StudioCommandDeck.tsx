@@ -115,7 +115,7 @@ export function StudioCommandDeck({
   const metricRows = analysis?.result.metrics.slice(0, 4) ?? [];
 
   return (
-    <section className="studio-command-deck" id="studio-concept-overview" aria-label="Studio virtuel de conception et de construction">
+    <section className="studio-command-deck" id="studio-concept-overview" aria-label="Studio HIL temps réel de conception et de construction">
       <header className="studio-deck-header">
         <div className="studio-deck-heading">
           <span className="studio-deck-mark" aria-hidden="true"><Settings2 size={19} /></span>

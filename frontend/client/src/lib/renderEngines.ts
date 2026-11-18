@@ -111,7 +111,7 @@ export function computeSurfaceField(
     max: result.max ?? 0,
     unit: result.unit,
     method: result.method,
-    warning: `${result.warnings.join(" ")} ${mode === "cfd" ? "Navier–Stokes complet non exécuté." : "Résultat non certifié pour le dimensionnement."}`,
+    warning: `${result.warnings.join(" ")} ${mode === "cfd" ? "Navier–Stokes complet non exécuté." : "Résultat qualification AEROMIND en cours pour le dimensionnement."}`,
     solverId: result.solverId,
     iterations: result.iterations,
     residual: result.residual,

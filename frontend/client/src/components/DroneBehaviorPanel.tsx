@@ -12,7 +12,7 @@ const contextCopy: Record<BehaviorContext, { label: string; title: string; note:
   simulation: {
     label: "SIMULATION / RÉPONSE DU MODÈLE",
     title: "Lire la réponse calculée",
-    note: "Vent, masse, énergie et commandes virtuelles influencent les valeurs du scénario.",
+    note: "Vent, masse, énergie et commandes HIL temps réelles influencent les valeurs du scénario.",
     effect: "Les courbes décrivent le modèle local, pas une mesure en vol ni une performance certifiée.",
   },
   inspection: {

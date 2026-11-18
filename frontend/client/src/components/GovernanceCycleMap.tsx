@@ -39,7 +39,7 @@ export function GovernanceCycleMap({ onOpenLevels, t }: { onOpenLevels: () => vo
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onOpenLevels} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">{t("Consulter la matrice L1–L5")} <ArrowUpRight size={13} /></button>
           <Link href="/?view=mission-center" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">{t("Ouvrir le workflow G01–G05 · simulation locale")} <ArrowUpRight size={13} /></Link>
-          <Link href="/virtual-factory" className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#087e83] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#076a70]">{t("Ouvrir l’ingénierie virtuelle")} <ArrowUpRight size={13} /></Link>
+          <Link href="/virtual-factory" className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#087e83] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#076a70]">{t("Ouvrir l’ingénierie HIL temps réelle")} <ArrowUpRight size={13} /></Link>
         </div>
       </div>
     </section>

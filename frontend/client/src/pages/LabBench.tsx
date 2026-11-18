@@ -652,7 +652,7 @@ export default function LabBench({
     setHumanConfirmed(false);
     setSafetyConfirmed(false);
     setMode("authorized");
-    toast.success("N3 armé (mode local — virtuel uniquement)");
+    toast.success("N3 armé (mode local — HIL temps réel uniquement)");
   };
 
   const localDisarmN3 = () => {
@@ -814,7 +814,7 @@ export default function LabBench({
   });
   const armN3Mutation = trpc.labBench.armN3.useMutation({
     onSuccess: (data: any) => {
-      toast.success("N3 armé (virtuel)", {
+      toast.success("N3 armé (HIL temps réel)", {
         description: data?.reason ?? "Armement enregistré pour le scénario logiciel.",
       });
       setArmDialogOpen(false);
@@ -1445,8 +1445,8 @@ export default function LabBench({
       ...entries,
     ]);
     if (executed)
-      toast.success("Consigne virtuelle appliquée", { description: reason });
-    else toast.warning("Commande virtuelle refusée", { description: reason });
+      toast.success("Consigne HIL temps réelle appliquée", { description: reason });
+    else toast.warning("Commande HIL temps réelle refusée", { description: reason });
   };
   const commandMutation = trpc.labBench.validateCommand.useMutation({
     onSuccess(receipt) {
@@ -1881,7 +1881,7 @@ export default function LabBench({
         time: new Date().toLocaleTimeString("fr-FR"),
         type: "virtual.stop",
         message:
-          "Essai virtuel arrêté ; confirmations annulées, aucune reprise automatique.",
+          "Essai HIL temps réel arrêté ; confirmations annulées, aucune reprise automatique.",
         status: "warning",
       },
       ...entries,
@@ -3117,7 +3117,7 @@ export default function LabBench({
                     <small>
                       {connectionChecked
                         ? `${activeDroneLabel ?? "Configuration AeroMind active"} · transport virtuel seulement`
-                        : "Diagnostic virtuel disponible sans matériel"}
+                        : "Diagnostic HIL temps réel disponible sans matériel"}
                     </small>
                   </div>
                 </div>
@@ -3154,7 +3154,7 @@ export default function LabBench({
                   <strong>simulate.servo.setpoint</strong>
                   <small>
                     {scenario.positionSetpointDeg}° · plage autorisée 0–90° ·
-                    {gateState.conditions.n3_armed ? " armée virtuellement" : " armement requis"}
+                    {gateState.conditions.n3_armed ? " armée HIL temps réellement" : " armement requis"}
                   </small>
                 </div>
                 <label className="lb-confirm">
@@ -3211,7 +3211,7 @@ export default function LabBench({
                   <LockKeyhole size={15} />
                   {commandMutation.isPending
                     ? "Vérification…"
-                    : "Appliquer la consigne virtuelle"}
+                    : "Appliquer la consigne HIL temps réelle"}
                 </button>
                 <p role="status">
                   Position de l’aperçu local :{" "}
@@ -3702,7 +3702,7 @@ export default function LabBench({
                   className="lb-primary"
                   onClick={() => setHwReviewDialogOpen(true)}
                   disabled={hardwarevirtual_only || !hardwareGate?.conditions.virtual_n3_armed}
-                  title={hardwarevirtual_only ? "Revue N4 matérielle indisponible en mode virtual_only" : !hardwareGate?.conditions.virtual_n3_armed ? "Le N3 virtuel doit être armé d'abord" : ""}
+                  title={hardwarevirtual_only ? "Revue N4 matérielle indisponible en mode virtual_only" : !hardwareGate?.conditions.virtual_n3_armed ? "Le N3 HIL temps réel doit être armé d'abord" : ""}
                 >
                   <KeyRound size={14} /> Signer revue hardware N4
                 </button>

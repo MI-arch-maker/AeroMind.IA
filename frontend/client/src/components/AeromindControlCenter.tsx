@@ -27,7 +27,7 @@ const initialTasks: Task[] = [
 const initialAlerts = [
   { id: "ALT-882", level: "CRITICAL" as AlertLevel, title: "Batterie AER-003 sous seuil de santé", source: "Fleet & Maintenance", time: "il y a 8 min", open: true },
   { id: "ALT-881", level: "WARNING" as AlertLevel, title: "Validation électronique en attente", source: "Electronics Center", time: "il y a 22 min", open: true },
-  { id: "ALT-879", level: "INFORMATION" as AlertLevel, title: "Lot de fabrication terminé", source: "Virtual Factory", time: "il y a 41 min", open: true },
+  { id: "ALT-879", level: "INFORMATION" as AlertLevel, title: "Lot de fabrication terminé", source: "HIL Temps Réel Factory", time: "il y a 41 min", open: true },
 ];
 
 export function AeromindControlCenter() {

@@ -46,7 +46,7 @@ const modeLabels: Record<string, string> = {
 
 const modeDescriptions: Record<string, string> = {
   DEMO: "Mode démonstration — aucune commande MAVLink, données synthétiques.",
-  SIMULATION: "Mode simulation par défaut — calculs et essais virtuels uniquement.",
+  SIMULATION: "Mode simulation par défaut — calculs et essais HIL temps réels uniquement.",
   SITL: "ArduPilot SITL actif — autopilote logiciel simulé, télémétrie en lecture seule.",
   HIL: "Hardware In The Loop — autopilote physique connecté, pas de vol réel.",
   HARDWARE: "Commandes MAVLink matérielles autorisées — G0-G5 requises.",

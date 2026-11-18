@@ -154,9 +154,9 @@ function previewForDesign(design: DroneCatalogDesign) {
 /** Aucun lien OBJ n'est une preuve que le constructeur utilise ce fichier : il faut une provenance explicite du modèle. */
 export function provenanceForModel(model: MechanicalModel) {
   const source = (model as MechanicalModel & { geometrySource?: string }).geometrySource;
-  if (source === "obj") return "MAQUETTE OBJ · NON CERTIFIÉE";
-  if (model.modelType.startsWith("dessin-utilisateur")) return "GÉOMÉTRIE DES TRAITS · NON CERTIFIÉE";
-  return "RECONSTRUCTION PARAMÉTRIQUE · NON CERTIFIÉE";
+  if (source === "obj") return "MAQUETTE OBJ · QUALIFICATION AEROMINDE";
+  if (model.modelType.startsWith("dessin-utilisateur")) return "GÉOMÉTRIE DES TRAITS · QUALIFICATION AEROMINDE";
+  return "RECONSTRUCTION PARAMÉTRIQUE · QUALIFICATION AEROMINDE";
 }
 
 /** Un rapprochement d'import peut transmettre des actifs appartenant à une autre référence. */

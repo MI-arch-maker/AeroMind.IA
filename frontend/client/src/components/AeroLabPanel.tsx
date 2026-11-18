@@ -404,7 +404,7 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
           <span className="aerolab-kicker">
             {t("BANC D’ESSAIS NUMÉRIQUE · ENVIRONNEMENT ISOLÉ")}
           </span>
-          <h2 id="aerolab-title">{t("Laboratoire d’essais virtuel")}</h2>
+          <h2 id="aerolab-title">{t("Laboratoire d’essais HIL temps réel")}</h2>
           <p>
             {t(
               "Évaluez un drone construit face à sa mission dans un modèle déterministe local, reproductible et sans connexion matérielle.",
@@ -1049,7 +1049,7 @@ export function AeroLabPanel({ project, projectSimulation }: Props) {
                 <NumberField id="aerolab-aero-clmax" label="CL max hypothétique" value={aeroModelSettings.clMax} unit="coefficient" min={0.5} max={2.5} step={0.1} disabled={locked} onChange={value => setAeroModelSettings(current => ({ ...current, clMax: value }))} />
                 <NumberField id="aerolab-aero-bank" label="Inclinaison de virage" value={aeroModelSettings.bankDeg} unit="°" min={0} max={60} step={1} disabled={locked} onChange={value => setAeroModelSettings(current => ({ ...current, bankDeg: value }))} />
               </div></>}
-            <ul>{aeroResult.assumptions.map((assumption)=><li key={assumption}>{t(assumption)}</li>)}</ul><small>{t("Masse utilisée = masse à vide du scénario + charge utile du scénario. Vitesse, altitude et température proviennent du scénario AeroLab. Géométrie du projet AeroMind; le scénario ne modifie pas le bilan AeroLab existant.")}</small><p>{t("Simulation uniquement : non certifié, sans branchement au guidage matériel.")}</p>
+            <ul>{aeroResult.assumptions.map((assumption)=><li key={assumption}>{t(assumption)}</li>)}</ul><small>{t("Masse utilisée = masse à vide du scénario + charge utile du scénario. Vitesse, altitude et température proviennent du scénario AeroLab. Géométrie du projet AeroMind; le scénario ne modifie pas le bilan AeroLab existant.")}</small><p>{t("Mode HIL & Temps Réel : qualification AEROMIND en cours, sans branchement au guidage matériel.")}</p>
           </section>
           <section className="aerolab-analysis">
             <div className="aerolab-section-title">
