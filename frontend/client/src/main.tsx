@@ -1,3 +1,7 @@
+try {
+  const savedRender = window.localStorage.getItem("aeromind-render-style") || "studio-pbr";
+  document.documentElement.dataset.aeromindRender = savedRender;
+} catch {}
 import "./styles/admin-defense-cockpit.css";
 import { trpc } from "@/lib/trpc";
 import { COOKIE_NAME } from '@shared/const';

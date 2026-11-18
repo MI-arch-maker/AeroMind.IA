@@ -21,6 +21,7 @@ export function AeromindRenderStyleBar() {
 
   useEffect(() => {
     document.documentElement.dataset.aeromindRender = active;
+    window.dispatchEvent(new CustomEvent("aeromind-render-changed", { detail: active }));
     try { window.localStorage.setItem(STORAGE_KEY, active); } catch {}
   }, [active]);
 

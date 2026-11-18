@@ -371,3 +371,29 @@
     #072540 !important;
   background-size: 16px 16px !important;
 }
+
+/* Propagation universelle des 4 rendus dans TOUS les centres (CAO, PAR, MEC, Usine, Ops) */
+[data-aeromind-render="studio-pbr"] .aeromind-engineering-viewport canvas,
+[data-aeromind-render="studio-pbr"] .physical-drone-stage canvas,
+[data-aeromind-render="studio-pbr"] .vpf-model-stage canvas {
+  filter: contrast(1.16) saturate(1.15) brightness(1.04) !important;
+}
+
+[data-aeromind-render="xray-hybrid"] .aeromind-engineering-viewport canvas,
+[data-aeromind-render="xray-hybrid"] .physical-drone-stage canvas,
+[data-aeromind-render="xray-hybrid"] .vpf-model-stage canvas {
+  filter: hue-rotate(165deg) saturate(1.65) contrast(1.22) brightness(1.08) !important;
+  opacity: 0.88 !important;
+}
+
+[data-aeromind-render="night-ops"] .aeromind-engineering-viewport canvas,
+[data-aeromind-render="night-ops"] .physical-drone-stage canvas,
+[data-aeromind-render="night-ops"] .vpf-model-stage canvas {
+  filter: sepia(1) hue-rotate(105deg) saturate(3.2) contrast(1.28) brightness(0.95) !important;
+}
+
+[data-aeromind-render="blueprint-cad"] .aeromind-engineering-viewport canvas,
+[data-aeromind-render="blueprint-cad"] .physical-drone-stage canvas,
+[data-aeromind-render="blueprint-cad"] .vpf-model-stage canvas {
+  filter: sepia(1) hue-rotate(180deg) saturate(2.8) contrast(1.25) brightness(1.02) !important;
+}
