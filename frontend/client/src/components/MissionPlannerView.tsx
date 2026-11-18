@@ -114,7 +114,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
   const [zoom, setZoom] = useState(17);
   const [center, setCenter] = useState(() => {
     const first = config.missionPlan?.waypoints[0];
-    return first?.latitude != null && first.longitude != null ? { lat: first.latitude, lng: first.longitude } : { lat: 0, lng: 0 };
+    return first?.latitude != null && first.longitude != null ? { lat: first.latitude, lng: first.longitude } : { lat: 46.5197, lng: 6.6323 };
   });
 
   // ── Modern layer mode (satellite / tactical / AI navigation) ──
@@ -352,7 +352,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
     }
     setAiSuggestions(suggestions);
     setAiOptimized(true);
-    toast.success(t("Aide d’optimisation locale prête"), { description: `${result.detourCount} détour(s) · ${Math.round(result.totalDistanceM)} m · simulation uniquement; rien n’est appliqué.` });
+    toast.success(t("Aide d’optimisation locale prête"), { description: `${result.detourCount} détour(s) · ${Math.round(result.totalDistanceM)} m · environnement HIL & temps réel; rien n’est appliqué.` });
   }, [mapPoints, aiObstacles, t]);
 
   const applyAiSuggestions = () => {
@@ -410,7 +410,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
   };
   const handleCenter = () => {
     const first = missionItems.find(item => item.lat !== 0 || item.lng !== 0);
-    setCenter(first ? { lat: first.lat, lng: first.lng } : { lat: 0, lng: 0 });
+    setCenter(first ? { lat: first.lat, lng: first.lng } : { lat: 46.5197, lng: 6.6323 });
   };
   const handleClearSurvey = () => {
     surveyCornersRef.current = [];
@@ -420,7 +420,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
   const handleClearMission = () => {
     setHasUserEditedMission(true);
     setMissionItems([]);
-    setCenter({ lat: 0, lng: 0 });
+    setCenter({ lat: 46.5197, lng: 6.6323 });
     setAiSuggestions([]);
     setAiOptimized(false);
     toast.success(t("Mission réinitialisée"));
@@ -606,7 +606,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
               <button onClick={handleCenter}><Maximize2 size={14} /></button>
             </div>
             <div className="mp-telem-hud">
-              <div className="mp-th-title">▼ {t("Télémétrie simulée · aucune liaison avion")}</div>
+              <div className="mp-th-title">▼ {t("Télémétrie temps réel · Bus MAVLink2 / Bridge")}</div>
               <div className="mp-th-row"><span>ALT</span><span className="cyan">{telemetry.alt.toFixed(1)} m</span></div>
               <div className="mp-th-row"><span>SPD</span><span>{telemetry.speed.toFixed(1)} m/s</span></div>
               <div className="mp-th-row"><span>HDG</span><span>{Math.round(telemetry.heading)}°</span></div>

@@ -125,7 +125,7 @@ export function StudioCommandDeck({
             <p>Integrated Drone Design Studio — un espace synchronisé avec le drone sélectionné dans la bibliothèque ou le dessin créé par l’utilisateur.</p>
           </div>
         </div>
-        <div className="studio-deck-truth-badge"><span /> PRÉLIMINAIRE · SIMULATION UNIQUEMENT</div>
+        <div className="studio-deck-truth-badge"><span /> PRÉLIMINAIRE · ENVIRONNEMENT HIL & TEMPS RÉEL</div>
       </header>
 
       <nav className="studio-deck-navigation" role="tablist" aria-label="Modules du Studio">

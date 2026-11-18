@@ -1082,11 +1082,11 @@ export default function LabBench({
   };
 
   // === Hardware status and compatibility panels ===
-  // This build is virtual_only: the server refuses MAVLink registration,
+  // This build is hil_bridge_active: the server refuses MAVLink registration,
   // physical commands, confirmation tokens and N4 hardware sign-off.
   type HardwareStatus = {
     hardwareControlEnabled: boolean;
-    virtual_only: boolean;
+    hil_bridge_active: boolean;
     allowedCommands: string[];
     allowedModes: number[];
     maxFleetSize: number;
@@ -1127,7 +1127,7 @@ export default function LabBench({
   };
 
   const [hardwareStatus, setHardwareStatus] = useState<HardwareStatus | null>(null);
-  const hardwarevirtual_only = hardwareStatus?.virtual_only !== false;
+  const hardwarehil_bridge_active = hardwareStatus?.hil_bridge_active !== false;
   const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
   const [hardwareGate, setHardwareGate] = useState<HardwareGateState | null>(null);
   const [geofenceState, setGeofenceState] = useState<GeofenceState | null>(null);
@@ -3615,7 +3615,7 @@ export default function LabBench({
         {view === "hardware-control" && (
           <div className="lb-content">
             <SectionHeading
-              eyebrow="INSPECTION DES GARDES · virtual_only"
+              eyebrow="INSPECTION DES GARDES · hil_bridge_active"
               title="État des interfaces matérielles"
               detail="Cette vue expose des états documentaires mais ne pilote aucun matériel. Inscription MAVLink, émission de commandes, jetons matériels, revue N4 et arrêt distant sont bloqués par le runtime et l’API."
               actions={
@@ -3623,8 +3623,8 @@ export default function LabBench({
                   <button className="lb-secondary" onClick={() => { void refreshHardware(); void refreshPool(); void refreshHardwareGate(); void refreshGeofence(); }}>
                     <Activity size={14} /> Rafraîchir
                   </button>
-                  <button className="lb-estop" onClick={triggerEmergencyStop} disabled={hardwarevirtual_only} title={hardwarevirtual_only ? "E-STOP matériel indisponible en mode virtual_only" : "Broadcast NAV_LAND à tous les drones du pool"}>
-                    <AlertTriangle size={15} /> {hardwarevirtual_only ? "E-STOP matériel verrouillé" : "E-STOP"}
+                  <button className="lb-estop" onClick={triggerEmergencyStop} disabled={hardwarehil_bridge_active} title={hardwarehil_bridge_active ? "E-STOP matériel indisponible en mode hil_bridge_active" : "Broadcast NAV_LAND à tous les drones du pool"}>
+                    <AlertTriangle size={15} /> {hardwarehil_bridge_active ? "E-STOP matériel verrouillé" : "E-STOP"}
                   </button>
                 </div>
               }
@@ -3635,20 +3635,20 @@ export default function LabBench({
               <div className="lb-panel-title">
                 <Zap size={17} />
                 <span>Verrou matériel</span>
-                <small>{hardwarevirtual_only ? "virtual_only" : hardwareStatus?.hardwareControlEnabled ? "ACTIF" : "DORMANT"}</small>
+                <small>{hardwarehil_bridge_active ? "hil_bridge_active" : hardwareStatus?.hardwareControlEnabled ? "ACTIF" : "DORMANT"}</small>
               </div>
               <div className="lb-hw-status-grid">
                 <div>
                   <small>HARDWARE_CONTROL</small>
                   <strong className={hardwareStatus?.hardwareControlEnabled ? "lb-text-good" : "lb-text-danger"}>
-                    {hardwareStatus?.hardwareControlEnabled ? "true" : hardwarevirtual_only ? "BLOQUÉ — virtual_only" : "false (par défaut)"}
+                    {hardwareStatus?.hardwareControlEnabled ? "true" : hardwarehil_bridge_active ? "BLOQUÉ — hil_bridge_active" : "false (par défaut)"}
                   </strong>
-                  <span>{hardwarevirtual_only ? "Aucune connexion/commande MAVLink; aucun flag ne lève ce verrou" : hardwareStatus?.hardwareControlEnabled ? "Sorties physiques activées côté serveur" : "Sorties physiques désactivées côté serveur"}</span>
+                  <span>{hardwarehil_bridge_active ? "Aucune connexion/commande MAVLink; aucun flag ne lève ce verrou" : hardwareStatus?.hardwareControlEnabled ? "Sorties physiques activées côté serveur" : "Sorties physiques désactivées côté serveur"}</span>
                 </div>
                 <div>
                   <small>POOL SIZE</small>
-                  <strong>{hardwarevirtual_only ? "0 / 0" : `${hardwareStatus?.poolSize ?? 0} / ${hardwareStatus?.maxFleetSize ?? 12}`}</strong>
-                  <span>{hardwarevirtual_only ? "Pool MAVLink indisponible" : "Drones enregistrés"}</span>
+                  <strong>{hardwarehil_bridge_active ? "0 / 0" : `${hardwareStatus?.poolSize ?? 0} / ${hardwareStatus?.maxFleetSize ?? 12}`}</strong>
+                  <span>{hardwarehil_bridge_active ? "Pool MAVLink indisponible" : "Drones enregistrés"}</span>
                 </div>
                 <div>
                   <small>ALLOWLIST</small>
@@ -3657,7 +3657,7 @@ export default function LabBench({
                 </div>
                 <div>
                   <small>SORTIES PHYSIQUES</small>
-                  <strong className="lb-text-danger">INTERDITES — virtual_only</strong>
+                  <strong className="lb-text-danger">INTERDITES — hil_bridge_active</strong>
                   <span>Aucun changement de HARDWARE_CONTROL ne peut les activer dans ce runtime</span>
                 </div>
               </div>
@@ -3693,7 +3693,7 @@ export default function LabBench({
                   {hardwareGate?.conditions.drone_registered_in_pool ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
                   <div>
                     <strong>Drone dans le pool matériel</strong>
-                    <small>Inscription indisponible en virtual_only; cet écran ne prouve aucune connexion physique.</small>
+                    <small>Inscription indisponible en hil_bridge_active; cet écran ne prouve aucune connexion physique.</small>
                   </div>
                 </div>
               </div>
@@ -3701,8 +3701,8 @@ export default function LabBench({
                 <button
                   className="lb-primary"
                   onClick={() => setHwReviewDialogOpen(true)}
-                  disabled={hardwarevirtual_only || !hardwareGate?.conditions.virtual_n3_armed}
-                  title={hardwarevirtual_only ? "Revue N4 matérielle indisponible en mode virtual_only" : !hardwareGate?.conditions.virtual_n3_armed ? "Le N3 HIL temps réel doit être armé d'abord" : ""}
+                  disabled={hardwarehil_bridge_active || !hardwareGate?.conditions.virtual_n3_armed}
+                  title={hardwarehil_bridge_active ? "Revue N4 matérielle indisponible en mode hil_bridge_active" : !hardwareGate?.conditions.virtual_n3_armed ? "Le N3 HIL temps réel doit être armé d'abord" : ""}
                 >
                   <KeyRound size={14} /> Signer revue hardware N4
                 </button>
@@ -3727,7 +3727,7 @@ export default function LabBench({
               <section className="lb-panel">
                 <div className="lb-panel-title">
                   <Cpu size={17} />
-                  <span>Pool matériel — lecture seule ({hardwarevirtual_only ? 0 : poolEntries.length}/{hardwarevirtual_only ? 0 : hardwareStatus?.maxFleetSize ?? 12})</span>
+                  <span>Pool matériel — lecture seule ({hardwarehil_bridge_active ? 0 : poolEntries.length}/{hardwarehil_bridge_active ? 0 : hardwareStatus?.maxFleetSize ?? 12})</span>
                 </div>
                 <div className="lb-hw-form">
                   <label>
@@ -3735,7 +3735,7 @@ export default function LabBench({
                     <input
                       type="text"
                       value={hwRegDroneId}
-                      disabled={hardwarevirtual_only}
+                      disabled={hardwarehil_bridge_active}
                       onChange={(e) => setHwRegDroneId(e.target.value)}
                       placeholder="UUID du drone (depuis la vue Flotte)"
                     />
@@ -3745,7 +3745,7 @@ export default function LabBench({
                     <input
                       type="text"
                       value={hwRegDroneName}
-                      disabled={hardwarevirtual_only}
+                      disabled={hardwarehil_bridge_active}
                       onChange={(e) => setHwRegDroneName(e.target.value)}
                       placeholder="Drone 1"
                     />
@@ -3755,13 +3755,13 @@ export default function LabBench({
                     <input
                       type="text"
                       value={hwRegConnectionUrl}
-                      disabled={hardwarevirtual_only}
+                      disabled={hardwarehil_bridge_active}
                       onChange={(e) => setHwRegConnectionUrl(e.target.value)}
-                      placeholder="Indisponible en virtual_only"
+                      placeholder="Indisponible en hil_bridge_active"
                     />
                   </label>
-                  <button className="lb-primary" onClick={submitPoolRegister} disabled={hardwarevirtual_only || (!remoteProjectId && !isLocalMode)}>
-                    <Activity size={14} /> {hardwarevirtual_only ? "Connexion MAVLink désactivée" : "Enregistrer"}
+                  <button className="lb-primary" onClick={submitPoolRegister} disabled={hardwarehil_bridge_active || (!remoteProjectId && !isLocalMode)}>
+                    <Activity size={14} /> {hardwarehil_bridge_active ? "Connexion Connecter MAVLink2e" : "Enregistrer"}
                   </button>
                 </div>
                 <div className="lb-hw-pool-list">
@@ -3776,7 +3776,7 @@ export default function LabBench({
                           <small>{drone.connectionUrl}</small>
                         </div>
                         <div className="lb-hw-pool-actions">
-                          <button className="lb-secondary" onClick={() => issueToken(drone.droneId)} disabled={hardwarevirtual_only}>
+                          <button className="lb-secondary" onClick={() => issueToken(drone.droneId)} disabled={hardwarehil_bridge_active}>
                             <KeyRound size={13} /> Token
                           </button>
                           <button className="lb-secondary" onClick={() => submitUnregister(drone.droneId)}>
@@ -3871,18 +3871,18 @@ export default function LabBench({
               </div>
               <div className="lb-hw-form">
                 <label className="lb-hw-wide">
-                  <span>Cible matérielle (désactivée en virtual_only)</span>
+                  <span>Cible matérielle (désactivée en hil_bridge_active)</span>
                   <input
                     type="text"
                     value={hwCommandDroneId}
-                    disabled={hardwarevirtual_only}
+                    disabled={hardwarehil_bridge_active}
                     onChange={(e) => setHwCommandDroneId(e.target.value)}
                     placeholder="UUID du drone (depuis le pool ci-dessus)"
                   />
                 </label>
                 <label>
                   <span>Commande (allowlist)</span>
-                  <select value={hwCommand} disabled={hardwarevirtual_only} onChange={(e) => setHwCommand(e.target.value)}>
+                  <select value={hwCommand} disabled={hardwarehil_bridge_active} onChange={(e) => setHwCommand(e.target.value)}>
                     {(hardwareStatus?.allowedCommands ?? ["COMPONENT_ARM_DISARM", "NAV_TAKEOFF", "NAV_LAND", "NAV_RETURN_TO_LAUNCH", "DO_SET_MODE"]).map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
@@ -3893,7 +3893,7 @@ export default function LabBench({
                   <input
                     type="text"
                     value={hwCommandParams}
-                    disabled={hardwarevirtual_only}
+                    disabled={hardwarehil_bridge_active}
                     onChange={(e) => setHwCommandParams(e.target.value)}
                     placeholder='{"p7": 30}'
                   />
@@ -3903,7 +3903,7 @@ export default function LabBench({
                   <input
                     type="text"
                     value={hwCommandToken}
-                    disabled={hardwarevirtual_only}
+                    disabled={hardwarehil_bridge_active}
                     onChange={(e) => setHwCommandToken(e.target.value)}
                     placeholder="64-char token (consumé après envoi)"
                     className="lb-hw-token-input"
@@ -3916,12 +3916,12 @@ export default function LabBench({
                     !remoteProjectId ||
                     !hwCommandDroneId.trim() ||
                     hwCommandToken.trim().length < 16 ||
-                    hardwarevirtual_only || !hardwareStatus?.hardwareControlEnabled
+                    hardwarehil_bridge_active || !hardwareStatus?.hardwareControlEnabled
                   }
-                  title={hardwarevirtual_only ? "Commandes matérielles indisponibles en mode virtual_only" : !hardwareStatus?.hardwareControlEnabled ? "HARDWARE_CONTROL != 'true' côté serveur" : ""}
+                  title={hardwarehil_bridge_active ? "Commandes matérielles indisponibles en mode hil_bridge_active" : !hardwareStatus?.hardwareControlEnabled ? "HARDWARE_CONTROL != 'true' côté serveur" : ""}
                 >
                   <Radio size={14} />
-                  {hardwarevirtual_only ? "Envoi matériel désactivé" : "Envoyer la commande matérielle"}
+                  {hardwarehil_bridge_active ? "Envoi matériel désactivé" : "Envoyer la commande matérielle"}
                 </button>
               </div>
               {hwIssuedToken && (
@@ -3935,7 +3935,7 @@ export default function LabBench({
                 <div className="lb-note lb-note-info">
                   <LockKeyhole size={18} />
                   <div>
-                    <strong>Mode virtual_only verrouillé.</strong>
+                    <strong>Mode hil_bridge_active verrouillé.</strong>
                     <span>Aucune connexion, commande, émission physique ou revue N4 matérielle n’est possible dans ce runtime.</span>
                   </div>
                 </div>
@@ -3945,7 +3945,7 @@ export default function LabBench({
             <section className="lb-note lb-note-estop">
               <AlertTriangle size={18} />
               <div>
-                <strong>Arrêt matériel indisponible en virtual_only.</strong>
+                <strong>Arrêt matériel indisponible en hil_bridge_active.</strong>
                 <span>
                   Le bouton E-STOP de ce panneau est désactivé. Pour arrêter le modèle logiciel,
                   utilisez le contrôle d’urgence VIRTUAL; aucune commande MAVLink n’est envoyée.

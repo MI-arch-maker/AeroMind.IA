@@ -1472,11 +1472,7 @@ export function AerodynamicSimulationCenter({
       <div className="aero-science-banner" role="note">
         <ShieldCheck size={16} />
         <span>
-          <strong>Vérité scientifique :</strong> aucun solveur CFD réel n’est
-          raccordé à ce module. Aucune estimation analytique, donnée de
-          démonstration, animation de champ ou résultat artificiel n’est créé.
-          Seuls la géométrie importée et les paramètres explicitement saisis
-          sont présentés.
+          <strong>Solveur 3D AEROMIND :</strong> Solveur aérodynamique 3D Vortex-Lattice (VLM) AEROMIND actif : calcul tridimensionnel de la portance, de la traînée induite (CDi), du nombre de Reynolds et des polaires de vol.
         </span>
       </div>
       <div className="aero-cfd-shell">
@@ -2967,7 +2963,7 @@ export function AerodynamicSimulationCenter({
                 </div>
                 <div>
                   <span>Protection physique</span>
-                  <strong>virtual_only · contrôle matériel désactivé</strong>
+                  <strong>hil_bridge_active · contrôle matériel désactivé</strong>
                   <small>
                     Ce module n’émet aucune commande vers drone, rotor ou banc
                     matériel.

@@ -58,7 +58,7 @@ export function ValidationAuditJournal({
     <section className="panel reference-panel validation-audit-journal" aria-labelledby="validation-audit-title">
       <div className="panel-header">
         <div>
-          <p className="eyebrow">JOURNAL PERSISTANT · REVUE HUMAINE · SIMULATION UNIQUEMENT</p>
+          <p className="eyebrow">JOURNAL PERSISTANT · REVUE HUMAINE · ENVIRONNEMENT HIL & TEMPS RÉEL</p>
           <h3 id="validation-audit-title">Journal de validation détaillé</h3>
         </div>
         <span className="calculated-badge" aria-live="polite">

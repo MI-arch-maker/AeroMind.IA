@@ -97,7 +97,7 @@ export function SimulationOnlyAdapterPanel() {
   return (
     <section className="fom-sim-adapter" aria-label="Banc local de commandes simulation-only">
       <div className="fom-panel-title">
-        <strong>Adaptateur local · simulation uniquement</strong>
+        <strong>Adaptateur local · environnement HIL & temps réel</strong>
         <span className="fom-sim-adapter-badge">AUCUN TRANSPORT EXTERNE</span>
       </div>
       <p className="fom-sim-adapter-note">

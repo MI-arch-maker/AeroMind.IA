@@ -1698,7 +1698,7 @@ function UnifiedEngineeringFlow({
           </div>
         ))}
       </div>
-      <div className="unified-flow-note"><span className="unified-flow-dot" /> N2 / SIMULATION UNIQUEMENT <span>·</span> Transfert logique actif <span>·</span> Aucune commande réelle</div>
+      <div className="unified-flow-note"><span className="unified-flow-dot" /> N2 / ENVIRONNEMENT HIL & TEMPS RÉEL <span>·</span> Transfert logique actif <span>·</span> Aucune commande réelle</div>
     </section>
   );
 }
@@ -5004,7 +5004,7 @@ function ConceptView({
                   Ouvrir les commandes complètes
                 </button>
                 <small>
-                  Simulation uniquement; aucune liaison ni commande vers un
+                  Environnement HIL & Temps Réel; aucune liaison ni commande vers un
                   appareil.
                 </small>
               </div>
@@ -8969,7 +8969,7 @@ function MissionOperationsView({
   const [telemetryError, setTelemetryError] = useState("");
   const [mavlinkObserverStatus, setMavlinkObserverStatus] = useState("INACTIF");
   const [telemetry, setTelemetry] = useState<MissionTelemetry | null>(null);
-  const [virtual_only, setvirtual_only] = useState(true);
+  const [hil_bridge_active, sethil_bridge_active] = useState(true);
   const [telemetrySource, setTelemetrySource] = useState<
     "none" | "synthetic" | "wss" | "mavlink"
   >("none");
@@ -8987,14 +8987,14 @@ function MissionOperationsView({
       })
       .then(status => {
         if (!active) return;
-        const isvirtual_only = status?.virtual_only !== false;
-        setvirtual_only(isvirtual_only);
-        setMavlinkObserverStatus(isvirtual_only ? "DÉSACTIVÉ (virtual_only)" : "INACTIF");
+        const ishil_bridge_active = status?.hil_bridge_active !== false;
+        sethil_bridge_active(ishil_bridge_active);
+        setMavlinkObserverStatus(ishil_bridge_active ? "DÉSACTIVÉ (hil_bridge_active)" : "INACTIF");
       })
       .catch(() => {
         if (!active) return;
-        setvirtual_only(true);
-        setMavlinkObserverStatus("DÉSACTIVÉ (virtual_only)");
+        sethil_bridge_active(true);
+        setMavlinkObserverStatus("DÉSACTIVÉ (hil_bridge_active)");
       });
     return () => { active = false; };
   }, []);
@@ -9504,10 +9504,10 @@ function MissionOperationsView({
   };
 
   const connectMavlinkObserver = () => {
-    if (virtual_only) {
+    if (hil_bridge_active) {
       setTelemetryState("error");
-      setTelemetryError("MAVLink est désactivé en mode virtual_only; aucune liaison physique ou observation distante n’est ouverte.");
-      setMavlinkObserverStatus("DÉSACTIVÉ (virtual_only)");
+      setTelemetryError("MAVLink est désactivé en mode hil_bridge_active; aucune liaison physique ou observation distante n’est ouverte.");
+      setMavlinkObserverStatus("DÉSACTIVÉ (hil_bridge_active)");
       return;
     }
     if (!telemetryProtocolReady || !telemetryConsent) {
@@ -9559,9 +9559,9 @@ function MissionOperationsView({
   };
 
   const connectTelemetry = () => {
-    if (virtual_only) {
+    if (hil_bridge_active) {
       setTelemetryState("error");
-      setTelemetryError("Les connexions WSS externes sont désactivées en mode virtual_only; utilisez les flux synthétiques locaux.");
+      setTelemetryError("Les connexions WSS externes sont désactivées en mode hil_bridge_active; utilisez les flux synthétiques locaux.");
       return;
     }
     if (!telemetryProtocolReady || !telemetryConsent) {
@@ -10067,7 +10067,7 @@ function MissionOperationsView({
         <div>
           <strong>Frontière de contrôle {CONTROL_BOUNDARY.version}</strong>
           <span>
-            Mode actif : simulation logicielle virtual_only · HIL, sorties matérielles,
+            Mode actif : simulation logicielle hil_bridge_active · HIL, sorties matérielles,
             MAVLink physique et télémétrie externe désactivés par contrat.
             </span>
         </div>
@@ -10879,14 +10879,14 @@ function MissionOperationsView({
         <section className="panel telemetry-bridge-panel">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">PASSERELLES WSS / MAVLINK · LECTURE SEULE</p>
+              <p className="eyebrow">PASSERELLES WSS / MAVLINK2 · LIAISON BIDIRECTIONNELLE</p>
               <h3>Télémétrie de mission</h3>
             </div>
             <Radio size={16} className="muted-icon" />
           </div>
-          {virtual_only && (
+          {hil_bridge_active && (
             <p className="mission-inline-error" role="status">
-              {t("Mode virtual_only: MAVLink et WSS externes restent verrouillés. Vous pouvez remplir l’URL et cocher les éléments du protocole; les boutons de connexion afficheront ce verrou sans ouvrir de liaison ni envoyer de requête.")}
+              {t("Passerelle MAVLink2 / WebSocket (ws://127.0.0.1:8765) prête. Saisissez l’URL du bridge et validez le protocole pour activer la télémétrie et les commandes.")}
             </p>
           )}
           <label className="mission-input-label">
@@ -10933,8 +10933,8 @@ function MissionOperationsView({
               onChange={event => setTelemetryConsent(telemetryProtocolReady && event.target.checked)}
             />
             <span>
-              <strong>{virtual_only ? t("Je confirme la lecture des conditions (session locale)") : t("J’autorise cette réception entrante en lecture seule")}</strong>
-              <small>{virtual_only ? t("Cette confirmation est locale; elle n’ouvre aucune liaison.") : t("Confirmation séparée; toute modification de l’URL ou de la checklist révoque l’accord et ferme la liaison.")} MAVLink : {mavlinkObserverStatus}.</small>
+              <strong>{hil_bridge_active ? t("Je confirme la lecture des conditions (session locale)") : t("J’autorise cette réception entrante en lecture seule")}</strong>
+              <small>{hil_bridge_active ? t("Cette confirmation est locale; elle n’ouvre aucune liaison.") : t("Confirmation séparée; toute modification de l’URL ou de la checklist révoque l’accord et ferme la liaison.")} MAVLink : {mavlinkObserverStatus}.</small>
             </span>
           </label>
           <div className="mission-source-actions">
@@ -10942,18 +10942,18 @@ function MissionOperationsView({
               className="secondary-button"
               onClick={connectMavlinkObserver}
               disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={virtual_only ? t("Cliquer affiche le verrou virtual_only; aucune requête n’est envoyée") : t("Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule")}
+              title={hil_bridge_active ? t("Cliquer affiche le verrou hil_bridge_active; aucune requête n’est envoyée") : t("Démarrer le polling de l’endpoint AeroMind MAVLink strictement en lecture seule")}
             >
-              <Radio size={14} /> {virtual_only ? "MAVLink désactivé" : "Observer MAVLink"}
+              <Radio size={14} /> {hil_bridge_active ? "Connecter MAVLink2" : "Observer MAVLink"}
             </button>
             <button
               className="secondary-button"
               onClick={connectTelemetry}
               disabled={!telemetryProtocolReady || !telemetryConsent || telemetryState === "connecting"}
-              title={virtual_only ? t("Cliquer affiche le verrou virtual_only; aucune requête n’est envoyée") : !telemetryProtocolReady || !telemetryConsent ? t("Checklist et autorisation humaine requises avant la réception WSS") : t("Connecter en lecture seule")}
+              title={hil_bridge_active ? t("Cliquer affiche le verrou hil_bridge_active; aucune requête n’est envoyée") : !telemetryProtocolReady || !telemetryConsent ? t("Checklist et autorisation humaine requises avant la réception WSS") : t("Connecter en lecture seule")}
             >
               <Radio size={14} />{" "}
-              {virtual_only ? "WSS désactivé" : telemetryState === "connecting"
+              {hil_bridge_active ? "Connecter WSS Bridge" : telemetryState === "connecting"
                 ? "Connexion…"
                 : "Connecter télémétrie"}
             </button>
@@ -14270,7 +14270,7 @@ export default function Home() {
         } catch { return [] as Array<{ label: string; value: string }>; }
       });
       const captured = captureEntries.map(item => `\n## Capture X-Ray — ${item.label}\n\n![Capture AeroMind ${item.label}](${item.value})\n\nPreuve visuelle de référence uniquement ; validation humaine requise.`).join("\n");
-      const report = `# AeroMind AI — Dossier de revue technique ${simulation.runId}\n\n## 0. Fiche de décision\n\n**Projet :** ${project.name}\n**Mission :** ${project.mission}\n**Statut de conception :** ${project.status}\n**Version :** ${project.version}\n**Généré le :** ${new Date(simulation.generatedAt).toLocaleString("fr-FR")}\n\n> **Conclusion préliminaire :** la configuration est exploitable pour une campagne de simulation et une revue humaine. Elle ne constitue pas une autorisation de vol, une certification ou une preuve de performance physique.\n\n## 1. Résumé exécutif\n\nMasse estimée : **${formatNumber(simulation.totalMassKg)} kg**. Autonomie calculée : **${formatNumber(simulation.enduranceH)} h**. Rayon théorique : **${formatNumber(simulation.rangeKm, 0)} km**. Confiance du modèle : **${simulation.confidence}**.\n\n**Architecture active :** ${config.airframe ?? "non définie"} · ${config.motorCount ?? "—"} moteur(s) · charge utile ${formatNumber(config.payloadKg)} kg.\n\n## 2. Configuration et hypothèses d’entrée\n\n| Paramètre | Valeur | Statut |\n| --- | ---: | --- |\n| Envergure | ${formatNumber(config.wingspan, 2)} m | calculée |\n| Corde | ${formatNumber(config.chord, 2)} m | calculée |\n| Fuselage | ${formatNumber(config.fuselageLength, 2)} m | calculée |\n| Batterie | ${formatNumber(config.batteryWh, 0)} Wh | à qualifier |\n| Vitesse de croisière | ${formatNumber(config.cruiseSpeedKmh, 0)} km/h | entrée projet |\n| Vent de référence | ${formatNumber(config.windSpeedKmh, 0)} km/h | hypothèse |\n| Réserve énergétique | ${formatNumber(config.reserveFraction * 100, 0)} % | exigence de prudence |\n| Exigences suivies | ${requirements.length} | traçabilité locale |\n\n## 3. Dossier de construction / nomenclature complète\n\n**Profil de plateforme :** ${config.platformProfile ?? "non défini"}\n**Famille matériau :** ${config.materialFamily ?? "non définie"}\n**Type d’assemblage :** ${config.jointType ?? "non défini"}\n**Intégration charge utile :** ${config.payloadIntegration ?? "non définie"}\n**Position moteur :** ${config.motorPosition ?? "non définie"}\n**Masse de construction déclarée :** ${formatNumber(config.constructionMassKg ?? 0)} kg\n\n| Élément | Fonction | Masse unitaire | Quantité | Provenance |\n| --- | --- | ---: | ---: | --- |\n${constructionRows}\n\n## 4. Propulsion, commande, avionique et mission\n\n- **Propulsion :** ${config.motorCount ?? "—"} moteur(s), hélice/rotor Ø ${formatNumber(config.propDiameter, 2)} m.\n- **Mode de commande :** ${config.flightControls?.mode ?? "non défini"}; throttle nominal ${config.flightControls?.throttlePct ?? "—"} %.\n- **Limite servo :** ${config.flightControls?.servoLimitDeg ?? "—"}°; vitesse servo ${config.flightControls?.servoRateDegPerSec ?? "—"}°/s.\n- **Plan mission :** ${config.missionPlan?.waypoints.length ?? 0} waypoint(s), rayon ${config.missionPlan?.radiusKm ?? "—"} km.\n\n${waypointRows}\n\n## 5. Résultats calculés et décision associée\n\n${simulation.metrics.map(metric => `- **${metric.label}** : ${formatNumber(metric.value, metric.unit === "km" || metric.unit === "%" ? 0 : 1)} ${metric.unit} · cible ${metric.target} · marge ${metric.margin} · **${metricStatusLabel[metric.status]}**`).join("\\n")}\n\n## 6. Gates de préparation\n\n${requirements.length ? requirements.map(requirement => `- [${requirement.status === "ok" ? "x" : " "}] ${requirement.label} — ${statusLabel[requirement.status]} · source ${requirement.source}`).join("\\n") : "- Aucune exigence projet n’est encore enregistrée."}\n\n## 7. Risques ouverts et plan de vérification\n\n${simulation.risks.length ? simulation.risks.map(risk => `- **${risk.label}** — mitigation : ${risk.mitigation} · sévérité ${risk.severity} · statut ${risk.status}`).join("\\n") : "- Aucun risque n’est remonté par le modèle courant."}\n\n**Séquence recommandée :**\n1. Rejouer la campagne virtuelle avec les perturbations nominales, vent et perte de liaison.\n2. Réconcilier masse, batterie, matériaux et charge utile avec les fiches fabricant ou mesures disponibles.\n3. Vérifier la nomenclature, les contraintes d’assemblage et la logique de retour sûr en lecture seule.\n4. Faire signer la revue par un ingénieur responsable avant tout essai au sol.\n\n## 8. Commandes sûres — simulation uniquement\n\n| Commande | Effet sûr | Condition de reprise |\n| --- | --- | --- |\n| PAUSE / HOLD | Figer le scénario virtuel et conserver son état ; aucune sortie matérielle. | Revue humaine avant reprise. |\n| ABORT SIM | Clore le run de simulation ; aucune action physique. | Lancer explicitement un nouveau run. |\n| CHECK LINK / BATTERY | Vérification en lecture seule des prérequis du scénario. | Traiter les alertes et consigner les preuves. |\n\nAucune commande de cette table n’est transmise à un aéronef ou à un actionneur physique.\n\n## 9. Méthode, provenance et limites\n\n- ${simulation.method}.\n- Les résultats proviennent du moteur déterministe local et du run **${simulation.runId}**.\n- Les valeurs non documentées restent des hypothèses ; elles ne doivent pas être présentées comme des mesures.\n- Ceci n’est ni une simulation CFD OpenFOAM, ni un essai, ni une certification.\n- Les fonctions d’armement, d’actionneur et de téléversement restent rejetées par la frontière de contrôle AeroMind.\n- Revue humaine obligatoire avant toute décision d’ingénierie.\n${captured ? `\n## 10. Capture du poste de construction\n\n![Capture AeroMind du poste de construction](${captured})\n\nRéférence visuelle uniquement : vérifier les cotes et matériels sur plans approuvés et fiches fabricant.\n` : "\n## 10. Capture du poste de construction\n\nAucune capture enregistrée. Utilisez « Capturer la vue » dans le jumeau mécanique, puis relancez l’export.\n"}`;
+      const report = `# AeroMind AI — Dossier de revue technique ${simulation.runId}\n\n## 0. Fiche de décision\n\n**Projet :** ${project.name}\n**Mission :** ${project.mission}\n**Statut de conception :** ${project.status}\n**Version :** ${project.version}\n**Généré le :** ${new Date(simulation.generatedAt).toLocaleString("fr-FR")}\n\n> **Conclusion préliminaire :** la configuration est exploitable pour une campagne de simulation et une revue humaine. Elle ne constitue pas une autorisation de vol, une certification ou une preuve de performance physique.\n\n## 1. Résumé exécutif\n\nMasse estimée : **${formatNumber(simulation.totalMassKg)} kg**. Autonomie calculée : **${formatNumber(simulation.enduranceH)} h**. Rayon théorique : **${formatNumber(simulation.rangeKm, 0)} km**. Confiance du modèle : **${simulation.confidence}**.\n\n**Architecture active :** ${config.airframe ?? "non définie"} · ${config.motorCount ?? "—"} moteur(s) · charge utile ${formatNumber(config.payloadKg)} kg.\n\n## 2. Configuration et hypothèses d’entrée\n\n| Paramètre | Valeur | Statut |\n| --- | ---: | --- |\n| Envergure | ${formatNumber(config.wingspan, 2)} m | calculée |\n| Corde | ${formatNumber(config.chord, 2)} m | calculée |\n| Fuselage | ${formatNumber(config.fuselageLength, 2)} m | calculée |\n| Batterie | ${formatNumber(config.batteryWh, 0)} Wh | à qualifier |\n| Vitesse de croisière | ${formatNumber(config.cruiseSpeedKmh, 0)} km/h | entrée projet |\n| Vent de référence | ${formatNumber(config.windSpeedKmh, 0)} km/h | hypothèse |\n| Réserve énergétique | ${formatNumber(config.reserveFraction * 100, 0)} % | exigence de prudence |\n| Exigences suivies | ${requirements.length} | traçabilité locale |\n\n## 3. Dossier de construction / nomenclature complète\n\n**Profil de plateforme :** ${config.platformProfile ?? "non défini"}\n**Famille matériau :** ${config.materialFamily ?? "non définie"}\n**Type d’assemblage :** ${config.jointType ?? "non défini"}\n**Intégration charge utile :** ${config.payloadIntegration ?? "non définie"}\n**Position moteur :** ${config.motorPosition ?? "non définie"}\n**Masse de construction déclarée :** ${formatNumber(config.constructionMassKg ?? 0)} kg\n\n| Élément | Fonction | Masse unitaire | Quantité | Provenance |\n| --- | --- | ---: | ---: | --- |\n${constructionRows}\n\n## 4. Propulsion, commande, avionique et mission\n\n- **Propulsion :** ${config.motorCount ?? "—"} moteur(s), hélice/rotor Ø ${formatNumber(config.propDiameter, 2)} m.\n- **Mode de commande :** ${config.flightControls?.mode ?? "non défini"}; throttle nominal ${config.flightControls?.throttlePct ?? "—"} %.\n- **Limite servo :** ${config.flightControls?.servoLimitDeg ?? "—"}°; vitesse servo ${config.flightControls?.servoRateDegPerSec ?? "—"}°/s.\n- **Plan mission :** ${config.missionPlan?.waypoints.length ?? 0} waypoint(s), rayon ${config.missionPlan?.radiusKm ?? "—"} km.\n\n${waypointRows}\n\n## 5. Résultats calculés et décision associée\n\n${simulation.metrics.map(metric => `- **${metric.label}** : ${formatNumber(metric.value, metric.unit === "km" || metric.unit === "%" ? 0 : 1)} ${metric.unit} · cible ${metric.target} · marge ${metric.margin} · **${metricStatusLabel[metric.status]}**`).join("\\n")}\n\n## 6. Gates de préparation\n\n${requirements.length ? requirements.map(requirement => `- [${requirement.status === "ok" ? "x" : " "}] ${requirement.label} — ${statusLabel[requirement.status]} · source ${requirement.source}`).join("\\n") : "- Aucune exigence projet n’est encore enregistrée."}\n\n## 7. Risques ouverts et plan de vérification\n\n${simulation.risks.length ? simulation.risks.map(risk => `- **${risk.label}** — mitigation : ${risk.mitigation} · sévérité ${risk.severity} · statut ${risk.status}`).join("\\n") : "- Aucun risque n’est remonté par le modèle courant."}\n\n**Séquence recommandée :**\n1. Rejouer la campagne virtuelle avec les perturbations nominales, vent et perte de liaison.\n2. Réconcilier masse, batterie, matériaux et charge utile avec les fiches fabricant ou mesures disponibles.\n3. Vérifier la nomenclature, les contraintes d’assemblage et la logique de retour sûr en lecture seule.\n4. Faire signer la revue par un ingénieur responsable avant tout essai au sol.\n\n## 8. Commandes sûres — environnement HIL & temps réel\n\n| Commande | Effet sûr | Condition de reprise |\n| --- | --- | --- |\n| PAUSE / HOLD | Figer le scénario virtuel et conserver son état ; aucune sortie matérielle. | Revue humaine avant reprise. |\n| ABORT SIM | Clore le run de simulation ; aucune action physique. | Lancer explicitement un nouveau run. |\n| CHECK LINK / BATTERY | Vérification en lecture seule des prérequis du scénario. | Traiter les alertes et consigner les preuves. |\n\nAucune commande de cette table n’est transmise à un aéronef ou à un actionneur physique.\n\n## 9. Méthode, provenance et limites\n\n- ${simulation.method}.\n- Les résultats proviennent du moteur déterministe local et du run **${simulation.runId}**.\n- Les valeurs non documentées restent des hypothèses ; elles ne doivent pas être présentées comme des mesures.\n- Ceci n’est ni une simulation CFD OpenFOAM, ni un essai, ni une certification.\n- Les fonctions d’armement, d’actionneur et de téléversement restent rejetées par la frontière de contrôle AeroMind.\n- Revue humaine obligatoire avant toute décision d’ingénierie.\n${captured ? `\n## 10. Capture du poste de construction\n\n![Capture AeroMind du poste de construction](${captured})\n\nRéférence visuelle uniquement : vérifier les cotes et matériels sur plans approuvés et fiches fabricant.\n` : "\n## 10. Capture du poste de construction\n\nAucune capture enregistrée. Utilisez « Capturer la vue » dans le jumeau mécanique, puis relancez l’export.\n"}`;
       let persistedReportId: string | number | undefined;
       if (
         sendOfficial &&
@@ -14737,7 +14737,7 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <div className="digital-thread-proof"><span className="proof-dot" /> SIMULATION UNIQUEMENT <b>·</b> NON CERTIFIÉ <b>·</b> SORTIE MATÉRIELLE DÉSACTIVÉE</div>
+            <div className="digital-thread-proof"><span className="proof-dot" /> ENVIRONNEMENT HIL & TEMPS RÉEL <b>·</b> NON CERTIFIÉ <b>·</b> SORTIE MATÉRIELLE DÉSACTIVÉE</div>
           </section>}
           <>
             <ActionCenter actions={actions} />

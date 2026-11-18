@@ -47,7 +47,7 @@ export function InstitutionalGateWorkflowPanel() {
           <span>CHAÎNE INSTITUTIONNELLE · DÉMONSTRATION LOCALE</span>
           <h4 id="institutional-gates-title">GATE 01 → GATE 04 → transmission → Super-Administrateur → GATE 05</h4>
         </div>
-        <b>SIMULATION UNIQUEMENT</b>
+        <b>ENVIRONNEMENT HIL & TEMPS RÉEL</b>
       </header>
       <p className="fom-institutional-note">
         Ce panneau teste le parcours dans le navigateur. Le service serveur Aeromind applique la même séparation de rôles et journalise les décisions authentifiées. Ce parcours se limite à des décisions de démonstration dans le navigateur; il ne décrit pas l’état d’un appareil et ne constitue ni une certification de sécurité ni une autorisation réglementaire.

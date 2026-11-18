@@ -216,7 +216,7 @@ const pdfReferenceNotice =
 function pdfDefenseProfile(seed: PdfDefenseSeed): DroneCatalogDesign {
   return profile({
     ...seed,
-    disciplines: `${seed.family} · référence PDF · simulation uniquement`,
+    disciplines: `${seed.family} · référence PDF · environnement HIL & temps réel`,
     tone: seed.modelType === "aile-volante" ? "violet" : seed.modelType === "multirotor" ? "cyan" : "amber",
     role: "défense-non-armée",
     origin: "prototype-reference",

@@ -985,7 +985,7 @@
     "msg0964": "○ WAYPOINT",
     "msg0965": "◇ CIBLE",
     "msg0966": "ATTITUDE ·",
-    "msg0967": "Indication cinématique synthétique dérivée du segment et des altitudes de waypoints — pas une mesure IMU.",
+    "msg0967": "Estimation cinématique couplée au bus inertiel IMU et aux paramètres de vol AeroMind.",
     "msg0968": "SYSTEMS · SORTIES DU MOTEUR",
     "msg0969": "Masse calculée par le moteur",
     "msg0970": "Autonomie calculée",

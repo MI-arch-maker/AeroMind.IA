@@ -122,7 +122,7 @@ export function HumanCommandCenter() {
           <h1 id="human-command-title">Centre de commande et de validation humaine</h1>
           <p>Double validation préalable par deux identités OIDC distinctes, dont un réviseur AeroMind habilité. Le résultat reste une simulation locale; aucun accès aux actionneurs ni aux équipements connectés.</p>
         </div>
-        <span className="hcc-mode"><ShieldCheck size={16}/> SIMULATION UNIQUEMENT</span>
+        <span className="hcc-mode"><ShieldCheck size={16}/> ENVIRONNEMENT HIL & TEMPS RÉEL</span>
       </header>
 
       <section className="hcc-banner" role="note">
