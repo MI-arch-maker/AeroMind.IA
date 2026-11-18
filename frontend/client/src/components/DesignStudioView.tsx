@@ -1491,6 +1491,714 @@ export function DesignStudioView({
       <div id="studio-sketch-workbench" className="studio-subsystem-anchor"><DroneSketchProWorkbench config={config} setConfig={setConfig} activeProfile={integratedProfile} parts={config.installedMaterials ?? []} context="studio" onUserIntegration={onUserIntegration} /></div>
       <div id="studio-cad-workbench" className="studio-subsystem-anchor"><EngineeringCadWorkbench config={config} setConfig={setConfig} activeProfile={integratedProfile} onOpenLibrary={onOpenLibrary} /></div>
       <div id="studio-electronics-workbench" className="studio-subsystem-anchor"><DroneBehaviorPanel configuration={config} context="studio" state="IDDS · CONCEPTION INTÉGRÉE" /></div>
+<div className="studio-header">
+        <div>
+          <p className="eyebrow">IDDS / POSTE D’INGÉNIERIE MULTIDISCIPLINAIRE</p>
+          <h2>Integrated Drone Design Studio — IDDS</h2>
+          <p className="section-description">
+            Conception mécanique, physique, structurelle, schématique, chimique et mathématique liée à la référence sélectionnée ou au dessin utilisateur.
+          </p>
+        </div>
+        <div className="studio-header-actions">
+          <button
+            className="secondary-button"
+            onClick={() => fileRef.current?.click()}
+          >
+            <Box size={14} /> Importer document
+          </button>
+          <button className="secondary-button" onClick={exportBom}>
+            <Download size={14} /> BOM CSV
+          </button>
+          <button className="primary-button" onClick={exportStudio}>
+            <Download size={14} /> Export document
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={event => void importStudio(event.target.files?.[0])}
+          />
+        </div>
+      </div>
+      <section className="construction-command-panel" aria-label="Console de contrôle de construction">
+        <div className="construction-command-heading">
+          <div><p className="eyebrow">INDUSTRIAL BUILD AUTHORITY / READINESS</p><h3>Tableau de maîtrise de la configuration</h3><span>La décision reste humaine · aucune pièce n’est certifiée automatiquement</span></div>
+          <div className={`construction-command-state ${true ? "is-live" : "is-waiting"}`}><i />{true ? "IDDS · SOURCE ACTIVE" : "EN ATTENTE D’UNE SOURCE"}</div>
+        </div>
+        <div className="construction-command-kpis">
+          <div><small>RÉFÉRENCE CELLULE</small><strong>{integratedProfile?.id ?? (false ? "DESSIN" : "—")}</strong><span>{integratedProfile?.family ?? (false ? "Géométrie utilisateur" : "Sélection requise")}</span></div>
+          <div><small>NOMENCLATURE</small><strong>{String(parts.length).padStart(2, "0")}</strong><span>{totalMass.toFixed(2)} kg déclarés</span></div>
+          <div><small>SOURCES FABRICANT</small><strong>{parts.filter(part => part.catalogSource === "manufacturer").length}/{parts.length || 0}</strong><span>références vérifiables</span></div>
+          <div><small>ÉTAT DE REVUE</small><strong>{parts.length && true ? "REVIEW" : "LOCKED"}</strong><span>validation humaine requise</span></div>
+        </div>
+        <div className="construction-control-rail"><span><b>01</b> CELLULE</span><i /><span><b>02</b> PIÈCES</span><i /><span><b>03</b> INTERFACES</span><i /><span><b>04</b> PREUVES</span><i /><span><b>05</b> REVUE</span></div>
+      </section>
+      <div className="studio-engineering-reference">
+        <div className="studio-reference-glyph" aria-hidden="true">
+          <span />
+          <i />
+          <b />
+        </div>
+        <div>
+          <p className="eyebrow">RÉFÉRENCE D’INGÉNIERIE INTERNE</p>
+          <strong>
+            {integratedProfile?.label ?? (false ? config.engineeringSelection?.droneLabel ?? config.designName ?? "Dessin utilisateur" : "Aucune source active")} · workspace IDDS synchronisé
+          </strong>
+          <small>
+            La même source active alimente le dessin, le CAO, les paramètres et la nomenclature.
+          </small>
+        </div>
+        <div className="studio-reference-specs">
+          <span>
+            {integratedProfile?.family ??
+              (false ? "DESSIN UTILISATEUR" : true ? config.modelType?.toUpperCase() ?? "NON CONFIGURÉ" : "NON CONFIGURÉ")}
+          </span>
+          <span>{true && (config.motorCount ?? 0) > 0 ? `${config.motorCount} moteur(s)` : "Moteurs · —"}</span>
+          <span>{true && config.wingspan > 0 ? `${config.wingspan.toFixed(2)} m d’envergure` : "Envergure · —"}</span>
+        </div>
+      </div>
+      <PayloadMissionWorkbench
+        installed={partsToMaterials(parts.filter(part => part.kind === "payload"))}
+        profiles={config.payloadCalibrationProfiles}
+        onProfileChange={(id, profile) => setConfig(current => ({
+          ...current,
+          payloadCalibrationProfiles: { ...(current.payloadCalibrationProfiles ?? {}), [id]: profile },
+        }))}
+        onInstall={id => {
+          const item = dronePartCatalog.find(part => part.id === id);
+          if (item) addCatalogPart(item);
+        }}
+      />
+      <section className="studio-guide-console idds-console" aria-label="Integrated Drone Design Studio — IDDS">
+        <header className="idds-header">
+          <div><span className="idds-eyebrow"><Layers3 size={14} /> INTEGRATED DRONE DESIGN STUDIO — IDDS</span><h2>Studio intégré de conception mécanique, architecturale et paramétrique de drones</h2><p>Un espace de travail synchronisé avec le drone choisi dans la bibliothèque ou le dessin réalisé par l’utilisateur.</p></div>
+          <span className={`idds-source-badge ${integratedProfile || false ? "is-active" : "is-empty"}`}>{integratedProfile ? "SOURCE · BIBLIOTHÈQUE" : false ? "SOURCE · DESSIN UTILISATEUR" : "EN ATTENTE DE SOURCE"}</span>
+        </header>
+        <div className="idds-workspace">
+          <div className="idds-preview-frame">
+            {true ? <IDDSParametricScene parts={visibleParts} selectedId={selectedId} onSelectPart={setSelectedId} strokes={false ? iddsSketch : []} view="top" zoom={zoom} design={integratedProfile} config={config} renderMode={renderMode} kinematicsPlaying={kinematicsPlaying} /> : <div className="idds-empty-preview"><Crosshair size={29}/><strong>AUCUN MODÈLE AFFICHÉ</strong><span>Le visuel apparaîtra après une sélection catalogue ou un dessin utilisateur.</span></div>}
+            {(integratedProfile || false) && <span className="idds-preview-label">{integratedProfile.label} · APERÇU CONCEPTUEL</span>}
+          </div>
+          <aside className="idds-source-panel"><div className="idds-source-title"><span className="idds-status-dot"/><div><small>DOCUMENT / SOURCE ACTIVE</small><strong>{integratedProfile.label}</strong></div></div>
+            {integratedProfile || false ? <div className="idds-metrics"><span>ENVERGURE<strong>{config.wingspan > 0 ? `${config.wingspan.toFixed(2)} m` : "—"}</strong></span><span>MOTEURS<strong>{config.motorCount && config.motorCount > 0 ? config.motorCount : "—"}</strong></span><span>OBJETS<strong>{false ? iddsSketch.length : parts.length}</strong></span></div> : <p className="idds-source-hint">Aucune architecture ni cote n’est préchargée. Choisissez une source pour commencer.</p>}
+            <div className="idds-actions"><button type="button" onClick={() => onOpenLibrary ? onOpenLibrary() : document.getElementById("studio-command-deck")?.scrollIntoView({ behavior: "smooth" })}><Boxes size={14}/> Bibliothèque de drones</button><button type="button" onClick={() => document.getElementById("studio-sketch-workbench")?.scrollIntoView({ behavior: "smooth", block: "start" })}><PenLine size={14}/> Interface Dessin</button></div>
+            <small className="idds-safety-note"><Wrench size={12}/> Données de conception préliminaires · validation humaine requise</small>
+          </aside>
+        </div>
+        <nav className="idds-module-rail" aria-label="Modules de conception IDDS"><span>MODULES IDDS</span><button type="button" onClick={() => document.getElementById("studio-sketch-workbench")?.scrollIntoView({ behavior: "smooth", block: "start" })}><PenLine size={13}/> MÉCANIQUE / DESSIN</button><button type="button" onClick={() => document.getElementById("studio-cad-workbench")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Box size={13}/> ARCHITECTURE / CAO</button><button type="button" onClick={() => document.getElementById("studio-assembly-workbench")?.scrollIntoView({ behavior: "smooth", block: "start" })}><Settings2 size={13}/> PARAMÉTRIQUE / ASSEMBLAGE</button><small>Le contenu reflète la source active du projet ; aucune maquette automatique.</small></nav>
+      </section>
+      <div className="studio-toolbar">
+        <div className="studio-tool-group">
+          {tools.map(item => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                className={`studio-tool ${tool === item.id ? "is-active" : ""}`}
+                onClick={() => setTool(item.id)}
+              >
+                <Icon size={15} />
+                {item.label}
+              </button>
+            );
+          })}
+          <button
+            className={`studio-tool ${snap ? "is-active" : ""}`}
+            onClick={() => setSnap(value => !value)}
+          >
+            <Grid3X3 size={15} /> Grille {snap ? "ON" : "OFF"}
+          </button>
+        </div>
+        <div className="studio-tool-group">
+          <button className="studio-tool" onClick={harmonizeAssembly}>
+            <Check size={15} /> Harmoniser
+          </button>
+          <button className="studio-tool" onClick={centerSelected}>
+            <AlignCenterHorizontal size={15} /> Centrer
+          </button>
+          <button className="studio-tool" onClick={fitAssembly}>
+            <ScanSearch size={15} /> Ajuster vue
+          </button>
+          <button className="studio-tool" onClick={toggleAllParts}>
+            <Eye size={15} /> Tout afficher
+          </button>
+          <button className="studio-tool" onClick={assemblyReview}>
+            <Box size={15} /> Auditer construction
+          </button>
+          <button className="studio-tool studio-tool-capture" onClick={captureIddsConstruction} title="Capturer la construction IDDS pour le rapport">
+            <Camera size={15} /> Capturer IDDS
+          </button>
+          <button className="studio-tool studio-tool-capture" onClick={captureDroneSketch} title="Capturer le croquis de drone pour le rapport">
+            <Pencil size={15} /> Capturer croquis
+          </button>
+          <button
+            className="studio-tool"
+            onClick={undo}
+            disabled={!past.length}
+          >
+            <Undo2 size={15} /> Annuler
+          </button>
+          <button
+            className="studio-tool"
+            onClick={redo}
+            disabled={!future.length}
+          >
+            <Redo2 size={15} /> Rétablir
+          </button>
+          <button className="studio-tool" onClick={duplicateSelected}>
+            <Copy size={15} /> Dupliquer
+          </button>
+          <button className="studio-tool" onClick={deleteSelected}>
+            <Trash2 size={15} /> Supprimer
+          </button>
+          <button
+            className="studio-tool"
+            onClick={() => setZoom(value => Math.max(0.5, value - 0.1))}
+            aria-label="Réduire le modèle"
+          >
+            <ZoomOut size={15} />
+          </button>
+          <span className="studio-readout">{Math.round(zoom * 100)}%</span>
+          <input
+            className="studio-zoom-slider"
+            type="range"
+            min="0.5"
+            max="2.5"
+            step="0.05"
+            value={zoom}
+            onChange={event => setZoom(Number(event.target.value))}
+            aria-label="Agrandissement du modèle dans le panneau de construction"
+          />
+          <button
+            className="studio-tool"
+            onClick={() => setZoom(value => Math.min(2.5, value + 0.1))}
+            aria-label="Agrandir le modèle"
+          >
+            <ZoomIn size={15} />
+          </button>
+        </div>
+      </div>
+      <div className="studio-subtoolbar" aria-label="Integrated Drone Design Studio — IDDS">
+        <div className="idds-workbench-title"><small>INTEGRATED DRONE DESIGN STUDIO — IDDS</small><strong>Studio intégré de conception mécanique, architecturale et paramétrique de drones</strong></div>
+        <div className="idds-render-modes" role="toolbar" aria-label="Modes de rendu synchronisés du Studio IDDS">
+          {renderModes.map(mode => <button key={mode.id} type="button" className={renderMode === mode.id ? "is-active" : ""} aria-pressed={renderMode === mode.id} title={mode.label} onClick={() => { setRenderMode(mode.id); if (mode.id !== "kinematics") setKinematicsPlaying(false); }}><span>{mode.label}</span></button>)}
+        </div>
+        <label>
+          Pas grille{" "}
+          <select
+            value={gridSize}
+            onChange={event => setGridSize(Number(event.target.value))}
+          >
+            <option value={2.5}>2,5%</option>
+            <option value={5}>5%</option>
+            <option value={10}>10%</option>
+          </select>
+        </label>
+        <span className="studio-status">
+          <Check size={13} /> {past.length} versions · {parts.length} éléments
+          choisis · {totalMass.toFixed(2)} kg estimés
+        </span>
+      </div>
+      <div className="studio-workspace studio-workspace-advanced" id="studio-cad-workbench">
+        <aside className="studio-layer-panel panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">DOCUMENT DE CONSTRUCTION</p>
+              <h3>Calques &amp; pièces</h3>
+            </div>
+            <button
+              type="button"
+              className="studio-layer-add-button"
+              onClick={() => setAddingLayer(value => !value)}
+              aria-label="Créer un calque personnalisé"
+              title="Créer un calque personnalisé"
+            >
+              <Plus size={15} />
+            </button>
+          </div>
+          <div className="studio-layer-stack">
+            {documentLayers.length ? documentLayers.map((label, index) => {
+              const visible = layerVisibility[label] !== false;
+              const locked = layerLocks[label] === true;
+              return (
+                <div
+                  key={label}
+                  className={`studio-layer-item ${activeLayer === label ? "is-active" : ""}`}
+                  draggable
+                  onDragStart={() => setDraggedLayer(label)}
+                  onDragOver={event => event.preventDefault()}
+                  onDrop={event => { event.preventDefault(); const from = documentLayers.indexOf(draggedLayer ?? ""); if (from >= 0 && from !== index) moveCustomLayer(from, index); setDraggedLayer(null); }}
+                  onDragEnd={() => setDraggedLayer(null)}
+                >
+                  <button
+                    type="button"
+                    className="studio-layer-row"
+                    onClick={() => activateLayer(label)}
+                    aria-pressed={activeLayer === label}
+                    title={`Rendre actif le calque ${label}`}
+                  >
+                    <span className="studio-layer-icon">
+                      <Layers3 size={13} />
+                    </span>
+                    <span className="studio-layer-name">
+                      <strong>{label}</strong>
+                      <small>
+                        {parts.filter(part => part.layer === label).length}{" "}
+                        objets
+                      </small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="studio-layer-quick-button"
+                    aria-label={`${visible ? "Masquer" : "Afficher"} ${label}`}
+                    title={`${visible ? "Masquer" : "Afficher"} ${label}`}
+                    onClick={() => updateLayerVisibility(label, !visible)}
+                  >
+                    {visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    className={`studio-layer-quick-button ${locked ? "is-locked" : ""}`}
+                    aria-label={`${locked ? "Déverrouiller" : "Verrouiller"} ${label}`}
+                    title={`${locked ? "Déverrouiller" : "Verrouiller"} ${label}`}
+                    onClick={() => updateLayerLock(label, !locked)}
+                  >
+                    <Lock size={13} />
+                  </button>
+                  <button type="button" className="studio-layer-quick-button" title="Renommer le calque" aria-label={`Renommer ${label}`} onClick={() => { setRenamingLayer(label); setRenamedLayerDraft(label); }}><Pencil size={12}/></button>
+                  <button type="button" className="studio-layer-quick-button" title="Monter dans la pile" aria-label={`Monter ${label}`} disabled={index === 0} onClick={() => moveCustomLayer(index, index - 1)}><ArrowUp size={12}/></button>
+                  <button type="button" className="studio-layer-quick-button" title="Descendre dans la pile" aria-label={`Descendre ${label}`} disabled={index === documentLayers.length - 1} onClick={() => moveCustomLayer(index, index + 1)}><ArrowDown size={12}/></button>
+                  <button type="button" className="studio-layer-quick-button is-layer-delete" title="Supprimer sans supprimer les pièces ou traits" aria-label={`Supprimer le calque ${label}`} onClick={() => deleteCustomLayer(label)}><Trash2 size={12}/></button>
+                </div>
+              );
+            }) : <div className="studio-layer-empty"><Layers3 size={17}/><strong>Aucun calque créé</strong><span>Les calques ne sont jamais ajoutés automatiquement. Créez un calque pour organiser vos pièces.</span><button type="button" onClick={() => setAddingLayer(true)}><Plus size={12}/> Créer le premier calque</button></div>}
+          </div>
+          {addingLayer && (
+            <form
+              className="studio-layer-create"
+              onSubmit={event => {
+                event.preventDefault();
+                createCustomLayer();
+              }}
+            >
+              <input
+                autoFocus
+                value={layerNameDraft}
+                onChange={event => setLayerNameDraft(event.target.value)}
+                placeholder="Ex. Câblage, composites…"
+                aria-label="Nom du nouveau calque"
+              />
+              <button type="submit" disabled={!layerNameDraft.trim()}>
+                <Plus size={13} /> Ajouter
+              </button>
+            </form>
+          )}
+          {renamingLayer && <form className="studio-layer-rename-form" onSubmit={event => { event.preventDefault(); renameCustomLayer(renamingLayer); }}><label>RENOMMER « {renamingLayer} »</label><input autoFocus value={renamedLayerDraft} onChange={event => setRenamedLayerDraft(event.target.value)}/><button type="submit" disabled={!renamedLayerDraft.trim()}><Check size={12}/> Valider</button><button type="button" onClick={() => { setRenamingLayer(""); setRenamedLayerDraft(""); }}>Annuler</button></form>}
+          <div className="studio-layer-note">
+            Calque actif : <strong>{activeLayer || "aucun"}</strong>
+            <br />
+            {!activeLayer
+              ? "Créez puis sélectionnez un calque pour ajouter et déplacer des pièces."
+              : layerLocks[activeLayer]
+              ? "Verrouillé · déverrouillez-le pour ajouter ou déplacer une pièce."
+              : "Les pièces masquées restent incluses dans la nomenclature."}
+          </div>
+          <section className="studio-construction-palette">
+            <div className="studio-palette-header">
+              <p className="eyebrow">OUTILS DE CONSTRUCTION</p>
+              <span>MANUEL</span>
+            </div>
+            <p>
+              Créer une géométrie de travail dans le calque actif, puis la
+              déplacer et l’ajuster.
+            </p>
+            <div className="studio-manual-part-grid">
+              {manualPartTemplates.map(template => (
+                <button
+                  key={template.kind}
+                  type="button"
+                  disabled={!activeLayer || Boolean(layerLocks[activeLayer])}
+                  onClick={() => addManualPart(template)}
+                  title={`Ajouter ${template.label} au calque ${activeLayer}`}
+                >
+                  <Plus size={12} />
+                  <span>{template.label}</span>
+                </button>
+              ))}
+            </div>
+            <small>
+              Géométries utilisateur · masses initiales indicatives · à
+              qualifier avant fabrication.
+            </small>
+          </section>
+          <section className="studio-montage-tools" aria-label="Outils de montage et d’alignement">
+            <div className="studio-palette-header"><p className="eyebrow">MONTAGE / ALIGNEMENT</p><span>{parts.length} PIÈCES</span></div>
+            <div className="studio-montage-grid">
+              <button type="button" onClick={centerSelected} disabled={!selected}><AlignCenterHorizontal size={13}/> Centrer la pièce</button>
+              <button type="button" onClick={duplicateSelected} disabled={!selected}><Copy size={13}/> Dupliquer</button>
+              <button type="button" onClick={harmonizeAssembly} disabled={!parts.length}><Check size={13}/> Harmoniser l’ensemble</button>
+              <button type="button" onClick={assemblyReview} disabled={!parts.length} title="Contrôle local des affectations, masses, déclarations d’interfaces et sources"><ShieldCheck size={13}/> Auditer la construction</button>
+            </div>
+            <small>Les actions modifient le document actif; annulation disponible dans la barre d’outils.</small>
+          </section>
+        </aside>
+        <section className="panel studio-canvas-panel" aria-label="IDDS · espace de conception actif">
+          {!true ? (
+            <div className="studio-unselected-state" role="status"><Box size={30} /><strong>Aucune source chargée dans l’IDDS</strong><span>Sélectionnez une référence de la bibliothèque ou réalisez un dessin utilisateur. Aucun modèle ni aucune cote ne sont générés par défaut.</span><em>USER ACTION REQUIRED · NO MODEL LOADED</em></div>
+          ) : (
+            <>
+            <div className="idds-render-controls" aria-live="polite">
+              {renderMode === "simulation" && <>
+                <div className="idds-render-control-heading"><strong>Simulation paramétrique en direct</strong><span>Les paramètres ci-dessous modifient le drone actif et ses vues synchronisées.</span></div>
+                <label>Envergure <output>{Number(config.wingspan || 0).toFixed(2)} m</output><input type="range" min="0.2" max="15" step="0.05" value={Math.max(.2, Math.min(15, Number(config.wingspan) || .2))} onChange={event => setConfig(current => ({ ...current, wingspan: Number(event.target.value) }))}/></label>
+                <label>Longueur fuselage <output>{Number(config.fuselageLength || 0).toFixed(2)} m</output><input type="range" min="0.1" max="5" step="0.05" value={Math.max(.1, Math.min(5, Number(config.fuselageLength) || .1))} onChange={event => setConfig(current => ({ ...current, fuselageLength: Number(event.target.value) }))}/></label>
+                <label>Motorisations <output>{Math.max(1, Math.round(Number(config.motorCount) || 1))}</output><input type="range" min="1" max="12" step="1" value={Math.max(1, Math.min(12, Math.round(Number(config.motorCount) || 1)))} onChange={event => setConfig(current => ({ ...current, motorCount: Number(event.target.value) }))}/></label>
+                <span className="idds-sim-readout">Masse déclarée du modèle : {totalMass.toFixed(2)} kg · estimation indicative</span>
+              </>}
+              {renderMode === "kinematics" && <><div className="idds-render-control-heading"><strong>Animation cinématique</strong><span>Lecture visuelle des rotations ; aucune action sur le matériel.</span></div><button type="button" className="idds-render-action" aria-pressed={kinematicsPlaying} onClick={() => setKinematicsPlaying(value => !value)}>{kinematicsPlaying ? "Mettre en pause" : "Lancer le mouvement"}</button><span>{visibleParts.filter(part => part.kind === "motor").length} groupe(s) moteur visible(s) · sélection et édition conservées</span></>}
+              {renderMode === "variants" && <><div className="idds-render-control-heading"><strong>Générateur de variantes paramétriques</strong><span>Chaque variante est appliquée au même document et reste modifiable dans l’inspecteur.</span></div><button type="button" className="idds-render-action" onClick={createParametricVariant}>Générer une variante</button><div className="idds-variant-list">{generatedVariants.map(variant => <button type="button" key={variant.name} onClick={() => applyParametricVariant(variant)}><strong>{variant.name}</strong><span>{variant.wingspan.toFixed(2)} m · {variant.fuselageLength.toFixed(2)} m · {variant.motorCount} moteurs</span></button>)}{!generatedVariants.length && <span>Aucune variante générée dans cette session.</span>}</div></>}
+              {renderMode === "internals" && <><div className="idds-render-control-heading"><strong>Détails mécaniques internes</strong><span>Coupe conceptuelle et repères issus des pièces visibles du document.</span></div><span>{visibleParts.length} éléments repérés · cliquez une pièce dans la vue pour ouvrir son inspecteur.</span></>}
+              {renderMode === "assembly" && <><div className="idds-render-control-heading"><strong>Assemblage mécanique complet</strong><span>Vue synchronisée du modèle actif ; sélectionnez, déplacez et modifiez ses composants.</span></div><span>{visibleParts.length} pièces visibles · {totalMass.toFixed(2)} kg déclarés</span></>}
+            </div>
+            <div className="studio-physical-stage">
+              <div className="studio-physical-stage-hud"><span>{integratedProfile ? "IDDS · MODÈLE PARAMÉTRIQUE / ARCHITECTURE" : "IDDS · GÉOMÉTRIE UTILISATEUR"}</span><small>{visibleParts.length} pièces visibles · masse estimée {totalMass.toFixed(2)} kg · faites glisser une pièce pour la déplacer</small></div>
+              <IDDSParametricScene parts={visibleParts} selectedId={selectedId} onSelectPart={setSelectedId} strokes={false ? iddsSketch : []} view="top" zoom={zoom} design={integratedProfile} config={config} renderMode={renderMode} kinematicsPlaying={kinematicsPlaying} svgRef={stageRef} editable onStagePointerDown={onStagePointerDown} onStagePointerMove={onStagePointerMove} onStagePointerUp={onStagePointerUp} onPartPointerDown={onPartPointerDown} />
+              <div className="studio-3d-selection-list" aria-label="Sélectionner une pièce pour la configurer">
+                {visibleParts.map(part => <button key={part.id} className={selectedId === part.id ? "is-active" : ""} onClick={() => setSelectedId(part.id)}><span>{part.label}</span><small>{part.massKg.toFixed(2)} kg · {part.connectedTo ?? defaultBus(part.kind)}</small></button>)}
+                {!visibleParts.length && <small>Ajoutez une pièce depuis les outils de conception pour commencer la construction.</small>}
+              </div>
+            </div>
+            </>
+          )}
+          <DroneBehaviorPanel configuration={config} context="studio" state="IDDS · CONCEPTION INTÉGRÉE" />
+          <div className="studio-canvas-footer">
+            <span>
+              Mode : <strong>{renderModes.find(mode => mode.id === renderMode)?.label}</strong>
+            </span>
+            <span>
+              Objet : <strong>{selected?.label ?? "aucun"}</strong>
+            </span>
+            <span>
+              Raccourcis : G grille · R rotation · Del supprimer · Ctrl+Z
+              annuler
+            </span>
+          </div>
+        </section>
+        <aside className="studio-inspector panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">INSPECTEUR PARAMÉTRIQUE</p>
+              <h3>{selected?.label ?? "Aucune sélection"}</h3>
+            </div>
+            <Settings2 size={16} />
+          </div>
+          {selected && (
+            <>
+              <div className="studio-inspector-actions">
+                <button
+                  onClick={() =>
+                    changeSelected(
+                      { locked: !selected.locked },
+                      selected.locked
+                        ? "Pièce déverrouillée"
+                        : "Pièce verrouillée"
+                    )
+                  }
+                >
+                  {selected.locked ? <Lock size={14} /> : <Lock size={14} />}{" "}
+                  {selected.locked ? "Déverrouiller" : "Verrouiller"}
+                </button>
+                <button
+                  onClick={() =>
+                    changeSelected(
+                      { visible: !selected.visible },
+                      selected.visible ? "Pièce masquée" : "Pièce affichée"
+                    )
+                  }
+                >
+                  {selected.visible ? <EyeOff size={14} /> : <Eye size={14} />}{" "}
+                  {selected.visible ? "Masquer" : "Afficher"}
+                </button>
+              </div>
+              <label className="studio-field">
+                Nom
+                <input
+                  value={selected.label}
+                  onChange={event =>
+                    changeSelected({ label: event.target.value }, "Nom modifié")
+                  }
+                />
+              </label>
+              <label className="studio-field">
+                Calque de construction
+                <select
+                  value={selected.layer ?? ""}
+                  onChange={event => {
+                    const nextLayer = event.target.value;
+                    if (layerLocks[nextLayer]) {
+                      announce(
+                        `Déplacement refusé · le calque ${nextLayer} est verrouillé`
+                      );
+                      return;
+                    }
+                    changeSelected(
+                      { layer: nextLayer },
+                      `Calque affecté · ${nextLayer}`
+                    );
+                  }}
+                >
+                  <option value="">Sans calque / non affecté</option>
+                  {documentLayers.map(label => (
+                    <option
+                      key={label}
+                      value={label}
+                      disabled={layerLocks[label]}
+                    >
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="studio-property-grid">
+                <label>
+                  X %
+                  <input
+                    type="number"
+                    value={selected.x.toFixed(1)}
+                    onChange={event =>
+                      changeSelected(
+                        { x: clamp(Number(event.target.value), 0, 100) },
+                        "Position X modifiée"
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Y %
+                  <input
+                    type="number"
+                    value={selected.y.toFixed(1)}
+                    onChange={event =>
+                      changeSelected(
+                        { y: clamp(Number(event.target.value), 0, 100) },
+                        "Position Y modifiée"
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Largeur visuelle · u.d.
+                  <input
+                    type="number"
+                    min="12"
+                    max="520"
+                    step="4"
+                    value={Math.round(selected.width)}
+                    onChange={event =>
+                      changeSelected(
+                        { width: clamp(Number(event.target.value), 12, 520) },
+                        "Largeur graphique modifiée"
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Hauteur visuelle · u.d.
+                  <input
+                    type="number"
+                    min="12"
+                    max="260"
+                    step="4"
+                    value={Math.round(selected.height)}
+                    onChange={event =>
+                      changeSelected(
+                        { height: clamp(Number(event.target.value), 12, 260) },
+                        "Hauteur graphique modifiée"
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Échelle
+                  <input
+                    type="number"
+                    min=".5"
+                    max="2"
+                    step=".05"
+                    value={selected.scale}
+                    onChange={event =>
+                      changeSelected(
+                        { scale: clamp(Number(event.target.value), 0.5, 2) },
+                        "Échelle modifiée"
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Rotation°
+                  <input
+                    type="number"
+                    value={selected.rotation}
+                    onChange={event =>
+                      changeSelected(
+                        { rotation: Number(event.target.value) },
+                        "Rotation modifiée"
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Masse kg
+                  <input
+                    type="number"
+                    min="0"
+                    step=".01"
+                    value={selected.massKg}
+                    onChange={event =>
+                      changeSelected(
+                        { massKg: Math.max(0, Number(event.target.value)) },
+                        "Masse modifiée"
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Contrainte
+                  <select
+                    value={selected.constraint}
+                    onChange={event =>
+                      changeSelected(
+                        { constraint: event.target.value as Constraint },
+                        "Contrainte modifiée"
+                      )
+                    }
+                  >
+                    <option value="free">Libre</option>
+                    <option value="center-x">Centré X</option>
+                    <option value="center-y">Centré Y</option>
+                    <option value="symmetric">Symétrique</option>
+                  </select>
+                </label>
+              </div>
+              <section className="studio-parametric-controls" aria-label="Réglages continus de la pièce sélectionnée">
+                <div className="studio-parametric-controls-head"><span>TRANSFORMATIONS / TEMPS RÉEL</span><small>U.D. · CONCEPTUEL</small></div>
+                <label>Rotation <output>{selected.rotation}°</output><input type="range" min="-180" max="180" step="1" value={((selected.rotation + 540) % 360) - 180} disabled={selected.locked} onChange={event => changeSelected({ rotation: Number(event.target.value) }, "Rotation paramétrique mise à jour")} /></label>
+                <label>Échelle <output>{selected.scale.toFixed(2)}×</output><input type="range" min=".5" max="2" step=".01" value={selected.scale} disabled={selected.locked} onChange={event => changeSelected({ scale: Number(event.target.value) }, "Échelle paramétrique mise à jour")} /></label>
+                <label>Masse de maquette <output>{selected.massKg.toFixed(2)} kg</output><input type="range" min="0" max={Math.min(1000, Math.max(2, Math.ceil(selected.massKg * 1.5 * 100) / 100))} step=".01" value={selected.massKg} disabled={selected.locked} onChange={event => changeSelected({ massKg: Number(event.target.value) }, "Masse de maquette mise à jour")} /></label>
+              </section>
+              <label className="studio-field">
+                Aire de traînée équivalente estimée · m²
+                <input type="number" min="0" step="0.001" value={selected.dragAreaM2 ?? estimatedDragArea(selected.kind)} onChange={event => changeSelected({ dragAreaM2: Math.max(0, Number(event.target.value)) }, "Aire de traînée mise à jour · estimation locale")} />
+              </label>
+              <label className="studio-field">
+                Puissance auxiliaire estimée · W
+                <input type="number" min="0" step="0.5" value={selected.powerDrawW ?? estimatedAuxPower(selected.kind)} onChange={event => changeSelected({ powerDrawW: Math.max(0, Number(event.target.value)) }, "Consommation auxiliaire mise à jour · estimation locale")} />
+              </label>
+              <label className="studio-field">
+                Bus logique simulé
+                <select value={selected.connectedTo ?? defaultBus(selected.kind)} onChange={event => changeSelected({ connectedTo: event.target.value }, "Connexion logique simulée mise à jour")}>
+                  <option value="FRAME">FRAME · structure</option>
+                  <option value="BUS-POWER">BUS-POWER · alimentation</option>
+                  <option value="BUS-DATA">BUS-DATA · avionique</option>
+                  <option value="BUS-PAYLOAD">BUS-PAYLOAD · équipement</option>
+                  <option value="ISOLATED">ISOLÉ · non connecté</option>
+                </select>
+              </label>
+              <div className="idds-discipline-switcher" role="tablist" aria-label="Domaines d’ingénierie IDDS">
+                {engineeringDisciplineItems.map(item => <button key={item.id} type="button" role="tab" aria-selected={engineeringDiscipline === item.id} className={engineeringDiscipline === item.id ? "is-active" : ""} onClick={() => setEngineeringDiscipline(item.id)}>{item.label}</button>)}
+              </div>
+              <section className="idds-discipline-panel" aria-label={`Paramètres ${engineeringDisciplineItems.find(item => item.id === engineeringDiscipline)?.label}`}>
+                <div className="idds-discipline-heading"><strong>{engineeringDisciplineItems.find(item => item.id === engineeringDiscipline)?.label} / PARAMÈTRES</strong><small>PIÈCE · {selected.label}</small></div>
+                {engineeringDiscipline === "mechanical" && <p>Géométrie, position, rotation et échelle se règlent dans les champs de cette pièce ci-dessus ou par déplacement dans le plan. Les unités de dessin restent des unités de représentation.</p>}
+                {engineeringDiscipline === "physical" && <div className="idds-discipline-fields"><label>Masse estimée · kg<input type="number" min="0" step=".01" value={selected.massKg} onChange={event => changeSelected({ massKg: Math.max(0, Number(event.target.value)) }, "Masse physique mise à jour")} /></label><label>Traînée équivalente · m²<input type="number" min="0" step=".001" value={selected.dragAreaM2 ?? estimatedDragArea(selected.kind)} onChange={event => changeSelected({ dragAreaM2: Math.max(0, Number(event.target.value)) }, "Paramètre physique mis à jour")} /></label></div>}
+                {engineeringDiscipline === "structural" && <div className="idds-discipline-fields"><label>Dimension / section de référence<input value={selected.dimensions ?? ""} placeholder="À renseigner · ex. 120 × 40 × 2 mm" onChange={event => changeSelected({ dimensions: event.target.value }, "Dimension structurelle mise à jour")} /></label><p>Calque et contraintes structurelles se règlent dans les contrôles de pièce ci-dessus.</p></div>}
+                {engineeringDiscipline === "schematic" && <div className="idds-discipline-fields"><label>Interfaces / connexions<input value={selected.interfaces ?? ""} placeholder="À renseigner · connecteurs, fixation…" onChange={event => changeSelected({ interfaces: event.target.value }, "Interface schématique mise à jour")} /></label><p>Le bus logique sélectionné plus haut est une représentation de conception, pas un câblage réel.</p></div>}
+                {engineeringDiscipline === "chemical" && <div className="idds-discipline-fields"><label>Famille matière<input value={selected.materialFamily ?? ""} placeholder="Ex. composite carbone/époxy" onChange={event => changeSelected({ materialFamily: event.target.value }, "Famille matière mise à jour")} /></label><label>Composition / formulation<textarea value={selected.chemicalComposition ?? ""} placeholder="Saisir composition, nuance ou référence matière" onChange={event => changeSelected({ chemicalComposition: event.target.value }, "Composition matière mise à jour")} /></label><label>Densité · kg/m³<input type="number" min="0" step="1" value={selected.densityKgM3 ?? ""} onChange={event => { const density = Math.max(0, Number(event.target.value)); const volume = selected.volumeM3 ?? (selected.densityKgM3 ? selected.massKg / selected.densityKgM3 : 0); changeSelected({ densityKgM3: density, volumeM3: volume || undefined, massKg: volume > 0 ? density * volume : selected.massKg }, "Densité matière mise à jour"); }} /></label><label>Module d’Young indicatif · GPa<input type="number" min="0" step=".1" value={selected.youngModulusGPa ?? ""} onChange={event => changeSelected({ youngModulusGPa: Math.max(0, Number(event.target.value)) }, "Module matériau mis à jour")} /></label><small>Composition, densité et propriétés à vérifier selon la fiche matière et le procédé réel.</small></div>}
+                {engineeringDiscipline === "mathematical" && <div className="idds-discipline-fields"><label>Équation / modèle<input value={selected.modelEquation ?? "m = ρ × V"} onChange={event => changeSelected({ modelEquation: event.target.value }, "Modèle mathématique mis à jour")} /></label><label>Volume matière · m³<input type="number" min="0" step=".000001" value={selected.volumeM3 ?? (selected.densityKgM3 ? selected.massKg / selected.densityKgM3 : 0)} onChange={event => { const volume = Math.max(0, Number(event.target.value)); changeSelected({ volumeM3: volume, massKg: selected.densityKgM3 ? volume * selected.densityKgM3 : selected.massKg }, "Volume et masse recalculés selon le modèle"); }} /></label><div className="idds-calculation-result"><span>m = ρ × V</span><strong>{selected.densityKgM3 && selected.volumeM3 ? `${(selected.densityKgM3 * selected.volumeM3).toFixed(3)} kg calculés` : "Renseignez densité et volume"}</strong></div><small>Calcul scalaire indicatif, sans solveur FEM/CFD ni validation expérimentale.</small></div>}
+              </section>
+              <div
+                className={`studio-part-provenance ${selected.catalogSource === "manufacturer" ? "is-catalog" : selected.catalogSource === "user" ? "is-user" : "is-concept"}`}
+              >
+                {selected.catalogSource === "manufacturer"
+                  ? "RÉFÉRENCE FABRICANT · métadonnées produit distinctes de l’échelle graphique."
+                  : selected.catalogSource === "user"
+                    ? "GÉOMÉTRIE UTILISATEUR · dessin et masse à qualifier, non validés fabrication."
+                    : "CONCEPT · paramètres validé EN-9100s, non validés fabrication."}
+              </div>
+            </>
+          )}
+          <div className="studio-dimension-list">
+            {dimensions.map(item => (
+              <div className="studio-dimension" key={item.field}>
+                <span>{item.label}</span>
+                <strong>
+                  {item.value > 0
+                    ? `${item.value.toFixed(2)} m`
+                    : "À renseigner"}
+                </strong>
+                <div>
+                  <button
+                    onClick={() =>
+                      setConfig({
+                        ...config,
+                        [item.field]: Math.max(
+                          0,
+                          Number((item.value - 0.05).toFixed(2))
+                        ),
+                      })
+                    }
+                  >
+                    −
+                  </button>
+                  <button
+                    onClick={() =>
+                      setConfig({
+                        ...config,
+                        [item.field]: Number((item.value + 0.05).toFixed(2)),
+                      })
+                    }
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="studio-actions">
+            <button
+              className="secondary-button"
+              onClick={() => announce("Instantané versionné créé")}
+            >
+              <Maximize2 size={14} /> Instantané
+            </button>
+            <button
+              className="secondary-button"
+              onClick={undo}
+              disabled={!past.length}
+            >
+              <Undo2 size={14} /> Annuler
+            </button>
+            <button
+              className="secondary-button"
+              onClick={redo}
+              disabled={!future.length}
+            >
+              <Redo2 size={14} /> Rétablir
+            </button>
+          </div>
+          <div className="studio-history">
+            <p className="eyebrow">JOURNAL / {history.length}</p>
+            {history.length ? (
+              history.map(item => <span key={item}>{item}</span>)
+            ) : (
+              <span>Aucune action récente</span>
+            )}
+          </div>
+        </aside>
+      </div>
+
     </div>;
   }
   return (
