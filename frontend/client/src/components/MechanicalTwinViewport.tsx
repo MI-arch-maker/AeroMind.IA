@@ -1,3 +1,4 @@
+import { Aeromind3DSceneExtras, AeromindBlueprintSplitOverlay, useActiveAeromindRender } from "./Aeromind3DSceneRig";
 import {
   Component,
   useEffect,
@@ -669,6 +670,7 @@ export function MechanicalTwinViewport(props: Props) {
   const [visible, setVisible] = useState(false);
   const [slot, setSlot] = useState(false);
   const [failed, setFailed] = useState(false);
+  const activeAeromindRender = useActiveAeromindRender();
   const [pointerActive, setPointerActive] = useState(false);
   const [rendererWebgl, setRendererWebgl] = useState(false);
   const [transformDragging, setTransformDragging] = useState(false);
@@ -766,7 +768,7 @@ export function MechanicalTwinViewport(props: Props) {
       data-auto-motion={rotationActive ? "true" : "false"}
       data-render-preset={renderPreset}
       data-render-engine={selectedEngine.id}
-      data-render-mode={renderPlan.mode}
+      data-render-mode={activeAeromindRender === "xray-hybrid" ? "xray" : renderPlan.mode}
       data-render-projection={renderPlan.projection}
       data-render-pipeline={selectedEngine.pipeline}
       data-render-solver={selectedEngine.solverId ?? "presentation"}
@@ -808,13 +810,14 @@ export function MechanicalTwinViewport(props: Props) {
               color="#93cbdc"
               intensity={2}
             />
+            <Aeromind3DSceneExtras model={model} renderStyle={activeAeromindRender} />
             {model.parts.map((part) => (
               <MechanicalMesh
                 key={`${part.id}-${selectedEngine.id}`}
                 part={part}
                 selected={selected === part.id}
                 onSelect={handleSelect}
-                mode={renderPlan.mode}
+                mode={activeAeromindRender === "xray-hybrid" ? "xray" : renderPlan.mode}
                 explosion={renderPlan.explosion}
                 cutZ={cutZ}
                 xrayOpacity={xrayOpacity}
