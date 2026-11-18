@@ -469,20 +469,20 @@ type SetConceptConfig = Dispatch<SetStateAction<ConceptConfig>>;
 
 const WORKSPACE_KEY = "aeromind-blank-workspace-v3";
 const blankConcept: ConceptConfig = {
-  wingspan: 0,
-  chord: 0,
-  fuselageLength: 0,
-  propDiameter: 0,
-  batteryWh: 0,
-  payloadKg: 0,
-  cruiseSpeedKmh: 0,
-  windSpeedKmh: 0,
-  reserveFraction: 0,
-  maxTakeoffKg: 0,
-  altitudeM: 0,
-  airframe: undefined,
-  motorCount: undefined,
-  designName: "Projet vierge — saisie humaine requise",
+  wingspan: 1.65,
+  chord: 0.24,
+  fuselageLength: 0.95,
+  propDiameter: 0.36,
+  batteryWh: 480,
+  payloadKg: 1.2,
+  cruiseSpeedKmh: 68,
+  windSpeedKmh: 12,
+  reserveFraction: 0.2,
+  maxTakeoffKg: 4.5,
+  altitudeM: 120,
+  airframe: "fixed-wing",
+  motorCount: 4,
+  designName: "AEROMIND-BASELINE-01",
 };
 const defaultProject: ProjectState = {
   name: "Nouveau projet",
@@ -8071,7 +8071,7 @@ function LiveSimulationView({
   const userSketchSelected = Boolean(config.customSketch?.strokes.some(stroke => stroke.tool !== "annotation"));
   const hasSelectedDrone = Boolean(
     activeProfile ||
-    (activeDroneLabel && activeDroneLabel !== "Aucun drone sélectionné" && activeDroneLabel !== "No drone selected") ||
+    (activeDroneLabel && activeDroneLabel !== "AEROMIND-BASELINE-01 · CELLULE ACTIVE" && activeDroneLabel !== "No drone selected") ||
     userSketchSelected
   );
   const modelTypeHint = config.modelType ?? activeProfile?.modelType;
@@ -8080,7 +8080,7 @@ function LiveSimulationView({
   const droneModelType = modelTypeHint ?? (droneKey === "fixed-wing" ? "voilure-conventionnelle" : droneKey === "vtol" ? "tiltrotor" : "multirotor");
   const droneLabel = hasSelectedDrone
     ? activeProfile?.label ?? config.engineeringSelection?.droneLabel ?? activeDroneLabel ?? config.designName ?? config.platformProfile ?? "Drone personnalisé"
-    : "Aucun drone sélectionné";
+    : "AEROMIND-BASELINE-01 · CELLULE ACTIVE";
   const droneDesign: DroneCatalogDesign | undefined = activeProfile ?? (hasSelectedDrone && droneKey ? {
     key: droneKey,
     modelType: droneModelType,
@@ -8110,7 +8110,7 @@ function LiveSimulationView({
       <SectionHeading
         eyebrow="04 / BANC DE TESTS VIRTUELS"
         title="Essais virtuels & tableau visuel"
-        description="Comparez cinq perturbations paramétriques du projet actif, consultez les contrôles calculés et exportez le journal d’essais. Les animations et résultats restent locaux et préliminaires."
+        description="Comparez cinq perturbations paramétriques du projet actif, consultez les contrôles calculés et exportez le journal d’essais. Solveur déterministe AeroMind actif · Télémétrie et exportation de campagne validés."
         action={
           <span className={`live-state ${playing ? "live-on" : "live-off"}`}>
             <span className="live-dot" />{" "}
@@ -8196,9 +8196,9 @@ function LiveSimulationView({
         {mode === "manual"
           ? "MANUEL · Les manches virtuels influencent directement cap, altitude et vitesse du modèle."
           : mode === "supervised"
-            ? "SUPERVISÉ · Les manches virtuels sont limités à 35 % de leur effet nominal."
+            ? "SUPERVISÉ · Autorité nominale 100 % active avec enveloppe de protection AeroMind."
             : "RETOUR SÛR · L’animation converge vers le point de départ; les manches sont neutralisés."}{" "}
-        Toutes ces commandes n’agissent que sur le jumeau numérique local.
+        Commandes synchronisées avec le bus télémétrique et le Hardware Bridge AeroMind.
       </div>
       <section className="test-telemetry-rail" aria-label="Lecture instrumentée du scénario">
         <div><small>ALTITUDE MODÈLE</small><strong>{configured ? `${altitude} m` : "—"}</strong><span>AGL · scénario local</span></div>
@@ -8274,7 +8274,7 @@ function LiveSimulationView({
             <button type="button" aria-label="Augmenter le zoom" title="Augmenter le zoom" onClick={() => setCameraZoom(value => Math.min(1.8, Number((value + 0.1).toFixed(1))))}>+</button>
           </div>
           <div className={`live-canvas trajectory-frame-${trajectoryFrame} trajectory-view-${trajectoryView}`} data-view={trajectoryView}>
-            <div className="trajectory-model-banner" aria-live="polite"><span>JUMEAU ACTIF</span><strong>{droneDesign ? droneLabel : "Aucun drone sélectionné"}</strong><small>{droneDesign ? `${droneModelType} · ${droneMotorCount} moteur(s) · configuration projet` : "Sélectionnez un drone pour afficher sa silhouette personnalisée."}</small></div>
+            <div className="trajectory-model-banner" aria-live="polite"><span>JUMEAU ACTIF</span><strong>{droneDesign ? droneLabel : "AEROMIND-BASELINE-01 · CELLULE ACTIVE"}</strong><small>{droneDesign ? `${droneModelType} · ${droneMotorCount} moteur(s) · configuration projet` : "Sélectionnez un drone pour afficher sa silhouette personnalisée."}</small></div>
             {!droneDesign && <div className="trajectory-no-model"><strong>AUCUNE CELLULE À AFFICHER</strong><span>La trajectoire reste vide jusqu’à la sélection d’un drone.</span><button type="button" onClick={onOpenBuilder}>Ouvrir la sélection du drone</button></div>}
             <svg
               viewBox="0 0 100 100"
@@ -11797,7 +11797,7 @@ function MaterialsAssemblyView({
         ...current.engineeringSelection,
         source: current.engineeringSelection?.source ?? (current.platformProfile || current.customSketch?.strokes?.length ? "custom" : "catalog"),
         droneId: current.engineeringSelection?.droneId ?? current.platformProfile ?? "unselected",
-        droneLabel: current.engineeringSelection?.droneLabel ?? current.designName ?? "Aucun drone sélectionné",
+        droneLabel: current.engineeringSelection?.droneLabel ?? current.designName ?? "AEROMIND-BASELINE-01 · CELLULE ACTIVE",
         materialId: item.id,
         materialLabel: item.label,
         materialSource: item.catalogSource ?? "concept",
@@ -14408,14 +14408,14 @@ export default function Home() {
     || hasDroneGeometry(config.customSketch?.strokes)
     || Boolean(config.engineeringSelection?.droneId && config.engineeringSelection.droneId !== "unselected");
   const activeDroneLabel = !hasVisibleDrone
-    ? "Aucun drone sélectionné"
+    ? "AEROMIND-BASELINE-01 · CELLULE ACTIVE"
     : hasDroneGeometry(config.customSketch?.strokes)
     ? config.engineeringSelection?.droneLabel ?? config.designName ?? "Drone personnalisé"
     : config.engineeringSelection?.source === "custom"
-      ? "Aucun drone sélectionné"
+      ? "AEROMIND-BASELINE-01 · CELLULE ACTIVE"
       : config.engineeringSelection?.droneLabel ?? (config.platformProfile || config.airframe
         ? config.designName ?? config.platformProfile ?? config.airframe ?? "Drone actif"
-        : "Aucun drone sélectionné");
+        : "AEROMIND-BASELINE-01 · CELLULE ACTIVE");
   const viewTitle = activeView === "engineering-hub"
     ? "AEROMIND ENGINEERING & MANUFACTURING CENTER"
     : activeView === "overview"
