@@ -1,3 +1,4 @@
+import { AeromindMultiViewViewport } from "../components/AeromindMultiViewViewport";
 import { AeromindOptronicHud } from "../components/AeromindOptronicHud";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -2918,15 +2919,15 @@ function DroneCatalogView({
           <label>Architecture<select value={importArchitecture} onChange={event => setImportArchitecture(event.target.value as ImportArchitecture)}><option value="other">Autre / indéterminée</option><option value="fixed-wing">Voilure fixe</option><option value="quadcopter">Multirotor</option><option value="vtol">VTOL</option></select></label>
           {([ ["span", "Axe d’envergure"], ["length", "Axe de longueur"], ["height", "Axe de hauteur"] ] as const).map(([key, title]) => <label key={key}>{title}<select value={importAxes[key]} onChange={event => setImportAxes(current => ({ ...current, [key]: event.target.value as Axis }))}><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select></label>)}
           <button type="button" className="primary-button" onClick={() => importFileRef.current?.click()}><Upload size={15} /> Choisir OBJ/STL</button>
-          <input ref={importFileRef} type="file" accept=".obj,.stl,model/obj,model/stl" hidden onChange={event => void importExternalMesh(event.currentTarget.files?.[0])} />
+          <input ref={importFileRef} type="file" accept=".obj,.stl,model/obj,model/stl" hidden onClick={event => { event.currentTarget.value = ""; }} onChange={event => void importExternalMesh(event.currentTarget.files?.[0])} />
           <button type="button" className="secondary-button" onClick={exportImportedProfiles} disabled={!importedProfiles.length}>Exporter profils JSON</button>
           <button type="button" className="secondary-button" onClick={() => profileJsonRef.current?.click()}>Restaurer profils JSON</button>
-          <input ref={profileJsonRef} type="file" accept="application/json,.json" hidden onChange={event => void restoreImportedProfiles(event.currentTarget.files?.[0])} />
+          <input ref={profileJsonRef} type="file" accept="application/json,.json" hidden onClick={event => { event.currentTarget.value = ""; }} onChange={event => void restoreImportedProfiles(event.currentTarget.files?.[0])} />
         </div>
         {previewFile && previewFile.size <= 20 * 1024 * 1024 && <>
-          {previewProfile ? <div className="external-parametric-preview" aria-label="Aperçu paramétrique du profil importé">
-            <ParametricDronePreview design={previewProfile}   />
-            <small>RENDU PARAMÉTRIQUE · MÊME COMPOSANT QUE LA BIBLIOTHÈQUE DES CELLULES</small>
+          {previewProfile ? <div className="external-parametric-preview" aria-label="Aperçu unifié du profil importé" style={{ width: "100%", maxWidth: "920px" }}>
+            <AeromindMultiViewViewport design={previewProfile} />
+            <small>RENDU UNIFIÉ AEROMIND (STUDIO PBR · X-RAY · NIGHT-OPS · BLUEPRINT) · SYNCHRONISÉ AVEC LA BIBLIOTHÈQUE</small>
           </div> : <div className="external-parametric-preview-placeholder" role="status">{importMessage || "Analyse de la maquette et création du profil paramétrique…"}</div>}
           <p className="external-mesh-dimensions">Fichier : {previewFile.name} · {(previewFile.size / (1024 * 1024)).toFixed(2)} Mio · axes attribués : {importAxes.span.toUpperCase()} = envergure, {importAxes.length.toUpperCase()} = longueur, {importAxes.height.toUpperCase()} = hauteur. Le profil utilise le même rendu paramétrique que les fiches du catalogue et reste modifiable après conservation.</p>
         </>}
