@@ -2,18 +2,18 @@ import { useMemo, useState } from "react";
 import { Cpu, Layers, Ruler, Shield } from "lucide-react";
 import type { DroneCatalogDesign } from "../lib/droneCatalog";
 import type { InstalledMaterial } from "../lib/aeroEngine";
+import { ParametricDronePreview } from "./ParametricDronePreview";
 
 export type EngineeringViewMode = "mechanical-real" | "parametric-mbd" | "bom-harness-xray";
 type Props = { design?: DroneCatalogDesign; status?: "idle" | "flying" | "paused" | "landing"; compact?: boolean; construction?: { parts: number; massKg: number }; parts?: InstalledMaterial[]; flightState?: { pitchDeg?: number; rollDeg?: number; yawDeg?: number; throttlePct?: number }; interactive?: boolean; showGrid?: boolean; zoom?: number; cameraZoom?: number; exploded?: boolean; autoMotion?: boolean; defaultMode?: EngineeringViewMode; };
 const STORAGE_KEY = "aeromind.engineering_viewport_mode";
 
-export function AeromindMultiViewViewport({ design, compact = false, construction, parts, defaultMode = "mechanical-real" }: Props) {
+export function AeromindMultiViewViewport({ design, compact = false, construction, parts, zoom, defaultMode = "mechanical-real" }: Props) {
   const [mode, setMode] = useState<EngineeringViewMode>(() => {
     try { const s = window.localStorage.getItem(STORAGE_KEY) as EngineeringViewMode | null; if (s && ["mechanical-real", "parametric-mbd", "bom-harness-xray"].includes(s)) return s; } catch {}
     return defaultMode;
   });
-  const [imgFallback, setImgFallback] = useState<string | null>(null);
-  const selectMode = (next: EngineeringViewMode) => { setMode(next); setImgFallback(null); try { window.localStorage.setItem(STORAGE_KEY, next); } catch {} };
+  const selectMode = (next: EngineeringViewMode) => { setMode(next); try { window.localStorage.setItem(STORAGE_KEY, next); } catch {} };
 
   const specs = useMemo(() => {
     const cfg = (design as any)?.configuration ?? {};
@@ -37,40 +37,30 @@ export function AeromindMultiViewViewport({ design, compact = false, constructio
     ];
   }, [parts, specs]);
 
-  const defaultVisual = mode === "bom-harness-xray"
-    ? "/renders/aeromind-xray.png"
-    : mode === "parametric-mbd"
-      ? "/renders/aeromind-studio-blueprint.png"
-      : "/renders/aeromind-nightops.png";
-  const dedicatedVisual = design?.id ? `/renders/${design.id}.png` : defaultVisual;
-  const activeSrc = imgFallback ?? dedicatedVisual;
-
-  const btn = (active: boolean) => ({ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.35rem 0.75rem", borderRadius: "0.3rem", fontSize: "11px", fontWeight: 600, cursor: "pointer", background: active ? "#1d4ed8" : "#0f172a", color: active ? "#fff" : "#94a3b8", border: active ? "1px solid #38bdf8" : "1px solid #1e293b" });
+  const btn = (active: boolean) => ({ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.35rem 0.7rem", borderRadius: "0.3rem", fontSize: "11px", fontWeight: 600, cursor: "pointer", background: active ? "#1d4ed8" : "#0f172a", color: active ? "#fff" : "#94a3b8", border: active ? "1px solid #38bdf8" : "1px solid #1e293b" });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", background: "#060d18", border: "1px solid #1e293b", borderRadius: "0.5rem", padding: "0.7rem" }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", background: "#060d18", border: "1px solid #1e293b", borderRadius: "0.5rem", padding: "0.65rem" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
         <button type="button" style={btn(mode === "mechanical-real")} onClick={() => selectMode("mechanical-real")}><Shield size={13} /> 1. Mécanique Réel</button>
         <button type="button" style={btn(mode === "parametric-mbd")} onClick={() => selectMode("parametric-mbd")}><Ruler size={13} /> 2. Paramétrique MBD (SI)</button>
         <button type="button" style={btn(mode === "bom-harness-xray")} onClick={() => selectMode("bom-harness-xray")}><Layers size={13} /> 3. Pièces · Harnais · Matériaux</button>
       </div>
 
       {design ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-          <div style={{ position: "relative", minHeight: compact ? "220px" : "360px", maxHeight: "480px", overflow: "hidden", background: "#03070e", border: "1px solid #1e293b", borderRadius: "0.45rem", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <img
-              src={activeSrc}
-              alt={design.label}
-              onError={() => { if (activeSrc !== defaultVisual) setImgFallback(defaultVisual); }}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div style={{ minHeight: compact ? "240px" : "360px", background: "#040a12", border: "1px solid #1e293b", borderRadius: "0.4rem", padding: "0.5rem" }}>
+            <ParametricDronePreview
+              design={design}
+              construction={construction}
+              zoom={zoom ?? 1.15}
+              projection={mode === "parametric-mbd" ? "blueprint" : mode === "bom-harness-xray" ? "wireframe" : "vector"}
+              showProjectionControls={true}
             />
-            <div style={{ position: "absolute", top: "10px", left: "12px", background: "rgba(5,11,20,0.85)", border: "1px solid rgba(56,189,248,0.35)", borderRadius: "0.3rem", padding: "0.35rem 0.65rem", fontFamily: "monospace", fontSize: "11px", color: "#f8fafc" }}>
-              <strong style={{ color: "#38bdf8" }}>{design.label.toUpperCase()}</strong> · {design.key.toUpperCase()}
-            </div>
           </div>
 
           {mode === "parametric-mbd" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.5rem", background: "#091322", border: "1px solid #1e293b", borderRadius: "0.4rem", padding: "0.65rem", fontFamily: "monospace", fontSize: "11px", color: "#e2e8f0" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.5rem", background: "#091322", border: "1px solid #1e293b", borderRadius: "0.4rem", padding: "0.6rem", fontFamily: "monospace", fontSize: "11px", color: "#e2e8f0" }}>
               <div><span style={{ color: "#38bdf8", display: "block", fontSize: "9px" }}>ENVERGURE (SPAN)</span><strong>{specs.wingspanMm} mm ({(specs.wingspanMm / 1000).toFixed(2)} m)</strong></div>
               <div><span style={{ color: "#38bdf8", display: "block", fontSize: "9px" }}>LONGUEUR FUSELAGE</span><strong>{specs.lengthMm} mm ({(specs.lengthMm / 1000).toFixed(2)} m)</strong></div>
               <div><span style={{ color: "#38bdf8", display: "block", fontSize: "9px" }}>DIAMÈTRE ROTOR</span><strong>{specs.propMm} mm ({specs.motorCount}x)</strong></div>
@@ -79,9 +69,9 @@ export function AeromindMultiViewViewport({ design, compact = false, constructio
           )}
 
           {mode === "bom-harness-xray" && (
-            <div style={{ background: "#091322", border: "1px solid #1e293b", borderRadius: "0.4rem", padding: "0.65rem", overflowX: "auto" }}>
-              <div style={{ fontSize: "10px", fontFamily: "monospace", color: "#38bdf8", marginBottom: "0.45rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                <Cpu size={12} /> NOMENCLATURE PIÈCES, MATÉRIAUX & HARNAIS — {design.label.toUpperCase()}
+            <div style={{ background: "#091322", border: "1px solid #1e293b", borderRadius: "0.4rem", padding: "0.6rem", overflowX: "auto" }}>
+              <div style={{ fontSize: "10px", fontFamily: "monospace", color: "#38bdf8", marginBottom: "0.4rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                <Cpu size={12} /> NOMENCLATURE PIÈCES, MATÉRIAUX & HARNAIS DE CÂBLAGE — {design.label.toUpperCase()}
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", color: "#cbd5e1" }}>
                 <thead>
@@ -110,7 +100,7 @@ export function AeromindMultiViewViewport({ design, compact = false, constructio
         </div>
       ) : (
         <div style={{ padding: "2rem", textAlign: "center", color: "#94a3b8", fontSize: "12px", border: "1px dashed #1e293b", borderRadius: "0.4rem" }}>
-          Sélectionnez un drone dans la Bibliothèque des cellules pour afficher son visuel dédié et ses données d’ingénierie.
+          Sélectionnez une cellule dans la Bibliothèque des cellules pour afficher son rendu paramétrique initial.
         </div>
       )}
     </div>
