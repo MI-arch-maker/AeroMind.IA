@@ -1474,6 +1474,7 @@ export function DesignStudioView({
         </div>
       </section>
       <div id="studio-assembly-workbench" className="studio-subsystem-anchor">
+        <VirtualAssemblyWorkshop config={config} setConfig={setConfig} activeProfile={integratedProfile} parts={config.installedMaterials ?? []} context="studio" />
         <IDDSTwinAssemblyEditor
           key={integratedProfile.id}
           design={integratedProfile}
