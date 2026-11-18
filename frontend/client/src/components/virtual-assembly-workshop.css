@@ -87,3 +87,19 @@
   .vaw-studio .vaw-step-detail { gap: 9px; }
   .vaw-studio .vaw-assembly-timeline > button { min-height: 74px; }
 }
+
+/* Pleine visibilite et organisation claire du STUDIO / ASSEMBLAGE NUMERIQUE */
+#studio-assembly-workbench {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.25rem !important;
+  width: 100% !important;
+  min-height: 620px !important;
+  overflow: visible !important;
+}
+#studio-assembly-workbench > * {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 480px !important;
+}
