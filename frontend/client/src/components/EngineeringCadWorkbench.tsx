@@ -156,7 +156,7 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
   const title = selectedProfile?.label ?? (isSketch ? config.engineeringSelection?.droneLabel ?? config.designName ?? "Drone dessiné" : "");
   const shapeConfig = useMemo<ConceptConfig>(() => ({ ...(selectedProfile?.configuration ?? {}), ...config }), [selectedProfile, config]);
   const mechanicalModel = useMemo(() => selectedProfile ? buildMechanicalModel(selectedProfile, shapeConfig) : null, [selectedProfile, shapeConfig]);
-  const projection = useMemo(() => mechanicalModel ? projectCadModel(mechanicalModel, view, exploded, materials, visibleLayers, customOrbit ?? undefined) : null, [mechanicalModel, view, exploded, materials, visibleLayers]);
+  const projection = useMemo(() => mechanicalModel ? projectCadModel(mechanicalModel, view, exploded, materials, visibleLayers, customOrbit ?? undefined) : null, [mechanicalModel, view, exploded, materials, visibleLayers, customOrbit]);
   const layers = useMemo<Layer[]>(() => (config.studioLayers ?? []).map((label, index) => ({ id: label, label, count: materials.filter(part => part.layer === label).reduce((sum, part) => sum + (part.quantity ?? 1), 0) + customStrokes.filter(stroke => stroke.layer === label).length })), [config.studioLayers, materials, customStrokes]);
   const selectedPart = materials.find(part => part.id === selectedId);
   const stageLabel = isSketch ? "DESSIN UTILISATEUR" : "MAQUETTE PARAMÉTRIQUE · NON EXACTE";
@@ -222,17 +222,22 @@ export function EngineeringCadWorkbench({ config, setConfig, activeProfile, onOp
     }
     const point = canvasPoint(event);
     if (tool === "select") {
-      if (selectedPart && (event.target as Element).closest(".cad-component-marker")) {
-        partDragOrigin.current = { id: selectedPart.id, x: event.clientX, y: event.clientY, ox: selectedPart.offsetX ?? 0, oy: selectedPart.offsetY ?? 0 };
-        try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
-        return;
+      const markerEl = (event.target as Element).closest(".cad-component-marker");
+      if (markerEl) {
+        const rawPartId = markerEl.getAttribute("data-part-id") || "";
+        const matId = rawPartId.startsWith("installed:") ? rawPartId.slice("installed:".length) : rawPartId;
+        const targetPart = materials.find(m => m.id === matId) || selectedPart;
+        if (targetPart) {
+          setSelectedId(targetPart.id);
+          partDragOrigin.current = { id: targetPart.id, x: event.clientX, y: event.clientY, ox: targetPart.offsetX ?? 0, oy: targetPart.offsetY ?? 0 };
+          try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
+          return;
+        }
       }
-      if (!(event.target as Element).closest(".cad-component-marker")) {
-        setSelectedId(null);
-        setMagneticCam(false);
-        orbitOrigin.current = { x: event.clientX, y: event.clientY, yaw: customOrbit?.yaw ?? 45, pitch: customOrbit?.pitch ?? 28 };
-        try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
-      }
+      setSelectedId(null);
+      setMagneticCam(false);
+      orbitOrigin.current = { x: event.clientX, y: event.clientY, yaw: customOrbit?.yaw ?? 45, pitch: customOrbit?.pitch ?? 28 };
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
     }
     if (tool === "measure") {
       if (!measureStart) { setMeasureStart(point); setMeasurement(null); }
