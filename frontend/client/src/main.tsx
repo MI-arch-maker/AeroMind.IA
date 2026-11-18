@@ -1,3 +1,4 @@
+import "./styles/admin-defense-cockpit.css";
 import { trpc } from "@/lib/trpc";
 import { COOKIE_NAME } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

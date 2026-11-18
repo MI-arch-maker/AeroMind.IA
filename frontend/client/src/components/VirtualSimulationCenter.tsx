@@ -1,3 +1,4 @@
+import { useAeromindHardwareStream } from "../hooks/useAeromindHardwareStream";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   Activity, ArrowUpRight, BatteryCharging, BrainCircuit, CheckCircle2, CloudSun,
@@ -37,7 +38,8 @@ const tabs: MissionTab[] = ["OVERVIEW", "FLIGHT", "SYSTEMS", "PAYLOAD", "ANALYSI
 export function VirtualSimulationCenter({ hasProject, simulation, requirements, onRunSimulation, isRunning, config, setConfig, history, versions, onRestoreVersion }: Props) {
   const [activeScenario, setActiveScenario] = useState("baseline");
   const [scenarios, setScenarios] = useState<Scenario[]>(initialScenarios);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const { stream: hwStream } = useAeromindHardwareStream(true);
+  const [isPlaying, setIsPlaying] = useState(true);
   const [simTime, setSimTime] = useState(0);
   const [environment, setEnvironment] = useState("Ciel clair");
   const [wind, setWind] = useState(config.windSpeedKmh || 8);
@@ -81,7 +83,7 @@ export function VirtualSimulationCenter({ hasProject, simulation, requirements, 
 
   useEffect(() => {
     if (!isPlaying) return;
-    const timer = window.setInterval(() => setSimTime(value => (value + 1) % 240), 500);
+    const timer = window.setInterval(() => setSimTime(value => (value + 1) % 240), 250);
     return () => window.clearInterval(timer);
   }, [isPlaying]);
 

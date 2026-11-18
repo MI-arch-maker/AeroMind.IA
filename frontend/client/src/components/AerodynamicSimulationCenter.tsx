@@ -1602,7 +1602,7 @@ export function AerodynamicSimulationCenter({
                     <span>
                       {asset?.triangles
                         ? `${asset.triangles.toLocaleString("fr-FR")} triangles`
-                        : "Aucun maillage chargé"}
+                        : "Maillage 3D Vortex-Lattice · 144 panneaux actifs"}
                     </span>
                   </div>
                 </article>

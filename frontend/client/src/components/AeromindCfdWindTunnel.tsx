@@ -64,11 +64,11 @@ export function AeromindCfdWindTunnel({ config, projectName, airframe }: Props) 
       }
       const aoaRad = (aoaDeg * Math.PI) / 180;
       const wingPts = [
-        [-170, Math.sin(aoaRad) * 14, -18],
-        [-170, -Math.sin(aoaRad) * 14, 18],
+        [-240, Math.sin(aoaRad) * 14, -18],
+        [-240, -Math.sin(aoaRad) * 14, 18],
         [0, -Math.sin(aoaRad) * 22, 34],
-        [170, -Math.sin(aoaRad) * 14, 18],
-        [170, Math.sin(aoaRad) * 14, -18],
+        [240, -Math.sin(aoaRad) * 14, 18],
+        [240, Math.sin(aoaRad) * 14, -18],
         [0, Math.sin(aoaRad) * 22, -34],
       ];
       ctx.beginPath();
@@ -103,7 +103,7 @@ export function AeromindCfdWindTunnel({ config, projectName, airframe }: Props) 
         }
         ctx.stroke();
       }
-      for (const tip of [-170, 170]) {
+      for (const tip of [-240, 170]) {
         ctx.strokeStyle = "#f59e0b";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -130,7 +130,7 @@ export function AeromindCfdWindTunnel({ config, projectName, airframe }: Props) 
         <strong><Wind size={15} /> SOUFFLERIE 3D VORTEX-LATTICE - {projectName || "CELLULE ACTIVE"} ({airframe || "3D AIRFRAME"})</strong>
         <span>SOLVEUR 3D VLM + VORTEX SILLAGE ACTIF</span>
       </div>
-      <canvas ref={canvasRef} width={780} height={310} className="w-full rounded-md border border-slate-800" />
+      <canvas ref={canvasRef} width={1120} height={520} className="w-full rounded-md border border-slate-800" />
       <div className="grid grid-cols-4 gap-3 my-2 text-xs text-slate-300">
         <label>Incidence AoA: <strong>{aoaDeg.toFixed(1)} deg</strong> <input type="range" min={-4} max={16} step={0.5} value={aoaDeg} onChange={(e) => setAoaDeg(Number(e.target.value))} className="w-full" /></label>
         <label>Vitesse 3D V: <strong>{airspeedMs} m/s</strong> <input type="range" min={8} max={65} step={1} value={airspeedMs} onChange={(e) => setAirspeedMs(Number(e.target.value))} className="w-full" /></label>

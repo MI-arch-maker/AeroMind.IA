@@ -88,3 +88,33 @@
 .sa-shell table tbody tr:hover {
   background-color: rgba(56, 189, 248, 0.06) !important;
 }
+
+/* Tailles dynamiques de la fenetre drone (Moyen, Grand, Tres elargi, Adaptable) */
+[data-drone-size="moyen"] .aeromind-engineering-viewport,
+[data-drone-size="moyen"] .physical-drone-stage,
+[data-drone-size="moyen"] canvas {
+  min-height: 280px !important;
+  max-height: 320px !important;
+}
+
+[data-drone-size="grand"] .aeromind-engineering-viewport,
+[data-drone-size="grand"] .physical-drone-stage,
+[data-drone-size="grand"] canvas {
+  min-height: 440px !important;
+  height: 440px !important;
+}
+
+[data-drone-size="tres-elargi"] .aeromind-engineering-viewport,
+[data-drone-size="tres-elargi"] .physical-drone-stage,
+[data-drone-size="tres-elargi"] canvas {
+  min-height: 620px !important;
+  height: 620px !important;
+  width: 100% !important;
+}
+
+[data-drone-size="adaptable"] .aeromind-engineering-viewport,
+[data-drone-size="adaptable"] .physical-drone-stage,
+[data-drone-size="adaptable"] canvas {
+  min-height: 48vh !important;
+  width: 100% !important;
+}
