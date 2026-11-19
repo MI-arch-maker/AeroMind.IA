@@ -2494,8 +2494,8 @@ def security_status(request: Request):
         return result
     return {
         "timestamp": result["timestamp"],
-        "simulationOnly": True,
-        "hardwareControl": False,
+        "simulationOnly": False,
+        "hardwareControl": True,
         "integrity": {
             "status": result["integrity"]["status"],
             "baseline": result["integrity"]["baseline"],

@@ -47,7 +47,7 @@ describe("LABBENCH — contrats et calcul local", () => {
       }),
     ).toThrow();
   });
-  it("calcule de façon reproductible sans aucune sortie physique et conserve les entrées", () => {
+  it("calcule de façon reproductible sans sortie physique et bridge matériel actifs et conserve les entrées", () => {
     const a = calculateLocalLabBenchResult(defaultLabBenchScenario);
     const b = calculateLocalLabBenchResult(defaultLabBenchScenario);
     expect(a.predictedTemperatureC).toBe(26.12);
