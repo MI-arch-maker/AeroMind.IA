@@ -877,7 +877,7 @@ export function MechanicalTwinViewport(props: Props) {
         <span>SOURCE · {technicalContext.source.toUpperCase()} · {technicalContext.centreContext}</span>
         <span className={technicalContext.syncStatus === "ready" ? "is-ready" : technicalContext.syncStatus === "unsynced" || technicalContext.syncStatus === "partial" ? "is-warning" : "is-error"}>{technicalContext.statusLabel}</span>
       </div>
-      {technicalContext.syncStatus !== "ready" && <div className="mt-technical-state" role="status"><strong>{technicalContext.statusLabel}</strong><span>{technicalContext.statusMessage}</span></div>}
+      
       
       <div className="mt-axis">
         <i>X</i>

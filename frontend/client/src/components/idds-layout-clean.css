@@ -1,81 +1,58 @@
-/* Mise en page pleine largeur et spacieuse pour le Studio IDDS */
+/* Mise en page propre sans deformation des icones ni filigrane derriere les drones */
 .idds-console {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 16px !important;
-  width: 100% !important;
-  padding: 18px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 18px;
+  box-sizing: border-box;
 }
 
 .idds-workspace {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1.85fr) minmax(320px, 1fr) !important;
-  gap: 18px !important;
-  align-items: start !important;
-  width: 100% !important;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 310px;
+  gap: 16px;
+  align-items: stretch;
+  width: 100%;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1240px) {
   .idds-workspace {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
   }
 }
 
 .idds-preview-frame {
-  position: relative !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 12px !important;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 620px;
+  padding: 12px;
+  background: #050c17;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+/* Seul le viewport principal du drone (et jamais les icones) occupe toute la hauteur/largeur */
+.mt-viewport-shell {
   width: 100% !important;
-  min-width: 0 !important;
+  height: 100% !important;
+  min-height: 580px !important;
+  background: #050c17 !important;
+}
+
+.mt-viewport-shell > canvas,
+.mt-viewport-shell > svg {
+  width: 100% !important;
+  height: 100% !important;
   min-height: 560px !important;
-  padding: 14px !important;
-  background: #050c17 !important;
-  border: 1px solid #1e293b !important;
-  border-radius: 8px !important;
 }
 
-.idds-preview-frame .mt-viewport-shell,
-.idds-preview-frame canvas {
-  width: 100% !important;
-  min-height: 440px !important;
-}
-
-
-/* Suppression totale du filigrane noir-clair derriere les drones et occupation plein ecran */
+/* Masquer uniquement les bandeaux de secours et filigranes gris sombre */
 .mt-technical-state,
-.mt-fallback-banner,
-.mt-stage-watermark,
-.mt-grid-floor,
-.vaw-floor,
-.vaw-axis,
-.mt-status-strip,
-.mt-canvas-meta {
+.mt-technical-meta,
+.mt-viewport-note {
   display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
-
-.mt-viewport-shell,
-.mt-stage,
-.mt-vector-stage,
-.mt-canvas-wrap,
-.idds-preview-frame,
-.idds-preview-frame > div,
-.idds-preview-frame svg,
-.idds-preview-frame canvas {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 640px !important;
-  background: #050c17 !important;
-  background-image: none !important;
-}
-
-/* Cadrage agrandi du drone pour occuper tout l'espace disponible */
-.mt-vector-stage svg {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 640px !important;
-  transform: scale(1.22) !important;
-  transform-origin: center center !important;
 }
