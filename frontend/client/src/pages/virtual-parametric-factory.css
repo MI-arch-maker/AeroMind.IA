@@ -63,3 +63,12 @@
 .vpf-shell .eyebrow {
   color: #38bdf8 !important;
 }
+
+/* CONTRASTE HAUTE LISIBILITE HEADER & BANNIERE */
+.vpf-topbar { background: #07161b !important; border-bottom: 1px solid rgba(117, 226, 220, 0.24) !important; color: #f8fafc !important; }
+.vpf-topbar h1 { color: #ffffff !important; }
+.vpf-topbar .eyebrow { color: #75e2dc !important; }
+.vpf-topbar .operator b { color: #f8fafc !important; }
+.vpf-topbar .operator small { color: #94a3b8 !important; }
+.vpf-banner { background: rgba(11, 29, 35, 0.96) !important; border: 1px solid rgba(251, 191, 36, 0.45) !important; color: #fef3c7 !important; }
+.vpf-banner span, .vpf-banner strong { color: #fef3c7 !important; }
