@@ -1,3 +1,4 @@
+import "./components/aeromind-4screens-calibrated.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";

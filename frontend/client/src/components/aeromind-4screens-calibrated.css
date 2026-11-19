@@ -1,0 +1,234 @@
+/* ============================================================================
+   AEROMIND — CALIBRAGE MILLIMÉTRÉ DES 4 ÉCRANS D'AFFICHAGE DRONES
+   1. CENTRE PARAMETRIC (.pdc-app)
+   2. STUDIO IDDS (.idds-studio, .idds-shell, .idds-workspace)
+   3. CENTRE MECANIQUE (.mechanical-center)
+   4. DIGITAL TWIN (.dt-explorer, .dt-shell, .mt-viewport)
+   ============================================================================ */
+
+/* --- 0. VIEWPORT 3D COMMUN : CADRAGE PLEINE LARGEUR/HAUTEUR DU DRONE --- */
+.mt-viewport {
+  position: relative;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 440px !important;
+  min-width: 0 !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 10px;
+  background: radial-gradient(circle at 50% 45%, #0e222e 0%, #060d13 78%, #04080c 100%);
+  border: 1px solid rgba(37, 208, 217, 0.18);
+  box-shadow: inset 0 0 42px rgba(0, 0, 0, 0.55);
+}
+
+.mt-viewport canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  outline: none;
+}
+
+.mt-render-presets {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: rgba(6, 14, 21, 0.84);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(37, 208, 217, 0.2);
+  font-size: 11px;
+}
+
+.mt-render-presets select,
+.mt-render-presets button {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(117, 226, 220, 0.24);
+  background: #0b1923;
+  color: #dff7f5;
+  font-size: 11px;
+}
+
+/* --- 1. CENTRE PARAMETRIC (.pdc-app) --- */
+.pdc-app {
+  display: grid !important;
+  grid-template-rows: 38px 40px minmax(0, 1fr) 28px !important;
+  width: 100% !important;
+  height: calc(100vh - 56px) !important;
+  min-height: 680px !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
+}
+
+.pdc-main {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(290px, 330px) !important;
+  gap: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.pdc-left,
+.pdc-right {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+}
+
+.pdc-center,
+.pdc-viewport-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  padding: 8px;
+  background: #060b12;
+}
+
+/* --- 2. STUDIO IDDS (.idds-studio / .idds-shell) --- */
+.idds-studio,
+.idds-shell,
+[data-screen="studio-idds"] {
+  display: grid !important;
+  grid-template-columns: minmax(250px, 280px) minmax(0, 1fr) minmax(300px, 340px) !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  width: 100% !important;
+  height: calc(100vh - 56px) !important;
+  min-height: 680px !important;
+  gap: 10px !important;
+  padding: 10px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+.idds-studio > header,
+.idds-shell > header {
+  grid-column: 1 / -1;
+}
+
+.idds-canvas-stage,
+.idds-viewport-pane {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- 3. CENTRE MECANIQUE (.mechanical-center) --- */
+.mechanical-center {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: calc(100vh - 64px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+}
+
+.mc-header {
+  padding: 16px 22px !important;
+  align-items: center !important;
+}
+
+.mc-header h2 {
+  font-size: 22px !important;
+  margin: 4px 0 2px !important;
+}
+
+.mc-header-status {
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 2px !important;
+}
+
+.mc-header-status small {
+  margin: 0 !important;
+}
+
+.mc-tabs {
+  padding: 8px 22px !important;
+  flex-wrap: wrap;
+}
+
+.mc-overview,
+.mc-workspace,
+.mc-table-panel {
+  padding: 16px 22px !important;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.mc-workspace {
+  display: grid !important;
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+.mc-stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.mc-two-col {
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr) !important;
+}
+
+/* --- 4. DIGITAL TWIN (.dt-explorer / .dt-shell) --- */
+.dt-explorer,
+.dt-shell,
+[data-screen="digital-twin"] {
+  display: grid !important;
+  grid-template-columns: minmax(250px, 285px) minmax(0, 1fr) minmax(300px, 345px) !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  width: 100% !important;
+  height: calc(100vh - 56px) !important;
+  min-height: 680px !important;
+  gap: 10px !important;
+  padding: 10px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+.dt-explorer > header,
+.dt-shell > header {
+  grid-column: 1 / -1;
+}
+
+.dt-stage,
+.dt-viewport-panel {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- ADAPTATION ÉCRANS MOYENS (< 1280px) --- */
+@media (max-width: 1280px) {
+  .pdc-main {
+    grid-template-columns: 210px minmax(0, 1fr) 265px !important;
+  }
+  .idds-studio,
+  .idds-shell,
+  .dt-explorer,
+  .dt-shell {
+    grid-template-columns: 220px minmax(0, 1fr) 275px !important;
+  }
+  .mc-workspace {
+    grid-template-columns: 270px minmax(0, 1fr) !important;
+  }
+}
