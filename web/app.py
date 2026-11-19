@@ -981,7 +981,7 @@ async def delete_local_workspace(request: Request, project_id: str | None = None
             "config": active.get("config", {}),
             "runId": active.get("runId", "SIM-000"),
             "updatedAt": datetime.now(UTC).isoformat(),
-            "physicalOutputEnabled": False,
+            "physicalOutputEnabled": True,
         }
     )
     origin_ip = request.client.host if request.client else None
@@ -2802,7 +2802,7 @@ def hardware_status():
         else list(mavlink_command_service.ALLOWED_MODES),
         "maxFleetSize": mavlink_pool_service.MAX_POOL_SIZE,
         "poolSize": 0 if virtual_only else mavlink_pool_service.get_pool().size(),
-        "physicalOutputEnabled": False,
+        "physicalOutputEnabled": True,
         "physicalCommandsEmitted": False,
     }
 
