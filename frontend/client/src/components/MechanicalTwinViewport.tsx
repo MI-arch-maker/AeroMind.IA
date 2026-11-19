@@ -109,7 +109,7 @@ function CameraRig({
     camera.bottom = -size.height / 2;
     camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
       ? camera.zoom * minSize / previous.size
-      : minSize / (extent * 0.52);
+      : minSize / (extent * 0.95);
     orthoState.current = { camera, size: minSize, extent, designId: model.designId, resetKey };
     camera.near = extent / 1000;
     camera.far = extent * 100;
@@ -119,7 +119,7 @@ function CameraRig({
   useEffect(() => {
     const d = directions[view];
     const extent = Math.max(0.5, model.extent);
-    camera.position.set(d[0] * extent * 0.54, d[1] * extent * 0.54, d[2] * extent * 0.54);
+    camera.position.set(d[0] * extent * 0.68, d[1] * extent * 0.68, d[2] * extent * 0.68);
     camera.up.set(0, 1, 0);
     camera.lookAt(0, 0, 0);
     if (camera instanceof THREE.PerspectiveCamera) {
@@ -797,10 +797,10 @@ export function MechanicalTwinViewport(props: Props) {
             gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true, localClippingEnabled: true }}
             onCreated={({ gl }) => {
               gl.toneMapping = THREE.ACESFilmicToneMapping;
-              gl.toneMappingExposure = 1.95;
+              gl.toneMappingExposure = 1.25;
             }}
           >
-            <ambientLight intensity={2.25} />
+            <ambientLight intensity={1.1} />
             <hemisphereLight args={["#e8f6ff", "#111a22", 1.8]} />
             <directionalLight position={[5, 8, 5]} intensity={3.5} />
             <directionalLight
