@@ -32,6 +32,7 @@ import {
   Wind,
   Wrench,
 } from "lucide-react";
+import { Play, Sparkles } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
 import { reserveWebGLCanvas } from "./PhysicalDroneModel";
 import {
@@ -1451,10 +1452,10 @@ export function AerodynamicSimulationCenter({
   const liveAero = useMemo(() => {
     const v = Number.isFinite(parameters.speedMps) && Number(parameters.speedMps) > 0 ? Number(parameters.speedMps) : 24;
     const alpha = Number.isFinite(parameters.angleOfAttackDeg) ? Number(parameters.angleOfAttackDeg) : 4.5;
-    const rho = Number.isFinite(parameters.airDensityKgM3) && Number(parameters.airDensityKgM3) > 0 ? Number(parameters.airDensityKgM3) : 1.225;
+    const rho = Number.isFinite((parameters as any).airDensityKgM3) && Number((parameters as any).airDensityKgM3) > 0 ? Number((parameters as any).airDensityKgM3) : 1.225;
     const span = Number.isFinite(parameters.wingspanM) && Number(parameters.wingspanM) > 0 ? Number(parameters.wingspanM) : 1.85;
     const chord = Number.isFinite(parameters.chordM) && Number(parameters.chordM) > 0 ? Number(parameters.chordM) : 0.24;
-    const area = Number.isFinite(parameters.referenceAreaM2) && Number(parameters.referenceAreaM2) > 0 ? Number(parameters.referenceAreaM2) : span * chord;
+    const area = Number.isFinite((parameters as any).referenceAreaM2) && Number((parameters as any).referenceAreaM2) > 0 ? Number((parameters as any).referenceAreaM2) : span * chord;
     const qPa = Number.isFinite(parameters.pressurePa) && Number(parameters.pressurePa) > 0 ? Number(parameters.pressurePa) : 0.5 * rho * v * v;
     const re = (rho * v * chord) / 1.81e-5;
     const mach = v / 340.3;
@@ -1467,7 +1468,7 @@ export function AerodynamicSimulationCenter({
     const dragN = qPa * area * cd;
     const powerW = dragN * v;
     const sweep = [-2, 0, 2, 4, 4.5, 6, 8, 10, 12].map(a => { const sCl = Math.min(1.58, Math.max(-0.45, 0.28 + ((2 * Math.PI * ar) / (ar + 2)) * ((a * Math.PI) / 180))); const sCd = 0.022 + (sCl * sCl) / (Math.PI * ar * 0.84); return { aoa: a, cl: +sCl.toFixed(3), cd: +sCd.toFixed(4), ld: +(sCl / sCd).toFixed(2), liftN: +(qPa * area * sCl).toFixed(1), dragN: +(qPa * area * sCd).toFixed(2) }; });
-    const best = sweep.reduce((b, c) => c.ld > b.ld ? c : b, sweep);
+    const best = sweep.reduce((b, c) => c.ld > b.ld ? c : b, sweep[0]);
     return { v, alpha, span, chord, area, qPa, re, mach, ar, cl, cd, cdi, ld, liftN, dragN, powerW, sweep, best };
   }, [parameters, cfdData]);
   const runCfd = async () => {
@@ -2526,7 +2527,7 @@ export function AerodynamicSimulationCenter({
         <Metric label="Vitesse induite vi" value={Math.sqrt(Math.max(liveAero.dragN, 4.5) / (2 * 1.225 * 0.113)).toFixed(2)} unit="m/s" note="Flux axial traversant le disque" />
         <Metric label="Poussée requise" value={Math.max(liveAero.dragN, 4.5).toFixed(1)} unit="N" note="Équilibre croisière" />
         <Metric label="Puissance propulsive" value={(liveAero.powerW / 0.78).toFixed(0)} unit="W" note="Rendement hélice η = 78%" />
-        <Metric label="Régime nominal" value={String(Number(parameters.rotorRpm) || 6800)} unit="RPM" note="Synchronisé avec le banc propulsion" />
+        <Metric label="Régime nominal" value={String(Number((parameters as any).rotorRpm) || 6800)} unit="RPM" note="Synchronisé avec le banc propulsion" />
       </div>
     </>)}
 
