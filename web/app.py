@@ -1,6 +1,3 @@
-import os
-os.environ.setdefault("HARDWARE_CONTROL", "true")
-os.environ["AEROMIND_VIRTUAL_ONLY"] = "false"
 import json as _json
 import os
 import shutil

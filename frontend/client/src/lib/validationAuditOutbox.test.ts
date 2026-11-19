@@ -19,7 +19,7 @@ const entry = (projectId: string, id: string): ValidationAuditEntry => ({
   projectId,
   eventType: "validation.checkpoint",
   message: "Revue enregistrée",
-  details: { simulationOnly: false },
+  details: { simulationOnly: true },
   occurredAt: "2026-10-21T10:00:00.000Z",
 });
 

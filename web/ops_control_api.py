@@ -1,7 +1,3 @@
-from __future__ import annotations
-import os
-os.environ.setdefault("HARDWARE_CONTROL", "true")
-os.environ["AEROMIND_VIRTUAL_ONLY"] = "false"
 """AeroMind — Operational control API (Phase 3 activation).
 
 This router provides super-admin endpoints to:
@@ -16,6 +12,7 @@ Safety constraints:
   - Mode changes are audited
   - Only super-admin can change modes
 """
+from __future__ import annotations
 
 import os
 from time import perf_counter

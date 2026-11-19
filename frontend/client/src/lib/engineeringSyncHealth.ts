@@ -40,7 +40,7 @@ export type EngineeringSyncHealth = {
   modules: Record<EngineeringModule, EngineeringTreeState>;
   tree: EngineeringTreeNode[];
   issues: SyncIssue[];
-  security: { physicalOutputEnabled: true; tamperGuard: "active" };
+  security: { physicalOutputEnabled: false; tamperGuard: "active" };
 };
 
 export function evaluateEngineeringSync(input: {
@@ -224,6 +224,6 @@ export function evaluateEngineeringSync(input: {
     modules,
     tree,
     issues,
-    security: { physicalOutputEnabled: true, tamperGuard: "active" },
+    security: { physicalOutputEnabled: false, tamperGuard: "active" },
   };
 }

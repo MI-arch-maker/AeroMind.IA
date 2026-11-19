@@ -1,140 +1,42 @@
-/* Alignement professionnel pleine hauteur des 3 colonnes du Studio IDDS */
+/* Mise en page pleine largeur et spacieuse pour le Studio IDDS */
 .idds-console {
   display: flex !important;
   flex-direction: column !important;
   gap: 16px !important;
   width: 100% !important;
   padding: 18px !important;
-  box-sizing: border-box !important;
 }
 
 .idds-workspace {
   display: grid !important;
-  grid-template-columns: 280px minmax(0, 1fr) 310px !important;
-  gap: 16px !important;
-  align-items: stretch !important;
+  grid-template-columns: minmax(0, 1.85fr) minmax(320px, 1fr) !important;
+  gap: 18px !important;
+  align-items: start !important;
   width: 100% !important;
-  min-height: 760px !important;
 }
 
-@media (max-width: 1240px) {
+@media (max-width: 1100px) {
   .idds-workspace {
     grid-template-columns: 1fr !important;
-    min-height: auto !important;
   }
-}
-
-/* Les 2 colonnes latérales (DOCUMENT DE CONSTRUCTION & INSPECTEUR PARAMÉTRIQUE) s'étirent sur toute la hauteur du centre */
-.idds-workspace > aside,
-.idds-workspace > div:first-child,
-.idds-workspace > div:last-child,
-.idds-layers-panel,
-.idds-inspector-panel {
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
-  height: 100% !important;
-  min-height: 760px !important;
-  max-height: none !important;
-  padding: 14px !important;
-  box-sizing: border-box !important;
-  overflow-y: visible !important;
-}
-
-/* Colonne centrale synchronisée en hauteur */
-.idds-center-column,
-.idds-stage-column {
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
-  gap: 14px !important;
-  height: 100% !important;
-  min-width: 0 !important;
 }
 
 .idds-preview-frame {
   position: relative !important;
   display: flex !important;
   flex-direction: column !important;
-  justify-content: center !important;
-  flex: 1 1 auto !important;
+  gap: 12px !important;
   width: 100% !important;
   min-width: 0 !important;
-  min-height: 500px !important;
+  min-height: 560px !important;
   padding: 14px !important;
   background: #050c17 !important;
   border: 1px solid #1e293b !important;
   border-radius: 8px !important;
-  box-sizing: border-box !important;
 }
 
 .idds-preview-frame .mt-viewport-shell,
 .idds-preview-frame canvas {
   width: 100% !important;
   min-height: 440px !important;
-}
-
-.idds-impact-panel,
-[class*="impact-panel"] {
-  margin-top: auto !important;
-  padding: 14px !important;
-  border-radius: 8px !important;
-  background: #081220 !important;
-  border: 1px solid #1e293b !important;
-}
-
-/* Alignement pleine hauteur de l'atelier "Dessiner le drone" (Calques + Artboard + Inspecteur) */
-.dsp-workbench,
-[class*="sketch-pro-workbench"],
-[class*="drone-sketch-workbench"] {
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-.dsp-workspace,
-.dsp-body,
-[class*="sketch-pro-body"],
-[class*="sketch-workspace"] {
-  display: grid !important;
-  grid-template-columns: 230px 44px minmax(0, 1fr) 310px !important;
-  align-items: stretch !important;
-  min-height: 760px !important;
-  width: 100% !important;
-}
-
-@media (max-width: 1200px) {
-  .dsp-workspace,
-  .dsp-body,
-  [class*="sketch-pro-body"],
-  [class*="sketch-workspace"] {
-    grid-template-columns: 1fr !important;
-    min-height: auto !important;
-  }
-}
-
-.dsp-layers,
-.dsp-inspector,
-.dsp-workspace > aside,
-.dsp-body > aside,
-[class*="sketch-inspector"],
-[class*="sketch-layers"] {
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
-  height: 100% !important;
-  min-height: 760px !important;
-  max-height: none !important;
-  padding: 14px !important;
-  box-sizing: border-box !important;
-  overflow-y: visible !important;
-}
-
-.dsp-canvas-area,
-.dsp-artboard-wrap,
-[class*="sketch-canvas"],
-[class*="artboard-frame"] {
-  height: 100% !important;
-  min-height: 760px !important;
 }

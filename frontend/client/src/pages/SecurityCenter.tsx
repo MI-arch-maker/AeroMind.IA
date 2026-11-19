@@ -50,7 +50,7 @@ export default function SecurityCenter() {
   ], [apiState]);
 
   const exportReport = () => {
-    const report = { product: "AeroMind.IA", module: "Centre de protection", generatedAt: new Date().toISOString(), lastScan, simulationOnly: false, hardwareControl: false, organizationBoundary: "ICX POWER SOLUTIONS SRL / AeroMind", probes: probes.map(({ icon: _icon, ...probe }) => probe), alerts, limitations: ["Ce module est une couche de sécurité applicative et ne remplace pas un antivirus hôte, un EDR, un WAF ou une revue humaine.", "Les décisions opérationnelles et les validations G01–G05 restent sous l’autorité AeroMind/ICX."] };
+    const report = { product: "AeroMind.IA", module: "Centre de protection", generatedAt: new Date().toISOString(), lastScan, simulationOnly: true, hardwareControl: false, organizationBoundary: "ICX POWER SOLUTIONS SRL / AeroMind", probes: probes.map(({ icon: _icon, ...probe }) => probe), alerts, limitations: ["Ce module est une couche de sécurité applicative et ne remplace pas un antivirus hôte, un EDR, un WAF ou une revue humaine.", "Les décisions opérationnelles et les validations G01–G05 restent sous l’autorité AeroMind/ICX."] };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "aeromind-rapport-protection.json"; anchor.click(); URL.revokeObjectURL(url);
   };

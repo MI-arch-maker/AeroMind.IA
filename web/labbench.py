@@ -99,7 +99,7 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
         "uncertaintyC": 0.58,
         "telemetry": telemetry,
         "evidenceLevel": "N2 — simulation synthétique",
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
     digest = _canonical_sha256(evidence)
@@ -160,7 +160,7 @@ def _devices() -> list[dict[str, Any]]:
             "hardwareRevision": "REV-A",
             "firmwareVersion": "0.4.2-sim",
             "interfacesJson": json.dumps(["virtual://labbench", "telemetry://synthetic"], ensure_ascii=False),
-            "limitsJson": json.dumps({"positionSetpointDeg": {"minimum": 0, "maximum": 90, "unit": "degree"}, "physicalOutputEnabled": True}, ensure_ascii=False),
+            "limitsJson": json.dumps({"positionSetpointDeg": {"minimum": 0, "maximum": 90, "unit": "degree"}, "physicalOutputEnabled": False}, ensure_ascii=False),
             "connectionState": "not_connected",
             "validationStatus": "simulated",
             "physical": False,
@@ -177,7 +177,7 @@ def _drivers() -> list[dict[str, Any]]:
             "permissions": "Preview sans adaptateur · sortie régie par ICX/Aeromind G01–G05",
             "validationStatus": "simulated",
             "allowlistJson": json.dumps(["read.status", "read.temperature", "read.position", "simulate.servo.setpoint"], ensure_ascii=False),
-            "physicalOutputEnabled": True,
+            "physicalOutputEnabled": False,
         }
     ]
 
@@ -211,7 +211,7 @@ def status() -> dict[str, Any]:
     return {
         "ready": True,
         "mode": "simulation",
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "project": {
             "code": "LABBENCH-01",
@@ -232,7 +232,7 @@ def status() -> dict[str, Any]:
             "hardwareRevision": "REV-A",
             "firmwareVersion": "0.4.2-sim",
             "interfaces": ["virtual://labbench", "telemetry://synthetic"],
-            "limits": ["consigne virtuelle 0–90 degree", "physicalOutputEnabled=true"],
+            "limits": ["consigne virtuelle 0–90 degree", "physicalOutputEnabled=false"],
             "connectionState": "not_connected",
         },
         "driver": {
@@ -303,7 +303,7 @@ def _new_registry(project: Project, user: dict[str, Any]) -> dict[str, Any]:
         "drivers": _drivers(),
         "createdAt": now,
         "updatedAt": now,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
     }
 
 
@@ -331,7 +331,7 @@ def seed_registry(db: Session, user: dict[str, Any] | None, project_id: str) -> 
         "registryId": row.id,
         "projectId": project.id,
         "updatedAt": registry["updatedAt"],
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
     }
 
 
@@ -357,7 +357,7 @@ def registry(db: Session, user: dict[str, Any] | None, project_id: str) -> dict[
         "drivers": data.get("drivers", []),
         "runs": runs,
         "updatedAt": data.get("updatedAt"),
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
 
@@ -416,7 +416,7 @@ def persist_simulation(db: Session, user: dict[str, Any] | None, project_id: str
     audit_id = str(uuid4())
     audit_payload = {
         "scope": "local-simulation-only",
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "runId": run["runId"],
         "contentSha256": run["contentSha256"],
@@ -571,7 +571,7 @@ def create_report(db: Session, user: dict[str, Any] | None, project_id: str, run
         "reportId": report_id,
         "runId": run_id,
         "contentSha256": content_sha256,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
     db.add(
@@ -621,7 +621,7 @@ def validate_command(payload: dict[str, Any]) -> dict[str, Any]:
     command = payload.get("command", "simulate.servo.setpoint")
     if command != "simulate.servo.setpoint":
         raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Only simulate.servo.setpoint is available, and only virtually")
-    if False:
+    if payload.get("physicalOutputEnabled") is True or payload.get("deviceConnected") is True or payload.get("physicalExecutionRequested") is True:
         raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical command requests are refused; no hardware adapter is available")
     mode = payload.get("mode", "simulation")
     if mode not in {"simulation", "authorized"}:
@@ -637,7 +637,7 @@ def validate_command(payload: dict[str, Any]) -> dict[str, Any]:
         "positionDeg": position,
         "humanConfirmed": human_confirmed,
         "safetyConfirmed": safety_confirmed,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "sentToHardware": False,
         "synthetic": True,
@@ -760,7 +760,7 @@ def _new_gate_state(project: Project, user: dict[str, Any]) -> dict[str, Any]:
         },
         "armEvents": [],
         "reviewEvents": [],
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
 
@@ -929,7 +929,7 @@ def gate_state(db: Session, user: dict[str, Any] | None, project_id: str) -> dic
             "calibrationSimulated": False,
             "complete": False,
         }),
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "physicalExecutionPermitted": False,
         "zoneProgress": _zone_progress(gates),
@@ -971,7 +971,7 @@ def complete_hardware_checklist(db: Session, user: dict[str, Any] | None, projec
     project = _require_project_owner(db, user, project_id)
     assert user is not None
     _official_write_allowed(user)
-    if False:
+    if payload.get("physicalOutputEnabled") is True:
         raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
     row, data, _ = _ensure_gate_state(db, project, user)
     checklist = {
@@ -994,7 +994,7 @@ def complete_hardware_checklist(db: Session, user: dict[str, Any] | None, projec
             message="Checklist hardware simulée complétée ; aucune commande matérielle.",
             payload_json=json.dumps({
                 "scope": "labbench-gate",
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
                 "checklist": checklist,
             }, ensure_ascii=False, separators=(",", ":")),
@@ -1006,7 +1006,7 @@ def complete_hardware_checklist(db: Session, user: dict[str, Any] | None, projec
         "projectId": project.id,
         "gateStateId": row.id,
         "checklist": checklist,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
 
@@ -1023,7 +1023,7 @@ def arm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str, paylo
     _official_write_allowed(user)
     if not isinstance(payload, dict):
         raise LabBenchError(400, "BAD_REQUEST", "Arm payload must be an object")
-    if False:
+    if payload.get("physicalOutputEnabled") is True or payload.get("deviceConnected") is True:
         raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
     human_confirmed = payload.get("humanConfirmed") is True
     safety_confirmed = payload.get("safetyConfirmed") is True
@@ -1049,7 +1049,7 @@ def arm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str, paylo
         "secondOperatorCodeHash": hashlib.sha256(second_operator.encode("utf-8")).hexdigest(),
         "humanConfirmed": True,
         "safetyConfirmed": True,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "reason": "Armement N3 supervisé enregistré ; aucune sortie physique engagée dans cette Preview. Toute sortie appareil relève du protocole ICX / Aeromind.",
     }
@@ -1070,7 +1070,7 @@ def arm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str, paylo
             message="Armement N3 supervisé enregistré après double confirmation humaine ; aucune sortie physique engagée dans cette Preview. La décision appareil relève du protocole ICX / Aeromind.",
             payload_json=json.dumps({
                 "scope": "labbench-gate",
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
                 "armEventId": arm_event["id"],
                 "humanConfirmed": True,
@@ -1085,7 +1085,7 @@ def arm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str, paylo
         "gateStateId": row.id,
         "armEventId": arm_event["id"],
         "armed": True,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "physicalExecutionPermitted": False,
         "reason": arm_event["reason"],
@@ -1121,7 +1121,7 @@ def disarm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str) ->
             message="Désarmement N3 enregistré ; aucune commande active résiduelle.",
             payload_json=json.dumps({
                 "scope": "labbench-gate",
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
                 "disarmedEventId": last.get("id"),
             }, ensure_ascii=False, separators=(",", ":")),
@@ -1133,7 +1133,7 @@ def disarm_n3_gate(db: Session, user: dict[str, Any] | None, project_id: str) ->
         "projectId": project.id,
         "gateStateId": row.id,
         "armed": False,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
 
@@ -1161,7 +1161,7 @@ def sign_off_n4_gate(db: Session, user: dict[str, Any] | None, project_id: str, 
         "reviewTokenHash": hashlib.sha256(review_token.encode("utf-8")).hexdigest(),
         "actorId": user["id"],
         "actorRole": user.get("role", "user"),
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "note": str(payload.get("note") or "Revue indépendante signée."),
     }
@@ -1179,7 +1179,7 @@ def sign_off_n4_gate(db: Session, user: dict[str, Any] | None, project_id: str, 
             message="Revue indépendante N4 signée ; aucune commande matérielle.",
             payload_json=json.dumps({
                 "scope": "labbench-gate",
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
                 "reviewer": reviewer,
                 "reviewEventId": event["id"],
@@ -1194,7 +1194,7 @@ def sign_off_n4_gate(db: Session, user: dict[str, Any] | None, project_id: str, 
         "reviewEventId": event["id"],
         "signedOff": True,
         "n5ReleaseConfirmed": False,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
 
@@ -1221,7 +1221,7 @@ def close_n5_gate(db: Session, user: dict[str, Any] | None, project_id: str) -> 
         payload_json=json.dumps({
             "scope": "labbench-gate",
             "n5ReleaseConfirmed": True,
-            "physicalOutputEnabled": True,
+            "physicalOutputEnabled": False,
             "physicalCommandsEmitted": False,
         }, ensure_ascii=False, separators=(",", ":")),
         occurred_at=datetime.now(UTC),
@@ -1233,7 +1233,7 @@ def close_n5_gate(db: Session, user: dict[str, Any] | None, project_id: str) -> 
         "gateStateId": row.id,
         "closed": True,
         "compliance": _compliance_summary(gates),
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
 
@@ -1441,7 +1441,7 @@ def per_drone_gate_state(
             "calibrationSimulated": False,
             "complete": False,
         }),
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "physicalExecutionPermitted": False,
     }
@@ -1496,7 +1496,7 @@ def fleet_gate_state(
         "maxFleetSize": MAX_FLEET_SIZE,
         "perDrone": per_drone,
         "gatesAggregate": gates_aggregate,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "physicalExecutionPermitted": False,
     }
@@ -1516,7 +1516,7 @@ def arm_n3_gate_drone(
     drone = _require_drone_owner(db, project, user["id"], drone_id)
     if not isinstance(payload, dict):
         raise LabBenchError(400, "BAD_REQUEST", "Arm payload must be an object")
-    if False:
+    if payload.get("physicalOutputEnabled") is True or payload.get("deviceConnected") is True:
         raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
     human_confirmed = payload.get("humanConfirmed") is True
     safety_confirmed = payload.get("safetyConfirmed") is True
@@ -1543,7 +1543,7 @@ def arm_n3_gate_drone(
         "secondOperatorCodeHash": hashlib.sha256(second_operator.encode("utf-8")).hexdigest(),
         "humanConfirmed": True,
         "safetyConfirmed": True,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "reason": f"Armement N3 supervisé enregistré pour {drone.name} ; aucune sortie physique engagée dans cette Preview. Toute sortie appareil relève du protocole ICX / Aeromind.",
     }
@@ -1565,7 +1565,7 @@ def arm_n3_gate_drone(
                 "scope": "labbench-gate-per-drone",
                 "droneId": drone.id,
                 "droneName": drone.name,
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
                 "armEventId": arm_event["id"],
             }, ensure_ascii=False, separators=(",", ":")),
@@ -1580,7 +1580,7 @@ def arm_n3_gate_drone(
         "gateStateId": row.id,
         "armEventId": arm_event["id"],
         "armed": True,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
         "physicalExecutionPermitted": False,
         "reason": arm_event["reason"],
@@ -1623,7 +1623,7 @@ def disarm_n3_gate_drone(
                 "scope": "labbench-gate-per-drone",
                 "droneId": drone.id,
                 "droneName": drone.name,
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
             }, ensure_ascii=False, separators=(",", ":")),
             occurred_at=datetime.now(UTC),
@@ -1636,7 +1636,7 @@ def disarm_n3_gate_drone(
         "droneName": drone.name,
         "gateStateId": row.id,
         "armed": False,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
 
@@ -1653,7 +1653,7 @@ def complete_hardware_checklist_drone(
     assert user is not None
     _official_write_allowed(user)
     drone = _require_drone_owner(db, project, user["id"], drone_id)
-    if False:
+    if payload.get("physicalOutputEnabled") is True:
         raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
     row, data, _ = _ensure_per_drone_gate_state(db, project, user, drone.id, drone.name)
     checklist = {
@@ -1677,7 +1677,7 @@ def complete_hardware_checklist_drone(
                 "scope": "labbench-gate-per-drone",
                 "droneId": drone.id,
                 "droneName": drone.name,
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
                 "checklist": checklist,
             }, ensure_ascii=False, separators=(",", ":")),
@@ -1691,7 +1691,7 @@ def complete_hardware_checklist_drone(
         "droneName": drone.name,
         "gateStateId": row.id,
         "checklist": checklist,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
 
@@ -1714,7 +1714,7 @@ def run_fleet_simulation(
     _official_write_allowed(user)
     if not isinstance(payload, dict):
         raise LabBenchError(400, "BAD_REQUEST", "Fleet payload must be an object")
-    if False:
+    if payload.get("physicalOutputEnabled") is True:
         raise LabBenchError(403, "PHYSICAL_COMMAND_FORBIDDEN", "Physical output remains disabled")
     scenarios = payload.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
@@ -1775,7 +1775,7 @@ def run_fleet_simulation(
                         "scope": "local-simulation-only",
                         "droneId": drone.id,
                         "droneName": drone.name,
-                        "physicalOutputEnabled": True,
+                        "physicalOutputEnabled": False,
                         "physicalCommandsEmitted": False,
                         "runId": run["runId"],
                         "contentSha256": run["contentSha256"],
@@ -1791,7 +1791,7 @@ def run_fleet_simulation(
                 "predictedTemperatureC": run["predictedTemperatureC"],
                 "verdict": run["verdict"],
                 "contentSha256": run["contentSha256"],
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
             })
         except LabBenchError as exc:
@@ -1799,7 +1799,7 @@ def run_fleet_simulation(
                 "droneId": drone.id,
                 "droneName": drone.name,
                 "error": {"code": exc.code, "message": exc.message},
-                "physicalOutputEnabled": True,
+                "physicalOutputEnabled": False,
                 "physicalCommandsEmitted": False,
             })
     db.commit()
@@ -1807,6 +1807,6 @@ def run_fleet_simulation(
         "projectId": project.id,
         "fleetSize": len(validated),
         "results": results,
-        "physicalOutputEnabled": True,
+        "physicalOutputEnabled": False,
         "physicalCommandsEmitted": False,
     }
