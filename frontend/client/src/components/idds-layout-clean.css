@@ -40,3 +40,42 @@
   width: 100% !important;
   min-height: 440px !important;
 }
+
+
+/* Suppression totale du filigrane noir-clair derriere les drones et occupation plein ecran */
+.mt-technical-state,
+.mt-fallback-banner,
+.mt-stage-watermark,
+.mt-grid-floor,
+.vaw-floor,
+.vaw-axis,
+.mt-status-strip,
+.mt-canvas-meta {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.mt-viewport-shell,
+.mt-stage,
+.mt-vector-stage,
+.mt-canvas-wrap,
+.idds-preview-frame,
+.idds-preview-frame > div,
+.idds-preview-frame svg,
+.idds-preview-frame canvas {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 640px !important;
+  background: #050c17 !important;
+  background-image: none !important;
+}
+
+/* Cadrage agrandi du drone pour occuper tout l'espace disponible */
+.mt-vector-stage svg {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 640px !important;
+  transform: scale(1.22) !important;
+  transform-origin: center center !important;
+}

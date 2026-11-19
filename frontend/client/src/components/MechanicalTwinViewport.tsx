@@ -878,7 +878,7 @@ export function MechanicalTwinViewport(props: Props) {
         <span className={technicalContext.syncStatus === "ready" ? "is-ready" : technicalContext.syncStatus === "unsynced" || technicalContext.syncStatus === "partial" ? "is-warning" : "is-error"}>{technicalContext.statusLabel}</span>
       </div>
       {technicalContext.syncStatus !== "ready" && <div className="mt-technical-state" role="status"><strong>{technicalContext.statusLabel}</strong><span>{technicalContext.statusMessage}</span></div>}
-      {!webgl && <div className="mt-technical-state is-fallback" role="status"><strong>Projection vectorielle de secours</strong><span>Maillage actif conservé ; styles, éclairage, transparence et profondeur sont approximatifs. La rotation sur elle-même reste disponible en animation vectorielle.</span></div>}
+      
       <div className="mt-axis">
         <i>X</i>
         <i>Y</i>

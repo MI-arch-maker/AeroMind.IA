@@ -47,7 +47,7 @@ export function AeromindTwinRenderStage({ design, config }: { design?: DroneCata
           <button type="button" style={btn(false)} onClick={() => { setView("iso"); setMode("solid"); setExplosion(0); setResetKey(k => k + 1); }}>Reset</button>
         </div>
       </div>
-      <div className="idds-render-viewport" style={{ height: "420px", width: "100%", borderRadius: "6px", overflow: "hidden", border: "1px solid #1e293b" }}>
+      <div className="idds-render-viewport" style={{ height: "660px", minHeight: "660px", width: "100%", borderRadius: "6px", overflow: "hidden", border: "1px solid #1e293b", background: "#050c17" }}>
         <MechanicalTwinViewport
           model={model}
           selected={selected}
