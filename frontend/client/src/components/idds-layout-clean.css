@@ -66,3 +66,15 @@
 .mt-viewport-grid {
   display: none !important;
 }
+
+/* Pleine hauteur du canvas 3D pour eliminer tout espace noir vide sous le drone */
+.mt-viewport {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 620px !important;
+  flex: 1 1 auto !important;
+}
+.mt-viewport canvas {
+  width: 100% !important;
+  height: 100% !important;
+}

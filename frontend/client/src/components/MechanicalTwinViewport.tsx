@@ -109,7 +109,7 @@ function CameraRig({
     camera.bottom = -size.height / 2;
     camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
       ? camera.zoom * minSize / previous.size
-      : minSize / (extent * 1.5);
+      : minSize / (extent * 0.86);
     orthoState.current = { camera, size: minSize, extent, designId: model.designId, resetKey };
     camera.near = extent / 1000;
     camera.far = extent * 100;
@@ -119,7 +119,7 @@ function CameraRig({
   useEffect(() => {
     const d = directions[view];
     const extent = Math.max(0.5, model.extent);
-    camera.position.set(d[0] * extent, d[1] * extent, d[2] * extent);
+    camera.position.set(d[0] * extent * 0.54, d[1] * extent * 0.54, d[2] * extent * 0.54);
     camera.up.set(0, 1, 0);
     camera.lookAt(0, 0, 0);
     if (camera instanceof THREE.PerspectiveCamera) {
