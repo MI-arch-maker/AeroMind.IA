@@ -78,3 +78,26 @@
   width: 100% !important;
   height: 100% !important;
 }
+
+/* Forcer le Canvas 3D (.mt-viewport) a occuper 100% de la hauteur et de la largeur de son ecran */
+.mt-viewport {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 680px !important;
+}
+.mt-viewport > div:first-of-type,
+.mt-viewport canvas {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 680px !important;
+}
+
+/* Eviter tout chevauchement entre le titre "Assemblage mecanique complet" et la barre ISO/Solide */
+.idds-preview-frame > header,
+.idds-preview-frame > div:first-child {
+  position: relative !important;
+  z-index: 4 !important;
+  margin-bottom: 8px !important;
+}
