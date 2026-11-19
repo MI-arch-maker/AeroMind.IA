@@ -1,4 +1,4 @@
-/* Format Ingenieur Plein Cadre : le drone occupe toute la scene de travail */
+/* Rendu Plein Cadre Ingenieur + Bulle RENDU ultra-compacte et moderne */
 .idds-console {
   display: flex;
   flex-direction: column;
@@ -28,27 +28,48 @@
   flex-direction: column;
   width: 100%;
   min-height: 620px;
-  padding: 10px;
-  background: radial-gradient(circle at 50% 48%, #0c1b33 0%, #040812 78%);
-  border: 1px solid #1e3a5f;
+  padding: 8px;
+  background: #040914;
+  border: 1px solid #16263d;
   border-radius: 8px;
   box-sizing: border-box;
 }
 
-/* Barre RENDU compacte en bas a gauche pour ne jamais masquer la voilure du drone */
+/* Bulle RENDU ultra-compacte, fine et moderne en haut a gauche */
 .mt-render-presets {
   position: absolute !important;
+  top: 12px !important;
   left: 12px !important;
-  bottom: 12px !important;
-  top: auto !important;
-  width: 215px !important;
-  max-width: 215px !important;
-  padding: 8px 10px !important;
-  background: rgba(5, 12, 24, 0.86) !important;
-  backdrop-filter: blur(8px) !important;
-  border: 1px solid rgba(56, 189, 248, 0.28) !important;
-  border-radius: 6px !important;
+  bottom: auto !important;
+  width: 178px !important;
+  max-width: 178px !important;
+  padding: 6px 8px !important;
+  gap: 5px !important;
+  background: rgba(5, 11, 22, 0.84) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(56, 189, 248, 0.24) !important;
+  border-radius: 7px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
   z-index: 6 !important;
+}
+
+.mt-render-presets label {
+  font-size: 9px !important;
+  letter-spacing: 0.08em !important;
+  color: #7dd3fc !important;
+}
+
+.mt-render-presets small {
+  display: none !important;
+}
+
+.mt-render-presets select,
+.mt-render-presets button {
+  min-height: 22px !important;
+  height: 22px !important;
+  padding: 2px 6px !important;
+  font-size: 9.5px !important;
+  border-radius: 4px !important;
 }
 
 /* Le viewport 3D du drone occupe 100% de la surface de travail */
@@ -57,7 +78,8 @@
   width: 100% !important;
   height: 600px !important;
   min-height: 600px !important;
-  background: transparent !important;
+  background: #040914 !important;
+  background-image: none !important;
 }
 
 .mt-viewport canvas {
