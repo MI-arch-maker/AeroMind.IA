@@ -1,0 +1,346 @@
+=== 1. ARCHIVE DANS SUPERADMIN.TSX ===
+./frontend/client/src/pages/SuperAdmin.tsx-1-import "../styles/admin-defense-cockpit.css";
+./frontend/client/src/pages/SuperAdmin.tsx-2-import { useEffect, useMemo, useRef, useState } from "react";
+./frontend/client/src/pages/SuperAdmin.tsx-3-import { Link } from "wouter";
+./frontend/client/src/pages/SuperAdmin.tsx:4:import { Activity, AlertTriangle, Archive, Bell, ClipboardCheck, Download, Edit, ExternalLink, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Moon, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Upload, Users, X, Eye } from "lucide-react";
+./frontend/client/src/pages/SuperAdmin.tsx-5-import { toast } from "sonner";
+./frontend/client/src/pages/SuperAdmin.tsx-6-import { trpc } from "@/lib/trpc";
+./frontend/client/src/pages/SuperAdmin.tsx-7-import { bearerHeaders, clearSessionToken } from "@/lib/sessionToken";
+./frontend/client/src/pages/SuperAdmin.tsx-8-import { startLogin } from "@/const";
+./frontend/client/src/pages/SuperAdmin.tsx-9-import { OperationModeCard } from "@/components/OperationModeCard";
+./frontend/client/src/pages/SuperAdmin.tsx-10-import { OperationalCapabilitiesPanel } from "@/components/OperationalCapabilitiesPanel";
+./frontend/client/src/pages/SuperAdmin.tsx-11-import { SystemHealthPanel } from "@/components/SystemHealthPanel";
+./frontend/client/src/pages/SuperAdmin.tsx-12-import { AuditEventExplorer } from "@/components/AuditEventExplorer";
+./frontend/client/src/pages/SuperAdmin.tsx-13-import { GovernanceCycleMap } from "@/components/GovernanceCycleMap";
+./frontend/client/src/pages/SuperAdmin.tsx-14-import { GovernanceCapabilityMatrix } from "@/components/GovernanceCapabilityMatrix";
+./frontend/client/src/pages/SuperAdmin.tsx-15-import { SuperAdminGateMatrix } from "@/components/SuperAdminGateMatrix";
+./frontend/client/src/pages/SuperAdmin.tsx-16-import { AdminMechanicalPreview } from "@/components/AdminMechanicalPreview";
+./frontend/client/src/pages/SuperAdmin.tsx-17-import { useLanguage } from "../contexts/LanguageContext";
+./frontend/client/src/pages/SuperAdmin.tsx-18-import "./super-admin.css";
+./frontend/client/src/pages/SuperAdmin.tsx-19-
+./frontend/client/src/pages/SuperAdmin.tsx-20-type Role = "user" | "demo" | "visitor" | "surveillant" | "admin";
+./frontend/client/src/pages/SuperAdmin.tsx-21-type AuthUser = { email: string; name?: string; role?: string; level?: string; account_status?: string };
+./frontend/client/src/pages/SuperAdmin.tsx-22-type Section = "overview" | "operations" | "accounts" | "approvals" | "projects" | "reports" | "levels" | "audit" | "qualification-activity" | "settings";
+./frontend/client/src/pages/SuperAdmin.tsx-23-type SortKey = "email" | "role" | "status" | "name";
+./frontend/client/src/pages/SuperAdmin.tsx-24-type SortDir = "asc" | "desc";
+./frontend/client/src/pages/SuperAdmin.tsx-25-
+./frontend/client/src/pages/SuperAdmin.tsx-26-function Pill({ children, tone = "slate" }: { children: React.ReactNode; tone?: string }) {
+./frontend/client/src/pages/SuperAdmin.tsx-27-  const tones: Record<string, string> = { blue: "bg-blue-50 text-blue-700", violet: "bg-violet-50 text-violet-700", amber: "bg-amber-50 text-amber-700", green: "bg-emerald-50 text-emerald-700", red: "bg-red-50 text-red-700", slate: "bg-slate-100 text-slate-600" };
+./frontend/client/src/pages/SuperAdmin.tsx-28-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone] || tones.slate}`}>{children}</span>;
+./frontend/client/src/pages/SuperAdmin.tsx-29-}
+--
+./frontend/client/src/pages/SuperAdmin.tsx-389-      const label = roleLabel[a.role] || a.role;
+./frontend/client/src/pages/SuperAdmin.tsx-390-      const matchesFilter = filter === t("Tous") || label === filter;
+./frontend/client/src/pages/SuperAdmin.tsx-391-      const matchesSearch = `${a.name} ${a.email}`.toLowerCase().includes(search.toLowerCase());
+./frontend/client/src/pages/SuperAdmin.tsx-392-      return matchesFilter && matchesSearch;
+./frontend/client/src/pages/SuperAdmin.tsx-393-    });
+./frontend/client/src/pages/SuperAdmin.tsx-394-    const dirMul = sortDir === "asc" ? 1 : -1;
+./frontend/client/src/pages/SuperAdmin.tsx-395-    return [...base].sort((a: any, b: any) => {
+./frontend/client/src/pages/SuperAdmin.tsx-396-      const va = String(a[sortBy] ?? (sortBy === "name" ? a.name : sortBy === "status" ? a.accountStatus : a.email)).toLowerCase();
+./frontend/client/src/pages/SuperAdmin.tsx-397-      const vb = String(b[sortBy] ?? (sortBy === "name" ? b.name : sortBy === "status" ? b.accountStatus : b.email)).toLowerCase();
+./frontend/client/src/pages/SuperAdmin.tsx-398-      if (va < vb) return -1 * dirMul;
+./frontend/client/src/pages/SuperAdmin.tsx-399-      if (va > vb) return 1 * dirMul;
+./frontend/client/src/pages/SuperAdmin.tsx-400-      return 0;
+./frontend/client/src/pages/SuperAdmin.tsx-401-    });
+./frontend/client/src/pages/SuperAdmin.tsx-402-  }, [accounts.data, filter, search, sortBy, sortDir, roleLabel, t]);
+./frontend/client/src/pages/SuperAdmin.tsx-403-
+./frontend/client/src/pages/SuperAdmin.tsx-404-  const denied = !!user && (user.role !== "super_admin" || accounts.error?.data?.code === "FORBIDDEN");
+./frontend/client/src/pages/SuperAdmin.tsx-405-  const adminEvents = (activity.data?.adminEvents || activity.data?.activity || []) as any[];
+./frontend/client/src/pages/SuperAdmin.tsx-406-  const recentAdminEvents = adminEvents.slice(0, 5);
+./frontend/client/src/pages/SuperAdmin.tsx-407-  const notificationEvents = adminEvents.slice(0, 3);
+./frontend/client/src/pages/SuperAdmin.tsx-408-  const displayName = user?.name || user?.email || t("SUPER-ADMIN");
+./frontend/client/src/pages/SuperAdmin.tsx-409-
+./frontend/client/src/pages/SuperAdmin.tsx-410-  if (authLoading) return <AuthShell><p className="text-sm text-slate-500">{t("Vérification de la session Super-Admin…")}</p></AuthShell>;
+./frontend/client/src/pages/SuperAdmin.tsx-411-  if (!user) return <AuthShell><ShieldCheck className="mb-4 text-blue-600" size={38} /><h1 className="text-2xl font-bold">{t("Connexion console AeroMind")}</h1><p className="mt-3 text-sm leading-6 text-slate-500">{t("Choisissez Microsoft Entra ou l'accès local sécurisé préalablement activé par le Super-Admin. Les comptes locaux exigent un mot de passe et un code d'application TOTP.")}</p><button onClick={() => startLogin()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"><LogIn size={17} />{t("Continuer avec Microsoft Entra")}</button><div className="my-5 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" />{t("OU ACCÈS LOCAL MFA")}<span className="h-px flex-1 bg-slate-200" /></div><LocalAuthPanel onAuthenticated={refreshSession} /><Link href="/" className="mt-5 block text-center text-xs font-semibold text-slate-500 hover:text-blue-600">{t("Retour au cockpit")}</Link></AuthShell>;
+./frontend/client/src/pages/SuperAdmin.tsx-412-  if (denied) return <AuthShell><ShieldCheck className="mb-4 text-red-500" size={38} /><h1 className="text-2xl font-bold">{t("Accès refusé")}</h1><p className="mt-3 text-sm leading-6 text-slate-500">{t("Cette session n'est pas le Super-Admin autorisé.")}</p><button onClick={() => void logout()} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700"><LogOut size={16} /> {t("Se déconnecter")}</button></AuthShell>;
+./frontend/client/src/pages/SuperAdmin.tsx-413-
+./frontend/client/src/pages/SuperAdmin.tsx:414:  const downloadRestorationArchive = async (projectId: string) => {
+./frontend/client/src/pages/SuperAdmin.tsx-415-    try {
+./frontend/client/src/pages/SuperAdmin.tsx-416-      const response = await fetch(`/api/admin-console/restoration-archive/projects/${encodeURIComponent(projectId)}`, { credentials: "include", headers: bearerHeaders() });
+./frontend/client/src/pages/SuperAdmin.tsx-417-      const body = await response.json().catch(() => ({}));
+./frontend/client/src/pages/SuperAdmin.tsx-418-      if (!response.ok) throw new Error(body.detail || t("Création de l’archive refusée."));
+./frontend/client/src/pages/SuperAdmin.tsx-419-      const blob = new Blob([JSON.stringify(body, null, 2)], { type: "application/json" });
+./frontend/client/src/pages/SuperAdmin.tsx-420-      const url = URL.createObjectURL(blob);
+./frontend/client/src/pages/SuperAdmin.tsx-421-      const link = document.createElement("a");
+./frontend/client/src/pages/SuperAdmin.tsx-422-      link.href = url;
+./frontend/client/src/pages/SuperAdmin.tsx-423-      link.download = `aeromind-restauration-${projectId}-${new Date().toISOString().slice(0, 10)}.json`;
+./frontend/client/src/pages/SuperAdmin.tsx-424-      link.click();
+./frontend/client/src/pages/SuperAdmin.tsx-425-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+./frontend/client/src/pages/SuperAdmin.tsx:426:      toast.success(t("Archive de restauration téléchargée"), { description: t("Elle contient le projet et les configurations des drones, pas les missions, rapports ou journaux.") });
+./frontend/client/src/pages/SuperAdmin.tsx-427-      return true;
+./frontend/client/src/pages/SuperAdmin.tsx-428-    } catch (error: any) {
+./frontend/client/src/pages/SuperAdmin.tsx-429-      toast.error(t("Export de l’archive impossible"), { description: error.message });
+./frontend/client/src/pages/SuperAdmin.tsx-430-      return false;
+./frontend/client/src/pages/SuperAdmin.tsx-431-    }
+./frontend/client/src/pages/SuperAdmin.tsx-432-  };
+./frontend/client/src/pages/SuperAdmin.tsx:433:  const restoreRestorationArchive = async (file: File) => {
+./frontend/client/src/pages/SuperAdmin.tsx-434-    try {
+./frontend/client/src/pages/SuperAdmin.tsx-435-      if (file.size > 5 * 1024 * 1024) throw new Error(t("L’archive dépasse la limite de 5 Mio."));
+./frontend/client/src/pages/SuperAdmin.tsx-436-      const archive = JSON.parse(await file.text());
+./frontend/client/src/pages/SuperAdmin.tsx-437-      const projectName = String(archive?.project?.name || t("Projet sans nom"));
+./frontend/client/src/pages/SuperAdmin.tsx-438-      const droneCount = Array.isArray(archive?.drones) ? archive.drones.length : 0;
+./frontend/client/src/pages/SuperAdmin.tsx-439-      if (!window.confirm(t(`Restaurer le projet « ${projectName} » et ${droneCount} drone(s) depuis cette archive ? Le projet doit être absent. Les missions, runs, rapports et journaux ne sont pas inclus.`))) return;
+./frontend/client/src/pages/SuperAdmin.tsx-440-      const response = await fetch("/api/admin-console/restoration-archive/restore", {
+./frontend/client/src/pages/SuperAdmin.tsx-441-        method: "POST", credentials: "include",
+./frontend/client/src/pages/SuperAdmin.tsx-442-        headers: { "Content-Type": "application/json", ...bearerHeaders() },
+./frontend/client/src/pages/SuperAdmin.tsx-443-        body: JSON.stringify(archive),
+./frontend/client/src/pages/SuperAdmin.tsx-444-      });
+./frontend/client/src/pages/SuperAdmin.tsx-445-      const result = await response.json().catch(() => ({}));
+./frontend/client/src/pages/SuperAdmin.tsx-446-      if (!response.ok) throw new Error(result.detail || t("Restauration refusée."));
+./frontend/client/src/pages/SuperAdmin.tsx-447-      toast.success(t("Projet et flotte restaurés"), { description: t(`${result.droneCount} drone(s) restauré(s); les données non incluses dans l’archive ne sont pas rétablies.`) });
+./frontend/client/src/pages/SuperAdmin.tsx-448-      await invalidate();
+./frontend/client/src/pages/SuperAdmin.tsx-449-    } catch (error: any) {
+./frontend/client/src/pages/SuperAdmin.tsx-450-      toast.error(t("Restauration impossible"), { description: error instanceof SyntaxError ? t("Le fichier sélectionné n’est pas un JSON valide.") : error.message });
+./frontend/client/src/pages/SuperAdmin.tsx-451-    }
+./frontend/client/src/pages/SuperAdmin.tsx-452-  };
+./frontend/client/src/pages/SuperAdmin.tsx:453:  const deleteProjectArchive = async (archiveId: string) => {
+./frontend/client/src/pages/SuperAdmin.tsx-454-    /* suppression directe Super-Admin */
+./frontend/client/src/pages/SuperAdmin.tsx-455-    try {
+./frontend/client/src/pages/SuperAdmin.tsx-456-      const response = await fetch(`/api/admin/archives/${encodeURIComponent(archiveId)}`, {
+./frontend/client/src/pages/SuperAdmin.tsx-457-        method: "DELETE", credentials: "include", headers: bearerHeaders(),
+./frontend/client/src/pages/SuperAdmin.tsx-458-      });
+./frontend/client/src/pages/SuperAdmin.tsx-459-      const body = await response.json().catch(() => ({}));
+./frontend/client/src/pages/SuperAdmin.tsx-460-      if (!response.ok) throw new Error(body.detail || t("Suppression de l’archive refusée"));
+./frontend/client/src/pages/SuperAdmin.tsx-461-      if (body?.deleted !== true || String(body?.id || "") !== String(archiveId)) {
+./frontend/client/src/pages/SuperAdmin.tsx-462-        throw new Error(t("Le serveur n’a pas confirmé la suppression définitive de cette archive."));
+./frontend/client/src/pages/SuperAdmin.tsx-463-      }
+./frontend/client/src/pages/SuperAdmin.tsx-464-      utils.superAdmin.activity.setData(undefined, (current: any) => current
+./frontend/client/src/pages/SuperAdmin.tsx:465:        ? { ...current, projectArchives: (current.projectArchives || []).filter((item: any) => String(item.id) !== archiveId) }
+./frontend/client/src/pages/SuperAdmin.tsx-466-        : current);
+./frontend/client/src/pages/SuperAdmin.tsx:467:      toast.success(t("Archive supprimée définitivement"));
+./frontend/client/src/pages/SuperAdmin.tsx-468-      await invalidate();
+./frontend/client/src/pages/SuperAdmin.tsx-469-    } catch (error: any) {
+./frontend/client/src/pages/SuperAdmin.tsx-470-      toast.error(t("Suppression de l’archive refusée"), { description: error.message });
+./frontend/client/src/pages/SuperAdmin.tsx-471-    }
+./frontend/client/src/pages/SuperAdmin.tsx-472-  };
+./frontend/client/src/pages/SuperAdmin.tsx-473-
+./frontend/client/src/pages/SuperAdmin.tsx-474-  const totals = activity.data?.totals || {};
+./frontend/client/src/pages/SuperAdmin.tsx-475-  const sectionTitle: Record<Section, string> = {
+./frontend/client/src/pages/SuperAdmin.tsx-476-    overview: t("Vue d'ensemble"),
+./frontend/client/src/pages/SuperAdmin.tsx-477-    operations: t("Centre d’opérations"),
+./frontend/client/src/pages/SuperAdmin.tsx-478-    accounts: t("Comptes & accès"),
+./frontend/client/src/pages/SuperAdmin.tsx-479-    approvals: t("Approbations"),
+./frontend/client/src/pages/SuperAdmin.tsx-480-    projects: t("Projets"),
+./frontend/client/src/pages/SuperAdmin.tsx-481-    reports: t("Rapports à valider"),
+./frontend/client/src/pages/SuperAdmin.tsx-482-    levels: t("Niveaux & quotas"),
+./frontend/client/src/pages/SuperAdmin.tsx-483-    audit: t("Journal d'audit"),
+./frontend/client/src/pages/SuperAdmin.tsx-484-    "qualification-activity": t("Activités L1–L3"),
+./frontend/client/src/pages/SuperAdmin.tsx-485-    settings: t("Paramètres"),
+./frontend/client/src/pages/SuperAdmin.tsx-486-  };
+./frontend/client/src/pages/SuperAdmin.tsx-487-
+./frontend/client/src/pages/SuperAdmin.tsx-488-  const navItems: { id: Section; label: string; icon: React.ReactNode; badge?: number }[] = [
+./frontend/client/src/pages/SuperAdmin.tsx-489-    { id: "overview", label: t("Vue d'ensemble"), icon: <LayoutDashboard size={17} /> },
+./frontend/client/src/pages/SuperAdmin.tsx-490-    { id: "operations", label: t("Centre d’opérations"), icon: <Activity size={17} /> },
+./frontend/client/src/pages/SuperAdmin.tsx-491-    { id: "accounts", label: t("Comptes & accès"), icon: <Users size={17} /> },
+./frontend/client/src/pages/SuperAdmin.tsx-492-    { id: "approvals", label: t("Approbations"), icon: <ClipboardCheck size={17} />, badge: pendingRegs.length },
+--
+./frontend/client/src/pages/SuperAdmin.tsx-498-    { id: "settings", label: t("Paramètres"), icon: <Settings size={17} /> },
+./frontend/client/src/pages/SuperAdmin.tsx-499-  ];
+./frontend/client/src/pages/SuperAdmin.tsx-500-  const mobileNav: [Section, string][] = [
+./frontend/client/src/pages/SuperAdmin.tsx-501-    ["overview", t("Vue d'ensemble")],
+./frontend/client/src/pages/SuperAdmin.tsx-502-    ["operations", t("Opérations")],
+./frontend/client/src/pages/SuperAdmin.tsx-503-    ["accounts", t("Comptes")],
+./frontend/client/src/pages/SuperAdmin.tsx-504-    ["approvals", t("Approbations")],
+./frontend/client/src/pages/SuperAdmin.tsx-505-    ["projects", t("Projets")],
+./frontend/client/src/pages/SuperAdmin.tsx-506-    ["reports", t("Rapports")],
+./frontend/client/src/pages/SuperAdmin.tsx-507-    ["levels", t("Niveaux")],
+./frontend/client/src/pages/SuperAdmin.tsx-508-    ["audit", t("Audit")],
+./frontend/client/src/pages/SuperAdmin.tsx-509-    ["qualification-activity", t("Activités L1–L3")],
+./frontend/client/src/pages/SuperAdmin.tsx-510-    ["settings", t("Paramètres")],
+./frontend/client/src/pages/SuperAdmin.tsx-511-  ];
+./frontend/client/src/pages/SuperAdmin.tsx-512-
+./frontend/client/src/pages/SuperAdmin.tsx-513-  const sectionPanelProps = {
+./frontend/client/src/pages/SuperAdmin.tsx-514-    totals,
+./frontend/client/src/pages/SuperAdmin.tsx-515-    activity: activity.data,
+./frontend/client/src/pages/SuperAdmin.tsx-516-    qualificationActivity: qualificationActivity.data,
+./frontend/client/src/pages/SuperAdmin.tsx-517-    qualificationActivityLoading: qualificationActivity.isLoading,
+./frontend/client/src/pages/SuperAdmin.tsx-518-    qualificationActivityError: qualificationActivity.error?.message || "",
+./frontend/client/src/pages/SuperAdmin.tsx-519-    qualificationLevel,
+./frontend/client/src/pages/SuperAdmin.tsx-520-    onQualificationLevelChange: (value: string) => setQualificationLevel(value),
+./frontend/client/src/pages/SuperAdmin.tsx-521-    onRefreshQualificationActivity: () => void qualificationActivity.refetch(),
+./frontend/client/src/pages/SuperAdmin.tsx-522-    mechanicalProjectId,
+./frontend/client/src/pages/SuperAdmin.tsx:523:    onExportProjectArchive: (id: string) => void downloadRestorationArchive(id),
+./frontend/client/src/pages/SuperAdmin.tsx:524:    onRestoreArchive: (file: File) => void restoreRestorationArchive(file),
+./frontend/client/src/pages/SuperAdmin.tsx:525:    onDeleteProjectArchive: (id: string) => void deleteProjectArchive(id),
+./frontend/client/src/pages/SuperAdmin.tsx-526-    mechanicalPreview: mechanicalProjectPreview.data,
+./frontend/client/src/pages/SuperAdmin.tsx-527-    mechanicalPreviewLoading: mechanicalProjectPreview.isLoading,
+./frontend/client/src/pages/SuperAdmin.tsx-528-    mechanicalPreviewError: mechanicalProjectPreview.error?.message || "",
+./frontend/client/src/pages/SuperAdmin.tsx-529-    onSelectMechanicalProject: (id: string) => setMechanicalProjectId(id),
+./frontend/client/src/pages/SuperAdmin.tsx-530-    reports: reports.data,
+./frontend/client/src/pages/SuperAdmin.tsx-531-    reportsLoading: reports.isLoading,
+./frontend/client/src/pages/SuperAdmin.tsx-532-    pendingRegs,
+./frontend/client/src/pages/SuperAdmin.tsx-533-    pendingLoading,
+./frontend/client/src/pages/SuperAdmin.tsx-534-    pendingError,
+./frontend/client/src/pages/SuperAdmin.tsx-535-    onRefreshPending: () => void fetchPending(),
+./frontend/client/src/pages/SuperAdmin.tsx-536-    onApproveRegistration: (address: string, requestedName: string) => void approveRegistration(address, requestedName),
+./frontend/client/src/pages/SuperAdmin.tsx-537-    onRejectRegistration: (address: string) => void rejectRegistration(address),
+./frontend/client/src/pages/SuperAdmin.tsx-538-    onCreate: () => setShowCreate(true),
+./frontend/client/src/pages/SuperAdmin.tsx-539-    onReports: () => { setShowReports(true); setActiveSection("reports"); },
+./frontend/client/src/pages/SuperAdmin.tsx-540-    onApprove: (id: string) => approve.mutate({ id }),
+./frontend/client/src/pages/SuperAdmin.tsx-541-    onProjectAction: (id: string, action: "save" | "observe" | "delete") => {
+./frontend/client/src/pages/SuperAdmin.tsx-542-      if (action === "save") saveProject.mutate({ id });
+./frontend/client/src/pages/SuperAdmin.tsx-543-      else if (action === "observe") observeProject.mutate({ id });
+./frontend/client/src/pages/SuperAdmin.tsx-544-      else if (window.confirm(t("Confirmer la suppression définitive de ce projet et de ses données associées ? Un instantané restera consultable dans l’archive Super-Admin, mais la suppression ne sera pas restaurable depuis cette archive."))) deleteProject.mutate({ id });
+./frontend/client/src/pages/SuperAdmin.tsx-545-    },
+./frontend/client/src/pages/SuperAdmin.tsx-546-    invalidate: async () => { await invalidate(); },
+./frontend/client/src/pages/SuperAdmin.tsx-547-    t,
+./frontend/client/src/pages/SuperAdmin.tsx-548-  };
+./frontend/client/src/pages/SuperAdmin.tsx-549-
+./frontend/client/src/pages/SuperAdmin.tsx-550-  return <main className="sa-shell text-[#10243a]">
+--
+./frontend/client/src/pages/SuperAdmin.tsx-821-      window.dispatchEvent(new Event("aeromind-watermark-settings-changed"));
+./frontend/client/src/pages/SuperAdmin.tsx-822-    } catch { toast.error(t("Impossible d’enregistrer les préférences de filigrane dans ce navigateur.")); }
+./frontend/client/src/pages/SuperAdmin.tsx-823-  };
+./frontend/client/src/pages/SuperAdmin.tsx-824-  return <WorkspaceCard title={t("Identité visuelle — filigrane")} subtitle={t("Personnalisez immédiatement le filigrane AeroMind sur les interfaces de cette session navigateur.")} t={t}>
+./frontend/client/src/pages/SuperAdmin.tsx-825-    <div className="space-y-5">
+./frontend/client/src/pages/SuperAdmin.tsx-826-      <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">
+./frontend/client/src/pages/SuperAdmin.tsx-827-        <span><strong className="block text-sm">{t("Afficher le filigrane")}</strong><small className="text-xs text-slate-500">{t("Appliqué aux pages AeroMind et à la console Super-Admin.")}</small></span>
+./frontend/client/src/pages/SuperAdmin.tsx-828-        <input type="checkbox" checked={enabled} onChange={e => persist({ enabled: e.target.checked, opacity, size })} className="h-5 w-5 accent-blue-600" aria-label={t("Afficher le filigrane")} />
+./frontend/client/src/pages/SuperAdmin.tsx-829-      </label>
+./frontend/client/src/pages/SuperAdmin.tsx-830-      <label className="block rounded-xl border border-slate-200 p-4">
+./frontend/client/src/pages/SuperAdmin.tsx-831-        <span className="flex items-center justify-between gap-3 text-sm font-semibold"><span>{t("Opacité")}</span><output>{Math.round(opacity * 100)}%</output></span>
+./frontend/client/src/pages/SuperAdmin.tsx-832-        <input type="range" min="1" max="15" value={Math.round(opacity * 100)} onChange={e => persist({ enabled, opacity: Number(e.target.value) / 100, size })} className="mt-3 w-full accent-blue-600" aria-label={t("Opacité du filigrane")} />
+./frontend/client/src/pages/SuperAdmin.tsx-833-        <small className="text-xs text-slate-500">{t("Réglage de 1 % à 15 %.")}</small>
+./frontend/client/src/pages/SuperAdmin.tsx-834-      </label>
+./frontend/client/src/pages/SuperAdmin.tsx-835-      <label className="block rounded-xl border border-slate-200 p-4">
+./frontend/client/src/pages/SuperAdmin.tsx-836-        <span className="flex items-center justify-between gap-3 text-sm font-semibold"><span>{t("Taille du filigrane")}</span><output>{size} px</output></span>
+./frontend/client/src/pages/SuperAdmin.tsx-837-        <input type="range" min="180" max="900" step="20" value={size} onChange={e => persist({ enabled, opacity, size: Number(e.target.value) })} className="mt-3 w-full accent-blue-600" aria-label={t("Taille du filigrane")} />
+./frontend/client/src/pages/SuperAdmin.tsx-838-        <small className="text-xs text-slate-500">{t("Largeur maximale sur écran large ; adaptation automatique sur mobile.")}</small>
+./frontend/client/src/pages/SuperAdmin.tsx-839-      </label>
+./frontend/client/src/pages/SuperAdmin.tsx-840-      <button type="button" onClick={() => persist({ enabled: true, opacity: 0.045, size: 520 })} className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{t("Rétablir les valeurs par défaut")}</button>
+./frontend/client/src/pages/SuperAdmin.tsx-841-      <p role="status" className="text-xs text-emerald-700">{t("Les changements sont enregistrés dans ce navigateur et appliqués sans rechargement.")}</p>
+./frontend/client/src/pages/SuperAdmin.tsx-842-    </div>
+./frontend/client/src/pages/SuperAdmin.tsx-843-  </WorkspaceCard>;
+./frontend/client/src/pages/SuperAdmin.tsx-844-}
+./frontend/client/src/pages/SuperAdmin.tsx-845-
+./frontend/client/src/pages/SuperAdmin.tsx:846:function SectionPanel({ section, totals, activity, qualificationActivity, qualificationActivityLoading, qualificationActivityError, qualificationLevel, onQualificationLevelChange, onRefreshQualificationActivity, mechanicalProjectId, mechanicalPreview, mechanicalPreviewLoading, mechanicalPreviewError, onSelectMechanicalProject, reports, reportsLoading, pendingRegs, pendingLoading, pendingError, onRefreshPending, onApproveRegistration, onRejectRegistration, onCreate, onReports, onApprove, onProjectAction, onExportProjectArchive, onRestoreArchive, onDeleteProjectArchive, invalidate, t }: { section: Section; totals: any; activity: any; qualificationActivity: any; qualificationActivityLoading: boolean; qualificationActivityError: string; qualificationLevel: string; onQualificationLevelChange: (value: string) => void; onRefreshQualificationActivity: () => void; mechanicalProjectId: string; mechanicalPreview: any; mechanicalPreviewLoading: boolean; mechanicalPreviewError: string; onSelectMechanicalProject: (id: string) => void; reports?: any[]; reportsLoading: boolean; pendingRegs: any[]; pendingLoading: boolean; pendingError: string; onRefreshPending: () => void; onApproveRegistration: (email: string, name: string) => void; onRejectRegistration: (email: string) => void; onCreate: () => void; onReports: () => void; onApprove: (id: string) => void; onProjectAction: (id: string, action: "save" | "observe" | "delete") => void; onExportProjectArchive: (id: string) => void; onRestoreArchive: (file: File) => void; onDeleteProjectArchive: (id: string) => void; invalidate: () => Promise<void>; t: (text: string) => string }) {
+./frontend/client/src/pages/SuperAdmin.tsx-847-  const selectedMechanicalProject = (activity?.projects || []).find((project: any) => String(project.id) === mechanicalProjectId);
+./frontend/client/src/pages/SuperAdmin.tsx-848-  if (section === "accounts" || section === "operations") return null;
+./frontend/client/src/pages/SuperAdmin.tsx-849-  if (section === "approvals") return <WorkspaceCard title={t("Demandes d'accès en attente")} subtitle={t("Examinez les inscriptions préprovisionnées. Chaque décision est appliquée côté serveur et rattachée à la session Super-Admin.")} t={t}>
+./frontend/client/src/pages/SuperAdmin.tsx-850-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><div><strong className="block text-xs text-slate-800">{pendingRegs.length} {t("dossier(s) en attente")}</strong><small className="mt-1 block text-[11px] text-slate-500">{t("Les décisions de rejet demandent un motif; les invitations d’activation ne sont affichées qu’après approbation.")}</small></div><button type="button" onClick={onRefreshPending} disabled={pendingLoading} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={pendingLoading ? "animate-spin" : ""} />{pendingLoading ? t("Actualisation…") : t("Actualiser les demandes")}</button></div>
+./frontend/client/src/pages/SuperAdmin.tsx-851-    {pendingError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800"><span>{pendingError}</span><button type="button" onClick={onRefreshPending} className="font-bold underline">{t("Réessayer")}</button></div>}
+./frontend/client/src/pages/SuperAdmin.tsx-852-    {pendingLoading && pendingRegs.length === 0 ? <p role="status" className="rounded-lg bg-slate-50 p-6 text-center text-xs text-slate-500">{t("Chargement du registre d'approbation…")}</p> : pendingRegs.length ? <div className="overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">{t("Demandeur")}</th><th className="px-4 py-3">{t("Rôle demandé")}</th><th className="px-4 py-3">{t("Statut")}</th><th className="px-4 py-3">{t("Demandée le")}</th><th className="px-4 py-3 text-right">{t("Décision")}</th></tr></thead><tbody>{pendingRegs.map((item: any) => <tr key={item.email} className="border-t border-slate-100"><td className="px-4 py-3"><strong className="block text-xs text-slate-800">{item.name || t("Nom non renseigné")}</strong><small className="text-[11px] text-slate-500">{item.email}</small></td><td className="px-4 py-3 text-xs">{item.requested_role || t("Utilisateur")}</td><td className="px-4 py-3"><Pill tone={item.status === "pending_approval" ? "amber" : "blue"}>{item.status || t("En attente")}</Pill></td><td className="px-4 py-3 text-[11px] text-slate-500">{item.requested_at || item.created_at ? new Date(item.requested_at || item.created_at).toLocaleString("fr-FR") : "—"}</td><td className="px-4 py-3"><div className="flex justify-end gap-2"><button type="button" onClick={() => { if (window.confirm(t(`Approuver la demande de ${item.email} et émettre une invitation à usage unique ?`))) onApproveRegistration(item.email, item.name || ""); }} className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-800">{t("Approuver")}</button><button type="button" onClick={() => onRejectRegistration(item.email)} className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-red-700">{t("Rejeter")}</button></div></td></tr>)}</tbody></table></div> : <Empty title={t("Aucune demande en attente")} text={t("Les demandes locales préprovisionnées apparaîtront ici après vérification du registre.")} />}
+./frontend/client/src/pages/SuperAdmin.tsx-853-  </WorkspaceCard>;
+./frontend/client/src/pages/SuperAdmin.tsx-854-  if (section === "settings") return <>
+./frontend/client/src/pages/SuperAdmin.tsx-855-    <WorkspaceCard title={t("Paramètres")} subtitle={t("État opérationnel de la console Super-Admin.")} t={t}>
+./frontend/client/src/pages/SuperAdmin.tsx-856-      <div className="grid gap-3 md:grid-cols-3">
+./frontend/client/src/pages/SuperAdmin.tsx-857-        <Info label={t("Comptes actifs")} value={String(totals.actifs ?? 0)} t={t} />
+./frontend/client/src/pages/SuperAdmin.tsx-858-        <Info label={t("Décisions journalisées")} value={String(totals.decisions ?? 0)} t={t} />
+./frontend/client/src/pages/SuperAdmin.tsx-859-        <Info label={t("Session")} value={t("OIDC sécurisée")} t={t} />
+./frontend/client/src/pages/SuperAdmin.tsx-860-      </div>
+./frontend/client/src/pages/SuperAdmin.tsx-861-      <p className="mt-5 rounded-lg bg-slate-50 p-4 text-xs leading-5 text-slate-500">{t("Les paramètres sensibles de déploiement et de fournisseur OIDC restent protégés côté serveur.")}</p>
+./frontend/client/src/pages/SuperAdmin.tsx-862-    </WorkspaceCard>
+./frontend/client/src/pages/SuperAdmin.tsx-863-    <WatermarkSettings t={t} />
+./frontend/client/src/pages/SuperAdmin.tsx-864-  </>;
+./frontend/client/src/pages/SuperAdmin.tsx-865-  if (section === "overview") return <section className="mb-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-widest text-blue-600">{t("Vue d'ensemble active")}</p><h2 className="mt-2 text-2xl font-bold">{t("Bienvenue dans la gouvernance AeroMind")}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{t("Utilisez le menu de gauche pour ouvrir chaque espace. Les compteurs sont lus depuis le backend, tandis que les décisions sont journalisées.")}</p><div className="mt-5 flex flex-wrap gap-3"><button onClick={onCreate} className="rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-bold text-white">{t("Créer un compte")}</button><button onClick={onReports} className="rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700">{t("Ouvrir les rapports")}</button></div></section>;
+./frontend/client/src/pages/SuperAdmin.tsx-866-  if (section === "projects") return <WorkspaceCard title={t("Projets")} subtitle={t("Vue globale des projets AeroMind persistés. Le jumeau mécanique charge uniquement le dossier explicitement sélectionné et reste en accès opérateur habilité.")} t={t}>
+./frontend/client/src/pages/SuperAdmin.tsx:867:    <div className="mb-4 rounded-xl border border-slate-300 bg-slate-50 p-4"><div className="flex items-center gap-2"><Archive size={15} className="text-slate-600" /><strong className="text-xs font-bold text-slate-700">{t("Centre de Gouvernance & Purge Définitive des Archives Projets")}</strong></div><p className="mt-1 text-[11px] leading-5 text-slate-500">{t("Les projets supprimés et ceux de comptes définitivement supprimés ne sont plus exposés dans AeroMind. Leur empreinte et leurs métadonnées restent conservées ici uniquement.")}</p><div className="mt-3 space-y-2">{((activity as any)?.projectArchives || []).length ? ((activity as any).projectArchives as any[]).map((item: any) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-[11px]"><span className="font-semibold text-slate-700">{item.projectName || t("Projet sans nom")}</span><span className="text-slate-500">{t("Propriétaire")} : {item.ownerEmail || item.ownerId || "—"}</span><span className="text-slate-500">{item.reason} · {item.archivedAt ? new Date(item.archivedAt).toLocaleString("fr-FR") : "—"}</span><code className="text-[10px] text-slate-400">SHA-256 {String(item.sha256 || "").slice(0, 12)}…</code><button type="button" onClick={async () => { const requestedTarget = window.prompt(t("ID utilisateur cible (laisser vide pour le propriétaire d’origine) :"), String(item.ownerId || "")); if (requestedTarget === null) return; const response = await fetch(`/api/admin/archives/${encodeURIComponent(String(item.id))}/restore`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", ...bearerHeaders() }, body: JSON.stringify(requestedTarget.trim() ? { target_user_id: requestedTarget.trim() } : {}) }); if (!response.ok) { const body = await response.json().catch(() => ({})); toast.error(t("Restauration de l’archive refusée"), { description: body.detail || "" }); return; } toast.success(t("Projet restauré dans le profil cible")); await invalidate(); }} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 font-bold text-emerald-700"><RefreshCw size={12} />{t("Restaurer")}</button><button type="button" onClick={() => void onDeleteProjectArchive(String(item.id))} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 font-bold text-red-700"><Trash2 size={12} />{t("Supprimer")}</button></div>) : <span className="text-[11px] text-slate-400">{t("Aucune archive de projet supprimé.")}</span>}</div></div>
+./frontend/client/src/pages/SuperAdmin.tsx:868:    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4"><div className="max-w-2xl"><strong className="block text-xs font-bold text-amber-900">{t("Archives de restauration des drones")}</strong><p className="mt-1 text-[11px] leading-5 text-amber-800">{t("L’export de restauration est facultatif et indépendant de la suppression. Une trace protégée (instantané et empreinte SHA-256) reste automatiquement dans l’archive Super-Admin. La restauration ne rétablit pas missions, runs, rapports, sessions ni journaux.")}</p></div><label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-900"><Upload size={14} />{t("Restaurer depuis une archive")}<input type="file" accept="application/json,.json" className="hidden" onChange={event => { const file = event.currentTarget.files?.[0]; if (file) void onRestoreArchive(file); event.currentTarget.value = ""; }} /></label></div>
+./frontend/client/src/pages/SuperAdmin.tsx:869:    <div className="space-y-3">{(activity?.projects || []).length ? (activity.projects as any[]).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div className="min-w-0"><strong className="block text-sm">{p.name || t("Projet sans nom")}</strong><small className="break-all text-xs text-slate-400">{t("Propriétaire")} : {p.userId} · {t("créé")} {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "—"}</small></div><div className="flex flex-wrap items-center gap-2"><Pill tone={p.controlStatus === "observed" ? "amber" : p.controlStatus === "saved" ? "blue" : "green"}>{p.controlStatus === "observed" ? t("Observation") : p.controlStatus === "saved" ? t("Sauvegardé") : t("Actif")}</Pill><button type="button" onClick={() => onSelectMechanicalProject(String(p.id))} className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-teal-800"><Eye size={13} /> {t("Afficher le jumeau")}</button><button onClick={() => onProjectAction(String(p.id), "save")} className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1.5 text-[11px] font-semibold text-blue-700"><Save size={13} /> {t("Sauvegarder")}</button><button onClick={() => onProjectAction(String(p.id), "observe")} className="inline-flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1.5 text-[11px] font-semibold text-amber-700"><Eye size={13} /> {t("Observer")}</button><button type="button" onClick={() => onExportProjectArchive(String(p.id))} className="inline-flex items-center gap-1 rounded-md border border-violet-200 px-2 py-1.5 text-[11px] font-semibold text-violet-700"><Archive size={13} /> {t("Archive drones")}</button><button onClick={() => onProjectAction(String(p.id), "delete")} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600"><Trash2 size={13} /> {t("Supprimer")}</button></div></div>) : <Empty title={t("Aucun projet persistant")} text={t("Les projets créés par les utilisateurs apparaîtront ici.")} />}</div>
+./frontend/client/src/pages/SuperAdmin.tsx-870-    {mechanicalProjectId && <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-widest text-teal-700">{t("JUMEAU MÉCANIQUE")}</p><h3 className="mt-1 text-sm font-bold">{selectedMechanicalProject?.name || mechanicalPreview?.projectName || t("Projet sélectionné")}</h3></div><button type="button" onClick={() => onSelectMechanicalProject("")} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600"><X size={13} />{t("Fermer")}</button></div><AdminMechanicalPreview projectId={mechanicalProjectId} projectName={selectedMechanicalProject?.name || mechanicalPreview?.projectName} configuration={mechanicalPreview?.configuration} loading={mechanicalPreviewLoading} error={mechanicalPreviewError || undefined} /></div>}
+./frontend/client/src/pages/SuperAdmin.tsx-871-  </WorkspaceCard>;
+./frontend/client/src/pages/SuperAdmin.tsx-872-  if (section === "reports") return <WorkspaceCard title={t("Rapports à valider")} subtitle={t("Les rapports suivent le circuit surveillant puis approbation Super-Admin.")} t={t}><div className="space-y-3">{reportsLoading ? <p className="text-sm text-slate-400">{t("Chargement des rapports…")}</p> : (reports || []).filter((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)).map((r: any) => <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><div><strong className="block text-sm">{t("Rapport")} {String(r.id).slice(0, 8)}</strong><span className="text-xs text-slate-500">{t("Statut")} : {r.status}</span></div>{r.status === "reviewed_by_supervisor" ? <button onClick={() => onApprove(String(r.id))} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white">{t("Approuver définitivement")}</button> : <Pill tone="amber">{t("En attente du surveillant")}</Pill>}</div>)}{!reportsLoading && !(reports || []).some((r: any) => ["submitted", "reviewed_by_supervisor"].includes(r.status)) && <Empty title={t("Aucun rapport en attente")} text={t("Les rapports soumis apparaîtront ici après contrôle.")} />}</div></WorkspaceCard>;
+./frontend/client/src/pages/SuperAdmin.tsx-873-  if (section === "levels") return <WorkspaceCard title={t("Matrice de capacités & périmètres")} subtitle={t("L1–L3 qualifient un compte personnel. L4/L5 résultent des rôles Admin/Super-Admin; la politique backend et les gardes de chaque route demeurent la source d’autorisation.")} t={t}><div className="grid gap-3 md:grid-cols-2">{([["L1", t("Découverte"), t("Workspace personnel · lecture, brouillons et calculs HIL temps réels de base")], ["L2", t("Ingénieur"), t("Workspace personnel · édition d’ingénierie et simulations HIL temps réelles nominales")], ["L3", t("Avancé"), t("Workspace personnel · analyses avancées, workflows, preuves et exports")], ["L4", t("Administration"), t("Rôle Admin · opérations d’administration limitées par chaque route")], ["L5", t("Super-Admin"), t("Rôle Super-Admin · gouvernance globale avec contrôles de route")]] as [string, string, string][]).map(([id, label, text]) => <div key={id} className="rounded-xl border border-slate-200 p-4"><Pill tone="blue">{id}</Pill><strong className="mt-3 block text-sm">{label}</strong><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div>)}</div><div className="mt-4 overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[700px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">{t("Rang")}</th><th className="px-4 py-3">{t("Portée métier appliquée")}</th><th className="px-4 py-3">{t("Limite d’isolation")}</th></tr></thead><tbody>{[["L1", t("Lecture, brouillons, calculs HIL temps réels de base"), t("Données de l’identité propriétaire uniquement")], ["L2", t("Édition d’ingénierie, simulation HIL temps réelle nominale"), t("Aucune lecture/écriture inter-utilisateur")], ["L3", t("Analyse avancée, workflow, evidence et export"), t("Aucune élévation implicite au rôle admin")], ["L4", t("Actions d’administration autorisées par rôle et route"), t("Reste soumis aux contrôles locaux et au tenant")], ["L5", t("Gouvernance Super-Admin explicitement autorisée"), t("Aucune exemption des validations ou contrôles de sécurité")]].map(([rank, scope, boundary]) => <tr key={rank} className="border-t border-slate-100"><td className="px-4 py-3 font-bold text-blue-700">{rank}</td><td className="px-4 py-3 text-slate-700">{scope}</td><td className="px-4 py-3 text-slate-500">{boundary}</td></tr>)}</tbody></table></div><p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">{t("Frontière ferme : les opérations matérielles/temps réel ne sont jamais accordées par un niveau seul. Elles restent soumises aux gardes de route, rôles, approbations humaines et interverrouillages; le mode de démonstration demeure HIL temps réel.")}</p><p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-500">{t("Chaque compte reçoit un workspaceId stable basé sur son identifiant de registre. Aucune cellule ou aucun projet n’est créé automatiquement à la connexion.")}</p></WorkspaceCard>;
+./frontend/client/src/pages/SuperAdmin.tsx-874-  if (section === "qualification-activity") return <WorkspaceCard title={t("Supervision des activités L1–L3")} subtitle={t("Sélectionnez une qualification pour consulter les événements réellement consignés. L’API calcule les niveaux depuis le registre serveur et ne retourne aucun payload personnel.")} t={t}>
+./frontend/client/src/pages/SuperAdmin.tsx-875-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><label className="grid gap-1 text-xs font-semibold text-slate-600">{t("Filtrer par qualification")}<select value={qualificationLevel} onChange={event => onQualificationLevelChange(event.target.value)} aria-label={t("Filtrer par qualification")} className="min-w-[190px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"><option value="all">{t("Tous les niveaux")}</option><option value="L1">L1</option><option value="L2">L2</option><option value="L3">L3</option></select></label><div className="flex flex-wrap items-center gap-3"><span className="text-[11px] text-slate-500">{t("Actualisation périodique toutes les 15 secondes")}{qualificationActivity?.updatedAt ? ` · ${new Date(qualificationActivity.updatedAt).toLocaleTimeString("fr-FR")}` : ""}</span><button type="button" onClick={onRefreshQualificationActivity} disabled={qualificationActivityLoading} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"><RefreshCw size={13} className={qualificationActivityLoading ? "animate-spin" : ""} />{t("Actualiser")}</button></div></div>
+./frontend/client/src/pages/SuperAdmin.tsx-876-    {qualificationActivityError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{qualificationActivityError}</div>}
+./frontend/client/src/pages/SuperAdmin.tsx-877-    {qualificationActivityLoading && !qualificationActivity && <p role="status" className="rounded-lg bg-slate-50 p-6 text-center text-xs text-slate-500">{t("Chargement des métadonnées d’activité…")}</p>}
+./frontend/client/src/pages/SuperAdmin.tsx-878-    <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-3">{t("Date")}</th><th className="px-3 py-3">{t("Qualification")}</th><th className="px-3 py-3">{t("Compte")}</th><th className="px-3 py-3">{t("Action")}</th><th className="px-3 py-3">{t("Décision")}</th><th className="px-3 py-3">{t("Projet")}</th><th className="px-3 py-3">{t("Source")}</th></tr></thead><tbody>
+./frontend/client/src/pages/SuperAdmin.tsx-879-      {(qualificationActivity?.events || []).map((item: any) => <tr key={`${item.source}:${item.id}`} className="border-t border-slate-100"><td className="whitespace-nowrap px-3 py-3">{item.occurredAt ? new Date(item.occurredAt).toLocaleString("fr-FR") : "—"}</td><td className="px-3 py-3"><Pill tone="blue">{item.level}</Pill></td><td className="px-3 py-3"><strong className="block">{item.actor}</strong><small className="font-mono text-slate-400">{item.actorRef}</small></td><td className="px-3 py-3 font-mono">{item.action}</td><td className="px-3 py-3">{item.decision}</td><td className="px-3 py-3 font-mono">{item.projectId || "—"}</td><td className="px-3 py-3">{item.source === "canonical-audit" ? t("Audit canonique") : t("Audit projet")}</td></tr>)}
+./frontend/client/src/pages/SuperAdmin.tsx-880-      {!qualificationActivityLoading && !qualificationActivityError && !(qualificationActivity?.events || []).length && <tr><td colSpan={7}><Empty title={t("Aucune activité enregistrée pour ce filtre")} text={t("Les actions non journalisées par les systèmes actuels ne peuvent pas être reconstituées.")} /></td></tr>}
+./frontend/client/src/pages/SuperAdmin.tsx-881-    </tbody></table></div>
+./frontend/client/src/pages/SuperAdmin.tsx-882-    <p className="mt-4 rounded-lg bg-slate-50 p-3 text-[11px] leading-5 text-slate-500">{t("Le niveau est résolu côté serveur; filtres en accès opérateur habilité. Actualisation périodique, pas un flux continu. Les payloads des événements sont exclus.")}</p>
+./frontend/client/src/pages/SuperAdmin.tsx-883-  </WorkspaceCard>;
+./frontend/client/src/pages/SuperAdmin.tsx-884-  if (section === "audit") return <WorkspaceCard title={t("Journal d'audit")} subtitle={t("Historique des créations, promotions, évaluations et suppressions.")} t={t}>
+./frontend/client/src/pages/SuperAdmin.tsx-885-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+./frontend/client/src/pages/SuperAdmin.tsx-886-      <div className="flex items-start gap-3">
+./frontend/client/src/pages/SuperAdmin.tsx-887-        <AlertTriangle className="mt-0.5 text-red-600" size={18} />
+./frontend/client/src/pages/SuperAdmin.tsx-888-        <div>
+./frontend/client/src/pages/SuperAdmin.tsx-889-          <strong className="block text-xs font-bold text-red-800">{t("Vider le journal d'audit global")}</strong>
+./frontend/client/src/pages/SuperAdmin.tsx-890-          <p className="mt-1 text-[11px] text-red-700">{t("Supprime définitivement toutes les entrées des tables admin_account_events, audit_events_ext et audit_events. Cette action est journalisée (un événement audit_log.cleared survit à la purge).")}</p>
+./frontend/client/src/pages/SuperAdmin.tsx-891-        </div>
+./frontend/client/src/pages/SuperAdmin.tsx-892-      </div>
+./frontend/client/src/pages/SuperAdmin.tsx-893-      <div className="flex flex-wrap items-center gap-2">
+./frontend/client/src/pages/SuperAdmin.tsx-894-        <select aria-label={t("Portée de purge")} id="audit-clear-scope" defaultValue="all" className="rounded-md border border-red-300 bg-white px-2 py-1.5 text-[11px] text-red-800">
+
+=== 2. ROUTES SUPERADMIN DANS WEB/ ===
+./web/app.py-1035-
+./web/app.py-1036-    Business operations remain on the Python API; these responses prevent the
+./web/app.py-1037-    old client bootstrap queries from failing while the cockpit migrates away
+./web/app.py-1038-    from the former Node/tRPC server.
+./web/app.py-1039-    """
+./web/app.py-1040-    name = procedure.split("?")[0].rstrip("/").replace("/", ".")
+./web/app.py-1041-    current_user = _current_user(aeromind_session, authorization)
+./web/app.py-1042-    if any(
+./web/app.py-1043-        name.endswith(suffix)
+./web/app.py-1044-        for suffix in (
+./web/app.py:1045:            "superAdmin.accounts",
+./web/app.py:1046:            "superAdmin.activity",
+./web/app.py:1047:            "superAdmin.qualificationActivity",
+./web/app.py:1048:            "superAdmin.projectMechanicalPreview",
+./web/app.py:1049:            "superAdmin.createAccount",
+./web/app.py:1050:            "superAdmin.updateAccount",
+./web/app.py:1051:            "superAdmin.deleteAccount",
+./web/app.py:1052:            "superAdmin.rotateAuthorizationCode",
+./web/app.py:1053:            "superAdmin.resetLocalAuth",
+./web/app.py:1054:            "superAdmin.issueDailyTotpCode",
+./web/app.py:1055:            "superAdmin.saveProject",
+./web/app.py:1056:            "superAdmin.observeProject",
+./web/app.py:1057:            "superAdmin.deleteProject",
+./web/app.py:1058:            "superAdmin.updateSuperadminAccount",
+./web/app.py:1059:            "superAdmin.updateSuperadminEmail",
+./web/app.py:1060:            "superAdmin.deleteSuperadminAccount",
+./web/app.py:1061:            "superAdmin.rotateSuperadminAuthorizationCode",
+./web/app.py:1062:            "superAdmin.resetSuperadminLocalAuth",
+./web/app.py:1063:            "superAdmin.clearAuditLog",
+./web/app.py-1064-        )
+./web/app.py-1065-    ):
+./web/app.py-1066-        if not current_user:
+./web/app.py-1067-            return _trpc_error(401, "UNAUTHORIZED", "OIDC authentication required")
+./web/app.py-1068-        if current_user["role"] != "super_admin":
+./web/app.py-1069-            return _trpc_error(403, "FORBIDDEN", "Super-Admin permission required")
+./web/app.py-1070-    payload: dict = {}
+./web/app.py-1071-    if request.method == "GET":
+./web/app.py-1072-        encoded_input = request.query_params.get("input")
+./web/app.py-1073-        if encoded_input:
+--
+./web/app.py-1183-                if isinstance(payload, dict)
+./web/app.py-1184-                else ""
+./web/app.py-1185-            )
+./web/app.py-1186-            run_id = payload.get("runId") if isinstance(payload, dict) else ""
+./web/app.py-1187-            with SessionLocal() as db:
+./web/app.py-1188-                data = labbench_service.create_report(
+./web/app.py-1189-                    db, current_user, str(project_id or ""), str(run_id or "")
+./web/app.py-1190-                )
+./web/app.py-1191-        except labbench_service.LabBenchError as exc:
+./web/app.py-1192-            return _trpc_error(exc.status_code, exc.code, exc.message)
+./web/app.py:1193:    elif name.endswith("superAdmin.accounts"):
+./web/app.py-1194-        data = list_accounts()
+./web/app.py:1195:    elif name.endswith("superAdmin.activity"):
+./web/app.py-1196-        data = admin_activity()
+./web/app.py:1197:    elif name.endswith("superAdmin.qualificationActivity"):
+./web/app.py-1198-        from .admin import qualification_activity
+./web/app.py-1199-
+./web/app.py-1200-        request_payload = payload if isinstance(payload, dict) else {}
+./web/app.py-1201-        try:
+./web/app.py-1202-            data = qualification_activity(
+./web/app.py-1203-                current_user,
+./web/app.py-1204-                str(request_payload.get("level", "all")),
+./web/app.py-1205-                int(request_payload.get("limit", 100)),
+./web/app.py-1206-            )
+./web/app.py-1207-        except (TypeError, ValueError) as exc:
+./web/app.py-1208-            return _trpc_error(400, "BAD_REQUEST", str(exc))
+./web/app.py:1209:    elif name.endswith("superAdmin.projectMechanicalPreview"):
+./web/app.py-1210-        from .admin import project_mechanical_preview
+./web/app.py-1211-
+./web/app.py-1212-        request_payload = payload if isinstance(payload, dict) else {}
+./web/app.py-1213-        try:
+./web/app.py-1214-            data = project_mechanical_preview(
+./web/app.py-1215-                str(request_payload.get("id", "")), actor=current_user
+./web/app.py-1216-            )
+./web/app.py-1217-        except ValueError as exc:
+./web/app.py-1218-            return _trpc_error(400, "BAD_REQUEST", str(exc))
+./web/app.py-1219-        if data is None:
+./web/app.py-1220-            return _trpc_error(404, "NOT_FOUND", "Projet introuvable")
+./web/app.py:1221:    elif name.endswith("superAdmin.createAccount"):
+./web/app.py-1222-        try:

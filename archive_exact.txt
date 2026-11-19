@@ -1,0 +1,535 @@
+=== 1. SUPERADMIN.TSX ARCHIVE UI ===
+./frontend/client/src/pages/SuperAdmin.tsx-389-      const label = roleLabel[a.role] || a.role;
+./frontend/client/src/pages/SuperAdmin.tsx-390-      const matchesFilter = filter === t("Tous") || label === filter;
+./frontend/client/src/pages/SuperAdmin.tsx-391-      const matchesSearch = `${a.name} ${a.email}`.toLowerCase().includes(search.toLowerCase());
+./frontend/client/src/pages/SuperAdmin.tsx-392-      return matchesFilter && matchesSearch;
+./frontend/client/src/pages/SuperAdmin.tsx-393-    });
+./frontend/client/src/pages/SuperAdmin.tsx-394-    const dirMul = sortDir === "asc" ? 1 : -1;
+./frontend/client/src/pages/SuperAdmin.tsx-395-    return [...base].sort((a: any, b: any) => {
+./frontend/client/src/pages/SuperAdmin.tsx-396-      const va = String(a[sortBy] ?? (sortBy === "name" ? a.name : sortBy === "status" ? a.accountStatus : a.email)).toLowerCase();
+./frontend/client/src/pages/SuperAdmin.tsx-397-      const vb = String(b[sortBy] ?? (sortBy === "name" ? b.name : sortBy === "status" ? b.accountStatus : b.email)).toLowerCase();
+./frontend/client/src/pages/SuperAdmin.tsx-398-      if (va < vb) return -1 * dirMul;
+./frontend/client/src/pages/SuperAdmin.tsx-399-      if (va > vb) return 1 * dirMul;
+./frontend/client/src/pages/SuperAdmin.tsx-400-      return 0;
+./frontend/client/src/pages/SuperAdmin.tsx-401-    });
+./frontend/client/src/pages/SuperAdmin.tsx-402-  }, [accounts.data, filter, search, sortBy, sortDir, roleLabel, t]);
+./frontend/client/src/pages/SuperAdmin.tsx-403-
+./frontend/client/src/pages/SuperAdmin.tsx-404-  const denied = !!user && (user.role !== "super_admin" || accounts.error?.data?.code === "FORBIDDEN");
+./frontend/client/src/pages/SuperAdmin.tsx-405-  const adminEvents = (activity.data?.adminEvents || activity.data?.activity || []) as any[];
+./frontend/client/src/pages/SuperAdmin.tsx-406-  const recentAdminEvents = adminEvents.slice(0, 5);
+./frontend/client/src/pages/SuperAdmin.tsx-407-  const notificationEvents = adminEvents.slice(0, 3);
+./frontend/client/src/pages/SuperAdmin.tsx-408-  const displayName = user?.name || user?.email || t("SUPER-ADMIN");
+./frontend/client/src/pages/SuperAdmin.tsx-409-
+./frontend/client/src/pages/SuperAdmin.tsx-410-  if (authLoading) return <AuthShell><p className="text-sm text-slate-500">{t("Vérification de la session Super-Admin…")}</p></AuthShell>;
+./frontend/client/src/pages/SuperAdmin.tsx-411-  if (!user) return <AuthShell><ShieldCheck className="mb-4 text-blue-600" size={38} /><h1 className="text-2xl font-bold">{t("Connexion console AeroMind")}</h1><p className="mt-3 text-sm leading-6 text-slate-500">{t("Choisissez Microsoft Entra ou l'accès local sécurisé préalablement activé par le Super-Admin. Les comptes locaux exigent un mot de passe et un code d'application TOTP.")}</p><button onClick={() => startLogin()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"><LogIn size={17} />{t("Continuer avec Microsoft Entra")}</button><div className="my-5 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" />{t("OU ACCÈS LOCAL MFA")}<span className="h-px flex-1 bg-slate-200" /></div><LocalAuthPanel onAuthenticated={refreshSession} /><Link href="/" className="mt-5 block text-center text-xs font-semibold text-slate-500 hover:text-blue-600">{t("Retour au cockpit")}</Link></AuthShell>;
+./frontend/client/src/pages/SuperAdmin.tsx-412-  if (denied) return <AuthShell><ShieldCheck className="mb-4 text-red-500" size={38} /><h1 className="text-2xl font-bold">{t("Accès refusé")}</h1><p className="mt-3 text-sm leading-6 text-slate-500">{t("Cette session n'est pas le Super-Admin autorisé.")}</p><button onClick={() => void logout()} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700"><LogOut size={16} /> {t("Se déconnecter")}</button></AuthShell>;
+./frontend/client/src/pages/SuperAdmin.tsx-413-
+./frontend/client/src/pages/SuperAdmin.tsx:414:  const downloadRestorationArchive = async (projectId: string) => {
+./frontend/client/src/pages/SuperAdmin.tsx-415-    try {
+./frontend/client/src/pages/SuperAdmin.tsx:416:      const response = await fetch(`/api/admin-console/restoration-archive/projects/${encodeURIComponent(projectId)}`, { credentials: "include", headers: bearerHeaders() });
+./frontend/client/src/pages/SuperAdmin.tsx-417-      const body = await response.json().catch(() => ({}));
+./frontend/client/src/pages/SuperAdmin.tsx-418-      if (!response.ok) throw new Error(body.detail || t("Création de l’archive refusée."));
+./frontend/client/src/pages/SuperAdmin.tsx-419-      const blob = new Blob([JSON.stringify(body, null, 2)], { type: "application/json" });
+./frontend/client/src/pages/SuperAdmin.tsx-420-      const url = URL.createObjectURL(blob);
+./frontend/client/src/pages/SuperAdmin.tsx-421-      const link = document.createElement("a");
+./frontend/client/src/pages/SuperAdmin.tsx-422-      link.href = url;
+./frontend/client/src/pages/SuperAdmin.tsx-423-      link.download = `aeromind-restauration-${projectId}-${new Date().toISOString().slice(0, 10)}.json`;
+./frontend/client/src/pages/SuperAdmin.tsx-424-      link.click();
+./frontend/client/src/pages/SuperAdmin.tsx-425-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+./frontend/client/src/pages/SuperAdmin.tsx-426-      toast.success(t("Archive de restauration téléchargée"), { description: t("Elle contient le projet et les configurations des drones, pas les missions, rapports ou journaux.") });
+./frontend/client/src/pages/SuperAdmin.tsx-427-      return true;
+./frontend/client/src/pages/SuperAdmin.tsx-428-    } catch (error: any) {
+./frontend/client/src/pages/SuperAdmin.tsx-429-      toast.error(t("Export de l’archive impossible"), { description: error.message });
+./frontend/client/src/pages/SuperAdmin.tsx-430-      return false;
+./frontend/client/src/pages/SuperAdmin.tsx-431-    }
+./frontend/client/src/pages/SuperAdmin.tsx-432-  };
+./frontend/client/src/pages/SuperAdmin.tsx-433-  const restoreRestorationArchive = async (file: File) => {
+./frontend/client/src/pages/SuperAdmin.tsx-434-    try {
+./frontend/client/src/pages/SuperAdmin.tsx-435-      if (file.size > 5 * 1024 * 1024) throw new Error(t("L’archive dépasse la limite de 5 Mio."));
+./frontend/client/src/pages/SuperAdmin.tsx-436-      const archive = JSON.parse(await file.text());
+./frontend/client/src/pages/SuperAdmin.tsx-437-      const projectName = String(archive?.project?.name || t("Projet sans nom"));
+./frontend/client/src/pages/SuperAdmin.tsx-438-      const droneCount = Array.isArray(archive?.drones) ? archive.drones.length : 0;
+./frontend/client/src/pages/SuperAdmin.tsx-439-      if (!window.confirm(t(`Restaurer le projet « ${projectName} » et ${droneCount} drone(s) depuis cette archive ? Le projet doit être absent. Les missions, runs, rapports et journaux ne sont pas inclus.`))) return;
+./frontend/client/src/pages/SuperAdmin.tsx:440:      const response = await fetch("/api/admin-console/restoration-archive/restore", {
+./frontend/client/src/pages/SuperAdmin.tsx-441-        method: "POST", credentials: "include",
+./frontend/client/src/pages/SuperAdmin.tsx-442-        headers: { "Content-Type": "application/json", ...bearerHeaders() },
+./frontend/client/src/pages/SuperAdmin.tsx-443-        body: JSON.stringify(archive),
+./frontend/client/src/pages/SuperAdmin.tsx-444-      });
+./frontend/client/src/pages/SuperAdmin.tsx-445-      const result = await response.json().catch(() => ({}));
+./frontend/client/src/pages/SuperAdmin.tsx-446-      if (!response.ok) throw new Error(result.detail || t("Restauration refusée."));
+./frontend/client/src/pages/SuperAdmin.tsx-447-      toast.success(t("Projet et flotte restaurés"), { description: t(`${result.droneCount} drone(s) restauré(s); les données non incluses dans l’archive ne sont pas rétablies.`) });
+./frontend/client/src/pages/SuperAdmin.tsx-448-      await invalidate();
+./frontend/client/src/pages/SuperAdmin.tsx-449-    } catch (error: any) {
+./frontend/client/src/pages/SuperAdmin.tsx-450-      toast.error(t("Restauration impossible"), { description: error instanceof SyntaxError ? t("Le fichier sélectionné n’est pas un JSON valide.") : error.message });
+./frontend/client/src/pages/SuperAdmin.tsx-451-    }
+./frontend/client/src/pages/SuperAdmin.tsx-452-  };
+./frontend/client/src/pages/SuperAdmin.tsx-453-  const deleteProjectArchive = async (archiveId: string) => {
+./frontend/client/src/pages/SuperAdmin.tsx-454-    /* suppression directe Super-Admin */
+./frontend/client/src/pages/SuperAdmin.tsx-455-    try {
+./frontend/client/src/pages/SuperAdmin.tsx-456-      const response = await fetch(`/api/admin/archives/${encodeURIComponent(archiveId)}`, {
+./frontend/client/src/pages/SuperAdmin.tsx-457-        method: "DELETE", credentials: "include", headers: bearerHeaders(),
+./frontend/client/src/pages/SuperAdmin.tsx-458-      });
+./frontend/client/src/pages/SuperAdmin.tsx-459-      const body = await response.json().catch(() => ({}));
+./frontend/client/src/pages/SuperAdmin.tsx-460-      if (!response.ok) throw new Error(body.detail || t("Suppression de l’archive refusée"));
+./frontend/client/src/pages/SuperAdmin.tsx-461-      if (body?.deleted !== true || String(body?.id || "") !== String(archiveId)) {
+./frontend/client/src/pages/SuperAdmin.tsx-462-        throw new Error(t("Le serveur n’a pas confirmé la suppression définitive de cette archive."));
+./frontend/client/src/pages/SuperAdmin.tsx-463-      }
+./frontend/client/src/pages/SuperAdmin.tsx-464-      utils.superAdmin.activity.setData(undefined, (current: any) => current
+./frontend/client/src/pages/SuperAdmin.tsx-465-        ? { ...current, projectArchives: (current.projectArchives || []).filter((item: any) => String(item.id) !== archiveId) }
+--
+./frontend/client/src/pages/SuperAdmin.tsx-498-    { id: "settings", label: t("Paramètres"), icon: <Settings size={17} /> },
+./frontend/client/src/pages/SuperAdmin.tsx-499-  ];
+./frontend/client/src/pages/SuperAdmin.tsx-500-  const mobileNav: [Section, string][] = [
+./frontend/client/src/pages/SuperAdmin.tsx-501-    ["overview", t("Vue d'ensemble")],
+./frontend/client/src/pages/SuperAdmin.tsx-502-    ["operations", t("Opérations")],
+./frontend/client/src/pages/SuperAdmin.tsx-503-    ["accounts", t("Comptes")],
+./frontend/client/src/pages/SuperAdmin.tsx-504-    ["approvals", t("Approbations")],
+./frontend/client/src/pages/SuperAdmin.tsx-505-    ["projects", t("Projets")],
+./frontend/client/src/pages/SuperAdmin.tsx-506-    ["reports", t("Rapports")],
+./frontend/client/src/pages/SuperAdmin.tsx-507-    ["levels", t("Niveaux")],
+./frontend/client/src/pages/SuperAdmin.tsx-508-    ["audit", t("Audit")],
+./frontend/client/src/pages/SuperAdmin.tsx-509-    ["qualification-activity", t("Activités L1–L3")],
+./frontend/client/src/pages/SuperAdmin.tsx-510-    ["settings", t("Paramètres")],
+./frontend/client/src/pages/SuperAdmin.tsx-511-  ];
+./frontend/client/src/pages/SuperAdmin.tsx-512-
+./frontend/client/src/pages/SuperAdmin.tsx-513-  const sectionPanelProps = {
+./frontend/client/src/pages/SuperAdmin.tsx-514-    totals,
+./frontend/client/src/pages/SuperAdmin.tsx-515-    activity: activity.data,
+./frontend/client/src/pages/SuperAdmin.tsx-516-    qualificationActivity: qualificationActivity.data,
+./frontend/client/src/pages/SuperAdmin.tsx-517-    qualificationActivityLoading: qualificationActivity.isLoading,
+./frontend/client/src/pages/SuperAdmin.tsx-518-    qualificationActivityError: qualificationActivity.error?.message || "",
+./frontend/client/src/pages/SuperAdmin.tsx-519-    qualificationLevel,
+./frontend/client/src/pages/SuperAdmin.tsx-520-    onQualificationLevelChange: (value: string) => setQualificationLevel(value),
+./frontend/client/src/pages/SuperAdmin.tsx-521-    onRefreshQualificationActivity: () => void qualificationActivity.refetch(),
+./frontend/client/src/pages/SuperAdmin.tsx-522-    mechanicalProjectId,
+./frontend/client/src/pages/SuperAdmin.tsx:523:    onExportProjectArchive: (id: string) => void downloadRestorationArchive(id),
+./frontend/client/src/pages/SuperAdmin.tsx-524-    onRestoreArchive: (file: File) => void restoreRestorationArchive(file),
+./frontend/client/src/pages/SuperAdmin.tsx-525-    onDeleteProjectArchive: (id: string) => void deleteProjectArchive(id),
+./frontend/client/src/pages/SuperAdmin.tsx-526-    mechanicalPreview: mechanicalProjectPreview.data,
+./frontend/client/src/pages/SuperAdmin.tsx-527-    mechanicalPreviewLoading: mechanicalProjectPreview.isLoading,
+./frontend/client/src/pages/SuperAdmin.tsx-528-    mechanicalPreviewError: mechanicalProjectPreview.error?.message || "",
+./frontend/client/src/pages/SuperAdmin.tsx-529-    onSelectMechanicalProject: (id: string) => setMechanicalProjectId(id),
+./frontend/client/src/pages/SuperAdmin.tsx-530-    reports: reports.data,
+./frontend/client/src/pages/SuperAdmin.tsx-531-    reportsLoading: reports.isLoading,
+./frontend/client/src/pages/SuperAdmin.tsx-532-    pendingRegs,
+./frontend/client/src/pages/SuperAdmin.tsx-533-    pendingLoading,
+./frontend/client/src/pages/SuperAdmin.tsx-534-    pendingError,
+./frontend/client/src/pages/SuperAdmin.tsx-535-    onRefreshPending: () => void fetchPending(),
+./frontend/client/src/pages/SuperAdmin.tsx-536-    onApproveRegistration: (address: string, requestedName: string) => void approveRegistration(address, requestedName),
+./frontend/client/src/pages/SuperAdmin.tsx-537-    onRejectRegistration: (address: string) => void rejectRegistration(address),
+./frontend/client/src/pages/SuperAdmin.tsx-538-    onCreate: () => setShowCreate(true),
+./frontend/client/src/pages/SuperAdmin.tsx-539-    onReports: () => { setShowReports(true); setActiveSection("reports"); },
+./frontend/client/src/pages/SuperAdmin.tsx-540-    onApprove: (id: string) => approve.mutate({ id }),
+./frontend/client/src/pages/SuperAdmin.tsx-541-    onProjectAction: (id: string, action: "save" | "observe" | "delete") => {
+./frontend/client/src/pages/SuperAdmin.tsx-542-      if (action === "save") saveProject.mutate({ id });
+./frontend/client/src/pages/SuperAdmin.tsx-543-      else if (action === "observe") observeProject.mutate({ id });
+./frontend/client/src/pages/SuperAdmin.tsx-544-      else if (window.confirm(t("Confirmer la suppression définitive de ce projet et de ses données associées ? Un instantané restera consultable dans l’archive Super-Admin, mais la suppression ne sera pas restaurable depuis cette archive."))) deleteProject.mutate({ id });
+./frontend/client/src/pages/SuperAdmin.tsx-545-    },
+./frontend/client/src/pages/SuperAdmin.tsx-546-    invalidate: async () => { await invalidate(); },
+./frontend/client/src/pages/SuperAdmin.tsx-547-    t,
+./frontend/client/src/pages/SuperAdmin.tsx-548-  };
+
+=== 2. ADMIN_CONSOLE_API.PY ===
+from __future__ import annotations
+from fastapi import Header
+"""Restricted administrator workspace; never grants Super-Admin operations."""
+import json
+
+from fastapi import APIRouter, Body, Cookie, Header, HTTPException, Response
+from sqlalchemy import func, or_, select
+from .database import SessionLocal
+from .models import AdminAccountEvent, AuditEvent, Project, Drone, Simulation, User
+from .admin import account_for_identity, delete_project_archive, list_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity, restore_project_archive
+from .config import get_settings
+from .oidc import _check_local_generation, _verified
+from .primary_session_store import is_primary_session_active
+
+router = APIRouter(prefix="/api/admin-console", tags=["admin-console"])
+admin_api_router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+def _require_admin(token: str | None, auth_header: str | None = None, oidc_cookie: str | None = None) -> dict:
+    if not token and auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1).strip()
+    if token:
+        try:
+            actor = _admin_actor(token, auth_header)
+            if actor.get("role") in {"admin", "super_admin"} or str(actor.get("email", "")).lower() == "mcgregoralvin14@gmail.com":
+                return actor
+        except HTTPException:
+            pass
+    from .app_auth_helpers import current_user as _resolve_oidc_user
+    oidc_user = _resolve_oidc_user(oidc_cookie, auth_header)
+    if oidc_user and (oidc_user.get("role") in {"admin", "super_admin"} or str(oidc_user.get("email", "")).lower() == "mcgregoralvin14@gmail.com"):
+        return {**oidc_user, "role": "super_admin"}
+    raise HTTPException(401, "Authentification Super-Admin requise.")
+
+
+def _safe_json(value: str | None) -> dict:
+    try:
+        parsed = json.loads(value or "{}")
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _admin_actor(token: str | None, auth_header: str | None = None) -> dict:
+    if not token and auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(401, "Authentification console requise.")
+    try:
+        if not is_primary_session_active(token):
+            raise HTTPException(401, "Session console révoquée ou expirée.")
+        verified = _verified(token)
+        _check_local_generation(verified)
+        import base64
+        subject, email = base64.urlsafe_b64decode(verified + '=' * (-len(verified) % 4)).decode().split('|', 1)
+        email = email.casefold()
+        account = account_for_identity(email, subject)
+        if not account:
+            raise HTTPException(403, "Compte inactif ou absent du registre privé.")
+        if get_settings().is_superadmin_email(email):
+            account = {**account, "role": "super_admin"}
+        return {**account, "id": account.get("accountId") or subject, "email": email}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(401, "Session console invalide.") from exc
+
+
+@router.get("/overview")
+def overview(
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    actor = _require_admin(admin_session)
+    owner_ids = owner_ids_for_actor(actor)
+    project_filter = True if actor.get("role") == "super_admin" else Project.user_id.in_(owner_ids)
+    drone_filter = True if actor.get("role") == "super_admin" else Drone.user_id.in_(owner_ids)
+    simulation_filter = True if actor.get("role") == "super_admin" else Simulation.user_id.in_(owner_ids)
+    with SessionLocal() as db:
+        projects = db.scalar(select(func.count(Project.id)).where(project_filter)) or 0
+        drones = db.scalar(select(func.count(Drone.id)).where(drone_filter)) or 0
+        simulations = db.scalar(select(func.count(Simulation.id)).where(simulation_filter)) or 0
+    return {
+        "role": actor["role"],
+        "account": {"id": actor["id"], "name": actor.get("name"), "email": actor.get("email")},
+        "workspace": {"projects": projects, "cells": drones, "simulations": simulations},
+        "billing": {"enabled": False, "mode": "private-governance"},
+        "physicalOutput": {"enabled": True, "requiresHumanAuthorization": False},
+    }
+
+
+@router.get("/workspace/records")
+def workspace_records(
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Return only metadata for the signed-in administrator's own workspace."""
+    actor = _require_admin(admin_session)
+    owner_ids = owner_ids_for_actor(actor)
+    is_global = actor.get("role") == "super_admin"
+    with SessionLocal() as db:
+        projects_query = select(Project).order_by(Project.updated_at.desc()).limit(100)
+        simulations_query = select(Simulation).order_by(Simulation.created_at.desc()).limit(100)
+        if not is_global:
+            projects_query = projects_query.where(Project.user_id.in_(owner_ids))
+            simulations_query = simulations_query.where(Simulation.user_id.in_(owner_ids))
+        projects = list(db.scalars(projects_query))
+        simulations = list(db.scalars(simulations_query))
+        project_scope = select(Project.id) if is_global else select(Project.id).where(Project.user_id.in_(owner_ids))
+        events = list(db.scalars(
+            select(AuditEvent).where(or_(AuditEvent.user_id.in_(owner_ids),
+                                         AuditEvent.project_id.in_(project_scope)))
+            .order_by(AuditEvent.created_at.desc()).limit(100)
+        ))
+        project_names = {project.id: project.name for project in projects}
+        return {
+            "projects": [{
+                "id": project.id,
+                "name": project.name,
+                "createdAt": project.created_at.isoformat() if project.created_at else None,
+                "updatedAt": project.updated_at.isoformat() if project.updated_at else None,
+                "hasCell": bool(project.active_drone_id),
+            } for project in projects],
+            "simulations": [{
+                "id": simulation.id,
+                "projectId": simulation.project_id,
+                "projectName": project_names.get(simulation.project_id, "Projet indisponible"),
+                "createdAt": simulation.created_at.isoformat() if simulation.created_at else None,
+                "status": str(_safe_json(simulation.data_json).get("status", "archivé"))[:40],
+            } for simulation in simulations],
+            "events": [{
+                "id": event.id,
+                "projectId": event.project_id,
+                "type": event.event_type,
+                "message": event.message[:240],
+                "occurredAt": event.occurred_at.isoformat() if event.occurred_at else None,
+            } for event in events],
+            "limits": {"perSection": 100, "payloadsIncluded": False},
+        }
+
+
+@router.get("/workspace/projects/{project_id}/mechanical-preview")
+def workspace_project_mechanical_preview(
+    project_id: str,
+    response: Response,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Read only the selected project configuration inside the Admin's workspace."""
+    actor = _require_admin(admin_session)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie"
+    try:
+        data = project_mechanical_preview(project_id, owner_id=None if actor.get("role") == "super_admin" else owner_ids_for_actor(actor))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if data is None:
+        raise HTTPException(404, "Projet absent du workspace autorisé.")
+    return data
+
+
+@router.get("/qualification-activity")
+def admin_qualification_activity(
+    response: Response,
+    level: str = "all",
+    limit: int = 100,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Return audit metadata only; the qualification is resolved server-side."""
+    actor = _require_admin(admin_session)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie"
+    try:
+        return qualification_activity(actor, level, limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/project-archive")
+def project_archive_index(
+    response: Response,
+    limit: int = 250,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """List deleted-project snapshots; never expose them to ordinary users."""
+    actor = _require_admin(admin_session)
+    if actor.get("role") != "super_admin":
+        raise HTTPException(403, "L’archive des projets supprimés est réservée au Super-Admin.")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie"
+    return {"archives": list_project_archives(limit)}
+
+
+@router.post("/archives/{archive_id}/restore")
+def restore_archive(
+    archive_id: str,
+    payload: dict = Body(default={}),
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+):
+    actor = _require_admin(admin_session, authorization, aeromind_session)
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+        raise HTTPException(403, "La restauration est réservée au Super-Admin.")
+    target = payload.get("target_user_id") if isinstance(payload, dict) else None
+    try:
+        return restore_project_archive(archive_id, actor, str(target).strip() if target else None)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+@router.delete("/archives/{archive_id}")
+def delete_archive(
+    archive_id: str,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+):
+    actor = _require_admin(admin_session, authorization, aeromind_session)
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+        raise HTTPException(403, "La suppression des archives est réservée au Super-Admin.")
+    try:
+        return delete_project_archive(archive_id, actor)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(403, str(exc)) from exc
+
+@admin_api_router.post("/archives/{archive_id}/restore")
+def restore_archive_canonical(
+    archive_id: str,
+    payload: dict = Body(default={}),
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+):
+    actor = _require_admin(admin_session, authorization, aeromind_session)
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+        raise HTTPException(403, "La restauration est réservée au Super-Admin.")
+    target = payload.get("target_user_id") if isinstance(payload, dict) else None
+    try:
+        return restore_project_archive(archive_id, actor, str(target).strip() if target else None)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+@admin_api_router.delete("/archives/{archive_id}")
+def delete_archive_canonical(
+    archive_id: str,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+):
+    actor = _require_admin(admin_session, authorization, aeromind_session)
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+        raise HTTPException(403, "La suppression des archives est réservée au Super-Admin.")
+    try:
+        return delete_project_archive(archive_id, actor)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(403, str(exc)) from exc
+
+@router.post("/logout")
+def logout(
+    response: Response,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    if admin_session:
+        from .primary_session_store import revoke_primary_session
+        revoke_primary_session(admin_session)
+    response.delete_cookie("aeromind_admin_session", path="/api/admin-console")
+    # Also remove a legacy root-scoped cookie with the same name. Cookies are
+    # scoped by both name and path, so expiring only the current path can leave
+    # an older console session available to the browser on the next visit.
+    response.delete_cookie("aeromind_admin_session", path="/")
+    response.headers["Cache-Control"] = "no-store"
+    return {"logged_out": True}
+
+
+@router.post("/llm/validate")
+async def validate_internal_llm(
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Run a minimal real request against the approved internal gateway.
+
+    The response intentionally omits the base URL, credential and model output.
+    This endpoint only accepts the separate administrator-console session.
+    """
+    _require_admin(admin_session)
+    settings = get_settings()
+    if settings.llm_deployment != "aeromind":
+        raise HTTPException(409, "Le déploiement AeroMind interne n’est pas sélectionné.")
+    if not settings.llm_configured:
+        raise HTTPException(503, "Gateway interne incomplet: vérifiez URL autorisée, modèle et secret dédié.")
+    from .copilot import complete_chat
+    try:
+        result = await complete_chat([{"role": "user", "content": "Réponds uniquement par OK."}])
+    except HTTPException as exc:
+        raise HTTPException(502, "Le gateway AeroMind interne n’a pas validé le test de complétion.") from exc
+    if result.get("provider") != "aeromind-managed" or not str(result.get("content", "")).strip():
+        raise HTTPException(502, "Le gateway n’a pas retourné une réponse de modèle interne valide.")
+    return {"status": "connected", "deployment": "aeromind", "model": settings.aeromind_llm_model}
+
+
+@router.get("/restoration-archive/projects/{project_id}")
+def export_restoration_archive(
+    project_id: str,
+    response: Response,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Export project metadata and its drone fleet for Super-Admin recovery."""
+    import json
+    from .admin import _event
+    from .restoration_archive import make_archive
+
+    actor = _admin_actor(admin_session)
+    if actor.get("role") != "super_admin":
+        raise HTTPException(403, "La création d’archives de restauration est réservée au Super-Admin.")
+    with SessionLocal() as db:
+        project = db.get(Project, project_id)
+        if project is None:
+            raise HTTPException(404, "Projet introuvable.")
+        try:
+            project_data = json.loads(project.data_json or "{}")
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise HTTPException(409, "Données de projet corrompues; archive non créée.") from exc
+        if not isinstance(project_data, dict):
+            raise HTTPException(409, "Données de projet invalides; archive non créée.")
+        drone_rows = db.scalars(select(Drone).where(Drone.user_id == project.user_id, or_(Drone.project_id == project_id, Drone.id == project.active_drone_id)).order_by(Drone.id)).all()
+        drones = []
+        for drone in drone_rows:
+            try:
+                drone_data = json.loads(drone.config_json or "{}")
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise HTTPException(409, f"Configuration du drone {drone.id} invalide; archive non créée.") from exc
+            if not isinstance(drone_data, dict):
+                raise HTTPException(409, f"Configuration du drone {drone.id} invalide; archive non créée.")
+            drones.append({"id": drone.id, "userId": drone.user_id, "projectId": project.id, "name": drone.name, "data": drone_data})
+        project_archive = {"id": project.id, "userId": project.user_id, "name": project.name, "data": project_data, "activeDroneId": project.active_drone_id}
+        try:
+            archive = make_archive(project_archive, drones)
+        except ValueError as exc:
+            raise HTTPException(413, str(exc)) from exc
+        db.add(_event(db, "restoration.archive.exported", actor, project.id, {"droneCount": len(drones), "sha256": archive["sha256"]}))
+        db.commit()
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie"
+    return archive
+
+
+@router.post("/restoration-archive/restore")
+def restore_restoration_archive(
+    response: Response,
+    archive: dict = Body(...),
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+):
+    """Restore project metadata and drone configs from a verified archive."""
+    import json
+    from .admin import _event
+    from .models import now_utc
+    from .restoration_archive import validate_archive
+
+    actor = _admin_actor(admin_session)
+    if actor.get("role") != "super_admin":
+        raise HTTPException(403, "La restauration d’archives est réservée au Super-Admin.")
+    try:
+        checked = validate_archive(archive)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    project_data = checked["project"]
+    drone_data = checked["drones"]
+    project_id = project_data["id"]
+    owner_id = project_data["userId"]
+    with SessionLocal() as db:
+        if db.get(Project, project_id) is not None:
+            raise HTTPException(409, "Ce projet existe déjà; restauration refusée pour éviter tout écrasement.")
+        if db.get(User, owner_id) is None:
+            raise HTTPException(409, "Le propriétaire d’origine est absent; aucune restauration effectuée.")
+        archived_ids = [item["id"] for item in drone_data]
+        if archived_ids and db.scalar(select(Drone.id).where(Drone.id.in_(archived_ids))) is not None:
+            raise HTTPException(409, "Un ou plusieurs identifiants de drone existent déjà; archive non appliquée.")
+        record = Project(
+            id=project_id, user_id=owner_id, name=project_data["name"][:200],
+            data_json=json.dumps(project_data["data"], ensure_ascii=False, allow_nan=False),
+            active_drone_id=project_data.get("activeDroneId"), created_at=now_utc(), updated_at=now_utc(),
+        )
+        db.add(record)
+        for drone in drone_data:
+            db.add(Drone(
+                id=drone["id"], user_id=owner_id, project_id=project_id,
+                name=drone["name"][:200],
+                config_json=json.dumps(drone["data"], ensure_ascii=False, allow_nan=False),
+            ))
+        db.add(_event(db, "restoration.archive.restored", actor, project_id, {"droneCount": len(drone_data), "sha256": checked["sha256"]}))
+        try:
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            raise HTTPException(409, "La base a refusé l’archive; aucune restauration n’a été validée.") from exc
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Vary"] = "Cookie"
+    return {"restored": True, "projectId": project_id, "projectName": project_data["name"], "droneCount": len(drone_data), "restoredScope": "project-and-drone-fleet", "notRestored": ["missions", "runs", "rapports", "sessions et autres journaux"]}

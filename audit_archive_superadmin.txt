@@ -1,0 +1,123 @@
+=== 1. RECHERCHE ARCHIVE FRONTEND ===
+./frontend/client/src/components/SuperAdminGateMatrix.tsx:12:export function SuperAdminGateMatrix() {
+./frontend/client/src/components/drone-catalog-premium.css:164:.legacy-drone-library .catalog-superadmin-delete { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 100%; margin-top: 7px; padding: 7px 9px; border: 1px solid rgba(227, 115, 102, .35); border-radius: 4px; background: rgba(155, 58, 52, .1); color: #e5a198; font: 700 8px ui-monospace, monospace; letter-spacing: .04em; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+./frontend/client/src/components/drone-catalog-premium.css:165:.legacy-drone-library .catalog-superadmin-delete:hover { border-color: rgba(255, 151, 136, .72); background: rgba(155, 58, 52, .22); color: #ffc0b3; }
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:3:  Archive,
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:26:  onArchived,
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:31:  onArchived?: (result: LabBenchResult) => void;
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:81:      const archived = normalizeLabBenchResult(
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:85:      if (!archived?.persisted || archived.source !== "server-archived") {
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:91:      onArchived?.(archived);
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:132:      currentResult.source === "server-archived" &&
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:135:  const archiveReport = () => {
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:164:            initialiser le registre, archiver les runs N2 et produire un rapport
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:261:          {persistMutation.isPending ? "Archivage…" : "Archiver le run N2"}
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:266:          onClick={archiveReport}
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:268:          <Archive size={14} />
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:269:          {reportMutation.isPending ? "Archivage…" : "Archiver le rapport"}
+./frontend/client/src/components/LabBenchPersistencePanel.tsx:274:        Archivez d’abord le run N2 pour activer son rapport serveur. Les
+./frontend/client/src/components/AeromindIntelligenceCenter.tsx:5:  Archive,
+./frontend/client/src/components/AeromindIntelligenceCenter.tsx:270:  const renderSettings = () => <section className="aic-panel"><div className="aic-panel-heading"><div><span className="aic-kicker">SETTINGS / PROJECT CONTEXT</span><h2>Paramètres du centre</h2></div><Settings2 size={17} /></div><div className="aic-settings-grid"><div><span>PROJET</span><strong>{projectName}</strong><small>{projectId || "Identifiant local non confirmé"}</small></div><div><span>VERSION DE RÉFÉRENCE</span><strong>Révision locale</strong><small>Les agents utilisent le même contexte de projet.</small></div><div><span>SÉCURITÉ</span><strong>hil_bridge_active</strong><small>Aucun transport ou actionneur matériel.</small></div><div><span>RÉTENTION</span><strong>Workspace local</strong><small>Effaçable depuis cette interface.</small></div></div><div className="aic-settings-actions"><button type="button" className="aic-secondary-button" onClick={resetWorkspace}><Archive size={14} /> Réinitialiser le workspace</button>{onNavigate && <button type="button" className="aic-secondary-button" onClick={() => onNavigate("engineering-hub")}><ArrowRight size={14} /> Ouvrir l’Engineering Hub</button>}</div><div className="aic-warning-note"><AlertTriangle size={14} /> La configuration IA présentée ici orchestre des analyses et recommandations. Elle ne constitue ni certification, ni validation industrielle, ni autorisation d’opération physique.</div></section>;
+./frontend/client/src/pages/AuditJournal.tsx:436:                <textarea value={newMessage} onChange={e => setNewMessage(e.target.value)} rows={3} placeholder={t("Description de l'événement à archiver dans votre journal personnel")} className="w-full rounded-md border border-slate-700 bg-slate-950 py-2 px-3 text-xs text-slate-200 outline-none focus:border-cyan-500" />
+./frontend/client/src/pages/Home.tsx:348:      await queryClient.invalidateQueries({ queryKey: ["superAdmin"] });
+./frontend/client/src/pages/Home.tsx:2947:        {canManageLibrary && <button type="button" className="catalog-superadmin-delete" onClick={() => setPendingProfileAction({ kind: "delete", profile: item })}><Trash2 size={13}/> Supprimer (Super-Admin)</button>}
+./frontend/client/src/pages/Home.tsx:7870:            <p className="eyebrow">ARCHIVE DOCUMENTAIRE</p>
+./frontend/client/src/pages/Home.tsx:7881:              : "L’archive serveur nécessite une session authentifiée et une base métier disponible."}
+./frontend/client/src/pages/Home.tsx:13879:          const archivedRunFound = Array.isArray(registryRefresh?.runs)
+./frontend/client/src/pages/Home.tsx:13882:          if (!archivedRunFound || gateData?.conditions?.n2_run_archived !== true) {
+./frontend/client/src/pages/Home.tsx:13950:            const archivedRunFound = Array.isArray(registryRefresh?.runs)
+./frontend/client/src/pages/Home.tsx:13953:            if (!archivedRunFound || gateData?.conditions?.n2_run_archived !== true) throw new Error("Preuve LabBench non confirmée");
+./frontend/client/src/pages/Home.tsx:14023:          "Ouvrir la source officielle et archiver les références utilisées.",
+./frontend/client/src/pages/SuperAdmin.tsx:4:import { Activity, AlertTriangle, Archive, Bell, ClipboardCheck, Download, Edit, ExternalLink, FileText, FolderKanban, KeyRound, LayoutDashboard, LogIn, LogOut, Moon, Plus, RefreshCw, Save, Search, Settings, ShieldCheck, SlidersHorizontal, Trash2, Upload, Users, X, Eye } from "lucide-react";
+./frontend/client/src/pages/SuperAdmin.tsx:15:import { SuperAdminGateMatrix } from "@/components/SuperAdminGateMatrix";
+./frontend/client/src/pages/SuperAdmin.tsx:31:export default function SuperAdmin() {
+./frontend/client/src/pages/SuperAdmin.tsx:52:  const [editSuperAdmin, setEditSuperAdmin] = useState<{ id: string; name: string; email: string } | null>(null);
+./frontend/client/src/pages/SuperAdmin.tsx:128:  const accounts = trpc.superAdmin.accounts.useQuery(undefined, { enabled: !!user, retry: 2, refetchOnWindowFocus: false });
+./frontend/client/src/pages/SuperAdmin.tsx:129:  const activity = trpc.superAdmin.activity.useQuery(undefined, { enabled: !!user, retry: 2, refetchOnWindowFocus: false });
+./frontend/client/src/pages/SuperAdmin.tsx:130:  const qualificationActivity = trpc.superAdmin.qualificationActivity.useQuery(
+./frontend/client/src/pages/SuperAdmin.tsx:134:  const mechanicalProjectPreview = trpc.superAdmin.projectMechanicalPreview.useQuery(
+./frontend/client/src/pages/SuperAdmin.tsx:143:      utils.superAdmin.accounts.invalidate(),
+./frontend/client/src/pages/SuperAdmin.tsx:144:      utils.superAdmin.activity.invalidate(),
+./frontend/client/src/pages/SuperAdmin.tsx:145:      utils.superAdmin.qualificationActivity.invalidate(),
+./frontend/client/src/pages/SuperAdmin.tsx:146:      utils.superAdmin.projectMechanicalPreview.invalidate(),
+./frontend/client/src/pages/SuperAdmin.tsx:211:  const create = trpc.superAdmin.createAccount.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:219:  const update = trpc.superAdmin.updateAccount.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:223:  const remove = trpc.superAdmin.deleteAccount.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:232:  const rotateCode = trpc.superAdmin.rotateAuthorizationCode.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:240:  const resetLocal = trpc.superAdmin.resetLocalAuth.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:248:  const issueDailyCode = trpc.superAdmin.issueDailyTotpCode.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:260:  const projectAction = (action: "save" | "observe" | "delete") => trpc.superAdmin[`${action}Project`].useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:272:  const updateSuperAdmin = trpc.superAdmin.updateSuperadminAccount.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:275:      setEditSuperAdmin(null);
+./frontend/client/src/pages/SuperAdmin.tsx:282:  const deleteSuperAdmin = trpc.superAdmin.deleteSuperadminAccount.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:295:  const resetSuperAdminLocal = trpc.superAdmin.resetSuperadminLocalAuth.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:303:  const rotateSuperAdminCode = trpc.superAdmin.rotateSuperadminAuthorizationCode.useMutation({
+./frontend/client/src/pages/SuperAdmin.tsx:414:  const downloadRestorationArchive = async (projectId: string) => {
+./frontend/client/src/pages/SuperAdmin.tsx:416:      const response = await fetch(`/api/admin-console/restoration-archive/projects/${encodeURIComponent(projectId)}`, { credentials: "include", headers: bearerHeaders() });
+./frontend/client/src/pages/SuperAdmin.tsx:418:      if (!response.ok) throw new Error(body.detail || t("Création de l’archive refusée."));
+./frontend/client/src/pages/SuperAdmin.tsx:426:      toast.success(t("Archive de restauration téléchargée"), { description: t("Elle contient le projet et les configurations des drones, pas les missions, rapports ou journaux.") });
+./frontend/client/src/pages/SuperAdmin.tsx:429:      toast.error(t("Export de l’archive impossible"), { description: error.message });
+./frontend/client/src/pages/SuperAdmin.tsx:433:  const restoreRestorationArchive = async (file: File) => {
+./frontend/client/src/pages/SuperAdmin.tsx:435:      if (file.size > 5 * 1024 * 1024) throw new Error(t("L’archive dépasse la limite de 5 Mio."));
+
+=== 2. ROUTES SUPER ADMIN BACKEND ===
+./web/admin_console_api.py:10:from .admin import account_for_identity, delete_project_archive, list_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity, restore_project_archive
+./web/admin_console_api.py:15:router = APIRouter(prefix="/api/admin-console", tags=["admin-console"])
+./web/admin_console_api.py:25:            if actor.get("role") in {"admin", "super_admin"} or str(actor.get("email", "")).lower() == "mcgregoralvin14@gmail.com":
+./web/admin_console_api.py:31:    if oidc_user and (oidc_user.get("role") in {"admin", "super_admin"} or str(oidc_user.get("email", "")).lower() == "mcgregoralvin14@gmail.com"):
+./web/admin_console_api.py:32:        return {**oidc_user, "role": "super_admin"}
+./web/admin_console_api.py:61:            account = {**account, "role": "super_admin"}
+./web/admin_console_api.py:75:    project_filter = True if actor.get("role") == "super_admin" else Project.user_id.in_(owner_ids)
+./web/admin_console_api.py:76:    drone_filter = True if actor.get("role") == "super_admin" else Drone.user_id.in_(owner_ids)
+./web/admin_console_api.py:77:    simulation_filter = True if actor.get("role") == "super_admin" else Simulation.user_id.in_(owner_ids)
+./web/admin_console_api.py:98:    is_global = actor.get("role") == "super_admin"
+./web/admin_console_api.py:151:        data = project_mechanical_preview(project_id, owner_id=None if actor.get("role") == "super_admin" else owner_ids_for_actor(actor))
+./web/admin_console_api.py:176:@router.get("/project-archive")
+./web/admin_console_api.py:177:def project_archive_index(
+./web/admin_console_api.py:184:    if actor.get("role") != "super_admin":
+./web/admin_console_api.py:185:        raise HTTPException(403, "L’archive des projets supprimés est réservée au Super-Admin.")
+./web/admin_console_api.py:188:    return {"archives": list_project_archives(limit)}
+./web/admin_console_api.py:191:@router.post("/archives/{archive_id}/restore")
+./web/admin_console_api.py:192:def restore_archive(
+./web/admin_console_api.py:193:    archive_id: str,
+./web/admin_console_api.py:200:    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+./web/admin_console_api.py:204:        return restore_project_archive(archive_id, actor, str(target).strip() if target else None)
+./web/admin_console_api.py:210:@router.delete("/archives/{archive_id}")
+./web/admin_console_api.py:211:def delete_archive(
+./web/admin_console_api.py:212:    archive_id: str,
+./web/admin_console_api.py:218:    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+./web/admin_console_api.py:219:        raise HTTPException(403, "La suppression des archives est réservée au Super-Admin.")
+./web/admin_console_api.py:221:        return delete_project_archive(archive_id, actor)
+./web/admin_console_api.py:227:@admin_api_router.post("/archives/{archive_id}/restore")
+./web/admin_console_api.py:228:def restore_archive_canonical(
+./web/admin_console_api.py:229:    archive_id: str,
+./web/admin_console_api.py:236:    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+./web/admin_console_api.py:240:        return restore_project_archive(archive_id, actor, str(target).strip() if target else None)
+./web/admin_console_api.py:246:@admin_api_router.delete("/archives/{archive_id}")
+./web/admin_console_api.py:247:def delete_archive_canonical(
+./web/admin_console_api.py:248:    archive_id: str,
+./web/admin_console_api.py:254:    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+./web/admin_console_api.py:255:        raise HTTPException(403, "La suppression des archives est réservée au Super-Admin.")
+./web/admin_console_api.py:257:        return delete_project_archive(archive_id, actor)
+./web/admin_console_api.py:271:    response.delete_cookie("aeromind_admin_session", path="/api/admin-console")
+./web/admin_console_api.py:305:@router.get("/restoration-archive/projects/{project_id}")
+./web/admin_console_api.py:306:def export_restoration_archive(
+./web/admin_console_api.py:314:    from .restoration_archive import make_archive
+./web/admin_console_api.py:317:    if actor.get("role") != "super_admin":
+./web/admin_console_api.py:318:        raise HTTPException(403, "La création d’archives de restauration est réservée au Super-Admin.")
+./web/admin_console_api.py:326:            raise HTTPException(409, "Données de projet corrompues; archive non créée.") from exc
+./web/admin_console_api.py:328:            raise HTTPException(409, "Données de projet invalides; archive non créée.")
+./web/admin_console_api.py:335:                raise HTTPException(409, f"Configuration du drone {drone.id} invalide; archive non créée.") from exc
+./web/admin_console_api.py:337:                raise HTTPException(409, f"Configuration du drone {drone.id} invalide; archive non créée.")
+./web/admin_console_api.py:339:        project_archive = {"id": project.id, "userId": project.user_id, "name": project.name, "data": project_data, "activeDroneId": project.active_drone_id}
+./web/admin_console_api.py:341:            archive = make_archive(project_archive, drones)
+./web/admin_console_api.py:344:        db.add(_event(db, "restoration.archive.exported", actor, project.id, {"droneCount": len(drones), "sha256": archive["sha256"]}))
+./web/admin_console_api.py:348:    return archive
+./web/admin_console_api.py:351:@router.post("/restoration-archive/restore")
+./web/admin_console_api.py:352:def restore_restoration_archive(
+./web/admin_console_api.py:354:    archive: dict = Body(...),
+./web/admin_console_api.py:357:    """Restore project metadata and drone configs from a verified archive."""
+./web/admin_console_api.py:361:    from .restoration_archive import validate_archive
+./web/admin_console_api.py:364:    if actor.get("role") != "super_admin":
+./web/admin_console_api.py:365:        raise HTTPException(403, "La restauration d’archives est réservée au Super-Admin.")
+./web/admin_console_api.py:367:        checked = validate_archive(archive)

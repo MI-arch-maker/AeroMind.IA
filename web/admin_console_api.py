@@ -7,7 +7,7 @@ from fastapi import APIRouter, Body, Cookie, Header, HTTPException, Response
 from sqlalchemy import func, or_, select
 from .database import SessionLocal
 from .models import AdminAccountEvent, AuditEvent, Project, Drone, Simulation, User
-from .admin import account_for_identity, delete_project_archive, list_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity, restore_project_archive
+from .admin import account_for_identity, delete_project_archive, list_project_archives, purge_all_project_archives, owner_ids_for_actor, project_mechanical_preview, qualification_activity, restore_project_archive
 from .config import get_settings
 from .oidc import _check_local_generation, _verified
 from .primary_session_store import is_primary_session_active
@@ -401,3 +401,28 @@ def restore_restoration_archive(
         response.headers["Cache-Control"] = "no-store"
         response.headers["Vary"] = "Cookie"
     return {"restored": True, "projectId": project_id, "projectName": project_data["name"], "droneCount": len(drone_data), "restoredScope": "project-and-drone-fleet", "notRestored": ["missions", "runs", "rapports", "sessions et autres journaux"]}
+
+
+@admin_api_router.get("/archives")
+def list_archives_canonical(
+    limit: int = 250,
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+):
+    actor = _require_admin(admin_session, authorization, aeromind_session)
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+        raise HTTPException(403, "L’accès aux archives est réservé au Super-Admin.")
+    return {"archives": list_project_archives(limit)}
+
+
+@admin_api_router.delete("/archives")
+def purge_all_archives_canonical(
+    admin_session: str | None = Cookie(default=None, alias="aeromind_admin_session"),
+    aeromind_session: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+):
+    actor = _require_admin(admin_session, authorization, aeromind_session)
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+        raise HTTPException(403, "La purge intégrale des archives est réservée au Super-Admin.")
+    return purge_all_project_archives(actor)

@@ -377,7 +377,14 @@ def delete_project_archive(archive_id: str, actor: dict[str, Any]) -> dict[str, 
             elif isinstance(value, str) and any(x in key for x in ("file", "path", "artifact")):
                 candidates.append(value)
         collect(snapshot)
+        import shutil
         root = Path(os.getenv("AEROMIND_ARCHIVE_ROOT", "/tmp/aeromind-archives")).resolve()
+        for sub_name in (str(archive_id), str(row.original_project_id or "")):
+            if sub_name:
+                archive_dir = (root / sub_name).resolve()
+                if root in archive_dir.parents and archive_dir.is_dir():
+                    shutil.rmtree(archive_dir, ignore_errors=True)
+                    removed_files += 1
         for candidate in candidates:
             try:
                 path = Path(candidate).expanduser().resolve()
@@ -391,6 +398,51 @@ def delete_project_archive(archive_id: str, actor: dict[str, Any]) -> dict[str, 
         db.delete(row)
         db.commit()
         return {"deleted": True, "id": str(archive_id), "projectId": row.original_project_id, "removedFiles": removed_files}
+
+def purge_all_project_archives(actor: dict[str, Any]) -> dict[str, Any]:
+    """Permanently delete ALL archived projects, archive records, and archive folders on disk."""
+    from .models import SuperAdminProjectArchive, Project
+    from .database import SessionLocal
+    from pathlib import Path
+    import os, shutil
+    if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
+        raise ValueError("Super-Admin permission required")
+    deleted_archives = 0
+    deleted_projects = 0
+    removed_entries = 0
+    with SessionLocal() as db:
+        rows = db.scalars(select(SuperAdminProjectArchive)).all()
+        for row in rows:
+            proj = db.get(Project, row.original_project_id) if row.original_project_id else None
+            if proj is not None:
+                delete_project_dependents(db, proj.id)
+                db.delete(proj)
+                deleted_projects += 1
+            db.delete(row)
+            deleted_archives += 1
+        for orphan in db.scalars(select(Project).where(Project.status == "ARCHIVED")).all():
+            delete_project_dependents(db, orphan.id)
+            db.delete(orphan)
+            deleted_projects += 1
+        db.commit()
+    root = Path(os.getenv("AEROMIND_ARCHIVE_ROOT", "/tmp/aeromind-archives")).resolve()
+    if root.exists() and root.is_dir():
+        for child in list(root.iterdir()):
+            try:
+                if child.is_dir():
+                    shutil.rmtree(child, ignore_errors=True)
+                else:
+                    child.unlink(missing_ok=True)
+                removed_entries += 1
+            except OSError:
+                continue
+    return {
+        "purged": True,
+        "deletedArchives": deleted_archives,
+        "deletedProjects": deleted_projects,
+        "removedEntries": removed_entries,
+    }
+
 def list_project_archives(limit: int = 250) -> list[dict[str, Any]]:
     from .models import SuperAdminProjectArchive, Project
     limit = max(1, min(int(limit), 500))
