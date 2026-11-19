@@ -94,3 +94,14 @@
 .mt-viewport-note {
   display: none !important;
 }
+
+/* Centrage parfait du Canvas Three.js sur 100% de la hauteur du cadre noir */
+.mt-viewport > div {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 600px !important;
+}
+.mt-render-presets {
+  pointer-events: auto !important;
+  z-index: 20 !important;
+}

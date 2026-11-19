@@ -109,7 +109,7 @@ function CameraRig({
     camera.bottom = -size.height / 2;
     camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
       ? camera.zoom * minSize / previous.size
-      : minSize / (extent * 0.78);
+      : minSize / (extent * 0.52);
     orthoState.current = { camera, size: minSize, extent, designId: model.designId, resetKey };
     camera.near = extent / 1000;
     camera.far = extent * 100;
@@ -784,7 +784,7 @@ export function MechanicalTwinViewport(props: Props) {
           <Canvas
             key={renderPlan.projection}
             orthographic={renderPlan.projection === "orthographic"}
-            frameloop={kinematicsPlaying || rotationActive ? "always" : "demand"}
+            frameloop="always"
             dpr={[1, 1.5]}
             camera={{
               position: [
@@ -834,7 +834,7 @@ export function MechanicalTwinViewport(props: Props) {
               makeDefault
               enabled={!transformDragging}
               autoRotate={rotationActive}
-              autoRotateSpeed={0.8}
+              autoRotateSpeed={2.2}
               enableDamping
               enablePan
               minDistance={model.extent * 0.2}
