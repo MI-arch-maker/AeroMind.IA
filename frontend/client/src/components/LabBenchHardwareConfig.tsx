@@ -138,7 +138,7 @@ export function LabBenchHardwareConfig() {
         .filter(Boolean)
         .join("\n"),
       savedAt: new Date().toISOString(),
-      physicalOutputEnabled: false,
+      physicalOutputEnabled: true,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
@@ -161,7 +161,7 @@ export function LabBenchHardwareConfig() {
           {
             schema: "aeromind.labbench-hardware-config.v1",
             config,
-            physicalOutputEnabled: false,
+            physicalOutputEnabled: true,
           },
           null,
           2,

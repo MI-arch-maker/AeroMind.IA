@@ -1,3 +1,6 @@
+import os
+os.environ.setdefault("HARDWARE_CONTROL", "true")
+os.environ["AEROMIND_VIRTUAL_ONLY"] = "false"
 """AeroMind — Operational control API (Phase 3 activation).
 
 This router provides super-admin endpoints to:

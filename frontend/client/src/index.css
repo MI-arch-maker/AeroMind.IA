@@ -16932,3 +16932,57 @@ button:disabled {
 }
 .app-footer.home-approved-footer .home-footer-cards { justify-self: center; }
 .app-footer.home-approved-footer { grid-template-columns: minmax(0, 1fr); }
+
+
+/* IDDS — les rails latéraux suivent la hauteur réelle du canvas central. */
+@media (min-width: 1081px) {
+  .studio-workspace-advanced > .studio-layer-panel,
+  .studio-workspace-advanced > .studio-inspector {
+    align-self: stretch;
+    height: 100%;
+    max-height: none;
+  }
+}
+
+/* IDDS — zone centrale grand format, homogène avec les rails latéraux. */
+@media (min-width: 1081px) {
+  .design-studio-view .studio-workspace-advanced {
+    align-items: stretch;
+  }
+
+  .design-studio-view .studio-workspace-advanced > .studio-layer-panel,
+  .design-studio-view .studio-workspace-advanced > .studio-canvas-panel,
+  .design-studio-view .studio-workspace-advanced > .studio-inspector {
+    min-height: clamp(760px, calc(100vh - 180px), 980px);
+    height: auto;
+  }
+
+  .design-studio-view .studio-canvas-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .design-studio-view .studio-canvas-panel > .studio-physical-stage {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: clamp(620px, calc(100vh - 300px), 840px);
+  }
+
+  .design-studio-view .studio-physical-stage > .idds-render-stage {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .design-studio-view .studio-physical-stage .idds-render-viewport {
+    flex: 1 1 auto;
+    height: clamp(560px, 64vh, 780px) !important;
+    min-height: 560px;
+  }
+
+  .design-studio-view .studio-physical-stage .idds-render-viewport > div {
+    height: 100%;
+  }
+}

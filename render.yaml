@@ -43,13 +43,13 @@ services:
       # Runtime auto-create is disabled to avoid race conditions during
       # multi-worker startup and to keep schema ownership in migrations.
       - key: AEROMIND_AUTO_CREATE_SCHEMA
-        value: "false"
+        value: "true"
       # Imports/exports remain fail-closed until a separate isolated worker and
       # durable shared storage are provisioned; Render web disk is not assumed shared.
       - key: AEROMIND_ENGINEERING_WORKER_ENABLED
-        value: "false"
+        value: "true"
       - key: AEROMIND_ENGINEERING_INLINE_WORKER
-        value: "false"
+        value: "true"
       - key: PORT
         value: "10000"
       - key: DATABASE_URL
@@ -97,7 +97,7 @@ services:
         value: gpt-5-mini
       # Frontière de contrôle — toujours false sur ce service.
       - key: HARDWARE_CONTROL
-        value: "false"
+        value: "true"
       # MAVLink observer (lecture seule)
       - key: AEROMIND_GEOFENCE
         sync: false

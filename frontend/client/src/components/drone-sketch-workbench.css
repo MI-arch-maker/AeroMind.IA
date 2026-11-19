@@ -48,3 +48,14 @@
 .cad-exact-fields button:hover:not(:disabled){background:#15524e}
 .cad-exact-fields button:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:760px){.cad-exact-fields{grid-template-columns:1fr 1fr}}
+
+/* IDDS — l’inspecteur du dessin occupe toute la hauteur de la ligne de travail. */
+@media (min-width: 1181px) {
+  .sketch-context-studio .sketch-main-layout {
+    align-items: stretch;
+  }
+  .sketch-context-studio .sketch-inspector {
+    height: 100%;
+    max-height: none;
+  }
+}

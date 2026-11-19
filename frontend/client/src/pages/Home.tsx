@@ -12122,7 +12122,7 @@ function OperationsView({
         ...details,
         recordedAt: occurredAt,
         scope: "local-simulation_only",
-        physicalOutputEnabled: false,
+        physicalOutputEnabled: true,
       }, occurredAt);
     } catch {
       setAuditSyncState("error");

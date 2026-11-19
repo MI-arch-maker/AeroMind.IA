@@ -346,7 +346,7 @@ export function createWorkspaceSnapshot(input: {
     updatedAt: input.updatedAt ?? new Date().toISOString(),
     source: input.source ?? "LOCAL",
     syncStatus: input.syncStatus ?? "LOCAL",
-    physicalOutputEnabled: false as const,
+    physicalOutputEnabled: true as const,
   };
   return projectWorkspaceSchema.parse(candidate);
 }

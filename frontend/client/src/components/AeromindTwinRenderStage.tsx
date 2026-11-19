@@ -32,7 +32,7 @@ export function AeromindTwinRenderStage({ design, config }: { design?: DroneCata
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+    <div className="idds-render-stage" style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: "6px", padding: "6px 8px", background: "#07101f", border: "1px solid #1e293b", borderRadius: "6px" }}>
         <div style={{ display: "flex", gap: "4px" }}>
           {(["iso", "top", "front", "side"] as MechanicalView[]).map(v => (
@@ -47,7 +47,7 @@ export function AeromindTwinRenderStage({ design, config }: { design?: DroneCata
           <button type="button" style={btn(false)} onClick={() => { setView("iso"); setMode("solid"); setExplosion(0); setResetKey(k => k + 1); }}>Reset</button>
         </div>
       </div>
-      <div style={{ height: "420px", width: "100%", borderRadius: "6px", overflow: "hidden", border: "1px solid #1e293b" }}>
+      <div className="idds-render-viewport" style={{ height: "420px", width: "100%", borderRadius: "6px", overflow: "hidden", border: "1px solid #1e293b" }}>
         <MechanicalTwinViewport
           model={model}
           selected={selected}

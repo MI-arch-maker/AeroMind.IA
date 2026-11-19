@@ -89,32 +89,51 @@
   background-color: rgba(56, 189, 248, 0.06) !important;
 }
 
-/* Tailles dynamiques de la fenetre drone (Moyen, Grand, Tres elargi, Adaptable) */
-[data-drone-size="moyen"] .aeromind-engineering-viewport,
-[data-drone-size="moyen"] .physical-drone-stage,
-[data-drone-size="moyen"] canvas {
-  min-height: 280px !important;
-  max-height: 320px !important;
+/* Tailles dynamiques de la fenêtre drone (Moyen, Grand, Très élargi, Adaptable).
+ * Les centres rendent leur jumeau mécanique dans .mt-viewport. Les anciens
+ * sélecteurs .aeromind-engineering-viewport ne correspondaient à aucun
+ * composant monté : l'état du bouton changeait, mais pas la surface rendue. */
+[data-drone-size="moyen"] .mt-scene,
+[data-drone-size="moyen"] .mt-viewport {
+  min-height: 320px !important;
+  height: 320px !important;
 }
 
-[data-drone-size="grand"] .aeromind-engineering-viewport,
-[data-drone-size="grand"] .physical-drone-stage,
-[data-drone-size="grand"] canvas {
+[data-drone-size="grand"] .mt-scene,
+[data-drone-size="grand"] .mt-viewport {
   min-height: 440px !important;
   height: 440px !important;
 }
 
-[data-drone-size="tres-elargi"] .aeromind-engineering-viewport,
-[data-drone-size="tres-elargi"] .physical-drone-stage,
-[data-drone-size="tres-elargi"] canvas {
+[data-drone-size="tres-elargi"] .mt-scene,
+[data-drone-size="tres-elargi"] .mt-viewport {
   min-height: 620px !important;
   height: 620px !important;
-  width: 100% !important;
 }
 
-[data-drone-size="adaptable"] .aeromind-engineering-viewport,
-[data-drone-size="adaptable"] .physical-drone-stage,
-[data-drone-size="adaptable"] canvas {
+[data-drone-size="adaptable"] .mt-scene,
+[data-drone-size="adaptable"] .mt-viewport {
+  min-height: clamp(360px, 48vh, 760px) !important;
+  height: auto !important;
+}
+
+/* Le rendu matière conserve les mêmes commandes de présentation. */
+[data-drone-size="moyen"] .physical-drone-stage {
+  min-height: 280px !important;
+  max-height: 320px !important;
+}
+
+[data-drone-size="grand"] .physical-drone-stage {
+  min-height: 440px !important;
+  height: 440px !important;
+}
+
+[data-drone-size="tres-elargi"] .physical-drone-stage {
+  min-height: 620px !important;
+  height: 620px !important;
+}
+
+[data-drone-size="adaptable"] .physical-drone-stage {
   min-height: 48vh !important;
-  width: 100% !important;
+  height: auto !important;
 }

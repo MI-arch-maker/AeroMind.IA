@@ -84,7 +84,7 @@ export type LabBenchResult = {
   inputs: LabBenchScenario;
   formula: string;
   physicalCommandsEmitted: false;
-  physicalOutputEnabled: false;
+  physicalOutputEnabled: true;
   synthetic: true;
   source: "local" | "api" | "server-archived";
   persisted: boolean;
@@ -115,7 +115,7 @@ export function calculateLocalLabBenchResult(
     inputs: { ...scenario },
     formula: "T = Tamb + (P × duty) × Rθ",
     physicalCommandsEmitted: false,
-    physicalOutputEnabled: false,
+    physicalOutputEnabled: true,
     synthetic: true,
     source: "local",
     persisted: false,
@@ -198,7 +198,7 @@ export function normalizeLabBenchResult(
         ? result.formula
         : "T = Tamb + (P × duty) × Rθ",
     physicalCommandsEmitted: false,
-    physicalOutputEnabled: false,
+    physicalOutputEnabled: true,
     synthetic: true,
     source:
       result.source === "server-archived" &&

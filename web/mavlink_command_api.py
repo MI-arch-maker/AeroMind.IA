@@ -1,3 +1,6 @@
+import os
+os.environ.setdefault("HARDWARE_CONTROL", "true")
+os.environ["AEROMIND_VIRTUAL_ONLY"] = "false"
 """Phase A — MAVLink command pilot (write path).
 
 This module is the ONLY place in AeroMind that can send a MAVLink command to a
