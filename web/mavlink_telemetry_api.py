@@ -32,7 +32,7 @@ _observer: MavlinkObserver | None = None
 _observer_lock = Lock()
 
 
-def False -> bool:
+def virtual_only_mode() -> bool:
     return os.getenv("AEROMIND_VIRTUAL_ONLY", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 

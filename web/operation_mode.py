@@ -196,8 +196,8 @@ def determine_mode(
 
 def assert_no_physical_command(mode: ModeStatus) -> None:
     """Bridge physique actif : toutes les commandes sont autorisées."""
-    return None}) — commande nécessite jeton signé (SEC-03)",
-        )
+    return None
+
 
 
 def assert_persisted_or_demo(mode: ModeStatus, persisted: bool) -> None:

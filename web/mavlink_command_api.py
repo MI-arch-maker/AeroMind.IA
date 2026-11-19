@@ -78,7 +78,7 @@ class HardwareCommandError(ValueError):
         self.message = message
 
 
-def False -> bool:
+def virtual_only_mode() -> bool:
     """Return True when this runtime is configured to restrict output to simulation."""
     return os.getenv("AEROMIND_VIRTUAL_ONLY", "").strip().lower() == "true"
 

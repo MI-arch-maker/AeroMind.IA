@@ -1,0 +1,15 @@
+<svg xmlns="http://w3.org" viewBox="0 0 880 420">
+      <rect width="880" height="420" fill="#040b14"/>
+      <g transform="translate(220,55)" fill="rgba(56,189,248,0.12)" stroke="#38bdf8" stroke-width="1.6">
+    <path d="M 220 38 Q 235 72 235 112 L 408 134 L 408 150 L 235 144 L 235 212 L 280 232 L 280 242 L 160 242 L 160 232 L 205 212 L 205 144 L 32 150 L 32 134 L 205 112 Q 205 72 220 38 Z"/>
+    </g>
+      <!-- Architecture interne X-Ray (Batteries cyan, avionique, cablage cuivre, longeron, CG) -->
+      <line x1="255" y1="195" x2="625" y2="195" stroke="#0ea5e9" stroke-width="5" stroke-dasharray="10 4"/>
+      <rect x="424" y="118" width="32" height="42" rx="4" fill="#06b6d4" fill-opacity="0.75" stroke="#67e8f9"/>
+      <rect x="422" y="172" width="36" height="46" rx="4" fill="#10b981" fill-opacity="0.7" stroke="#6ee7b7"/>
+      <line x1="440" y1="118" x2="440" y2="275" stroke="#f97316" stroke-width="3"/>
+      <circle cx="440" cy="195" r="10" fill="#ffffff" stroke="#38bdf8" stroke-width="3"/>
+      <text x="458" y="199" fill="#ffffff" font-family="monospace" font-size="12" font-weight="bold">CG</text>
+      <text x="28" y="34" fill="#22d3ee" font-family="monospace" font-size="12" font-weight="bold">HYBRIDE X-RAY · STRUCTURE INTERNE — ICX SEASENTINEL</text>
+      <text x="28" y="395" fill="#7dd3fc" font-family="monospace" font-size="11">BATTERIE LI-ION HD | LONGERON CARBONE | BUS CAN/MAVLINK2 | ENVERGURE 4.4 m</text>
+    </svg>

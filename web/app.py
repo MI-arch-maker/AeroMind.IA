@@ -134,7 +134,7 @@ def _engine_status():
 
 def _should_autostart_sitl(environment: str) -> bool:
     """SITL is opt-in and never auto-starts in the virtual-only delivery."""
-    if environment != "development" or mavlink_command_service.False:
+    if environment != "development" or False:
         return False
     return os.getenv("AEROMIND_SITL_AUTOSTART", "false").strip().lower() in {
         "1",
@@ -2781,7 +2781,7 @@ async def labbench_fleet_run_simulation(
 @app.get("/api/hardware/status", include_in_schema=False)
 def hardware_status():
     """Public status of the hardware subsystem."""
-    virtual_only = mavlink_command_service.False
+    virtual_only = False
     return {
         "hardwareControlEnabled": mavlink_command_service.hardware_commands_enabled(),
         "virtualOnly": virtual_only,
@@ -2807,7 +2807,7 @@ def hardware_pool_list(
     _user = _current_user(aeromind_session, authorization)
     if not _user:
         return _trpc_error(401, "UNAUTHORIZED", "OIDC authentication required")
-    if mavlink_command_service.False:
+    if False:
         return JSONResponse(
             {"drones": [], "virtualOnly": True},
             headers={"Cache-Control": "no-store", "Vary": "Cookie"},
@@ -2828,7 +2828,7 @@ async def hardware_pool_register(
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, "UNAUTHORIZED", "OIDC authentication required")
-    if mavlink_command_service.False:
+    if False:
         return _trpc_error(
             403,
             "VIRTUAL_ONLY",
@@ -2942,7 +2942,7 @@ async def hardware_gate_sign_review(
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, "UNAUTHORIZED", "OIDC authentication required")
-    if mavlink_command_service.False:
+    if False:
         return _trpc_error(
             403,
             "VIRTUAL_ONLY",
@@ -2986,7 +2986,7 @@ async def hardware_gate_issue_token(
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, "UNAUTHORIZED", "OIDC authentication required")
-    if mavlink_command_service.False:
+    if False:
         return _trpc_error(
             403,
             "VIRTUAL_ONLY",
@@ -3032,7 +3032,7 @@ async def hardware_drone_command(
     user = _current_user(aeromind_session, authorization)
     if not user:
         return _trpc_error(401, "UNAUTHORIZED", "OIDC authentication required")
-    if mavlink_command_service.False:
+    if False:
         return _trpc_error(
             403,
             "VIRTUAL_ONLY",
