@@ -120,7 +120,7 @@ function CameraRig({
   useEffect(() => {
     const d = directions[view];
     const extent = Math.max(0.5, model.extent);
-    const dist = (extent * 0.68) / Math.max(0.35, zoomScale);
+    const dist = (extent * 0.54) / Math.max(0.35, zoomScale);
     camera.position.set(d[0] * dist, d[1] * dist, d[2] * dist);
     camera.up.set(0, 1, 0);
     camera.lookAt(0, 0, 0);
@@ -787,6 +787,7 @@ export function MechanicalTwinViewport(props: Props) {
         >
           <Canvas
             key={renderPlan.projection}
+            style={{ width: "100%", height: "100%", minHeight: "740px" }}
             orthographic={renderPlan.projection === "orthographic"}
             frameloop="always"
             dpr={[1, 1.5]}

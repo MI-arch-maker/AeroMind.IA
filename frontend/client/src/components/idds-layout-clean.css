@@ -1,4 +1,4 @@
-/* Fond noir sur toute la longueur de l'ecran + drone centre au milieu */
+/* Le Canvas 3D descend jusqu'en bas du cadre noir et centre le drone au milieu */
 .idds-preview-frame,
 .mt-stage-shell,
 .mt-canvas-shell {
@@ -6,7 +6,7 @@
   display: flex !important;
   flex-direction: column !important;
   width: 100% !important;
-  height: 100% !important;
+  height: 760px !important;
   min-height: 760px !important;
   background: #040914 !important;
   border-radius: 8px;
@@ -14,38 +14,44 @@
 
 .mt-viewport {
   position: relative !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  display: block !important;
   width: 100% !important;
-  height: 100% !important;
+  height: 760px !important;
   min-height: 760px !important;
-  flex: 1 1 auto !important;
   background: #040914 !important;
   background-image: none !important;
 }
 
-/* Force le wrapper R3F du Canvas Three.js a occuper 100% de la hauteur pour centrer le drone au milieu */
-.mt-viewport > div:first-of-type {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-
+/* Force le conteneur interne @react-three/fiber et le canvas a occuper les 760px complets */
+.mt-viewport > div:first-child,
+.mt-viewport > div:first-child > div,
 .mt-viewport canvas {
   width: 100% !important;
-  height: 100% !important;
+  height: 760px !important;
+  min-height: 760px !important;
   display: block !important;
 }
 
+/* Placer la ligne de cotation ENVERGURE / LONGUEUR tout en bas du cadre noir */
+.mt-dimension {
+  position: absolute !important;
+  bottom: 14px !important;
+  top: auto !important;
+  left: 16px !important;
+  right: 16px !important;
+  z-index: 10 !important;
+}
+
+/* Garder la bulle RENDU compacte en haut a gauche */
 .mt-render-presets {
   position: absolute !important;
   top: 12px !important;
   left: 12px !important;
+  bottom: auto !important;
   width: 190px !important;
   max-width: 190px !important;
   height: auto !important;
+  min-height: 0 !important;
   z-index: 15 !important;
 }
 
