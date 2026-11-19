@@ -109,7 +109,7 @@ function CameraRig({
     camera.bottom = -size.height / 2;
     camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
       ? camera.zoom * minSize / previous.size
-      : minSize / (extent * 1.05);
+      : minSize / (extent * 0.78);
     orthoState.current = { camera, size: minSize, extent, designId: model.designId, resetKey };
     camera.near = extent / 1000;
     camera.far = extent * 100;
@@ -797,10 +797,10 @@ export function MechanicalTwinViewport(props: Props) {
             gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true, localClippingEnabled: true }}
             onCreated={({ gl }) => {
               gl.toneMapping = THREE.ACESFilmicToneMapping;
-              gl.toneMappingExposure = 1.68;
+              gl.toneMappingExposure = 1.95;
             }}
           >
-            <ambientLight intensity={1.85} />
+            <ambientLight intensity={2.25} />
             <hemisphereLight args={["#e8f6ff", "#111a22", 1.8]} />
             <directionalLight position={[5, 8, 5]} intensity={3.5} />
             <directionalLight
