@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 os.environ.setdefault("HARDWARE_CONTROL", "true")
 os.environ["AEROMIND_VIRTUAL_ONLY"] = "false"
@@ -15,7 +16,6 @@ Safety constraints:
   - Mode changes are audited
   - Only super-admin can change modes
 """
-from __future__ import annotations
 
 import os
 from time import perf_counter
