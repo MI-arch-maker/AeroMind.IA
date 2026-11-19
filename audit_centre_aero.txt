@@ -1,0 +1,57 @@
+=== 1. FICHIERS AERODYNAMIQUE & CFD FRONTEND ===
+./frontend/client/src/aeromind-dynamics.css
+./frontend/client/src/components/AeromindDroneRenderPlate.tsx
+./frontend/client/src/components/AeromindOptronicHud.tsx
+./frontend/client/src/components/AeroMindOutdoorTestCenter.tsx
+./frontend/client/src/components/AeroLabPanel.tsx
+./frontend/client/src/components/WorkspaceWindow.tsx
+./frontend/client/src/components/AerodynamicSimulationCenter.test.ts
+./frontend/client/src/components/aero-lab-panel.css
+./frontend/client/src/components/AeroMindOutdoorTestCenter.test.ts
+./frontend/client/src/components/aerodynamic-simulation-center.css
+./frontend/client/src/components/AeromindControlCenter.tsx
+./frontend/client/src/components/AeromindMultiViewViewport.tsx
+./frontend/client/src/components/aeromind-intelligence-center.css
+./frontend/client/src/components/AeronauticalCenterView.tsx
+./frontend/client/src/components/AerodynamicSimulationCenter.tsx
+./frontend/client/src/components/aeromind-control-center.css
+./frontend/client/src/components/AeromindIntelligenceCenter.tsx
+./frontend/client/src/components/aeromind-outdoor-test-center.css
+./frontend/client/src/components/AeromindTwinRenderStage.tsx
+./frontend/client/src/components/AeromindMechanicalEngineeringSuite.tsx
+./frontend/client/src/components/WorkspaceWindow.test.tsx
+./frontend/client/src/components/AeromindCfdWindTunnel.tsx
+./frontend/client/src/hooks/useAeromindHardwareStream.ts
+./frontend/client/src/lib/aerodynamicWorkspace.test.ts
+./frontend/client/src/lib/aeroEngine.ts
+./frontend/client/src/lib/aeroLab
+./frontend/client/src/lib/aerodynamicUserData.ts
+./frontend/client/src/lib/aerodynamicWebGL.test.ts
+./frontend/client/src/lib/aeronauticalCenter.test.ts
+./frontend/client/src/lib/aerodynamicWebGL.ts
+./frontend/client/src/lib/aeronauticalCenter.ts
+./frontend/client/src/lib/fixedWingAerodynamics.test.ts
+./frontend/client/src/lib/fixedWingAerodynamics.ts
+./frontend/client/src/lib/aerodynamicWorkspace.ts
+./frontend/client/src/lib/aeroEngine.test.ts
+
+=== 2. TEXTES BLOQUANTS DANS CE MODULE ===
+./frontend/client/src/components/AerodynamicSimulationCenter.tsx:1534:                  <h2>Synthèse aérodynamique</h2>
+./frontend/client/src/components/AerodynamicSimulationCenter.tsx:1590:                        : "GÉOMÉTRIE ABSENTE"}
+./frontend/client/src/components/AerodynamicSimulationCenter.tsx:1622:                    Aucun binaire de solveur ni service CFD n’est raccordé à ce
+./frontend/client/src/components/AeromindCfdWindTunnel.tsx:130:        <strong><Wind size={15} /> SOUFFLERIE 3D VORTEX-LATTICE - {projectName || "CELLULE ACTIVE"} ({airframe || "3D AIRFRAME"})</strong>
+
+=== 3. ROUTES API CFD / AERO BACKEND ===
+./web/engineering_extensions.py:44:def estimate_airfoil(code: str, alpha_deg: float, reynolds: float, aspect_ratio: float | None) -> dict[str, Any]:
+./web/engineering_extensions.py:76:@router.post("/cfd/airfoil")
+./web/engineering_extensions.py:77:def airfoil(body: AirfoilBody, aeromind_session: str | None = Cookie(default=None)):
+./web/engineering_extensions.py:80:        return estimate_airfoil(body.code, body.alpha_deg, body.reynolds, body.aspect_ratio)
+./web/cad_kernel.py:754:        self.root = Path(configured or Path.home() / ".local/share/aeromind/cad").absolute()
+./web/database.py:23:    return url or "sqlite:///./data/aeromind.db"
+./web/admin.py:381:        root = Path(os.getenv("AEROMIND_ARCHIVE_ROOT", "/tmp/aeromind-archives")).resolve()
+./web/admin.py:428:    root = Path(os.getenv("AEROMIND_ARCHIVE_ROOT", "/tmp/aeromind-archives")).resolve()
+./web/cad_api.py:95:    path = Path(__file__).resolve().parents[1] / "fixtures/cad/aeromind_support_ap242.step"
+./web/security_monitor.py:20:BASELINE_PATH = Path("data/aeromind-security-baseline.json")
+./web/app.py:3579:@app.post("/api/ops/cfd/prepare")
+./web/capability_policy.py:127:    if path == "/api/ops/cfd/prepare":
+./web/capability_policy.py:188:        if path.endswith(("/cfd/airfoil", "/propulsion/compare")):

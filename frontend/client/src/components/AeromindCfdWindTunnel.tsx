@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Wind } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
 
-type Props = { config?: ConceptConfig; projectName?: string; airframe?: string };
+type Props = { config?: ConceptConfig; projectName?: string; airframe?: string; speedMs?: number; aoaDegInput?: number; onSync?: (d: any) => void };
 
-export function AeromindCfdWindTunnel({ config, projectName, airframe }: Props) {
+export function AeromindCfdWindTunnel({ config, projectName, airframe, speedMs, aoaDegInput, onSync }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [aoaDeg, setAoaDeg] = useState<number>(4.5);
-  const [airspeedMs, setAirspeedMs] = useState<number>(24);
+  const [aoaDeg, setAoaDeg] = useState<number>(Number.isFinite(aoaDegInput) ? Number(aoaDegInput) : 4.5);
+  const [airspeedMs, setAirspeedMs] = useState<number>(Number.isFinite(speedMs) && Number(speedMs) > 0 ? Number(speedMs) : 24);
   const [yawView, setYawView] = useState<number>(0.55);
   const [pitchView, setPitchView] = useState<number>(0.38);
 
@@ -29,6 +29,9 @@ export function AeromindCfdWindTunnel({ config, projectName, airframe }: Props) 
     const dragN = qPa * area * cd;
     return { span, area, reynolds, mach, qPa, cl, cd, cdi, ld, liftN, dragN };
   }, [config, aoaDeg, airspeedMs]);
+  useEffect(() => { if (Number.isFinite(speedMs) && Number(speedMs) > 0 && Math.abs(Number(speedMs) - airspeedMs) > 0.05) setAirspeedMs(Number(speedMs)); }, [speedMs]);
+  useEffect(() => { if (Number.isFinite(aoaDegInput) && Math.abs(Number(aoaDegInput) - aoaDeg) > 0.05) setAoaDeg(Number(aoaDegInput)); }, [aoaDegInput]);
+  useEffect(() => { onSync?.({ speedMs: airspeedMs, aoaDeg, ...aero }); }, [airspeedMs, aoaDeg, aero]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
