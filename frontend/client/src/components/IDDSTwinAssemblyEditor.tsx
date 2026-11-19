@@ -1289,6 +1289,7 @@ export function IDDSTwinAssemblyEditor({
               xrayCut={xrayCut}
               xrayOpacity={xrayOpacity}
               xrayIsolatedLayer={isolatedLayer || undefined}
+              backgroundPicker="idds"
               kinematicsPlaying={!asset && renderMode === "kinematics" && kinematicsPlaying}
               technicalContext={{ droneId: design.id, modelId: design.id, source: "catalog", centreContext: "IDDS", modelVersion: asset ? "obj-reconstruction-2d" : "parametrique-conceptuel" }}
               transformEnabled={toolMode === "move" && !isLocked}

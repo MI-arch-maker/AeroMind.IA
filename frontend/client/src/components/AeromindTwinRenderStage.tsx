@@ -58,6 +58,7 @@ export function AeromindTwinRenderStage({ design, config }: { design?: DroneCata
           resetKey={resetKey}
           xrayCut={1}
           xrayOpacity={{}}
+          backgroundPicker="idds"
         />
       </div>
     </div>

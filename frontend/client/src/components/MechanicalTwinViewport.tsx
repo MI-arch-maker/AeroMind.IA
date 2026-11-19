@@ -24,6 +24,7 @@ import { fieldColors, getRenderEngine, resolveRenderPlan } from "../lib/renderEn
 import { runEngineeringSolver, type SolverResult, type TechnicalRenderMode } from "../lib/engineeringSolvers";
 import { createArchvizMaterial, createCarbonMaterial, createCrystalMaterial } from "../lib/engineeringMaterials";
 import { snapPartDelta, type SnapMode } from "../lib/mechanicalSnapping";
+import { loadViewportBackground, ViewportBackgroundPicker } from "./ViewportBackgroundPicker";
 import {
   clipPolygonAtZ,
   createTechnicalRenderContext,
@@ -83,6 +84,8 @@ type Props = {
   snapEnabled?: boolean;
   snapMode?: SnapMode;
   snapIncrement?: number;
+  /** Enables a local-only canvas background palette for the named center. */
+  backgroundPicker?: string;
 };
 const directions: Record<MechanicalView, [number, number, number]> = {
   iso: [1.2, 0.85, 1.45],
@@ -101,25 +104,37 @@ function CameraRig({
   useEffect(() => {
     if (!(camera instanceof THREE.OrthographicCamera)) return;
     const extent = Math.max(0.5, model.extent);
+    const width = model.width ?? model.span;
+    const height = model.height ?? Math.max(model.length * 0.25, extent * 0.2);
+    const depth = model.depth ?? model.length;
     const minSize = Math.max(1, Math.min(size.width, size.height));
     const previous = orthoState.current;
     camera.left = -size.width / 2;
     camera.right = size.width / 2;
     camera.top = size.height / 2;
     camera.bottom = -size.height / 2;
+    const projected = view === "top"
+      ? { width, height: depth }
+      : view === "front"
+        ? { width, height }
+        : view === "side"
+          ? { width: depth, height }
+          : { width: Math.hypot(width, depth), height: Math.hypot(height, Math.min(width, depth)) };
+    const fitWidth = Math.max(0.5, projected.width * 1.12);
+    const fitHeight = Math.max(0.5, projected.height * 1.12);
     camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
       ? camera.zoom * minSize / previous.size
-      : minSize / (extent * 1.5);
+      : Math.min(size.width / fitWidth, size.height / fitHeight);
     orthoState.current = { camera, size: minSize, extent, designId: model.designId, resetKey };
     camera.near = extent / 1000;
     camera.far = extent * 100;
     camera.updateProjectionMatrix();
     invalidate();
-  }, [camera, size.width, size.height, model.designId, model.extent, resetKey, invalidate]);
+  }, [camera, size.width, size.height, model.designId, model.extent, model.width, model.height, model.depth, model.span, model.length, view, resetKey, invalidate]);
   useEffect(() => {
     const d = directions[view];
     const extent = Math.max(0.5, model.extent);
-    camera.position.set(d[0] * extent, d[1] * extent, d[2] * extent);
+    camera.position.set(d[0] * extent * 0.54, d[1] * extent * 0.54, d[2] * extent * 0.54);
     camera.up.set(0, 1, 0);
     camera.lookAt(0, 0, 0);
     if (camera instanceof THREE.PerspectiveCamera) {
@@ -682,6 +697,10 @@ export function MechanicalTwinViewport(props: Props) {
   useEffect(() => { if (props.snapIncrement) setSnapIncrement(props.snapIncrement); }, [props.snapIncrement]);
   const pointerReleaseTimer = useRef<number | null>(null);
   const [localRenderPreset, setRenderPreset] = useState("mechanical");
+  const [backgroundColor, setBackgroundColor] = useState(() => props.backgroundPicker ? loadViewportBackground(props.backgroundPicker) : "");
+  useEffect(() => {
+    setBackgroundColor(props.backgroundPicker ? loadViewportBackground(props.backgroundPicker) : "");
+  }, [props.backgroundPicker]);
   const renderPreset = props.renderPreset ?? localRenderPreset;
   const previousRenderInputs = useRef({ mode, renderPreset });
   useEffect(() => {
@@ -771,7 +790,7 @@ export function MechanicalTwinViewport(props: Props) {
       data-render-pipeline={selectedEngine.pipeline}
       data-render-solver={selectedEngine.solverId ?? "presentation"}
     >
-      <div className="mt-viewport-grid" />
+      <div className="mt-viewport-stage" style={backgroundColor ? { backgroundColor } : undefined}>
       {webgl ? (
         <TwinRendererBoundary
           fallback={vector}
@@ -784,23 +803,23 @@ export function MechanicalTwinViewport(props: Props) {
           <Canvas
             key={renderPlan.projection}
             orthographic={renderPlan.projection === "orthographic"}
-            frameloop={kinematicsPlaying || rotationActive ? "always" : "demand"}
+            frameloop="always"
             dpr={[1, 1.5]}
             camera={{
               position: [
-                model.extent * 1.2,
-                model.extent * 0.85,
-                model.extent * 1.45,
+                model.extent * 0.76,
+                model.extent * 0.54,
+                model.extent * 0.88,
               ],
               fov: 35,
             }}
             gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true, localClippingEnabled: true }}
             onCreated={({ gl }) => {
               gl.toneMapping = THREE.ACESFilmicToneMapping;
-              gl.toneMappingExposure = 1.25;
+              gl.toneMappingExposure = 1.95;
             }}
           >
-            <ambientLight intensity={1.1} />
+            <ambientLight intensity={2.25} />
             <hemisphereLight args={["#e8f6ff", "#111a22", 1.8]} />
             <directionalLight position={[5, 8, 5]} intensity={3.5} />
             <directionalLight
@@ -834,7 +853,7 @@ export function MechanicalTwinViewport(props: Props) {
               makeDefault
               enabled={!transformDragging}
               autoRotate={rotationActive}
-              autoRotateSpeed={0.8}
+              autoRotateSpeed={2.2}
               enableDamping
               enablePan
               minDistance={model.extent * 0.2}
@@ -865,11 +884,12 @@ export function MechanicalTwinViewport(props: Props) {
         </button>
         {renderPreset === "immersive" && <button type="button" onClick={async () => { try { if (!document.fullscreenElement) await root.current?.requestFullscreen(); else await document.exitFullscreen(); setImmersive(Boolean(document.fullscreenElement)); } catch { setImmersive(false); } }} aria-label="Basculer le viewport immersif plein écran">{immersive ? "Quitter le plein écran" : "Ouvrir en plein écran"}</button>}
       </div>
+      {props.backgroundPicker && <ViewportBackgroundPicker scope={props.backgroundPicker} value={backgroundColor || "#071218"} onChange={setBackgroundColor} />}
       {previewEnabled && previewPartId && <div className="mt-preview-tag"><span>FEATURE TREE PREVIEW</span><b>{previewPartId}</b></div>}
       {(renderPreset === "cfd" || renderPreset === "fea" || renderPreset === "energyflow") && <div className="mt-field-legend" role="note"><strong>{renderPreset === "fea" ? "POUTRE 1D · CONTRAINTE ESTIMÉE" : renderPreset === "energyflow" ? "FLUX · VISUALISATION INDICATIVE" : "CFD · ESTIMATION DE SURFACE"}</strong>{renderPreset === "cfd" && <label>V∞ <input aria-label="Vitesse de flux CFD en mètres par seconde" type="number" min="0" max="80" step="1" value={analysisAirspeed} onChange={event => setAnalysisAirspeed(Math.max(0, Math.min(80, Number(event.target.value) || 0)))} /> m/s</label>}<span>MAX</span><i /><span>MIN</span><small>{webgl ? "Proxies locaux non validés, normalisés par pièce : ni CFD volumique ni MEF 3D, impropres au dimensionnement." : "Secours vectoriel : aucun champ, vecteur ou particule calculé n’est affiché."}</small></div>}
       <div className="mt-scene-tag">
         <span>MECHANICAL TWIN / {model.modelType.toUpperCase()}</span>
-        <b>{webgl ? "3D INTERACTIVE" : "PROJECTION MÉCANIQUE INTERACTIVE"}</b>
+        <b>{webgl ? "3D INTERACTIVE" : "Projection vectorielle de secours · interactive"}</b>
       </div>
       <div className="mt-technical-meta" aria-label="Provenance du modèle technique">
         <span>DRONE · {technicalContext.droneId}</span>
@@ -883,6 +903,7 @@ export function MechanicalTwinViewport(props: Props) {
         <i>X</i>
         <i>Y</i>
         <i>Z</i>
+      </div>
       </div>
       <div className="mt-dimension">
         <span>ENVERGURE / {model.span.toFixed(2)} m</span>
@@ -899,7 +920,7 @@ export function MechanicalTwinViewport(props: Props) {
             : props.transformEnabled
               ? renderPreset === "exploded" ? "Quittez le mode éclaté pour déplacer une pièce" : "Réassemblez le drone pour déplacer une pièce"
             : "Glisser pour orbiter · molette pour zoomer · cliquer une pièce pour modifier"}
-        {!webgl ? " · secours vectoriel, même géométrie" : ""}
+        {!webgl && autoRotate ? " · animation vectorielle" : !webgl ? " · secours vectoriel, même géométrie" : ""}
       </div>
     </div>
   );

@@ -52,8 +52,8 @@ export function AeromindMechanicalEngineeringSuite({ config }: { config?: Partia
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px", padding: "14px", background: "#040914", border: "1px solid #1e3a5f", borderRadius: "10px", color: "#e2e8f0" }}>
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "8px", borderBottom: "1px solid #1e293b", paddingBottom: "10px" }}>
-        <div><span style={{ fontSize: "10px", fontFamily: "monospace", color: "#38bdf8" }}>SOLVEURS MÉCANIQUES, PHYSIQUES &amp; ACTIVATION MATÉRIELLE · NORME SI / EN-9100</span><h3 style={{ margin: "2px 0 0", fontSize: "15px", color: "#f8fafc" }}>Bureau de Calcul Structurel, Inertiel &amp; Banc d’Activation Physique</h3></div>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 10px", borderRadius: "999px", background: "rgba(16,185,129,0.16)", border: "1px solid #10b981", color: "#6ee7b7", fontSize: "11px", fontFamily: "monospace", fontWeight: 700 }}><CheckCircle2 size={14} /> MATÉRIEL ACTIF · BRIDGE OPÉRATIONNEL</span>
+        <div><span style={{ fontSize: "10px", fontFamily: "monospace", color: "#38bdf8" }}>SOLVEURS MÉCANIQUES &amp; ANALYSES VIRTUELLES · NORME SI / EN-9100</span><h3 style={{ margin: "2px 0 0", fontSize: "15px", color: "#f8fafc" }}>Bureau de calcul structurel, inertiel et de simulation virtuelle</h3></div>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 10px", borderRadius: "999px", background: "rgba(68,200,210,0.12)", border: "1px solid #44c8d2", color: "#b8f6ee", fontSize: "11px", fontFamily: "monospace", fontWeight: 700 }}><CheckCircle2 size={14} /> SORTIE MATÉRIELLE DÉSACTIVÉE · MODE VIRTUEL</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "10px" }}>
         <div style={card}>

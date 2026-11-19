@@ -81,6 +81,7 @@ type Props = {
   studioRenderMode?: "assembly" | "internals" | "kinematics" | "simulation" | "variants";
   onStudioRenderModeChange?: (mode: "assembly" | "internals" | "kinematics" | "simulation" | "variants") => void;
   kinematicsPlaying?: boolean;
+  backgroundPicker?: string;
 };
 const geometryKeys = [
   "wingspan",
@@ -158,6 +159,7 @@ export function MechanicalTwinEditor({
   studioRenderMode,
   onStudioRenderModeChange,
   kinematicsPlaying = false,
+  backgroundPicker,
 }: Props) {
   const [selected, setSelected] = useState("fuselage");
   const [filter, setFilter] = useState("");
@@ -869,6 +871,7 @@ export function MechanicalTwinEditor({
             kinematicsPlaying={kinematicsPlaying}
             renderPreset={advancedRenderPreset}
             onRenderPresetChange={setAdvancedRenderPreset}
+            backgroundPicker={backgroundPicker}
           />
           {exploded && (
             <label className="mt-separation">

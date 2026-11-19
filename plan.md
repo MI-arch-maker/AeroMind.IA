@@ -45,4 +45,10 @@ Le pipeline reçoit : `droneId`, `modelId`, `modelVersion`, `mechanicalModel`, `
 
 ## Build et livraison
 
-Installer les dépendances avec le lockfile existant, exécuter les checks ciblés backend/frontend, construire `frontend/dist/index.html`, démarrer FastAPI sur le port Webdev 3000, vérifier `/api/ready` et `/manus-routes.json`, enregistrer un checkpoint propre, puis produire `Aeromind.IA-modernise.zip` sans `node_modules`, caches, `.env` réel ou artefacts temporaires.
+Installer les dépendances avec le lockfile existant, exécuter les vérifications frontend disponibles et construire `frontend/dist/index.html`. Pour cette modernisation d’interface, servir uniquement le frontend statique sur le port 3000 et contrôler `/` et `/manus-routes.json` ; ne pas démarrer FastAPI, appeler une API ni exécuter de commande matérielle. Produire `Aeromind-IA.zip` sans `node_modules`, build output, caches, vrais `.env` ou artefacts temporaires.
+
+## Mise à jour — modernisation des interfaces (19 novembre 2026)
+- Conserver le viewport partagé `MechanicalTwinViewport` et y ajouter un panneau de couleur purement visuel, avec palette, champ HEX et stockage local séparé pour Parametric, Mechanical, Explorer Twin et IDDS. Appliquer la couleur à la surface de scène réellement utilisée par le rendu WebGL et le repli SVG.
+- Propager une clé de centre au viewport depuis les quatre parcours sans modifier la géométrie, les paramètres du drone ni les flux de persistance métier.
+- Harmoniser les tokens et libellés visibles du Mechanical Workbench à la palette AeroMind graphite / bleu pétrole / cyan. N’exécuter aucun serveur FastAPI, aucune route API, ni aucune action de commande matérielle.
+- Structure concernée : `frontend/client/src/components/ViewportBackgroundPicker.tsx` pour le panneau réutilisable ; `MechanicalTwinViewport.tsx` pour l’application au rendu ; composants Parametric, MechanicalWorkbench, DigitalTwinExplorer/MechanicalTwinEditor et Studio IDDS pour le raccordement ; styles ciblés pour l’identité du centre mécanique.

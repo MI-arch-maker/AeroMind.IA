@@ -843,6 +843,7 @@ export function DigitalTwinExplorer({
               hasProject={hasProject}
               onOpenCatalog={onOpenCatalog}
               onPresentation={choosePresentation}
+              backgroundPicker="explorer-twin"
             />
           ) : (
             <div className="dte-model-panel dte-panel">

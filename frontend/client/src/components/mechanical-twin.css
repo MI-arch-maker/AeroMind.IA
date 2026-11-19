@@ -472,6 +472,24 @@
   text-align: center;
   pointer-events: none;
 }
+
+/* La cote longitudinale reste dans une bande basse dédiée, sous toute la zone de rendu. */
+.mt-dimension {
+  left: max(24px, 4%);
+  right: max(24px, 4%);
+  bottom: 30px;
+  z-index: 3;
+  justify-content: stretch;
+}
+.mt-dimension i {
+  min-width: 0;
+  height: 10px;
+  border-bottom-color: #7caaaa99;
+}
+.mt-viewport-note {
+  bottom: 7px;
+  z-index: 3;
+}
 .mt-scene-footer {
   display: flex;
   align-items: center;
@@ -910,3 +928,58 @@
 @media (max-width: 1250px) { .mt-forge .mt-workspace { grid-template-columns: minmax(205px, 230px) minmax(500px, 1fr) minmax(260px, 292px); min-height: 700px; } .mt-forge .mt-scene, .mt-forge .mt-viewport { min-height: 640px; } }
 @media (max-width: 980px) { .mt-forge .mt-workspace { grid-template-columns: 190px minmax(0, 1fr); min-height: 0; } .mt-forge .mt-scene, .mt-forge .mt-viewport { min-height: 600px; } }
 @media (max-width: 760px) { .mt-forge .mt-workspace { display: flex; flex-direction: column; min-height: 0; } .mt-forge .mt-scene { order: -1; min-height: 0; } .mt-forge .mt-viewport { min-height: clamp(390px, 72vw, 560px); } }
+
+/* Override final : la cote longitudinale reste sous le rendu dans toutes les variantes d’écran. */
+.mt-forge .mt-dimension { bottom: 30px; }
+@media (max-width: 760px) {
+  .mt-dimension { left: 18px; right: 18px; bottom: 28px; gap: 6px; }
+  .mt-dimension span { white-space: nowrap; }
+}
+
+/* Structure commune : le canvas reste dans la scène, la cotation est hors canvas. */
+.mt-viewport {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.mt-viewport-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+.mt-viewport > .mt-viewport-stage > canvas,
+.mt-viewport > .mt-viewport-stage > svg,
+.mt-viewport > .mt-viewport-stage > div[style] {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+.mt-viewport > .mt-dimension {
+  position: relative;
+  inset: auto;
+  flex: 0 0 30px;
+  width: calc(100% - 36px);
+  margin: 0 18px;
+  box-sizing: border-box;
+  z-index: 4;
+}
+.mt-viewport > .mt-viewport-note {
+  position: relative;
+  inset: auto;
+  flex: 0 0 18px;
+  width: calc(100% - 30px);
+  margin: 0 15px 4px;
+  box-sizing: border-box;
+  z-index: 4;
+}
+.mt-viewport-stage .mt-render-presets {
+  max-height: calc(100% - 18px);
+}
+@media (max-width: 760px) {
+  .mt-viewport > .mt-dimension { flex-basis: 28px; width: calc(100% - 24px); margin-inline: 12px; }
+  .mt-viewport > .mt-viewport-note { width: calc(100% - 20px); margin-inline: 10px; }
+}

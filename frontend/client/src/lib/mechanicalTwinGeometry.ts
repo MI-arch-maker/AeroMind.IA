@@ -124,6 +124,10 @@ export type MechanicalModel = {
   parts: MechanicalPart[];
   span: number;
   length: number;
+  /** Enveloppe d’affichage complète du modèle (X/Y/Z), en mètres. */
+  width?: number;
+  height?: number;
+  depth?: number;
   extent: number;
   settings: MechanicalTwinConfig;
 };
@@ -1191,8 +1195,9 @@ export function buildMechanicalModel(design: DroneCatalogDesign, config: Concept
     }
     addInstalledModules(a, d, config);
     addExtraParts(a, settings);
-    const extent = mechanicalExtent(a.parts, Math.max(d.span, d.length, d.width, d.height, d.prop));
-    return { designId: design.id, name: design.label, modelType: "dessin-utilisateur · géométrie issue des traits", parts: a.parts, span: d.span, length: d.length, extent, settings };
+    const envelope = mechanicalBounds(a.parts, [d.span, d.height, d.length]);
+    const extent = Math.max(...envelope);
+    return { designId: design.id, name: design.label, modelType: "dessin-utilisateur · géométrie issue des traits", parts: a.parts, span: d.span, length: d.length, width: envelope[0], height: envelope[1], depth: envelope[2], extent, settings };
   }
 
   switch (d.type) {
@@ -1280,7 +1285,8 @@ export function buildMechanicalModel(design: DroneCatalogDesign, config: Concept
   if (wingletEligible) addParametricWinglets(a, d, settings);
   addInstalledModules(a, d, config);
   addExtraParts(a, settings);
-  const extent = mechanicalExtent(a.parts, Math.max(d.span, d.length, d.width, d.height, d.prop));
+  const envelope = mechanicalBounds(a.parts, [d.span, d.height, d.length]);
+  const extent = Math.max(...envelope);
   return {
     designId: design.id,
     name: design.label,
@@ -1288,6 +1294,9 @@ export function buildMechanicalModel(design: DroneCatalogDesign, config: Concept
     parts: a.parts,
     span: d.span,
     length: d.length,
+    width: envelope[0],
+    height: envelope[1],
+    depth: envelope[2],
     extent,
     settings,
   };
@@ -1307,8 +1316,8 @@ function sketchPathPoints(stroke: DroneSketchStroke): Array<{ x: number; y: numb
   return stroke.points;
 }
 
-/** Dimension maximale du volume monde : utile à un cadrage caméra indépendant de l’axe. */
-function mechanicalExtent(parts: MechanicalPart[], fallback: number) {
+/** Enveloppe monde complète pour le cadrage, au-delà des seules valeurs X/Y/Z déclarées. */
+function mechanicalBounds(parts: MechanicalPart[], fallback: Vec3): Vec3 {
   let minX = Infinity;
   let minY = Infinity;
   let minZ = Infinity;
@@ -1316,6 +1325,7 @@ function mechanicalExtent(parts: MechanicalPart[], fallback: number) {
   let maxY = -Infinity;
   let maxZ = -Infinity;
   for (const part of parts) {
+    if (part.hidden) continue;
     const vertices = transformedPartVertices(part);
     for (let index = 0; index < vertices.length; index += 3) {
       minX = Math.min(minX, vertices[index]);
@@ -1327,7 +1337,11 @@ function mechanicalExtent(parts: MechanicalPart[], fallback: number) {
     }
   }
   if (!Number.isFinite(minX)) return fallback;
-  return Math.max(fallback, maxX - minX, maxY - minY, maxZ - minZ);
+  return [
+    Math.max(fallback[0], maxX - minX),
+    Math.max(fallback[1], maxY - minY),
+    Math.max(fallback[2], maxZ - minZ),
+  ];
 }
 
 function rotateXYZ(point: Vec3, rotation: Vec3): Vec3 {
