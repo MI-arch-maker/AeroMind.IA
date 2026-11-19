@@ -771,7 +771,7 @@ export function MechanicalTwinViewport(props: Props) {
       data-render-pipeline={selectedEngine.pipeline}
       data-render-solver={selectedEngine.solverId ?? "presentation"}
     >
-      <div className="mt-viewport-grid" />
+      
       {webgl ? (
         <TwinRendererBoundary
           fallback={vector}
@@ -788,19 +788,19 @@ export function MechanicalTwinViewport(props: Props) {
             dpr={[1, 1.5]}
             camera={{
               position: [
-                model.extent * 1.2,
-                model.extent * 0.85,
-                model.extent * 1.45,
+                model.extent * 0.76,
+                model.extent * 0.54,
+                model.extent * 0.88,
               ],
               fov: 35,
             }}
             gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true, localClippingEnabled: true }}
             onCreated={({ gl }) => {
               gl.toneMapping = THREE.ACESFilmicToneMapping;
-              gl.toneMappingExposure = 1.25;
+              gl.toneMappingExposure = 1.68;
             }}
           >
-            <ambientLight intensity={1.1} />
+            <ambientLight intensity={1.85} />
             <hemisphereLight args={["#e8f6ff", "#111a22", 1.8]} />
             <directionalLight position={[5, 8, 5]} intensity={3.5} />
             <directionalLight

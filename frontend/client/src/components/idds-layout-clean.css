@@ -56,3 +56,13 @@
 .mt-viewport-note {
   display: none !important;
 }
+
+/* Suppression definitive du fond degrade gris-bleu et cadrage centre du drone */
+.mt-viewport,
+.mt-viewport-grid {
+  background: #040812 !important;
+  background-image: none !important;
+}
+.mt-viewport-grid {
+  display: none !important;
+}
