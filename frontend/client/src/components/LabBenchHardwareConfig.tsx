@@ -37,16 +37,16 @@ type HardwareConfig = {
     | "not-defined";
 };
 const defaults: HardwareConfig = {
-  manufacturer: "AeroMind — émulateur",
+  manufacturer: "AeroMind — Bridge Physique GCS",
   model: "LabBench 01 HIL temps réel",
-  hardwareRevision: "VIRTUAL",
-  firmwareVersion: "simulation-v1",
+  hardwareRevision: "HARDWARE",
+  firmwareVersion: "mavlink-bridge-v2",
   transport: "serial",
-  connectionAddress: "virtual://labbench-01",
+  connectionAddress: "udp://0.0.0.0:14550",
   baudRate: 115200,
   canNodeId: 1,
   actuatorChannel: 1,
-  commandName: "simulate.servo.setpoint",
+  commandName: "COMPONENT_ARM_DISARM",
   unit: "degree",
   minimum: 0,
   neutral: 45,
