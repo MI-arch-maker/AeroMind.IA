@@ -205,7 +205,7 @@ export class SimulationOnlyAdapter {
         createdAt: intent.createdAt,
       };
     } else {
-      return this.reject(intent, now, "Entrée refusée : type abstrait inconnu ou non autorisé par le contrat simulation_only.", physicalTransportRequested);
+      return this.reject(intent, now, "Entrée refusée : type abstrait inconnu ou non autorisé par le contrat physical_bridge.", physicalTransportRequested);
     }
 
     const maxQueued = this.options.maxQueuedOutputs ?? 100;

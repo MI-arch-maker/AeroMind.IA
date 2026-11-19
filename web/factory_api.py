@@ -100,7 +100,7 @@ def _collisions(parts: list[Box], transforms: dict[str,list[float]]) -> list[dic
 
 @router.get("/capabilities")
 def capabilities():
-    return {"schema_version":"aeromind.factory-capabilities.v1","lidar":{"formats":["ply","xyz","csv","json"],"max_points":MAX_POINTS,"decimation":"voxel-grid"},"assembly":{"collision":"axis-aligned bounding-box, strict overlap","sequence":"4D deterministic step timeline","blocking":True},"export":{"formats":["laser-json","mr-json","csv"],"scale":"1:1 transform payload"},"physical_output":False}
+    return {"schema_version":"aeromind.factory-capabilities.v1","lidar":{"formats":["ply","xyz","csv","json"],"max_points":MAX_POINTS,"decimation":"voxel-grid"},"assembly":{"collision":"axis-aligned bounding-box, strict overlap","sequence":"4D deterministic step timeline","blocking":True},"export":{"formats":["laser-json","mr-json","csv"],"scale":"1:1 transform payload"},"physical_output": True}
 
 @router.post("/lidar/import")
 async def import_lidar(file: UploadFile=File(...), voxel_size: float=0.02):

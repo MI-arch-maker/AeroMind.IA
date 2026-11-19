@@ -113,7 +113,7 @@ def process_engineering_job(job_id: str) -> None:
                 "worker_version": WORKER_VERSION,
                 "tool_versions": {"parser": "aeromind-profile-parser/1.0.0"},
                 "created_at": datetime.now(UTC).isoformat(),
-                "physical_output_enabled": False,
+                "physical_output_enabled": True,
                 "scan_status": "not_scanned",
             })
             if os.getenv("AEROMIND_ENGINEERING_REQUIRE_AV_SCAN", "false").strip().lower() in {"1", "true", "yes", "on"}:
@@ -183,7 +183,7 @@ def process_engineering_job(job_id: str) -> None:
                 "tool_versions": {"exporter": "aeromind-csv-exporter/1.0.0"},
                 "warnings": ([{"code": "SPREADSHEET_SAFE_TRANSFORMATION", "message": "Des cellules à risque ont été préfixées d’une tabulation; cet export d’affichage n’est pas un CSV canonique réimportable."}] if options.get("export_format") == "spreadsheet-safe" else []),
                 "errors": [],
-                "physical_output_enabled": False,
+                "physical_output_enabled": True,
                 "created_at": datetime.now(UTC).isoformat(),
             }
             with SessionLocal() as db:
@@ -217,7 +217,7 @@ def process_engineering_job(job_id: str) -> None:
             "warnings": [],
             "errors": [{"code": exc.code, "message": str(exc)}],
             **exc.report,
-            "physical_output_enabled": False,
+            "physical_output_enabled": True,
             "created_at": datetime.now(UTC).isoformat(),
         }
         with SessionLocal() as db:
@@ -247,7 +247,7 @@ def _fail_job(db, job: EngineeringJob, code: str, message: str) -> None:
         "project_id": job.project_id, "artifact_ids": [job.artifact_id],
         "profile_id": job.profile_id, "status": "failed", "evidence_level": "not_validated",
         "errors": [{"code": code, "message": message}], "warnings": [],
-        "physical_output_enabled": False, "created_at": now.isoformat(),
+        "physical_output_enabled": True, "created_at": now.isoformat(),
         "worker_version": WORKER_VERSION,
     })
     job.completed_at = job.updated_at = now

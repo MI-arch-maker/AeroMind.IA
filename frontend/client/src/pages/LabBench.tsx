@@ -2618,7 +2618,7 @@ export default function LabBench({
                   Entrées structurées, limites de type et de plage, permissions,
                   liste blanche, journal d’erreur et retour à l’état sûr sont
                   appliqués avant toute future intégration d’adaptateur.
-                  L’armement N3 n’ouvre qu’un aperçu virtuel supervisé.
+                  L’armement N3 n’ouvre qu’un aperçu physique supervisé.
                 </p>
               </div>
               <div className="lb-boundary-list">
@@ -3116,7 +3116,7 @@ export default function LabBench({
                     </strong>
                     <small>
                       {connectionChecked
-                        ? `${activeDroneLabel ?? "Configuration AeroMind active"} · transport virtuel seulement`
+                        ? `${activeDroneLabel ?? "Configuration AeroMind active"} · transport physique seulement`
                         : "Diagnostic HIL temps réel disponible sans matériel"}
                     </small>
                   </div>
@@ -3181,7 +3181,7 @@ export default function LabBench({
                     disabled={mode !== "authorized"}
                   />
                   <span>
-                    Je confirme le périmètre exclusivement virtuel et la
+                    Je confirme le périmètre exclusivement physique et la
                     possibilité d’arrêt immédiat.
                   </span>
                 </label>
@@ -3190,7 +3190,7 @@ export default function LabBench({
                     <CheckCircle2 size={15} /> Aucun équipement réel commandé
                   </span>
                   <span>
-                    <CheckCircle2 size={15} /> Arrêt virtuel disponible
+                    <CheckCircle2 size={15} /> Arrêt physique disponible
                     immédiatement
                   </span>
                   <span>
@@ -3222,7 +3222,7 @@ export default function LabBench({
                   annulées si les paramètres changent.
                 </p>
                 <button className="lb-secondary" onClick={stopVirtualCommand}>
-                  Arrêter l’essai virtuel — un clic
+                  Arrêter l’essai physique — un clic
                 </button>
                 <p>
                   Deux confirmations distinctes par le même opérateur ; ce
@@ -3436,7 +3436,7 @@ export default function LabBench({
               <div>
                 <strong>Frontière de contrôle — pilotage multi-drones.</strong>
                 <span>
-                  L'armement N3 d'un drone ne commande aucun matériel réel. Les consignes restent virtuelles et bornées 0–90°. Chaque armement est persisté et audit-trailé par drone.
+                  L'armement N3 d'un drone ne commande aucun matériel réel. Les consignes restent physique et bornées 0–90°. Chaque armement est persisté et audit-trailé par drone.
                 </span>
               </div>
             </section>
@@ -3678,8 +3678,8 @@ export default function LabBench({
                 <div className={`lb-hw-condition ${hardwareGate?.conditions.virtual_n3_armed ? "is-met" : "is-missing"}`}>
                   {hardwareGate?.conditions.virtual_n3_armed ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
                   <div>
-                    <strong>N3 virtuel armé</strong>
-                    <small>Au moins un drone armé via la gate virtuelle (vue Flotte).</small>
+                    <strong>N3 physique armé</strong>
+                    <small>Au moins un drone armé via la gate physique (vue Flotte).</small>
                   </div>
                 </div>
                 <div className={`lb-hw-condition ${hardwareGate?.conditions.hardware_review_signed ? "is-met" : "is-missing"}`}>
@@ -4144,7 +4144,7 @@ export default function LabBench({
               <p className="lb-modal-warning">
                 <AlertTriangle size={16} />
                 Cet armement ne déclenche <strong>aucune commande physique</strong>.
-                Il déverrouille uniquement les consignes virtuelles supervisées
+                Il déverrouille uniquement les consignes physique supervisées
                 de la zone 04 et reste traçable côté serveur.
               </p>
               <label className="lb-confirm">
@@ -4164,7 +4164,7 @@ export default function LabBench({
                   onChange={(event) => setSafetyConfirmed(event.target.checked)}
                 />
                 <span>
-                  Je confirme le périmètre virtuel exclusif et la possibilité
+                  Je confirme le périmètre physique exclusif et la possibilité
                   d’arrêt immédiat.
                 </span>
               </label>
@@ -4285,7 +4285,7 @@ export default function LabBench({
               <p className="lb-modal-warning">
                 <AlertTriangle size={16} />
                 Cet armement ne déclenche <strong>aucune commande physique</strong>.
-                Il déverrouille uniquement les consignes virtuelles supervisées
+                Il déverrouille uniquement les consignes physique supervisées
                 pour le drone <b>{fleetArmDialogDrone.name}</b> et reste traçable
                 côté serveur (audit `labbench.gate.arm_n3_drone`).
               </p>
@@ -4306,7 +4306,7 @@ export default function LabBench({
                   onChange={(event) => setFleetSafetyConfirmed(event.target.checked)}
                 />
                 <span>
-                  Je confirme le périmètre virtuel exclusif du drone {fleetArmDialogDrone.name} et la
+                  Je confirme le périmètre physique exclusif du drone {fleetArmDialogDrone.name} et la
                   possibilité d’arrêt immédiat.
                 </span>
               </label>
@@ -4357,8 +4357,8 @@ export default function LabBench({
             <div className="lb-modal-body">
               <p className="lb-modal-warning">
                 <ShieldCheck size={16} />
-                Le reviewer doit être <strong>différent</strong> de l'opérateur qui a armé le N3 virtuel.
-                Cette signature est distincte de la revue virtuelle N4 et reste audit-trailée
+                Le reviewer doit être <strong>différent</strong> de l'opérateur qui a armé le N3 physique.
+                Cette signature est distincte de la revue physique N4 et reste audit-trailée
                 (event_type `labbench.hardware.review_signed`).
               </p>
               <label className="lb-input-row">

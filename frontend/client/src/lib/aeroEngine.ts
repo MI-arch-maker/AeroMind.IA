@@ -55,7 +55,7 @@ export type MissionWaypoint = {
 };
 
 export type LocalMissionPlan = {
-  /** Nom humain de l’essai virtuel, sans commande d’équipement réel. */
+  /** Nom humain de l’essai physique, sans commande d’équipement réel. */
   operationName?: string;
   profileId?: string;
   radiusKm: number;
@@ -143,7 +143,7 @@ export type InstalledMaterial = {
   dragAreaM2?: number;
   /** Puissance auxiliaire estimée, W; ne remplace pas une mesure électrique. */
   powerDrawW?: number;
-  /** Bus logique du banc virtuel (aucune liaison électrique réelle). */
+  /** Bus logique du banc physique (aucune liaison électrique réelle). */
   connectedTo?: string;
   assemblyNotes?: string;
   dimensions?: string;
@@ -293,7 +293,7 @@ export type ConceptConfig = {
   activeFlightTestScenario?: "hover" | "route" | "wind" | "obstacles" | "return";
   /** Préférences de visualisation de l’essai, conservées avec le projet. */
   flightTestDisplay?: { showExpected: boolean; showZones: boolean; showGrid: boolean };
-  /** Cible virtuelle personnalisée, sans commande ni coordonnées opérationnelles. */
+  /** Cible physique personnalisée, sans commande ni coordonnées opérationnelles. */
   missionTarget?: { name: string; brief: string };
   /** Étape manuellement active dans la progression de conception du Digital Twin (0 à 4). */
   designEvolutionStage?: number;
@@ -343,7 +343,7 @@ export type ConceptConfig = {
   aeronauticalRole?: string;
   /** État documentaire du Centre Mécanique : pièces, filerie, connecteurs et maintenance. */
   mechanicalCenter?: MechanicalCenterConfig;
-  /** Dossiers, documents, affectations et plan d’usine virtuelle liés au projet. */
+  /** Dossiers, documents, affectations et plan d’usine physique liés au projet. */
   engineeringWorkspace?: EngineeringWorkspaceConfig;
   integratedEquipmentIds?: string[];
   /** Réglages d’assemblage synchronisés avec l’inspecteur du dock. */

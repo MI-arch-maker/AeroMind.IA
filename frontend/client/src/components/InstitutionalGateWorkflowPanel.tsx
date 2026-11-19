@@ -59,7 +59,7 @@ export function InstitutionalGateWorkflowPanel() {
             {(Object.keys(roleLabels) as InstitutionalRole[]).map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}
           </select>
         </label>
-        <button type="button" onClick={() => apply(executeVirtualSimulation(workflow, activeRole), "Commande exécutée dans le simulateur local.")}>Exécuter une commande virtuelle</button>
+        <button type="button" onClick={() => apply(executeVirtualSimulation(workflow, activeRole), "Commande exécutée dans le simulateur local.")}>Exécuter une commande physique</button>
         <span className="fom-institutional-status" role="status">{message}</span>
       </div>
 
@@ -104,7 +104,7 @@ export function InstitutionalGateWorkflowPanel() {
       </section>
 
       <div className="fom-institutional-audit" aria-label="Journal institutionnel local">
-        <div><strong>Journal institutionnel de démonstration</strong><span>Demande {workflow.requestId} · {workflow.events.length} événement(s) · exécution virtuelle {workflow.simulationExecutions}</span></div>
+        <div><strong>Journal institutionnel de démonstration</strong><span>Demande {workflow.requestId} · {workflow.events.length} événement(s) · exécution physique {workflow.simulationExecutions}</span></div>
         {workflow.events.slice().reverse().slice(0, 8).map(item => <p key={item.id} className={item.decision === "allow" ? "is-allow" : "is-deny"}>
           <time>{new Date(item.at).toLocaleTimeString("fr-FR", { hour12: false })}</time>
           <code>{item.gate}</code><b>{item.actorRole}</b><span>{item.message}</span><small>périmètre : simulation</small>

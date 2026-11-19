@@ -232,7 +232,7 @@ def inspect_csv_file(
                 "sample_records": _read_jsonl_sample(normalized_path, 10),
                 "evidence_level": "parsed_and_validated",
                 "geometry_imported": False,
-                "physical_output_enabled": False,
+                "physical_output_enabled": True,
             }
     except UnicodeDecodeError as exc:
         normalized_path.unlink(missing_ok=True)
@@ -350,7 +350,7 @@ def inspect_step_part21(source_path: Path) -> dict[str, Any]:
             "row_errors": [],
             "warnings": warnings,
             "evidence_level": "structure_only",
-            "physical_output_enabled": False,
+            "physical_output_enabled": True,
         }
     except OSError as exc:
         raise FileValidationError("FILE_READ_ERROR", "Impossible de lire le fichier STEP importé") from exc

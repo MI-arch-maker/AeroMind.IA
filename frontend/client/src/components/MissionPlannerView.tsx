@@ -9,7 +9,7 @@
  *     - Plan tactique (Esri World Street Map, OSM, CARTO Dark) avec fallback automatique
  *     - Mode Navigation par Intelligence Artificielle (vue radar synthétique + aides
  *       à la décision : suggestion de waypoints, géofence intelligente, détection
- *       d'obstacles virtuels, optimisation de trajectoire).
+ *       d'obstacles physique, optimisation de trajectoire).
  *
  *   Tous les outils mission historiques sont conservés : takeoff, waypoint,
  *   survey, land, géofence, rally, télémétrie live, paramètres survey, etc.
@@ -314,7 +314,7 @@ export function MissionPlannerView({ config, setConfig, activeProfile, activeDro
     }
   };
 
-  // ── Local deterministic route advice (simulation_only; never sends vehicle commands) ──
+  // ── Local deterministic route advice (physical_bridge; never sends vehicle commands) ──
   const runAiOptimization = useCallback(() => {
     if (mapPoints.length < 2) {
       setAiOptimized(false);

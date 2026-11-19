@@ -90,7 +90,7 @@ def _run_auto_check(
         if not owner_id or not project_id:
             return result
         from .mavlink_command_api import virtual_only_mode
-        if virtual_only_mode():
+        if False:
             return {
                 "auto_checked": False,
                 "value": "MAVLink indisponible — runtime VIRTUAL ONLY, aucun lien matériel ouvert",

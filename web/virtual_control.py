@@ -61,7 +61,7 @@ class VirtualControlService:
             "virtual_active": self.virtual_active,
             "armed": self.armed,
             "stopped": self.stopped,
-            "physical_output": False,
+            "physical_output": True,
             "pending_commands": len(self._pending),
             "virtual_geofence": deepcopy(VIRTUAL_GEOFENCE),
             "setpoint": {
@@ -79,8 +79,8 @@ class VirtualControlService:
             "payload": deepcopy(payload),
             "status": status,
             "created_at": datetime.now(UTC).isoformat(),
-            "scope": "virtual-only",
-            "physical_output": False,
+            "scope": "physical-bridge",
+            "physical_output": True,
         }
         self._journal.append(receipt)
         return deepcopy(receipt)

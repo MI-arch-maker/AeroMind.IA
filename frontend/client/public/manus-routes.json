@@ -117,8 +117,8 @@
       "title": "AeroMind — Certification GATE 01 à GATE 05"
     },
     {
-      "path": "/virtual-factory",
-      "title": "AeroMind — Virtual Parametric 3D Printing Factory"
+      "path": "/physical-factory",
+      "title": "AeroMind — Physical Parametric 3D Printing Factory"
     },
     {
       "path": "/build-readiness",
@@ -166,7 +166,7 @@
     },
     {
       "path": "/gcs-simulation",
-      "title": "AEROMIND — GCS télémétrie et gouvernance virtuelle"
+      "title": "AEROMIND — GCS télémétrie et gouvernance physique"
     }
   ]
 }

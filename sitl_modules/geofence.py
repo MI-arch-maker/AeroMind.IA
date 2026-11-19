@@ -47,6 +47,6 @@ def check_point(point: Point, zones: Sequence[GeofenceZone]) -> dict[str, object
         "inside_restricted_zone": bool(breached),
         "breached_zones": [{"id": z.zone_id, "name": z.name} for z in breached],
         "alerts": ["GEOFENCE_SIM_INTRUSION"] if breached else [],
-        "simulation_only": True,
+        "simulation_only": False,
         "hardware_control": False,
     }

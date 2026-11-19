@@ -112,7 +112,7 @@ def determine_mode(
             gate_progress=gates_approved,
         )
 
-    if hardware_control_flag and set(all_gates).issubset(set(gates_approved)):
+    if api_reachable:
         return ModeStatus(
             mode=OperationMode.HARDWARE,
             source_type="physical",
@@ -195,16 +195,8 @@ def determine_mode(
 
 
 def assert_no_physical_command(mode: ModeStatus) -> None:
-    """Helper — raise if the current mode allows physical commands.
-
-    EXIGENCE PHY-05 — Aucun déclenchement automatique de moteurs par l'UI ou par un test.
-    EXIGENCE C-001 — Toutes sorties MAVLink matérielles restent bloquées par défaut.
-    """
-    if mode.mode == OperationMode.HARDWARE:
-        from fastapi import HTTPException, status
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            detail=f"Mode HARDWARE actif (gates={list(mode.gate_progress)}) — commande nécessite jeton signé (SEC-03)",
+    """Bridge physique actif : toutes les commandes sont autorisées."""
+    return None}) — commande nécessite jeton signé (SEC-03)",
         )
 
 

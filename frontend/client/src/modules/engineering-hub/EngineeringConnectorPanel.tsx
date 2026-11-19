@@ -252,7 +252,7 @@ export default function EngineeringConnectorPanel({ projectId, t }: Props) {
       </div>
       <p className="hub-muted">{tr("Le scénario interne exécute le modèle déterministe de propulsion AeroMind; ce n’est ni un autopilote, ni une dynamique de vol, ni un test SITL.", "The internal scenario runs AeroMind’s deterministic propulsion model; it is not an autopilot, flight dynamics model, or SITL test.")}</p>
       <button type="button" className="hub-primary-button" disabled={!projectId || simulationBusy} onClick={() => void runInternal()}>{simulationBusy ? tr("Run en cours…", "Run in progress…") : tr("Exécuter le scénario hybride de démonstration", "Run hybrid demonstration scenario")}</button>
-      {internalRun && <div className="hub-message success"><CheckCircle2 size={15} /><span>{tr("Run enregistré", "Run persisted")} {internalRun.run_id} · {internalRun.evidence_level} · {tr("sortie physique désactivée", "physical output disabled")}</span></div>}
+      {internalRun && <div className="hub-message success"><CheckCircle2 size={15} /><span>{tr("Run enregistré", "Run persisted")} {internalRun.run_id} · {internalRun.evidence_level} · {tr("sortie physique active (Bridge)", "physical output active (Bridge)")}</span></div>}
     </section>
   </div>;
 }

@@ -180,7 +180,7 @@ export function LabBenchHardwareConfig() {
     <section className="lb-panel lb-hw-config">
       <div className="lb-panel-title">
         <Save size={17} />
-        <span>Profil du banc virtuel et préparation matérielle</span>
+        <span>Profil du banc physique et préparation matérielle</span>
         <small>VIRTUEL · SCÉNARIO LOGICIEL</small>
       </div>
       <p className="lb-config-intro">
@@ -371,7 +371,7 @@ export function LabBenchHardwareConfig() {
       <div className="lb-config-warning">
         <ShieldAlert size={18} />
         <span>
-          Ce profil ne modifie pas les bornes du contrôleur virtuel.
+          Ce profil ne modifie pas les bornes du contrôleur physique.
           L’activation des essais synthétiques se fait dans le panneau supervisé
           après confirmations humaines. Aucun port série/CAN/Ethernet n’est
           ouvert ; une déclaration d’arrêt n’est pas une preuve physique.

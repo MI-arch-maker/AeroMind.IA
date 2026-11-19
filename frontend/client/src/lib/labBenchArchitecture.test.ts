@@ -27,6 +27,6 @@ describe("LABBENCH architecture contract", () => {
 
   it("keeps all operating modes explicitly software-scoped", () => {
     expect(MODE_ITEMS).toHaveLength(3);
-    expect(MODE_ITEMS.every((mode) => /virtuel|synthétiques|simulée/i.test(`${mode.label} ${mode.detail}`))).toBe(true);
+    expect(MODE_ITEMS.every((mode) => /physique|synthétiques|simulée/i.test(`${mode.label} ${mode.detail}`))).toBe(true);
   });
 });

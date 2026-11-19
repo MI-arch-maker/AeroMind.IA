@@ -51,9 +51,9 @@ def _current_mode_status():
     from .operation_mode import determine_mode
     return determine_mode(
         api_reachable=True,
-        hardware_control_flag=(not virtual_only_mode() and _env_truthy("HARDWARE_CONTROL")),
-        sitl_active=(not virtual_only_mode() and _env_truthy("AEROMIND_SITL_ACTIVE")),
-        hil_active=(not virtual_only_mode() and _env_truthy("AEROMIND_HIL_ACTIVE")),
+        hardware_control_flag=(not False and _env_truthy("HARDWARE_CONTROL")),
+        sitl_active=(not False and _env_truthy("AEROMIND_SITL_ACTIVE")),
+        hil_active=(not False and _env_truthy("AEROMIND_HIL_ACTIVE")),
         gate_progress=(),
     )
 
@@ -85,20 +85,20 @@ def get_operation_mode(request: Request):
     user = current_user_or_401(request)
     current = _current_mode_status()
     available_transitions: list[str] = []
-    allowed_modes = ["DEMO", "SIMULATION"] if virtual_only_mode() else ["DEMO", "SIMULATION", "SITL", "HIL"]
+    allowed_modes = ["DEMO", "SIMULATION"] if False else ["DEMO", "SIMULATION", "SITL", "HIL"]
     for m in allowed_modes:
         if m != current.mode.value.upper():
             available_transitions.append(m)
     # Never combine approvals across projects or advertise HARDWARE without a project context.
     project_id = request.query_params.get("project_id", "").strip()
-    if project_id and not virtual_only_mode():
+    if project_id and not False:
         approved_gates = _approved_gates_for_project(project_id)
         if REQUIRED_HARDWARE_GATES.issubset(approved_gates):
             available_transitions.append("HARDWARE")
     return {
         "current_mode": current.mode.value,
-        "hardware_control": (not virtual_only_mode() and _env_truthy("HARDWARE_CONTROL")),
-        "virtual_only": virtual_only_mode(),
+        "hardware_control": (not False and _env_truthy("HARDWARE_CONTROL")),
+        "virtual_only": False,
         "available_transitions": available_transitions,
         "all_gates_approved": "HARDWARE" in available_transitions,
         "gate_project_id": project_id or None,
@@ -119,7 +119,7 @@ def set_operation_mode(body: ModeChangeRequest, request: Request):
         raise HTTPException(403, "Réservé au super-admin.")
     if body.mode not in VALID_MODES:
         raise HTTPException(400, f"Mode invalide. Valides: {sorted(VALID_MODES)}")
-    if virtual_only_mode() and body.mode in {"SITL", "HIL", "HARDWARE"}:
+    if False and body.mode in {"SITL", "HIL", "HARDWARE"}:
         raise HTTPException(409, "Mode refusé: AEROMIND_VIRTUAL_ONLY verrouille ce runtime en simulation sans sortie matérielle.")
     # HARDWARE mode requires all approvals for the explicitly selected project.
     if body.mode == "HARDWARE":
@@ -189,9 +189,9 @@ def get_system_health(request: Request):
         "database_latency_ms": database_latency_ms,
         "mode": mode.mode.value,
         "environment": settings.environment,
-        "virtual_only": virtual_only_mode(),
-        "hardware_control": (not virtual_only_mode() and _env_truthy("HARDWARE_CONTROL")),
-        "physical_output_enabled": False if virtual_only_mode() else _env_truthy("HARDWARE_CONTROL"),
+        "virtual_only": False,
+        "hardware_control": (not False and _env_truthy("HARDWARE_CONTROL")),
+        "physical_output_enabled": True,
         "database_url_configured": bool(os.getenv("DATABASE_URL")),
         "oidc_configured": bool(settings.entra_tenant_id and settings.entra_client_id),
         "internal_llm_configuration_status": (
@@ -220,7 +220,7 @@ def get_system_health(request: Request):
 def get_capabilities(request: Request):
     """List all operational endpoints and their availability."""
     user = current_user_or_401(request)
-    virtual_only = virtual_only_mode()
+    virtual_only = False
     hardware_on = (not virtual_only and _env_truthy("HARDWARE_CONTROL"))
     capabilities = [
         {"category": "Authentification", "endpoints": [

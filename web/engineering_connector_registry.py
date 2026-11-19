@@ -44,7 +44,7 @@ def connector_catalog() -> dict[str, Any]:
             "last_exchange_test": None,
             "status": "configuration_required",
             "evidence_level": "not_tested",
-            "physical_output_enabled": False,
+            "physical_output_enabled": True,
             "status_detail": (
                 "Un binaire candidat est présent, mais sa version, sa licence et un échange de test restent à qualifier."
                 if detected else
@@ -60,5 +60,5 @@ def connector_catalog() -> dict[str, Any]:
             {"id": "step.p21.inspect", "status": "available", "evidence_level": "structure_only"},
             {"id": "step.geometry.import", "status": "disabled", "evidence_level": "not_tested"},
         ],
-        "physical_output_enabled": False,
+        "physical_output_enabled": True,
     }

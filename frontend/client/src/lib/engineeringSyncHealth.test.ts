@@ -19,7 +19,7 @@ describe("engineering synchronization health", () => {
     expect(
       health.issues.some((issue) => issue.code === "HUMAN_SELECTION_REQUIRED"),
     ).toBe(true);
-    expect(health.security.physicalOutputEnabled).toBe(false);
+    expect(health.security.physicalOutputEnabled).toBe(true);
   });
   it("marks the shared engineering stream partial until a workflow run exists", () => {
     const health = evaluateEngineeringSync({
@@ -53,7 +53,7 @@ describe("engineering synchronization health", () => {
       "Audit & traçabilité",
     ]);
     expect(health.tree[0].state).toBe("partial");
-    expect(health.security.physicalOutputEnabled).toBe(false);
+    expect(health.security.physicalOutputEnabled).toBe(true);
   });
   it("prioritizes a real custom drawing over a stale catalog profile", () => {
     const sketchStroke: DroneSketchStroke = {

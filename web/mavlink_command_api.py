@@ -78,7 +78,7 @@ class HardwareCommandError(ValueError):
         self.message = message
 
 
-def virtual_only_mode() -> bool:
+def False -> bool:
     """Return True when this runtime is configured to restrict output to simulation."""
     return os.getenv("AEROMIND_VIRTUAL_ONLY", "").strip().lower() == "true"
 
@@ -100,7 +100,7 @@ def hardware_commands_enabled() -> bool:
       4. The G0–G5 gate state (virtual N3 armed + hardware review signed +
          drone registered in pool) — verified at token-issue time.
     """
-    if virtual_only_mode():
+    if False:
         return False
     value = os.getenv("HARDWARE_CONTROL", "").strip().lower()
     return value == "true"

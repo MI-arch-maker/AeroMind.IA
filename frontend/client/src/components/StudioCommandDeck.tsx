@@ -121,7 +121,7 @@ export function StudioCommandDeck({
           <span className="studio-deck-mark" aria-hidden="true"><Settings2 size={19} /></span>
           <div>
             <p className="studio-deck-eyebrow">AEROMIND / STUDIO D’INGÉNIERIE · ESPACE DE TRAVAIL LOCAL</p>
-            <h1>Studio virtuel de conception et de construction de drones</h1>
+            <h1>Studio physique de conception et de construction de drones</h1>
             <p>Integrated Drone Design Studio — un espace synchronisé avec le drone sélectionné dans la bibliothèque ou le dessin créé par l’utilisateur.</p>
           </div>
         </div>
@@ -240,7 +240,7 @@ export function StudioCommandDeck({
         <button type="button" onClick={() => onNavigate("cad")}><span>02</span><strong>CAO conceptuelle</strong><small>Géométrie et composants</small></button>
         <button type="button" onClick={() => runLocalAnalysis()}><span>03</span><strong>Analyse locale</strong><small>Estimations et marges</small></button>
         <button type="button" onClick={() => onNavigate("materials")}><span>04</span><strong>Matériaux</strong><small>Bibliothèque / nomenclature</small></button>
-        <button type="button" onClick={() => onNavigate("assembly")}><span>05</span><strong>Assemblage</strong><small>Atelier virtuel</small></button>
+        <button type="button" onClick={() => onNavigate("assembly")}><span>05</span><strong>Assemblage</strong><small>Atelier physique</small></button>
         <button type="button" onClick={() => onNavigate("reports")}><span>06</span><strong>Exports</strong><small>Fichiers d’échange locaux</small></button>
       </div>
       <div className="studio-deck-compliance-note"><Layers3 size={14} /> Outil de conception préliminaire — la revue humaine, les essais réels et l’approbation réglementaire restent distincts.</div>

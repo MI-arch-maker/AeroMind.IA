@@ -42,24 +42,24 @@ export function AeromindMechanicalEngineeringSuite({ config }: { config?: Partia
   const triggerHardwareTest = async (cmd: string) => {
     setDispatching(true);
     try {
-      const res = await fetch("/api/control/hardware-dispatch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ port, command: cmd, channel: actuatorChannel, value: 1 }) });
+      const res = await fetch("/api/control/hardware-dispatch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ port, command: cmd, channel: actuatorChannel, value: 1, physicalOutputEnabled: true }) });
       if (res.ok) toast.success(`Activation matérielle transmise : ${cmd} sur ${port} (Canal ${actuatorChannel})`);
       else toast.error("Erreur de réponse du pont matériel.");
     } catch { toast.error("Pont matériel inaccessible."); } finally { setDispatching(false); }
   };
-  const card = { background: "#07101e", border: "1px solid #1e293b", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column" as const, gap: "8px" };
-  const kpi = { background: "#0b1628", border: "1px solid #1e293b", borderRadius: "6px", padding: "7px 9px" };
+  const card = { background: "#0b1d23", border: "1px solid rgba(117, 226, 220, 0.16)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column" as const, gap: "8px" };
+  const kpi = { background: "#07161b", border: "1px solid rgba(117, 226, 220, 0.16)", borderRadius: "6px", padding: "7px 9px" };
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px", padding: "14px", background: "#040914", border: "1px solid #1e3a5f", borderRadius: "10px", color: "#e2e8f0" }}>
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "8px", borderBottom: "1px solid #1e293b", paddingBottom: "10px" }}>
-        <div><span style={{ fontSize: "10px", fontFamily: "monospace", color: "#38bdf8" }}>SOLVEURS MÉCANIQUES &amp; ANALYSES VIRTUELLES · NORME SI / EN-9100</span><h3 style={{ margin: "2px 0 0", fontSize: "15px", color: "#f8fafc" }}>Bureau de calcul structurel, inertiel et de simulation virtuelle</h3></div>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 10px", borderRadius: "999px", background: "rgba(68,200,210,0.12)", border: "1px solid #44c8d2", color: "#b8f6ee", fontSize: "11px", fontFamily: "monospace", fontWeight: 700 }}><CheckCircle2 size={14} /> SORTIE MATÉRIELLE DÉSACTIVÉE · MODE VIRTUEL</span>
+    <section style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px", padding: "14px", background: "#071318", border: "1px solid rgba(117, 226, 220, 0.24)", borderRadius: "10px", color: "#e2e8f0" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(117, 226, 220, 0.16)", paddingBottom: "10px" }}>
+        <div><span style={{ fontSize: "10px", fontFamily: "monospace", color: "#75e2dc" }}>SOLVEURS MÉCANIQUES &amp; INGÉNIERIE PHYSIQUE · NORME SI / EN-9100</span><h3 style={{ margin: "2px 0 0", fontSize: "15px", color: "#f8fafc" }}>Bureau de calcul structurel, inertiel et pilotage matériel Bridge</h3></div>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 10px", borderRadius: "999px", background: "rgba(16, 185, 129, 0.14)", border: "1px solid #34d399", color: "#a7f3d0", fontSize: "11px", fontFamily: "monospace", fontWeight: 700 }}><CheckCircle2 size={14} /> SORTIE MATÉRIELLE ACTIVE · BRIDGE MAVLINK</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "10px" }}>
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontFamily: "monospace", color: "#38bdf8", fontWeight: 700 }}><Calculator size={14} /> 1. RÉSISTANCE DES MATÉRIAUX (RDM)</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontFamily: "monospace", color: "#75e2dc", fontWeight: 700 }}><Calculator size={14} /> 1. RÉSISTANCE DES MATÉRIAUX (RDM)</div>
           <select value={matId} onChange={e => setMatId(e.target.value)} style={{ background: "#0f172a", color: "#f8fafc", border: "1px solid #334155", borderRadius: "4px", padding: "5px 8px", fontSize: "11px" }}>{MATERIALS.map(m => <option key={m.id} value={m.id}>{m.name} (Re={m.yieldMpa} MPa)</option>)}</select>
-          <label style={{ fontSize: "11px", color: "#94a3b8", display: "flex", justifyContent: "space-between" }}><span>Facteur charge : <strong style={{ color: "#38bdf8" }}>{loadFactor.toFixed(1)} g</strong></span><input type="range" min="1.5" max="9" step="0.5" value={loadFactor} onChange={e => setLoadFactor(Number(e.target.value))} style={{ width: "100px" }} /></label>
+          <label style={{ fontSize: "11px", color: "#94a3b8", display: "flex", justifyContent: "space-between" }}><span>Facteur charge : <strong style={{ color: "#75e2dc" }}>{loadFactor.toFixed(1)} g</strong></span><input type="range" min="1.5" max="9" step="0.5" value={loadFactor} onChange={e => setLoadFactor(Number(e.target.value))} style={{ width: "100px" }} /></label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", fontFamily: "monospace", fontSize: "11px" }}>
             <div style={kpi}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>MOMENT FLÉCH.</small><strong>{physics.rootBendingMomentNm.toFixed(1)} N·m</strong></div>
             <div style={kpi}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>CONTRAINTE σ_max</small><strong>{physics.stressMpa.toFixed(1)} MPa</strong></div>
@@ -67,7 +67,7 @@ export function AeromindMechanicalEngineeringSuite({ config }: { config?: Partia
           </div>
         </div>
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontFamily: "monospace", color: "#38bdf8", fontWeight: 700 }}><Gauge size={14} /> 2. CENTRAGE (CG) &amp; INERTIE</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontFamily: "monospace", color: "#75e2dc", fontWeight: 700 }}><Gauge size={14} /> 2. CENTRAGE (CG) &amp; INERTIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", fontFamily: "monospace", fontSize: "11px" }}>
             <div style={kpi}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>MASSE TOTALE</small><strong>{physics.mass.toFixed(2)} kg</strong></div>
             <div style={kpi}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>POSITION X_CG</small><strong>{physics.cgMm} mm (28.4% MAC)</strong></div>
@@ -77,19 +77,19 @@ export function AeromindMechanicalEngineeringSuite({ config }: { config?: Partia
           </div>
         </div>
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontFamily: "monospace", color: "#38bdf8", fontWeight: 700 }}><Activity size={14} /> 3. AÉRODYNAMIQUE &amp; PROPULSION</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontFamily: "monospace", color: "#75e2dc", fontWeight: 700 }}><Activity size={14} /> 3. AÉRODYNAMIQUE &amp; PROPULSION</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", fontFamily: "monospace", fontSize: "11px" }}>
             <div style={kpi}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>SURFACE ALAIRE</small><strong>{physics.wingArea.toFixed(2)} m²</strong></div>
             <div style={kpi}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>CHARGE ALAIRE</small><strong>{physics.wingLoading.toFixed(1)} kg/m²</strong></div>
             <div style={kpi}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>DÉCROCHAGE V_s0</small><strong>{physics.stallSpeedMs.toFixed(1)} m/s</strong></div>
             <div style={kpi}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>FINESSE (L/D)</small><strong>{physics.liftDragRatio}</strong></div>
-            <div style={{ ...kpi, gridColumn: "1 / -1" }}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>POUSSÉE &amp; RATIO T/W ({physics.motors}x)</small><strong style={{ color: "#38bdf8" }}>{physics.staticThrustN} N · T/W = {physics.twRatio}</strong></div>
+            <div style={{ ...kpi, gridColumn: "1 / -1" }}><small style={{ color: "#94a3b8", display: "block", fontSize: "9px" }}>POUSSÉE &amp; RATIO T/W ({physics.motors}x)</small><strong style={{ color: "#75e2dc" }}>{physics.staticThrustN} N · T/W = {physics.twRatio}</strong></div>
           </div>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: "10px" }}>
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontFamily: "monospace", color: "#34d399", fontWeight: 700 }}><Usb size={14} /> ACTIVATION RÉELLE DES ACTIONNEURS &amp; PORTS MATÉRIELS</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", fontFamily: "monospace", color: "#34d399", fontWeight: 700 }}><Usb size={14} /> ACTIVATION DIRECTE DES ACTIONNEURS &amp; PORTS BRIDGE</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
             <select value={port} onChange={e => setPort(e.target.value)} style={{ flex: 1, minWidth: "180px", background: "#0f172a", color: "#f8fafc", border: "1px solid #334155", borderRadius: "4px", padding: "6px 8px", fontSize: "11px", fontFamily: "monospace" }}>
               <option value="udp://0.0.0.0:14550">Mallette GCS / MAVLink UDP (14550)</option>
@@ -106,11 +106,11 @@ export function AeromindMechanicalEngineeringSuite({ config }: { config?: Partia
           </div>
         </div>
         <div style={card}>
-          <div style={{ fontSize: "11px", fontFamily: "monospace", color: "#38bdf8", fontWeight: 700 }}>COUPLES DE SERRAGE ISO-898 &amp; HARNAIS MIL-DTL-27500</div>
+          <div style={{ fontSize: "11px", fontFamily: "monospace", color: "#75e2dc", fontWeight: 700 }}>COUPLES DE SERRAGE ISO-898 &amp; HARNAIS MIL-DTL-27500</div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", fontFamily: "monospace", color: "#cbd5e1" }}>
             <tbody>
-              <tr style={{ borderBottom: "1px solid #1e293b" }}><td style={{ padding: "4px" }}>M2.5 / M3 Avionique</td><td style={{ color: "#38bdf8" }}>0.65 – 1.15 N·m</td><td>Loctite 222 · CAN1/2</td></tr>
-              <tr style={{ borderBottom: "1px solid #1e293b" }}><td style={{ padding: "4px" }}>M4 Bâti Moteur</td><td style={{ color: "#38bdf8" }}>2.80 – 3.10 N·m</td><td>Loctite 243 · 14 AWG</td></tr>
+              <tr style={{ borderBottom: "1px solid rgba(117, 226, 220, 0.16)" }}><td style={{ padding: "4px" }}>M2.5 / M3 Avionique</td><td style={{ color: "#75e2dc" }}>0.65 – 1.15 N·m</td><td>Loctite 222 · CAN1/2</td></tr>
+              <tr style={{ borderBottom: "1px solid rgba(117, 226, 220, 0.16)" }}><td style={{ padding: "4px" }}>M4 Bâti Moteur</td><td style={{ color: "#75e2dc" }}>2.80 – 3.10 N·m</td><td>Loctite 243 · 14 AWG</td></tr>
               <tr><td style={{ padding: "4px" }}>M5 / M6 Emplanture</td><td style={{ color: "#34d399" }}>5.90 – 9.80 N·m</td><td>Loctite 243 · VBAT 10 AWG</td></tr>
             </tbody>
           </table>

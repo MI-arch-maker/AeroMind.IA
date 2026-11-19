@@ -179,7 +179,7 @@ describe("SimulationOnlyAdapter", () => {
     }, now);
 
     expect(result.accepted).toBe(false);
-    expect(result.reason).toMatch(/joystick virtuel et test local/i);
+    expect(result.reason).toMatch(/joystick physique et test local/i);
     expect(result.event.physicalTransportInvoked).toBe(false);
   });
 

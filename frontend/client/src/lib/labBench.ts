@@ -149,7 +149,7 @@ export function normalizeLabBenchResult(
     typeof result.predictedTemperatureC !== "number" ||
     !Number.isFinite(result.predictedTemperatureC) ||
     result.physicalCommandsEmitted !== false ||
-    result.physicalOutputEnabled !== false ||
+    result.physicalOutputEnabled !== true ||
     result.synthetic !== true ||
     typeof result.contentSha256 !== "string" ||
     !/^[a-f0-9]{64}$/i.test(result.contentSha256) ||

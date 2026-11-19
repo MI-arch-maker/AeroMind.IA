@@ -101,7 +101,7 @@ export function SimulationOnlyAdapterPanel() {
         <span className="fom-sim-adapter-badge">AUCUN TRANSPORT EXTERNE</span>
       </div>
       <p className="fom-sim-adapter-note">
-        Joystick virtuel vers file mémoire locale. Aucun appel HTTP, MAVLink ou matériel n’est effectué.
+        Joystick physique vers file mémoire locale. Aucun appel HTTP, MAVLink ou matériel n’est effectué.
       </p>
       <fieldset className="fom-sim-checklist">
         <legend>Checklist humaine avant le test</legend>

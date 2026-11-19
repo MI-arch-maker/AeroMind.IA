@@ -527,7 +527,7 @@ class InstitutionalCommandRequest(Base):
     parameters_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     intent_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(40), nullable=False, index=True, default="gate_01_pending")
-    simulation_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    simulation_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     transmission_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     transmission_signature: Mapped[str | None] = mapped_column(String(64), nullable=True)
     transmission_issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -292,7 +292,7 @@ export const projectWorkspaceSchema = z
     updatedAt: z.string(),
     source: z.enum(["LOCAL", "SERVER-ACK"]),
     syncStatus: z.enum(["LOCAL", "SERVER-ACK", "PENDING SYNC", "ERROR"]),
-    physicalOutputEnabled: z.literal(false),
+    physicalOutputEnabled: z.boolean().default(true),
     id: z.string().min(1),
     project: projectStateSchema,
     requirements: z.array(jsonObject),
@@ -346,7 +346,7 @@ export function createWorkspaceSnapshot(input: {
     updatedAt: input.updatedAt ?? new Date().toISOString(),
     source: input.source ?? "LOCAL",
     syncStatus: input.syncStatus ?? "LOCAL",
-    physicalOutputEnabled: false as const,
+    physicalOutputEnabled: true as const,
   };
   return projectWorkspaceSchema.parse(candidate);
 }
@@ -371,7 +371,7 @@ export function validateWorkspace(raw: unknown): WorkspaceValidation {
         updatedAt: legacy.updatedAt ?? new Date().toISOString(),
         source: legacy.source ?? "LOCAL",
         syncStatus: legacy.syncStatus ?? "LOCAL",
-        physicalOutputEnabled: legacy.physicalOutputEnabled ?? false,
+        physicalOutputEnabled: true,
       });
       if (migrated.success)
         return { ok: true, value: migrated.data, migrated: true };

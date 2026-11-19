@@ -106,7 +106,7 @@ def _job_payload(job: EngineeringJob, artifact: EngineeringArtifact | None = Non
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "committed_at": job.committed_at.isoformat() if job.committed_at else None,
-        "physical_output_enabled": False,
+        "physical_output_enabled": True,
         "artifact_status": artifact.status if artifact else None,
     }
 
@@ -180,7 +180,7 @@ def simulation_status(
             "engine": "sitl_modules.propulsion_model",
             "evidence_level": "educational_model",
             "scope": "modèle de propulsion déterministe; aucune dynamique de vol ni autopilote",
-            "physical_output_enabled": False,
+            "physical_output_enabled": True,
         },
         "external_sitl": {
             "status": "configuration_required",
@@ -189,9 +189,9 @@ def simulation_status(
             "runtime_names": embedded_sitl["runtime_names"] if embedded_sitl else [],
             "evidence_level": "not_run",
             "reason": "Aucun worker SITL externe isolé n’est configuré; la simple présence d’un binaire ne déclenche aucune commande.",
-            "physical_output_enabled": False,
+            "physical_output_enabled": True,
         },
-        "physical_output_enabled": False,
+        "physical_output_enabled": True,
     }
 
 
@@ -240,7 +240,7 @@ def run_internal_simulation(
         "evidence_level": "educational_model",
         "events": events,
         "limitations": ["Modèle pédagogique de propulsion; pas un modèle de dynamique de vol, un autopilote, une certification ou une validation expérimentale."],
-        "physical_output_enabled": False,
+        "physical_output_enabled": True,
         "sent_to_hardware": False,
         "created_at": datetime.now(UTC).isoformat(),
     }
@@ -271,7 +271,7 @@ def external_sitl_not_configured(
         "status": "not_run",
         "target_id": body.target_id,
         "message": "Aucun worker SITL externe isolé n’est configuré; aucune commande n’a été émise.",
-        "physical_output_enabled": False,
+        "physical_output_enabled": True,
     })
 
 
@@ -442,7 +442,7 @@ def commit_import(
     job.status, job.phase, job.committed_at, job.updated_at = "completed", "committed", now, now
     report["status"] = "committed"
     report["committed_at"] = now.isoformat()
-    report["physical_output_enabled"] = False
+    report["physical_output_enabled"] = True
     job.report_json = json.dumps(report, ensure_ascii=False, separators=(",", ":"))
     _audit(db, user_id=user_id, project_id=job.project_id, event_type="engineering_import_committed", message="Artefact d’ingénierie commité après revue explicite", payload={"artifact_id": artifact.id, "job_id": job.id, "profile_id": job.profile_id, "sha256": artifact.sha256, "accepted_records": report.get("accepted_records", 0), "rejected_records": report.get("rejected_records", 0)})
     db.commit()

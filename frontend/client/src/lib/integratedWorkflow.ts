@@ -42,7 +42,7 @@ export type WorkflowPrototype = z.infer<typeof workflowPrototypeSchema>;
 export const workflowRunSchema = z.object({
   id: z.string(), prototype_version_id: z.string(), prototype_id: z.string(), project_id: z.string(),
   status: workflowStateSchema, engine_version: z.string(), scenario: workflowScenarioSchema,
-  result: z.object({ evidence_level: z.literal("synthetic_demo"), physical_solver_connected: z.literal(false), hardware_control: z.literal(false), engine_version: z.string(), scenario_id: z.string(), input_units: z.record(z.string(), z.string()), distance_m: z.number(), duration_s: z.number(), waypoint_count: z.number(), seed: z.number(), note: z.string() }).nullable(),
+  result: z.object({ evidence_level: z.string(), physical_solver_connected: z.boolean(), hardware_control: z.boolean(), engine_version: z.string(), scenario_id: z.string(), input_units: z.record(z.string(), z.string()), distance_m: z.number(), duration_s: z.number(), waypoint_count: z.number(), seed: z.number(), note: z.string() }).nullable(),
   report_id: z.string().nullable(), replay_of: z.string().nullable(), created_at: z.string().nullable(), completed_at: z.string().nullable(),
 });
 export type WorkflowRun = z.infer<typeof workflowRunSchema>;

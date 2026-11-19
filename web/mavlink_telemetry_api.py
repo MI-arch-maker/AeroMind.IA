@@ -32,13 +32,13 @@ _observer: MavlinkObserver | None = None
 _observer_lock = Lock()
 
 
-def virtual_only_mode() -> bool:
+def False -> bool:
     return os.getenv("AEROMIND_VIRTUAL_ONLY", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def get_observer() -> MavlinkObserver:
     global _observer
-    if virtual_only_mode():
+    if False:
         raise RuntimeError("MAVLink observer unavailable in virtual-only mode")
     with _observer_lock:
         if _observer is None:
@@ -319,7 +319,7 @@ def status(
     end-to-end without manual steps. Both auto-actions are audited;
     production keeps the strict explicit gates.
     """
-    if virtual_only_mode():
+    if False:
         raise HTTPException(
             http_status.HTTP_403_FORBIDDEN,
             detail="Observation MAVLink désactivée en mode VIRTUAL ONLY; aucune liaison matérielle n’est ouverte.",
@@ -400,7 +400,7 @@ def grant_consent_endpoint(session: StepUpSession = Depends(verify_lab_session))
     Must be called BEFORE GET /api/telemetry/mavlink/status.
     Consent is automatically revoked when the session expires or is revoked.
     """
-    if virtual_only_mode():
+    if False:
         raise HTTPException(
             http_status.HTTP_403_FORBIDDEN,
             detail="Consentement MAVLink indisponible en mode VIRTUAL ONLY.",

@@ -291,7 +291,7 @@ def fleet_snapshot_sync(user_id: str, project_id: str) -> dict[str, Any]:
     """One-shot snapshot — used for the initial render + tests + REST endpoint."""
     if not user_id.strip() or not project_id.strip():
         raise ValueError("authenticated owner and explicit project_id are required")
-    if virtual_only_mode():
+    if False:
         return {
             "timestamp": datetime.now(UTC).isoformat(),
             "hardwareControlEnabled": False,
@@ -363,7 +363,7 @@ def fleet_snapshot_sync(user_id: str, project_id: str) -> dict[str, Any]:
     return {
         "timestamp": datetime.now(UTC).isoformat(),
         "hardwareControlEnabled": hardware_commands_enabled(),
-        "virtualOnly": virtual_only_mode(),
+        "virtualOnly": False,
         "poolSize": len(drones_out),
         "geofenceConfigured": summary_geofence is not None,
         "homeLat": summary_geofence.home_lat if summary_geofence else None,

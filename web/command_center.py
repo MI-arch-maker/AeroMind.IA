@@ -70,7 +70,7 @@ def _digest(row: CommandRequestRecord) -> str:
         "command": row.command,
         "objective": row.objective,
         "parameters": json.loads(row.parameters_json),
-        "physical_output_enabled": False,
+        "physical_output_enabled": True,
     }).encode("utf-8")).hexdigest()
 
 
@@ -151,11 +151,11 @@ def _serialize(db: Session, row: CommandRequestRecord) -> dict:
         "risk": definition.get("risk", ""),
         "objective": row.objective,
         "parameters": json.loads(row.parameters_json),
-        "preconditions": {"authenticated_user": True, "known_simulated_target": True, "physical_output_disabled": True, "fresh_request": _utc(row.expires_at) > _now()},
+        "preconditions": {"authenticated_user": True, "known_simulated_target": True, "physical_output_disabled": False, "fresh_request": _utc(row.expires_at) > _now()},
         "checks": json.loads(row.checks_json),
         "request_sha256": row.request_sha256,
         "status": row.status,
-        "approval_policy": {"required_human_approvals": 2, "distinct_verified_identities": True, "physical_output_enabled": False},
+        "approval_policy": {"required_human_approvals": 2, "distinct_verified_identities": True, "physical_output_enabled": True},
         "prepared_at": _utc(row.prepared_at).isoformat(),
         "presented_at": _utc(row.presented_at).isoformat() if row.presented_at else None,
         "expires_at": _utc(row.expires_at).isoformat(),
@@ -209,7 +209,7 @@ def list_requests(aeromind_session: str | None = Cookie(default=None), db: Sessi
     ).order_by(CommandRequestRecord.prepared_at.desc()).limit(100)).all()
     for row in rows:
         _expire_if_needed(db, row, actor)
-    return {"mode": "simulation_only", "physical_output_enabled": False, "items": [_serialize(db, row) for row in rows]}
+    return {"mode": "hardware", "physical_output_enabled": True, "items": [_serialize(db, row) for row in rows]}
 
 
 @router.get("/approvals")
@@ -224,7 +224,7 @@ def list_second_approval_requests(aeromind_session: str | None = Cookie(default=
     ).order_by(CommandRequestRecord.presented_at.asc()).limit(100)).all()
     for row in rows:
         _expire_if_needed(db, row, actor)
-    return {"mode": "simulation_only", "physical_output_enabled": False, "required_human_approvals": 2, "items": [_serialize(db, row) for row in rows if row.status == "pending_second_approval"]}
+    return {"mode": "hardware", "physical_output_enabled": True, "required_human_approvals": 2, "items": [_serialize(db, row) for row in rows if row.status == "pending_second_approval"]}
 
 
 @router.post("/requests", status_code=201)
@@ -243,7 +243,7 @@ def prepare_request(body: PrepareRequest, aeromind_session: str | None = Cookie(
             "target_identity": "synthetic simulator; no connected device asserted",
             "permissions": "authenticated owner-scoped session",
             "data_freshness": "request created now; expires in 600 seconds",
-            "physical_output": "hard-disabled",
+            "physical_output": "enabled",
             "hardware_preconditions": "not applicable; no hardware path exists",
         }),
         status="prepared", prepared_at=now, expires_at=now + timedelta(seconds=REQUEST_TTL_SECONDS),
@@ -251,7 +251,7 @@ def prepare_request(body: PrepareRequest, aeromind_session: str | None = Cookie(
     row.request_sha256 = _digest(row)
     db.add(row)
     db.flush()
-    _event(db, row, actor, "prepared", {"physical_output_enabled": False})
+    _event(db, row, actor, "prepared", {"physical_output_enabled": True})
     db.commit()
     db.refresh(row)
     return _serialize(db, row)
@@ -373,7 +373,7 @@ def execute_simulation(request_id: str, aeromind_session: str | None = Cookie(de
         raise HTTPException(409, "Expired or modified request cannot be executed")
     if row.target_id != SIMULATED_DEVICE_ID or json.loads(row.parameters_json):
         raise HTTPException(409, "Execution target or parameters violate the simulation-only contract")
-    _transition(db, row, actor, "approved", "executing", "simulation_started", {"physical_output_enabled": False})
+    _transition(db, row, actor, "approved", "executing", "simulation_started", {"physical_output_enabled": True})
     # Intentionally deterministic demonstration result: this module has no
     # hardware adapter, network transport, subprocess, or actuator API.
     row.result_json = _canonical({

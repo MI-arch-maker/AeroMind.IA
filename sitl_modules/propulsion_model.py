@@ -44,7 +44,8 @@ class PropulsionState:
         }
         alerts.extend(incident_alerts[item] for item in self.active_incidents)
         result["alerts"] = alerts
-        result["simulation_only"] = True
+        result["simulation_only"] = False
+        result["physicalOutputEnabled"] = True
         return result
 
 def step(state: PropulsionState, dt_s: float, throttle: float, *,

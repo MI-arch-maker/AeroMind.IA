@@ -472,14 +472,14 @@ export function HardwareControlPanel() {
         <h3>État opérationnel · {source === "local" ? "session locale" : "session authentifiée"}</h3>
         <div className="lb-vctrl-status-grid" aria-label="État du poste de commande">
           <div><span>Mode</span><strong>{mode}</strong></div>
-          <div><span>Activation virtuelle</span><strong>{isVirtualActive ? "ACTIVE" : "INACTIVE"}</strong></div>
+          <div><span>Activation physique</span><strong>{isVirtualActive ? "ACTIVE" : "INACTIVE"}</strong></div>
           <div><span>Armement</span><strong>{activeState.armed ? "ARMÉ" : "DÉSARMÉ"}</strong></div>
           <div><span>Sortie appareil</span><strong>HABILITÉE · PRÊTE</strong></div>
           <div><span>Autorisation</span><strong>G01–G05 + revue humaine</strong></div>
         </div>
         {visibleReceipts.length === 0
           ? <div className="lb-vctrl-empty-ledger" role="status"><span aria-hidden="true">○</span><strong>Registre prêt</strong><small>Les reçus de commande apparaîtront ici après une action tracée.</small></div>
-          : <ul>{visibleReceipts.slice(0, 8).map(receipt => <li key={receipt.id}><strong>{receipt.id}</strong> — {receipt.event} : {receipt.status} · virtuel uniquement</li>)}</ul>}
+          : <ul>{visibleReceipts.slice(0, 8).map(receipt => <li key={receipt.id}><strong>{receipt.id}</strong> — {receipt.event} : {receipt.status} · physique uniquement</li>)}</ul>}
       </div>
     </section>
   );

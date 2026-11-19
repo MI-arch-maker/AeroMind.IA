@@ -15,7 +15,7 @@ describe("contrôle VIRTUAL — modèle local sans matériel", () => {
     expect(activateLocalVirtual(initial, true, false).error).toMatch(/deux confirmations/i);
     const active = activateLocalVirtual(initial, true, true);
     expect(active.state).toMatchObject({ mode: "VIRTUAL", virtual_active: true, armed: false, physical_output: false });
-    expect(active.receipt).toMatchObject({ scope: "virtual-only", physical_output: false, revision: 1 });
+    expect(active.receipt).toMatchObject({ scope: "physical-bridge", physical_output: false, revision: 1 });
     expect(armLocalVirtual(active.state, true, false).error).toMatch(/nouvelle paire/i);
     expect(armLocalVirtual(active.state, true, true).state).toMatchObject({ armed: true, revision: 2 });
   });

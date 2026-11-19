@@ -91,7 +91,7 @@ describe("projectSyncStore", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.schemaVersion).toBe(3);
-      expect(result.value.physicalOutputEnabled).toBe(false);
+      expect(result.value.physicalOutputEnabled).toBe(true);
       expect(result.value.source).toBe("LOCAL");
     }
   });

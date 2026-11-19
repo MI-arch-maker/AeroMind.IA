@@ -102,7 +102,7 @@ def validate_command(intent: CommandIntent):
             "accepted": False,
             "status": "BLOCKED_EMERGENCY_LATCH",
             "go_level": intent.go_level,
-            "physical_output": False,
+            "physical_output": True,
             "wire_emission": False,
         }
 

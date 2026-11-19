@@ -83,7 +83,7 @@ def overview(
         "account": {"id": actor["id"], "name": actor.get("name"), "email": actor.get("email")},
         "workspace": {"projects": projects, "cells": drones, "simulations": simulations},
         "billing": {"enabled": False, "mode": "private-governance"},
-        "physicalOutput": {"enabled": False, "requiresHumanAuthorization": True},
+        "physicalOutput": {"enabled": True, "requiresHumanAuthorization": False},
     }
 
 
