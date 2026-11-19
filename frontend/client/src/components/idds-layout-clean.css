@@ -1,29 +1,52 @@
-/* Mise en page native propre : les drones occupent toute la largeur et la longueur du centre */
-.idds-preview-frame {
+/* Fond noir sur toute la longueur de l'ecran + drone centre au milieu */
+.idds-preview-frame,
+.mt-stage-shell,
+.mt-canvas-shell {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-height: 640px;
-  background: #040914;
-  border: 1px solid #16263d;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 760px !important;
+  background: #040914 !important;
   border-radius: 8px;
-  box-sizing: border-box;
 }
 
 .mt-viewport {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   width: 100% !important;
   height: 100% !important;
-  min-height: 640px !important;
+  min-height: 760px !important;
   flex: 1 1 auto !important;
   background: #040914 !important;
   background-image: none !important;
+}
+
+/* Force le wrapper R3F du Canvas Three.js a occuper 100% de la hauteur pour centrer le drone au milieu */
+.mt-viewport > div:first-of-type {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .mt-viewport canvas {
   width: 100% !important;
   height: 100% !important;
   display: block !important;
+}
+
+.mt-render-presets {
+  position: absolute !important;
+  top: 12px !important;
+  left: 12px !important;
+  width: 190px !important;
+  max-width: 190px !important;
+  height: auto !important;
+  z-index: 15 !important;
 }
 
 .mt-viewport-grid,

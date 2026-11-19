@@ -95,7 +95,8 @@ function CameraRig({
   model,
   view,
   resetKey,
-}: Pick<Props, "model" | "view" | "resetKey">) {
+  zoomScale = 1,
+}: Pick<Props, "model" | "view" | "resetKey"> & { zoomScale?: number }) {
   const { camera, invalidate, controls, size } = useThree();
   const orthoState = useRef<{ camera: THREE.OrthographicCamera; size: number; extent: number; designId: string; resetKey: number } | null>(null);
   useEffect(() => {
@@ -109,7 +110,7 @@ function CameraRig({
     camera.bottom = -size.height / 2;
     camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
       ? camera.zoom * minSize / previous.size
-      : minSize / (extent * 0.95);
+      : (minSize / (extent * 0.95)) * zoomScale;
     orthoState.current = { camera, size: minSize, extent, designId: model.designId, resetKey };
     camera.near = extent / 1000;
     camera.far = extent * 100;
@@ -119,7 +120,8 @@ function CameraRig({
   useEffect(() => {
     const d = directions[view];
     const extent = Math.max(0.5, model.extent);
-    camera.position.set(d[0] * extent * 0.68, d[1] * extent * 0.68, d[2] * extent * 0.68);
+    const dist = (extent * 0.68) / Math.max(0.35, zoomScale);
+    camera.position.set(d[0] * dist, d[1] * dist, d[2] * dist);
     camera.up.set(0, 1, 0);
     camera.lookAt(0, 0, 0);
     if (camera instanceof THREE.PerspectiveCamera) {
@@ -137,6 +139,7 @@ function CameraRig({
   }, [
     view,
     resetKey,
+    zoomScale,
     model.designId,
     model.extent,
     camera,
@@ -747,6 +750,7 @@ export function MechanicalTwinViewport(props: Props) {
     if (!part) return;
     props.onPartTransform?.(id, snapPartDelta(model, part, delta, { enabled: snapEnabled, mode: snapMode, increment: snapIncrement }));
   };
+  const [zoomScale, setZoomScale] = useState(1);
   const vector = (
     <MechanicalVectorView key={`${resetKey}-${view}`} {...props} autoRotate={rotationActive} renderPreset={renderPreset} onSelect={handleSelect} transformEnabled={canTransform} onPartTransform={applyPartTransform} snapEnabled={snapEnabled} snapMode={snapMode} snapIncrement={snapIncrement} />
   );
@@ -840,7 +844,7 @@ export function MechanicalTwinViewport(props: Props) {
               minDistance={model.extent * 0.2}
               maxDistance={model.extent * 8}
             />
-            <CameraRig model={model} view={view} resetKey={resetKey} />
+            <CameraRig model={model} view={view} resetKey={resetKey} zoomScale={zoomScale} />
           </Canvas>
         </TwinRendererBoundary>
       ) : (
@@ -860,6 +864,11 @@ export function MechanicalTwinViewport(props: Props) {
         <select value={snapIncrement} onChange={event => setSnapIncrement(Number(event.target.value))} aria-label="Pas de magnétisme">
           <option value="0.001">1 mm</option><option value="0.005">5 mm</option><option value="0.01">1 cm</option><option value="0.05">5 cm</option>
         </select>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px", marginTop: "2px" }}>
+          <button type="button" onClick={() => setZoomScale(z => Math.max(0.45, Number((z - 0.15).toFixed(2))))} aria-label="Diminuer la taille du drone">Zoom −</button>
+          <span style={{ fontSize: "10px", fontFamily: "monospace", color: "#94a3b8" }}>{Math.round(zoomScale * 100)}%</span>
+          <button type="button" onClick={() => setZoomScale(z => Math.min(2.6, Number((z + 0.15).toFixed(2))))} aria-label="Agrandir la taille du drone">Zoom +</button>
+        </div>
         <button type="button" className={rotationActive ? "is-active" : ""} aria-pressed={rotationActive} onClick={() => setRotationActive(value => !value)} aria-label="Faire tourner le drone sur lui-même">
           {rotationActive ? "Arrêter la rotation" : "Rotation sur elle-même"}
         </button>
