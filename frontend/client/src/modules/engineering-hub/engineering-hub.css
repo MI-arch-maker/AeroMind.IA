@@ -117,39 +117,3 @@
 
 /* Structure maître plein écran, surface responsive et zone CAO neutre. */
 .workspace-window-engineering-hub .workspace-window-content{display:flex;overflow:hidden}.workspace-window-engineering-hub .engineering-command{height:100%;min-height:0;flex:1;overflow:hidden}.ew-workbench-layout{flex:1;min-height:0}.ew-workbench-layout.ew-rail-hidden{grid-template-columns:minmax(0,1fr) 250px}.ew-workbench-layout.ew-inspector-hidden{grid-template-columns:232px minmax(0,1fr)}.ew-workbench-layout.ew-rail-hidden.ew-inspector-hidden{grid-template-columns:minmax(0,1fr)}.ew-project-rail,.ew-inspector{min-height:0;overflow:hidden}.ew-workbench-main{min-height:0;overflow:auto}.ew-scene-panel{min-height:0;flex:1}.ew-canvas-wrap{min-height:180px}.ew-canvas-wrap>.mt-viewport,.ew-canvas-wrap>.mt-vector-view,.ew-canvas-wrap>div,.ew-canvas-wrap svg.mt-vector-view{min-height:180px}.ew-content-card,.ew-factory-view{min-height:0;max-height:100%;overflow:auto}.ew-main-tabs{align-items:stretch}.ew-layout-controls{display:flex;align-items:center;gap:5px;margin-left:auto;padding:5px 0 5px 8px}.ew-layout-controls button{display:inline-flex;align-items:center;gap:5px;min-height:27px;padding:4px 7px;border:1px solid #2e4148;border-radius:4px;background:#17242a;color:#95a9ac;font-size:9px;white-space:nowrap;cursor:pointer}.ew-layout-controls button:hover,.ew-layout-controls button[aria-pressed="false"]{border-color:#4a7776;color:#c6eeea}.ew-profile-select{display:grid;gap:3px;min-width:200px;color:#85a2a5;font-size:9px}.ew-profile-select>span{font-weight:700;letter-spacing:.08em}.ew-selection-banner{flex:none}.ew-no-cell{position:relative;display:grid;align-content:center;justify-items:center;gap:10px;flex:1;min-height:300px;padding:clamp(24px,5vw,70px);overflow:auto;border:1px solid #293e44;border-radius:7px;background:radial-gradient(ellipse at center,rgba(35,71,75,.34),transparent 58%),linear-gradient(rgba(104,147,143,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(104,147,143,.055) 1px,transparent 1px),#121c21;background-size:auto,28px 28px,28px 28px,auto;text-align:center}.ew-no-cell:after{content:"";position:absolute;inset:12px;pointer-events:none;border:1px solid #38525966;border-radius:4px}.ew-no-cell-mark{display:grid;place-items:center;width:52px;height:52px;border:1px solid #46706f;border-radius:12px;background:#193134;color:#7ed4ca}.ew-no-cell>span{color:#75bbb4;font-size:9px;font-weight:800;letter-spacing:.15em}.ew-no-cell h2{margin:0;color:#e1eeee;font-size:clamp(19px,2vw,27px);letter-spacing:-.03em}.ew-no-cell>p{max-width:520px;margin:0;color:#98afb1;font-size:11px;line-height:1.65}.ew-no-cell-actions{display:flex;align-items:end;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:5px}.ew-no-cell-actions label{display:grid;gap:4px;text-align:left;color:#8fa7a9;font-size:9px}.ew-no-cell-actions select{min-width:240px;max-width:min(360px,70vw);height:31px;padding:5px 8px;border:1px solid #3b5359;border-radius:4px;background:#10191e;color:#d9e7e8}.ew-no-cell>small{margin-top:3px;color:#71898d;font-size:9px;letter-spacing:.04em}.ew-parts-view{flex:1}.ew-factory-view{flex:1}@media(max-width:1050px){.ew-workbench-layout{grid-template-columns:190px minmax(0,1fr) 210px}.ew-workbench-layout.ew-rail-hidden{grid-template-columns:minmax(0,1fr) 210px}.ew-workbench-layout.ew-inspector-hidden{grid-template-columns:190px minmax(0,1fr)}.ew-main-tabs{flex-wrap:wrap}.ew-layout-controls{margin-left:0}.ew-layout-controls button{font-size:8px}}@media(max-width:800px){.workspace-window-engineering-hub.is-maximized{inset:0!important;border-radius:0}.workspace-window-engineering-hub .workspace-window-bar{flex-basis:44px;min-height:44px}.workspace-window-engineering-hub .engineering-command{overflow:auto}.ew-workbench-layout,.ew-workbench-layout.ew-rail-hidden,.ew-workbench-layout.ew-inspector-hidden,.ew-workbench-layout.ew-rail-hidden.ew-inspector-hidden{grid-template-columns:minmax(0,1fr);min-height:0}.ew-project-rail{max-height:220px;border-right:0;border-bottom:1px solid var(--ew-line)}.ew-inspector{max-height:240px;border-left:0;border-top:1px solid var(--ew-line)}.ew-workbench-main{min-height:360px;overflow:visible}.ew-scene-panel{min-height:390px}.ew-canvas-wrap{min-height:230px}.ew-layout-controls{width:100%;justify-content:flex-end}.ew-profile-select{min-width:100%}.ew-selection-banner{display:grid;grid-template-columns:minmax(0,1fr) auto auto}.ew-selection-banner>div{grid-column:1/-1}.ew-no-cell{min-height:370px}}@media(max-width:520px){.ew-layout-controls{justify-content:flex-start;overflow:auto}.ew-selection-banner{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.ew-profile-select{grid-column:1/-1}.ew-no-cell-actions{display:grid;width:100%;justify-items:stretch}.ew-no-cell-actions label,.ew-no-cell-actions select{width:100%;max-width:none}.ew-no-cell-actions .ew-button{width:100%}.ew-scene-panel{min-height:400px}.ew-scene-toolbar{gap:7px}.ew-canvas-wrap{min-height:240px}}
-
-
-/* === UNIFORMISATION PLEIN ECRAN DE TOUS LES VIEWPORTS 3D / CAO / TWIN === */
-.mt-viewport,
-.idds-preview-frame,
-.vaw-stage,
-.cad-canvas-stage,
-.fdt-viewport {
-  height: 740px !important;
-  min-height: 740px !important;
-  max-height: none !important;
-  background: #040914 !important;
-  background-image: none !important;
-}
-
-.mt-viewport > div:first-of-type,
-.mt-viewport > div:first-of-type > div,
-.mt-viewport canvas {
-  width: 100% !important;
-  height: 740px !important;
-  min-height: 740px !important;
-  max-height: none !important;
-  display: block !important;
-}
-
-.mt-dimension {
-  top: auto !important;
-  bottom: 14px !important;
-}
-
-.mt-viewport-grid,
-.mt-technical-state,
-.mt-technical-meta,
-.mt-viewport-note {
-  display: none !important;
-}

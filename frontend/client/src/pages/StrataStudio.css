@@ -23,39 +23,3 @@
 .strata-app .strata-actions button:disabled, .strata-app .strata-library-card:disabled, .strata-app .strata-colors button:disabled { opacity: .5; cursor: not-allowed; }
 .strata-app .strata-toggle small { color: #7f9a9c; }
 @media (max-width: 720px) { .strata-app .strata-twin .mt-technical-meta { font-size: 8px; } }
-
-
-/* === UNIFORMISATION PLEIN ECRAN DE TOUS LES VIEWPORTS 3D / CAO / TWIN === */
-.mt-viewport,
-.idds-preview-frame,
-.vaw-stage,
-.cad-canvas-stage,
-.fdt-viewport {
-  height: 740px !important;
-  min-height: 740px !important;
-  max-height: none !important;
-  background: #040914 !important;
-  background-image: none !important;
-}
-
-.mt-viewport > div:first-of-type,
-.mt-viewport > div:first-of-type > div,
-.mt-viewport canvas {
-  width: 100% !important;
-  height: 740px !important;
-  min-height: 740px !important;
-  max-height: none !important;
-  display: block !important;
-}
-
-.mt-dimension {
-  top: auto !important;
-  bottom: 14px !important;
-}
-
-.mt-viewport-grid,
-.mt-technical-state,
-.mt-technical-meta,
-.mt-viewport-note {
-  display: none !important;
-}

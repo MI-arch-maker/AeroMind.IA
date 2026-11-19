@@ -1,4 +1,3 @@
-import "./idds-layout-clean.css";
 import { AeromindTwinRenderStage } from "./AeromindTwinRenderStage";
 import {
   useCallback,
