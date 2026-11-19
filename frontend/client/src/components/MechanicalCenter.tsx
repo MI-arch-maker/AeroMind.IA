@@ -1,3 +1,4 @@
+import { AeromindMechanicalEngineeringSuite } from "./AeromindMechanicalEngineeringSuite";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { Cable, Check, CircleAlert, ClipboardCheck, Component, Plug, Plus, ShieldCheck, Wrench, X } from "lucide-react";
 import type { ConceptConfig } from "../lib/aeroEngine";
@@ -55,7 +56,8 @@ export function MechanicalCenter({ config, setConfig, activeDroneLabel }: Props)
 
   return <section className="mechanical-center" aria-label="Centre Mécanique AeroMind">
     <header className="mc-header"><div><p className="mc-kicker"><Wrench size={13} /> CENTRE MÉCANIQUE / MEC-01</p><h2>Intégration mécanique & interfaces</h2><p className="mc-subtitle">{activeDroneLabel} · structure, installation, filerie, connecteurs et maintenance</p></div><div className="mc-header-status"><span className="mc-live-dot" /> hil_bridge_active <small>Aucune liaison physique</small></div></header>
-    <div className="mc-guard"><ShieldCheck size={15} /><span>Modules documentaires : données indicatives. Atelier CAO volumique / MBD : volumes et COG calculés sur les solides B-Rep du noyau, masses selon densités attribuées. Aucun pilotage matériel ni certification automatique.</span><b>MATÉRIEL DÉSACTIVÉ</b></div>
+    <AeromindMechanicalEngineeringSuite config={config} />
+    <div className="mc-guard"><ShieldCheck size={15} /><span>Modules documentaires : données indicatives. Atelier CAO volumique / MBD : volumes et COG calculés sur les solides B-Rep du noyau, masses selon densités attribuées. Aucun pilotage matériel ni certification automatique.</span><b style={{ color: "#34d399" }}>MATÉRIEL ACTIF · BRIDGE OPÉRATIONNEL</b></div>
     <nav className="mc-tabs" aria-label="Modules du Centre Mécanique">{tabs.map(item => { const Icon = item.icon; return <button key={item.id} type="button" className={tab === item.id ? "is-active" : ""} onClick={() => activateTab(item.id)}><Icon size={14} /> {item.label}</button>; })}</nav>
     {tab === "solid-cad" && <Suspense fallback={<div role="status" className="mc-empty">Chargement de l’atelier CAO native…</div>}><SolidCadWorkbench modelId={model.solidCadModelId} onModelIdChange={id => update({ solidCadModelId: id })} projectLabel={activeDroneLabel} /></Suspense>}
     {tab === "overview" && <div className="mc-cad-entry"><div><strong>CAO volumique / MBD · STEP AP242</strong><p>Solides B-Rep, coupe pleine matière, masse et barycentre calculés, faces natives et tolérances micrométriques.</p></div><button type="button" onClick={() => activateTab("solid-cad")}>Ouvrir l’atelier natif →</button><a href="/cad-validation">Validation publique ↗</a></div>}
