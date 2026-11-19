@@ -109,7 +109,7 @@ function CameraRig({
     camera.bottom = -size.height / 2;
     camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
       ? camera.zoom * minSize / previous.size
-      : minSize / (extent * 0.86);
+      : minSize / (extent * 1.05);
     orthoState.current = { camera, size: minSize, extent, designId: model.designId, resetKey };
     camera.near = extent / 1000;
     camera.far = extent * 100;

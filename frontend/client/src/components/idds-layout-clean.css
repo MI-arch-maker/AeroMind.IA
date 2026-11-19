@@ -1,4 +1,4 @@
-/* Mise en page propre sans deformation des icones ni filigrane derriere les drones */
+/* Restauration propre du viewport 3D et de la boite compacte RENDU */
 .idds-console {
   display: flex;
   flex-direction: column;
@@ -27,77 +27,42 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 620px;
+  min-height: 560px;
   padding: 12px;
-  background: #050c17;
+  background: #040812;
   border: 1px solid #1e293b;
   border-radius: 8px;
   box-sizing: border-box;
 }
 
-/* Seul le viewport principal du drone (et jamais les icones) occupe toute la hauteur/largeur */
-.mt-viewport-shell {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 580px !important;
-  background: #050c17 !important;
+/* Garder la boite RENDU compacte a gauche sans jamais couvrir le drone */
+.mt-render-presets {
+  width: 225px !important;
+  max-width: 225px !important;
+  height: auto !important;
+  min-height: auto !important;
+  z-index: 5 !important;
 }
 
-.mt-viewport-shell > canvas,
-.mt-viewport-shell > svg {
+/* Le Canvas 3D du drone occupe toute la surface libre */
+.mt-viewport {
+  position: relative !important;
   width: 100% !important;
-  height: 100% !important;
-  min-height: 560px !important;
+  height: 540px !important;
+  min-height: 540px !important;
+  background: #040812 !important;
+  background-image: none !important;
 }
 
-/* Masquer uniquement les bandeaux de secours et filigranes gris sombre */
+.mt-viewport canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+.mt-viewport-grid,
 .mt-technical-state,
 .mt-technical-meta,
 .mt-viewport-note {
   display: none !important;
-}
-
-/* Suppression definitive du fond degrade gris-bleu et cadrage centre du drone */
-.mt-viewport,
-.mt-viewport-grid {
-  background: #040812 !important;
-  background-image: none !important;
-}
-.mt-viewport-grid {
-  display: none !important;
-}
-
-/* Pleine hauteur du canvas 3D pour eliminer tout espace noir vide sous le drone */
-.mt-viewport {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 620px !important;
-  flex: 1 1 auto !important;
-}
-.mt-viewport canvas {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Forcer le Canvas 3D (.mt-viewport) a occuper 100% de la hauteur et de la largeur de son ecran */
-.mt-viewport {
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 680px !important;
-}
-.mt-viewport > div:first-of-type,
-.mt-viewport canvas {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 680px !important;
-}
-
-/* Eviter tout chevauchement entre le titre "Assemblage mecanique complet" et la barre ISO/Solide */
-.idds-preview-frame > header,
-.idds-preview-frame > div:first-child {
-  position: relative !important;
-  z-index: 4 !important;
-  margin-bottom: 8px !important;
 }
