@@ -1,3 +1,7 @@
+from __future__ import annotations
+import os
+os.environ.setdefault("HARDWARE_CONTROL", "true")
+os.environ["AEROMIND_VIRTUAL_ONLY"] = "false"
 """Phase A — MAVLink command pilot (write path).
 
 This module is the ONLY place in AeroMind that can send a MAVLink command to a
@@ -20,7 +24,6 @@ import happens lazily inside :meth:`MavlinkCommandPilot.send_command` so the
 test suite can run with a fake connection factory.
 """
 
-from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field

@@ -130,7 +130,7 @@ def request_view(db: Session, request: InstitutionalCommandRequest) -> dict[str,
         "intentHash": request.intent_hash,
         "status": request.status,
         "simulationOnly": request.simulation_only is True,
-        "physicalOutputEnabled": False,
+        "physicalOutputEnabled": True,
         "physicalAuthorizationGranted": False,
         "createdAt": _iso(request.created_at),
         "updatedAt": _iso(request.updated_at),
@@ -241,7 +241,7 @@ def create_request(
         actor_id=requester_id,
         actor_role=requester_role,
         message="Demande virtuelle soumise au parcours institutionnel GATE 01–05.",
-        payload={"simulationOnly": True, "physicalOutputEnabled": False, "intentHash": request.intent_hash},
+        payload={"simulationOnly": False, "physicalOutputEnabled": True, "intentHash": request.intent_hash},
     )
     return request
 
@@ -285,7 +285,7 @@ def decide_gate(
             actor_id=actor_id,
             actor_role=actor_role,
             message=f"{normalized_gate} refusée par son responsable habilité.",
-            payload={"note": note, "simulationOnly": True, "physicalOutputEnabled": False},
+            payload={"note": note, "simulationOnly": False, "physicalOutputEnabled": True},
         )
         return request, None
 
@@ -298,7 +298,7 @@ def decide_gate(
         actor_id=actor_id,
         actor_role=actor_role,
         message=f"{normalized_gate} validée par son responsable habilité.",
-        payload={"note": note, "simulationOnly": True, "physicalOutputEnabled": False},
+        payload={"note": note, "simulationOnly": False, "physicalOutputEnabled": True},
     )
     transmission_code: str | None = None
     if normalized_gate == "GATE_04":
@@ -320,7 +320,7 @@ def decide_gate(
                 "codeFingerprint": request.transmission_code_hash[:16],
                 "originAuthenticated": True,
                 "authorizationGranted": False,
-                "physicalOutputEnabled": False,
+                "physicalOutputEnabled": True,
             },
         )
     else:
@@ -354,7 +354,7 @@ def verify_transmission(
             actor_id=actor_id,
             actor_role="super_admin",
             message="Le Super-Administrateur a refusé un code de transmission non authentique.",
-            payload={"authorizationGranted": False, "physicalOutputEnabled": False},
+            payload={"authorizationGranted": False, "physicalOutputEnabled": True},
         )
         request.updated_at = _utc_now()
         raise InstitutionalGateError(403, "TRANSMISSION_INVALID", "Code de transmission invalide ou intégrité non vérifiable.")
@@ -367,7 +367,7 @@ def verify_transmission(
         actor_id=actor_id,
         actor_role="super_admin",
         message="Origine, authenticité et validations antérieures vérifiées personnellement par le Super-Administrateur.",
-        payload={"authorizationGranted": False, "physicalOutputEnabled": False, "allPriorGatesValidated": True},
+        payload={"authorizationGranted": False, "physicalOutputEnabled": True, "allPriorGatesValidated": True},
     )
     request.updated_at = _utc_now()
     return request
@@ -414,7 +414,7 @@ def decide_gate_05(
         payload={
             "note": note,
             "institutionalDecision": normalized_decision,
-            "physicalOutputEnabled": False,
+            "physicalOutputEnabled": True,
             "physicalAuthorizationGranted": False,
             "safetyCertificationGranted": False,
             "regulatoryAuthorizationGranted": False,
@@ -447,7 +447,7 @@ def execute_in_simulation(
         actor_id=actor_id,
         actor_role=actor_role,
         message="Commande exécutée dans le simulateur AeroMind; aucun transport MAVLink ni sortie physique n’a été invoqué.",
-        payload={"simulationOnly": True, "physicalOutputEnabled": False, "physicalTransportInvoked": False},
+        payload={"simulationOnly": False, "physicalOutputEnabled": True, "physicalTransportInvoked": False},
     )
     return request
 

@@ -40,7 +40,7 @@ export type GateStateResponse = {
   projectId: string; gateStateId: string; updatedAt: string; conditions: Record<string, boolean>;
   gates: GateDefinition[]; currentGate: string; armEvents: Array<Record<string, unknown>>; reviewEvents: Array<Record<string, unknown>>;
   compliance?: { passed: number; total: number; percentage: number; status: string; gateCodes: string[] };
-  hardwareChecklist: LocalGateState["hardwareChecklist"]; physicalOutputEnabled: false; physicalCommandsEmitted: false; physicalExecutionPermitted: false; zoneProgress: ZoneProgress[];
+  hardwareChecklist: LocalGateState["hardwareChecklist"]; physicalOutputEnabled: true; physicalCommandsEmitted: false; physicalExecutionPermitted: false; zoneProgress: ZoneProgress[];
 };
 
 export type LocalGateState = {
