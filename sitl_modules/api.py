@@ -3,6 +3,7 @@
 This module deliberately exposes telemetry metadata only. It never opens a
 MAVLink connection and never emits actuator commands.
 """
+from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from .propulsion_model import new_state, step

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import base64
 from .config import get_settings
 from .oidc import _verified, _session_token

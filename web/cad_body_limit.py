@@ -3,6 +3,7 @@
 This is a receive-stream bound, not just an UploadFile.read check. Upstream
 proxies should also impose request/concurrency quotas for production isolation.
 """
+from __future__ import annotations
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send

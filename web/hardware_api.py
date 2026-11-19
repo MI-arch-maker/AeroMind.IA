@@ -1,4 +1,5 @@
 """API de contrôle AeroMind : surface VIRTUAL de Preview; le chemin physique relève du protocole ICX/Aeromind."""
+from __future__ import annotations
 
 from typing import Literal
 

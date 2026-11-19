@@ -19,7 +19,8 @@ never sends a heartbeat, only the autopilot does.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from threading import RLock
 from typing import Any, Callable
 

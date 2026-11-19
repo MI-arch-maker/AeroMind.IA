@@ -7,7 +7,8 @@ maintenance due, battery cycles per project.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 from typing import Any
 
 from fastapi import APIRouter, Cookie, Header

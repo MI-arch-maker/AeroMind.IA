@@ -13,7 +13,8 @@ import hmac
 import json
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from typing import Any, Iterable
 from uuid import uuid4
 

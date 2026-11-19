@@ -292,7 +292,8 @@ def archive_project_for_superadmin(db: Session, project: Project, actor: dict[st
 
 def archive_project_for_user(db: Session, project: Project, actor: dict[str, Any], owner_email: str | None = None) -> dict[str, Any]:
     """Archive a project without deleting the user's durable Project row."""
-    from datetime import UTC, datetime
+    from datetime import datetime, timezone
+    UTC = timezone.utc
     if str(getattr(project, "status", "ACTIVE")).upper() == "ARCHIVED":
         return {"projectId": project.id, "status": "ARCHIVED", "alreadyArchived": True}
     archived = archive_project_for_superadmin(db, project, actor, "user_project_archived", owner_email)
@@ -313,7 +314,8 @@ def restore_project_archive(archive_id: str, actor: dict[str, Any], target_user_
     """Restore an archived project to its owner or an explicit target user."""
     from .models import AdminAccountRecord, Project, User, SuperAdminProjectArchive
     from .database import SessionLocal
-    from datetime import UTC, datetime
+    from datetime import datetime, timezone
+    UTC = timezone.utc
     if actor.get("role") not in {"super_admin", "admin"} and str(actor.get("email", "")).lower() != "mcgregoralvin14@gmail.com":
         raise ValueError("Super-Admin permission required")
     with SessionLocal() as db:

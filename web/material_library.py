@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import json
 import hashlib
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from typing import Any
 
 from fastapi import APIRouter, Cookie, Header, HTTPException, Query, Request

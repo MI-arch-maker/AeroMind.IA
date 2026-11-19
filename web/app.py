@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 os.environ.setdefault("HARDWARE_CONTROL", "true")
 os.environ["AEROMIND_VIRTUAL_ONLY"] = "false"
@@ -6,7 +7,8 @@ import os
 import shutil
 import time
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -589,7 +591,8 @@ def _workspace_db_get(key: str) -> dict | None:
     Expired rows are purged on access (lazy TTL enforcement).
     """
     try:
-        from datetime import UTC, datetime
+        from datetime import datetime, timezone
+        UTC = timezone.utc
 
         from sqlalchemy import delete, select
 
@@ -644,7 +647,8 @@ def _workspace_db_put(key: str, payload: dict, origin_ip: str | None = None) -> 
     # DB canonical
     try:
         import json as _json
-        from datetime import UTC, datetime, timedelta
+        from datetime import datetime, timedelta, timezone
+        UTC = timezone.utc
 
         from sqlalchemy import select
 
@@ -960,7 +964,8 @@ async def delete_local_workspace(request: Request, project_id: str | None = None
         ),
         remaining[0],
     )
-    from datetime import UTC, datetime
+    from datetime import datetime, timezone
+    UTC = timezone.utc
 
     workspace.update(
         {
@@ -3385,7 +3390,8 @@ def flights_history(
     minutes = int(request.query_params.get("minutes", "60"))
     if minutes < 1 or minutes > 1440:
         minutes = 60
-    from datetime import UTC, datetime, timedelta
+    from datetime import datetime, timedelta, timezone
+    UTC = timezone.utc
 
     since = datetime.now(UTC) - timedelta(minutes=minutes)
     with SessionLocal() as db:
@@ -3454,7 +3460,8 @@ def flights_export_csv(
     minutes = int(request.query_params.get("minutes", "60"))
     if minutes < 1 or minutes > 1440:
         minutes = 60
-    from datetime import UTC, datetime, timedelta
+    from datetime import datetime, timedelta, timezone
+    UTC = timezone.utc
 
     since = datetime.now(UTC) - timedelta(minutes=minutes)
     with SessionLocal() as db:

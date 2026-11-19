@@ -1,7 +1,9 @@
 """Owner-scoped REST mutations for projects, simulations, reports and LabBench sessions."""
+from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from uuid import uuid4
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response

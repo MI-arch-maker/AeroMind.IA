@@ -21,7 +21,10 @@ All new tables follow the cahier des charges requirements:
 - persisted flag on every measurement/result
 - Optimistic concurrency via revision/version + checksum
 """
-from datetime import UTC, datetime
+from __future__ import annotations
+from typing import Optional
+from datetime import datetime, timezone
+UTC = timezone.utc
 from enum import Enum
 from sqlalchemy import (
     DateTime, ForeignKey, Index, Integer, String, Text, Boolean,
@@ -91,11 +94,11 @@ class DroneRevision(Base):
     propulsion_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     units_json: Mapped[str] = mapped_column(Text, nullable=False, default='{"length":"m","mass":"kg"}')
     origin_type: Mapped[str] = mapped_column(String(20), nullable=False)  # catalog | sketch | imported
-    source_id: Mapped[str | None] = mapped_column(String(255), nullable=True)  # external reference
+    source_id: Mapped[Optional[str ]] = mapped_column(String(255), nullable=True)  # external reference
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, nullable=False
     )
-    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    activated_at: Mapped[Optional[datetime ]] = mapped_column(DateTime(timezone=True), nullable=True)
     __table_args__ = (
         UniqueConstraint("drone_id", "revision_number", name="uq_drone_revision_number"),
         Index("ix_drone_revisions_project_drone", "project_id", "drone_id"),
@@ -161,9 +164,9 @@ class TestRun(Base):
     state: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     source_type: Mapped[str] = mapped_column(String(20), nullable=False, default="synthetic")
     persisted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[Optional[datetime ]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime ]] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[Optional[str ]] = mapped_column(Text, nullable=True)
     summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
     __table_args__ = (
@@ -208,7 +211,7 @@ class Measurement(Base):
     quality: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
     source_type: Mapped[str] = mapped_column(String(20), nullable=False, default="synthetic")
     persisted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    calibration_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    calibration_id: Mapped[Optional[str ]] = mapped_column(String(100), nullable=True)
     origin: Mapped[str] = mapped_column(String(100), nullable=False, default="local")
     __table_args__ = (
         Index("ix_measurements_run_timestamp", "run_id", "timestamp_utc"),
@@ -240,7 +243,7 @@ class GeofenceRecord(Base):
     polygon_json: Mapped[str] = mapped_column(Text, nullable=False)
     max_altitude_m: Mapped[float] = mapped_column(nullable=False)
     min_altitude_m: Mapped[float] = mapped_column(default=0.0, nullable=False)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[Optional[str ]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False
@@ -282,7 +285,7 @@ class HardwareToken(Base):
     kind: Mapped[str] = mapped_column(String(40), nullable=False, default="command")
     issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consumed_at: Mapped[Optional[datetime ]] = mapped_column(DateTime(timezone=True), nullable=True)
     __table_args__ = (
         CheckConstraint(
             f"kind IN {_sql_in_list(TOKEN_KINDS)}",
@@ -311,15 +314,15 @@ class EventOutbox(Base):
     event_type: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
     schema_version: Mapped[str] = mapped_column(String(20), nullable=False, default="1.0")
     correlation_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    project_id: Mapped[str | None] = mapped_column(
+    project_id: Mapped[Optional[str ]] = mapped_column(
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    drone_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    revision_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    actor_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    drone_id: Mapped[Optional[str ]] = mapped_column(String(36), nullable=True, index=True)
+    revision_id: Mapped[Optional[str ]] = mapped_column(String(36), nullable=True)
+    actor_id: Mapped[Optional[str ]] = mapped_column(String(255), nullable=True, index=True)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[Optional[datetime ]] = mapped_column(DateTime(timezone=True), nullable=True)
     delivery_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     __table_args__ = (
         Index("ix_event_outbox_unpublished", "published_at", "occurred_at"),
@@ -340,17 +343,17 @@ class AuditEventExt(Base):
     actor_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     actor_role: Mapped[str] = mapped_column(String(40), nullable=False)
     action: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
-    resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    resource_id: Mapped[Optional[str ]] = mapped_column(String(255), nullable=True, index=True)
     decision: Mapped[str] = mapped_column(String(20), nullable=False)  # allow | deny | error
-    project_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    drone_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    project_id: Mapped[Optional[str ]] = mapped_column(String(36), nullable=True, index=True)
+    drone_id: Mapped[Optional[str ]] = mapped_column(String(36), nullable=True)
     correlation_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
     # P0-07 fix: tamper-evident hash chain (prev_hash + chain_hash)
-    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    chain_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prev_hash: Mapped[Optional[str ]] = mapped_column(String(64), nullable=True)
+    chain_hash: Mapped[Optional[str ]] = mapped_column(String(64), nullable=True)
     __table_args__ = (
         CheckConstraint("decision IN ('allow', 'deny', 'error')", name="ck_audit_events_ext_decision"),
         Index("ix_audit_events_ext_project_time", "project_id", "occurred_at"),
@@ -378,9 +381,9 @@ class GateValidation(Base):
     )
     # P1-05 fix: store the operator who REQUESTED the gate (for IAM-03 enforcement).
     # approve_gate now checks operator_id != session.user_id (was missing entirely).
-    operator_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    operator_id: Mapped[Optional[str ]] = mapped_column(String(255), nullable=True, index=True)
     evidence_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_at: Mapped[Optional[datetime ]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
     __table_args__ = (
         UniqueConstraint("project_id", "gate", name="uq_gate_per_project"),

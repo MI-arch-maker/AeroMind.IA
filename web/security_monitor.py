@@ -13,7 +13,8 @@ import re
 import shutil
 import socket
 import subprocess
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from pathlib import Path
 
 BASELINE_PATH = Path("data/aeromind-security-baseline.json")

@@ -3,6 +3,7 @@ No account identity or bootstrap secret is embedded here. This command validates
 that the administrator email is supplied out-of-band, then prints the required
 configuration key for an operator to set in their secret manager.
 """
+from __future__ import annotations
 
 import argparse
 import re

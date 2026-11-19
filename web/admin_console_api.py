@@ -1,3 +1,4 @@
+from __future__ import annotations
 from fastapi import Header
 """Restricted administrator workspace; never grants Super-Admin operations."""
 import json

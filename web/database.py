@@ -1,4 +1,5 @@
 """Database wiring for SQLite, PostgreSQL and MySQL/MariaDB deployments."""
+from __future__ import annotations
 
 import os
 import ssl

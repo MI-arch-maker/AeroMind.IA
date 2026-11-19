@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from threading import Lock
 from typing import Any
 
@@ -212,7 +213,8 @@ def _classify_state(observer: MavlinkObserver) -> str:
         if last_hb is None:
             return "offline"
         # Compute freshness
-        from datetime import datetime, UTC, timedelta
+        from datetime import datetime, timedelta, timezone
+        UTC = timezone.utc
         if isinstance(last_hb, str):
             try:
                 last_hb_dt = datetime.fromisoformat(last_hb.replace("Z", "+00:00"))

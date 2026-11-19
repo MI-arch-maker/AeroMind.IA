@@ -19,7 +19,8 @@ Safety constraints:
 
 import os
 from time import perf_counter
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field

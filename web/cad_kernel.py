@@ -21,35 +21,14 @@ import tempfile
 import time
 import uuid
 
-import cadquery as cq
 import numpy as np
-from OCP.BRep import BRep_Builder, BRep_Tool
-from OCP.BRepAdaptor import BRepAdaptor_Surface
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
-from OCP.BRepCheck import BRepCheck_Analyzer
-from OCP.BRepClass import BRepClass_FaceClassifier
-from OCP.BRepGProp import BRepGProp
-from OCP.BRepMesh import BRepMesh_IncrementalMesh
-from OCP.BRepPrimAPI import BRepPrimAPI_MakeHalfSpace
-from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
-from OCP.BRepTools import BRepTools
-from OCP.GProp import GProp_GProps
-from OCP.gp import gp_Dir, gp_Pln, gp_Pnt, gp_Pnt2d
-from OCP.IFSelect import IFSelect_RetDone
-from OCP.Interface import Interface_Static
-from OCP.STEPCAFControl import STEPCAFControl_Reader, STEPCAFControl_Writer
-from OCP.STEPConstruct import STEPConstruct_ExternRefs
-from OCP.STEPControl import STEPControl_AsIs
-from OCP.TCollection import TCollection_ExtendedString
-from OCP.TDF import TDF_AttributeIterator, TDF_Label, TDF_LabelSequence
-from OCP.TDataStd import TDataStd_Name
-from OCP.TDocStd import TDocStd_Document
-from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_IN, TopAbs_ON, TopAbs_REVERSED, TopAbs_SHELL, TopAbs_SOLID, TopAbs_VERTEX
-from OCP.TopExp import TopExp, TopExp_Explorer
-from OCP.TopLoc import TopLoc_Location
-from OCP.TopTools import TopTools_IndexedMapOfShape, TopTools_FormatVersion_VERSION_3
-from OCP.TopoDS import TopoDS, TopoDS_Shape
-from OCP.XCAFDoc import XCAFDoc_DocumentTool
+try:
+    import cadquery as cq
+    from OCP.BRep import BRep_Builder, BRep_Tool
+    HAS_OCCT = True
+except ImportError:
+    cq = None
+    HAS_OCCT = False
 
 KERNEL_LOCK = RLock()
 MAX_SOURCE_BYTES = 25 * 1024 * 1024
@@ -60,7 +39,7 @@ MAX_EXTENT_MM = 100000.0
 MESH_DEFLECTION_MM = 0.18
 MESH_ANGLE_RAD = 0.22
 KERNEL_INFO = {
-    "name": "Open CASCADE / OCP", "cadquery_version": cq.__version__,
+    "name": "Open CASCADE / OCP", "cadquery_version": getattr(cq, "__version__", "macos-local"),
     "properties_method": "BRepGProp adaptive integration (not mesh)",
     "integration_relative_tolerance": 1e-9,
     "mesh_deflection_mm": MESH_DEFLECTION_MM,

@@ -7,7 +7,8 @@ Battery cycles track charge/discharge events for cycle-life management.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 from typing import Any
 from uuid import uuid4
 

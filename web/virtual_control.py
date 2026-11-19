@@ -10,7 +10,8 @@ from __future__ import annotations
 from collections import OrderedDict, deque
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from threading import RLock
 from typing import Any
 

@@ -8,7 +8,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from uuid import uuid4
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException
