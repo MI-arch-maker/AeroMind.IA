@@ -13905,6 +13905,36 @@ export default function Home() {
           setProjects(current => current.map(item => item.id === activeProjectId
             ? { ...item, project: { ...item.project, lastUpdated: new Date().toLocaleString("fr-FR"), version: APP_VERSION }, config: simulationConfig, runId: persisted.runId }
             : item));
+          try {
+            const protoVersion = `${APP_VERSION}-${Date.now().toString(36).toUpperCase()}`;
+            const registeredProto = await registerPrototype({
+              projectId: resolvedProjectId,
+              name: simulationConfig.designName ?? project.name,
+              version: protoVersion,
+              config: simulationConfig,
+              requirements,
+              sketch: simulationConfig.customSketch,
+            });
+            const committedRun = await executeWorkflowRun(registeredProto.id, demoScenario());
+            setWorkflowRun(committedRun);
+          } catch {
+            // Maintient la persistance LabBench même si le workflow PLM est déjà à jour
+          }
+          try {
+            const protoVersion = `${APP_VERSION}-${Date.now().toString(36).toUpperCase()}`;
+            const registeredProto = await registerPrototype({
+              projectId: resolvedProjectId,
+              name: simulationConfig.designName ?? project.name,
+              version: protoVersion,
+              config: simulationConfig,
+              requirements,
+              sketch: simulationConfig.customSketch,
+            });
+            const committedRun = await executeWorkflowRun(registeredProto.id, demoScenario());
+            setWorkflowRun(committedRun);
+          } catch {
+            // Maintient la persistance LabBench même si le workflow PLM est déjà à jour
+          }
           setRunId(persisted.runId);
           void serverProjectsQuery.refetch();
           void serverRunsQuery.refetch();
