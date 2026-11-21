@@ -59,7 +59,7 @@ export function AeromindDroneRenderPlate({ design, preset, wingspanM, lengthM, m
   const scaleVal = 3.05 * zoom, tx = 460 - 160 * scaleVal, ty = 215 - 84 * scaleVal;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", flex: 1, minHeight: "560px", gap: "6px" }}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "6px", padding: "5px 8px", background: "#07101f", border: "1px solid #1e293b", borderRadius: "4px" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
           <button type="button" style={cBtn(magneticCam)} onClick={() => setMagneticCam(v => !v)}><Magnet size={12} /> {magneticCam ? "CAMÉRA MAGNÉTIQUE : ON" : "CAMÉRA MAGNÉTIQUE"}</button>
@@ -78,7 +78,7 @@ export function AeromindDroneRenderPlate({ design, preset, wingspanM, lengthM, m
       </div>
       <div onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onWheel={(e) => { e.preventDefault(); setZoom(z => Math.max(0.65, Math.min(1.8, +(z + (e.deltaY < 0 ? 0.08 : -0.08)).toFixed(2)))); }} style={{ cursor: dragging ? "grabbing" : "grab", userSelect: "none", touchAction: "none" }}>
         {preset === "xray-hybrid" ? (
-          <svg ref={svgRef} viewBox="0 0 920 430" preserveAspectRatio="none" style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}>
+          <svg ref={svgRef} viewBox="0 0 920 430" preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}>
             <rect width="920" height="430" fill="#030913" />
             <g transform={`translate(${tx},${ty}) scale(${scaleVal})`}>
               <line x1="95" y1="84" x2="225" y2="84" stroke="#0284c7" strokeWidth="2.2" />
@@ -92,7 +92,7 @@ export function AeromindDroneRenderPlate({ design, preset, wingspanM, lengthM, m
             <text x="24" y="408" fill="#94a3b8" fontFamily="monospace" fontSize="10">ROTATION SOURIS 360° | SPAN: {wingspanM.toFixed(2)} m | LENGTH: {lengthM.toFixed(2)} m | {motorCount} MOTEUR(S)</text>
           </svg>
         ) : preset === "night-ops" ? (
-          <svg ref={svgRef} viewBox="0 0 920 430" preserveAspectRatio="none" style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}>
+          <svg ref={svgRef} viewBox="0 0 920 430" preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}>
             <rect width="920" height="430" fill="#020907" />
             <circle cx="460" cy="215" r="180" fill="none" stroke="rgba(16,185,129,0.28)" strokeWidth="1.2" />
             <circle cx="460" cy="215" r="125" fill="none" stroke="rgba(16,185,129,0.22)" strokeDasharray="6 4" />
@@ -102,7 +102,7 @@ export function AeromindDroneRenderPlate({ design, preset, wingspanM, lengthM, m
             <text x="24" y="408" fill="#6ee7b7" fontFamily="monospace" fontSize="10">CAMÉRA MAGNÉTIQUE &amp; ROTATION 360° | SPAN {wingspanM.toFixed(2)} m | {motorCount} PROPULSEUR(S)</text>
           </svg>
         ) : preset === "studio-blueprint" ? (
-          <svg ref={svgRef} viewBox="0 0 920 430" preserveAspectRatio="none" style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}>
+          <svg ref={svgRef} viewBox="0 0 920 430" preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}>
             <rect width="460" height="430" fill="#060c16" /><rect x="460" width="460" height="430" fill="#072642" /><line x1="460" y1="0" x2="460" y2="430" stroke="#38bdf8" strokeWidth="1.5" />
             <g transform={`translate(${230 - 160 * (1.38 * zoom)},${215 - 84 * (1.38 * zoom)}) scale(${1.38 * zoom})`}>{pbrPaths.map((p, i) => (<path key={i} d={p.d} fill={p.color} fillOpacity={p.opacity} stroke="rgba(226,232,240,0.45)" strokeWidth="0.3" />))}</g>
             <g transform="translate(468,88) scale(1.38)">{bpPaths.map((p, i) => (<path key={i} d={p.d} fill="rgba(56,189,248,0.16)" stroke="#7dd3fc" strokeWidth="0.45" />))}</g>
@@ -111,7 +111,7 @@ export function AeromindDroneRenderPlate({ design, preset, wingspanM, lengthM, m
             <text x="480" y="28" fill="#7dd3fc" fontFamily="monospace" fontSize="11" fontWeight="bold">PLAN COTÉ ISO-128 · STANAG</text>
           </svg>
         ) : (
-          <svg ref={svgRef} viewBox="0 0 920 430" preserveAspectRatio="none" style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}>
+          <svg ref={svgRef} viewBox="0 0 920 430" preserveAspectRatio="xMidYMid meet" style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}>
             <rect width="920" height="430" fill="#060c16" /><ellipse cx="460" cy="346" rx="310" ry="42" fill="rgba(56,189,248,0.08)" stroke="rgba(148,163,184,0.28)" />
             <g transform={`translate(${tx},${ty}) scale(${scaleVal})`}>{pbrPaths.map((p, i) => (<path key={i} d={p.d} fill={p.color} fillOpacity={p.opacity} stroke="rgba(241,245,249,0.38)" strokeWidth="0.28" />))}</g>
             <text x="24" y="28" fill="#38bdf8" fontFamily="monospace" fontSize="12" fontWeight="bold">STUDIO PBR · CARBONE T700S &amp; TITANE — {design.label.toUpperCase()}</text>

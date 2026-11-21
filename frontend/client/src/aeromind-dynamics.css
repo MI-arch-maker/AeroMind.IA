@@ -1831,3 +1831,33 @@
   flex: 1 1 auto !important;
   min-height: 560px !important;
 }
+
+
+/* ============================================================================
+   REFONTE INTEGRALE DES VIEWPORTS DE CONCEPTION (100% HAUTEUR & LARGEUR)
+   ============================================================================ */
+.mt-viewport-stage::before,
+.mt-viewport-stage::after {
+  display: none !important;
+  content: none !important;
+}
+.mt-scene,
+.mt-viewport,
+.mt-viewport-stage,
+.idds-canvas-wrap,
+.idds-viewport,
+.pdc-center,
+.pdc-viewport,
+.mwb-center,
+.mwb-viewport-wrap {
+  height: 100% !important;
+  min-height: 600px !important;
+  flex: 1 1 auto !important;
+}
+.mt-viewport-stage > div,
+.mt-viewport-stage canvas,
+.mt-vector-view {
+  width: 100% !important;
+  height: 100% !important;
+  inset: 0 !important;
+}
