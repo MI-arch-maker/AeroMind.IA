@@ -293,7 +293,7 @@ function DroneMesh({ design, status, flightState, parts = [], exploded = false, 
 function Scene({ design, status, flightState, parts, interactive, showGrid, cameraZoom = 1, exploded = false, autoMotion = true }: PhysicalDroneModelProps & { interactive: boolean }) {
   const cameraScale = clamp(cameraZoom, 0.7, 2);
   return <Canvas
-    camera={{ position: [3.8 / cameraScale, 2.8 / cameraScale, 5.2 / cameraScale], fov: 38 }}
+    camera={{ position: [1.55 / cameraScale, 1.05 / cameraScale, 2.05 / cameraScale], fov: 46 }}
     dpr={[1, 1.5]}
     gl={{ antialias: true, alpha: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
     onCreated={({ gl }) => { gl.toneMapping = THREE.ACESFilmicToneMapping; gl.toneMappingExposure = 1.08; gl.shadowMap.type = THREE.PCFSoftShadowMap; }}
@@ -309,7 +309,7 @@ function Scene({ design, status, flightState, parts, interactive, showGrid, came
     <Suspense fallback={null}>
       <DroneMesh design={design} status={status} flightState={flightState} parts={parts} exploded={exploded} autoMotion={autoMotion} />
     </Suspense>
-    <OrbitControls makeDefault target={[0, 0.16, 0]} enablePan={false} enableZoom={interactive} minDistance={2.7 / cameraScale} maxDistance={8 / cameraScale} minPolarAngle={0.45} maxPolarAngle={Math.PI / 2.05} autoRotate={!interactive && status !== "flying"} autoRotateSpeed={0.38} />
+    <OrbitControls makeDefault target={[0, 0.16, 0]} enablePan={false} enableZoom={interactive} minDistance={0.85 / cameraScale} maxDistance={6.5 / cameraScale} minPolarAngle={0.45} maxPolarAngle={Math.PI / 2.05} autoRotate={!interactive && status !== "flying"} autoRotateSpeed={0.38} />
   </Canvas>;
 }
 

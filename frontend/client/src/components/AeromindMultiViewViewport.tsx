@@ -46,7 +46,7 @@ export function AeromindMultiViewViewport({ design, compact = false, constructio
   const btn = (active: boolean) => ({ display: "inline-flex", alignItems: "center", gap: "0.35rem", padding: "0.35rem 0.7rem", borderRadius: "0.3rem", fontSize: "11px", fontWeight: 600, cursor: "pointer", background: active ? "#1d4ed8" : "#0f172a", color: active ? "#fff" : "#94a3b8", border: active ? "1px solid #38bdf8" : "1px solid #1e293b" });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", background: "#060d18", border: "1px solid #1e293b", borderRadius: "0.5rem", padding: "0.65rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", minHeight: "100%", gap: "0.6rem", background: "#060d18", border: "1px solid #1e293b", borderRadius: "0.5rem", padding: "0.65rem" }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
         {presets.map((item) => {
           const Icon = item.icon;
@@ -60,7 +60,7 @@ export function AeromindMultiViewViewport({ design, compact = false, constructio
 
       {design ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-          <div style={{ minHeight: compact ? "220px" : "340px", background: "#03070e", border: "1px solid #1e293b", borderRadius: "0.4rem", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: "100%", height: compact ? "320px" : "calc(100vh - 210px)", minHeight: compact ? "320px" : "540px", background: "radial-gradient(ellipse at 50% 50%, #0b192c 0%, #03070e 100%)", border: "1px solid #1e293b", borderRadius: "0.5rem", overflow: "hidden", display: "flex", alignItems: "stretch", justifyContent: "stretch" }}>
             <AeromindDroneRenderPlate design={design} preset={preset} wingspanM={specs.wingspanMm / 1000} lengthM={specs.lengthMm / 1000} motorCount={specs.motorCount} />
           </div>
 

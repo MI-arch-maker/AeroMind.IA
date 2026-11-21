@@ -1774,3 +1774,30 @@
 .material-guidance-note{color:#849c9c;font-size:9px;line-height:1.45}
 @media(max-width:1050px){.materials-architecture-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.materials-architecture-footer{align-items:flex-start;flex-direction:column}}
 @media(max-width:620px){.materials-architecture-flow{padding:13px}.materials-architecture-heading{flex-direction:column}.materials-architecture-steps{grid-template-columns:1fr}.materials-architecture-steps>div{min-height:auto}.material-preview-card{grid-template-columns:46px minmax(0,1fr);gap:8px}.material-preview-visual{width:46px;height:46px}.materials-architecture-footer>div{width:100%}.materials-architecture-footer button{flex:1;justify-content:center}}
+
+
+/* Refonte plein écran : le canvas 3D du drone occupe 100% en longueur et largeur */
+.physical-drone-stage,
+.physical-drone-stage-3d,
+.physical-drone-canvas,
+.studio-physical-stage,
+.inspector-live-3d-stage,
+.flight-drone-preview {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 460px;
+  display: block !important;
+  position: relative;
+}
+.physical-drone-canvas > div,
+.physical-drone-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
+.catalog-visual-overlay .physical-drone-stage,
+.catalog-visual-overlay .physical-drone-canvas,
+.long-range-visual .physical-drone-stage,
+.long-range-visual .physical-drone-canvas {
+  min-height: 190px !important;
+}
