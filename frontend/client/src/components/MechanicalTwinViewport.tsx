@@ -807,11 +807,11 @@ export function MechanicalTwinViewport(props: Props) {
             dpr={[1, 1.5]}
             camera={{
               position: [
-                model.extent * 0.76,
-                model.extent * 0.54,
-                model.extent * 0.88,
+                model.extent * 0.48,
+                model.extent * 0.36,
+                model.extent * 0.58,
               ],
-              fov: 35,
+              fov: 44,
             }}
             gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true, localClippingEnabled: true }}
             onCreated={({ gl }) => {
