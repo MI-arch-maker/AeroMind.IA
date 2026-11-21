@@ -13783,8 +13783,15 @@ export default function Home() {
     }
     throw new Error("Le projet actif n’est pas encore disponible côté serveur.");
   };
-  const runSimulationNow = (candidateConfig: ConceptConfig = config) => {
+  const runSimulationNow = (rawCandidate?: ConceptConfig | unknown) => {
     if (isRunning) return;
+    const isValidConcept = Boolean(
+      rawCandidate &&
+      typeof rawCandidate === "object" &&
+      "airframe" in rawCandidate &&
+      !("nativeEvent" in rawCandidate)
+    );
+    const candidateConfig: ConceptConfig = isValidConcept ? (rawCandidate as ConceptConfig) : config;
     const virtualFallback = !candidateConfig.airframe || !candidateConfig.motorCount || candidateConfig.batteryWh <= 0;
     const simulationConfig = virtualFallback
       ? normalizeConcept({
@@ -13806,7 +13813,7 @@ export default function Home() {
           designName: "Démonstrateur HIL temps réel AeroMind",
         })
       : candidateConfig;
-    if (virtualFallback) setConfig(simulationConfig);
+    if (virtualFallback && !config.airframe) setConfig(simulationConfig);
 
     setIsRunning(true);
     setAction("simulation", {
@@ -13861,6 +13868,14 @@ export default function Home() {
             aeromindResult: safeResult,
             aeromindConfig: safeConfig,
           };
+          try {
+            const regCheck = await trpcUtils.labBench.registry.fetch(resolvedProjectId).catch(() => null);
+            if (!regCheck || !(regCheck as { registry?: unknown }).registry) {
+              await (trpcUtils.client as unknown as { labBench: { seedRegistry: { mutate: (input: { id: string }) => Promise<unknown> } } }).labBench.seedRegistry.mutate({ id: resolvedProjectId });
+            }
+          } catch {
+            // Poursuit même si le registre est déjà initialisé
+          }
           const persist = () => persistLabBenchMutation.mutateAsync(labBenchPayload);
           let persisted;
           try {
@@ -13920,6 +13935,14 @@ export default function Home() {
           });
           try {
             const resolvedProjectId = await resolveServerProjectId();
+            try {
+              const regCheck = await trpcUtils.labBench.registry.fetch(resolvedProjectId).catch(() => null);
+              if (!regCheck || !(regCheck as { registry?: unknown }).registry) {
+                await (trpcUtils.client as unknown as { labBench: { seedRegistry: { mutate: (input: { id: string }) => Promise<unknown> } } }).labBench.seedRegistry.mutate({ id: resolvedProjectId });
+              }
+            } catch {
+              // Ignore si déjà initialisé
+            }
             const retryResult = simulationResult && typeof simulationResult === "object"
               ? Object.fromEntries(Object.entries(simulationResult as Record<string, unknown>).filter(([, value]) => !Array.isArray(value) || value.length <= 200))
               : { status: "COMPLETED" };

@@ -181,7 +181,7 @@
 }
 .mt-workspace {
   display: grid;
-  grid-template-columns: 195px minmax(340px, 1fr) 250px;
+  grid-template-columns: minmax(210px, 16vw) minmax(420px, 1fr) minmax(260px, 20vw);
   align-items: stretch;
   min-height: 530px;
 }
@@ -240,7 +240,7 @@
 }
 .mt-tree-scroll {
   padding: 0 7px;
-  height: 380px;
+  height: 100%; min-height: 460px;
   overflow-y: auto;
   flex: 1;
   max-height: 540px;
@@ -337,7 +337,7 @@
 .mt-viewport {
   position: relative;
   flex: 1;
-  min-height: 480px;
+  height: 100%; min-height: 560px;
   overflow: hidden;
   background: radial-gradient(
     ellipse at 49% 42%,
