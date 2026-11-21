@@ -56,7 +56,7 @@ export function AeromindDroneRenderPlate({ design, preset, wingspanM, lengthM, m
   };
 
   const cBtn = (active = false) => ({ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", borderRadius: "4px", fontSize: "10px", fontFamily: "monospace", fontWeight: 600, cursor: "pointer", background: active ? "rgba(14,165,233,0.28)" : "rgba(15,23,42,0.88)", color: active ? "#ffffff" : "#94a3b8", border: active ? "1px solid #38bdf8" : "1px solid #1e293b" });
-  const scaleVal = 2.2 * zoom, tx = 460 - 160 * scaleVal, ty = 215 - 84 * scaleVal;
+  const scaleVal = 3.05 * zoom, tx = 460 - 160 * scaleVal, ty = 215 - 84 * scaleVal;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

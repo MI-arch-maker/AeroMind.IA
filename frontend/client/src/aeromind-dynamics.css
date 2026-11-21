@@ -1801,3 +1801,16 @@
 .long-range-visual .physical-drone-canvas {
   min-height: 190px !important;
 }
+
+
+/* MechanicalTwinViewport : occupation 100% hauteur/largeur sans bande noire inférieure */
+.mt-viewport,
+.mt-viewport > div,
+.mt-viewport canvas,
+.pdc-viewport,
+.mwb-viewport-wrap,
+.idds-viewport {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 540px !important;
+}

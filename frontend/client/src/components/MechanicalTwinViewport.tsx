@@ -120,8 +120,8 @@ function CameraRig({
         : view === "side"
           ? { width: depth, height }
           : { width: Math.hypot(width, depth), height: Math.hypot(height, Math.min(width, depth)) };
-    const fitWidth = Math.max(0.5, projected.width * 1.12);
-    const fitHeight = Math.max(0.5, projected.height * 1.12);
+    const fitWidth = Math.max(0.4, projected.width * 0.84);
+    const fitHeight = Math.max(0.4, projected.height * 0.84);
     camera.zoom = previous && previous.camera === camera && previous.extent === extent && previous.designId === model.designId && previous.resetKey === resetKey
       ? camera.zoom * minSize / previous.size
       : Math.min(size.width / fitWidth, size.height / fitHeight);
@@ -134,7 +134,7 @@ function CameraRig({
   useEffect(() => {
     const d = directions[view];
     const extent = Math.max(0.5, model.extent);
-    camera.position.set(d[0] * extent * 0.54, d[1] * extent * 0.54, d[2] * extent * 0.54);
+    camera.position.set(d[0] * extent * 0.40, d[1] * extent * 0.40, d[2] * extent * 0.40);
     camera.up.set(0, 1, 0);
     camera.lookAt(0, 0, 0);
     if (camera instanceof THREE.PerspectiveCamera) {
