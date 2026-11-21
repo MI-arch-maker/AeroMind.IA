@@ -252,7 +252,7 @@ import { hasDroneGeometry } from "../lib/droneSketchGeometry";
 import { useLanguage } from "../contexts/LanguageContext";
 import { translate, type AppLanguage } from "../lib/language";
 
-const APP_VERSION = "18.27.0";
+const APP_VERSION = "19.0.0";
 
 /** Profil canonique partagé par la bibliothèque et tous les postes 3D. */
 function industrialReferenceToDesign(reference: IndustrialDroneReference): DroneCatalogDesign {
